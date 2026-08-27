@@ -58,13 +58,19 @@ silex run Sources/BoidsSimulation.sx
 silex run Sources/PlotGallery.sx
 ```
 
-Pour une démonstration multi-fichiers, se placer dans son dossier garde les
-modules applicatifs relatifs à son `Main.sx` :
+Les démonstrations multi-fichiers se lancent elles aussi depuis la racine :
 
 ```sh
-cd Sources/FallingBodies
-silex run Main.sx
+silex run Sources/FallingBodies/Main.sx
+silex run Sources/RotatingPhysicsContainer/Main.sx
+silex run Sources/ShapeGallery2D/Main.sx
 ```
+
+Leurs imports courts restent relatifs au dossier de chaque source. Les mêmes
+modules restent accessibles par leur chemin canonique relatif au
+`Package.json`. Il est également possible de se placer dans le dossier d'une
+démonstration et de lancer `silex run Main.sx` : le manifeste parent et ses
+dépendances restent actifs.
 
 La galerie Plot présente plusieurs pages successives. Fermer la fenêtre
 courante ouvre la page suivante.
