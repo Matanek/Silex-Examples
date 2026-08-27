@@ -5,20 +5,31 @@ retrouver et lancer sans parcourir les dépôts de chaque package. Ce dépôt es
 un catalogue d'applications autonomes : les exemples techniques et les preuves
 d'API restent auprès de leur package propriétaire.
 
-## Parcours
+## Organisation
 
-- [`Showcases/`](Showcases/) : galeries visuelles et tours de fonctionnalités ;
-- [`Applications/`](Applications/) : petites applications complètes ;
-- [`Interactive/`](Interactive/) : simulations et scènes orientées jeu.
+Toutes les démonstrations vivent sous [`Sources/`](Sources/). Elles ne sont ni
+classées par package, ni rangées dans une catégorie subjective comme
+« showcase », « application » ou « interactif ». Leur nom exprime directement
+ce qu'elles montrent.
 
-Un showcase privilégie la variété et l'impact visuel d'une capacité. Une
-application accomplit une tâche cohérente que l'utilisateur pourrait reprendre
-comme point de départ. Une expérience interactive met en avant une boucle de
-simulation, des contrôles ou un comportement proche d'un jeu.
+Une démonstration autonome et compacte reste un fichier direct :
 
-Les thèmes techniques forment le second niveau de l'arborescence. Chaque
-parcours possède son propre `Package.json` et ne dépend donc pas des packages
-utilisés seulement par un autre parcours.
+```text
+Sources/AnalogClock.sx
+Sources/BoidsSimulation.sx
+```
+
+Une démonstration volumineuse ou composée de plusieurs fichiers reçoit un
+dossier et un point d'entrée `Main.sx` :
+
+```text
+Sources/FallingBodies/Main.sx
+Sources/EmbeddedWebView/Main.sx
+Sources/EmbeddedWebView/Web/...
+```
+
+Un unique [`Package.json`](Package.json) décrit le graphe nécessaire au
+catalogue complet.
 
 ## Préparer les packages publiés
 
@@ -35,12 +46,12 @@ silex install Plot
 Depuis la racine du dépôt :
 
 ```sh
-silex run Showcases/Canvas/ShapeGallery.sx
-silex run Applications/Terminal/QuickStart.sx
-silex run Interactive/Physics2D/RotatingContainer.sx
-silex run Interactive/Scene2D/Boids.sx
-silex run Interactive/Scene3D/World.sx
-silex run Showcases/Charts/Gallery.sx
+silex run Sources/AnalogClock.sx
+silex run Sources/TerminalWindow.sx
+silex run Sources/FallingBodies/Main.sx
+silex run Sources/BoidsSimulation.sx
+silex run Sources/World3D/Main.sx
+silex run Sources/PlotGallery.sx
 ```
 
 La galerie Plot présente plusieurs pages successives. Fermer la fenêtre

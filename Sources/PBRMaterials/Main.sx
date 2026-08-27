@@ -12,7 +12,7 @@ func create_scene(
     meshes:&Resources.Meshes3D,
     images:&Resources.Images
 ) {
-    let model = GLTF.load("../../Assets/Scene3D/Models/TestPBR.glb")
+    let model = GLTF.load("Assets/TestPBR.glb")
     let center = model.center()
     let radius = model.radius()
     let instance = Scene3D.instantiate(model, world, meshes, images)

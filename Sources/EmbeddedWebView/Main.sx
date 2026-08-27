@@ -12,9 +12,9 @@ func handle_web_messages(view:&Resources.WebView) {
 }
 
 func main() {
-    var site = WebView.Site.html(embed_text("EmbeddedFiles/index.html"))
-        ..add(WebView.Asset.css(embed_text("EmbeddedFiles/app.css"), path:"/app.css"))
-        ..add(WebView.Asset.javascript(embed_text("EmbeddedFiles/app.js"), path:"/app.js"))
+    var site = WebView.Site.html(embed_text("Web/index.html"))
+        ..add(WebView.Asset.css(embed_text("Web/app.css"), path:"/app.css"))
+        ..add(WebView.Asset.javascript(embed_text("Web/app.js"), path:"/app.js"))
 
     Application()
         ..add_plugin(Plugins.WebView(site))

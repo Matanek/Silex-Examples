@@ -215,7 +215,7 @@ func add_blender_trees(
     meshes:&Resources.Meshes3D,
     images:&Resources.Images
 ) {
-    let model = GLTF.load("../../Assets/Scene3D/Models/Tree.glb")
+    let model = GLTF.load("Assets/Tree.glb")
     let source = Scene3D.instantiate(model, world, meshes, images)
     var trees = world_scatter(18, 0x51_1E_80_21)
         ..vary_rotation(Math.Vec3(), Math.Vec3(0.0, Math.two_pi(), 0.0))
@@ -237,7 +237,7 @@ func add_grass(
     meshes:&Resources.Meshes3D,
     images:&Resources.Images
 ) {
-    let model = GLTF.load("../../Assets/Scene3D/Models/Grass.glb")
+    let model = GLTF.load("Assets/Grass.glb")
     let source = Scene3D.instantiate(model, world, meshes, images)
     var grass = world_scatter(5000, 0x51_1E_80_20)
         ..vary_rotation(Math.Vec3(), Math.Vec3(0.0, Math.two_pi(), 0.0))
@@ -282,7 +282,7 @@ func create_world(
     meshes:&Resources.Meshes3D,
     images:&Resources.Images
 ) {
-    let grid = images.add(PNG.load("../../Assets/Scene3D/Textures/DarkGrid.png"))
+    let grid = images.add(PNG.load("Assets/DarkGrid.png"))
     let cube = meshes.add(Scene3D.Geometry.Cube.make())
     add_ground(world, meshes, grid)
     add_rocks(world, cube, grid)

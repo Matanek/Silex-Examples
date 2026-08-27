@@ -7,26 +7,26 @@ automatique.
 
 ## Démonstrations retenues
 
-| Parcours | Démonstration | Origine |
+| Démonstration | Source actuelle | Origine |
 | --- | --- | --- |
-| Showcase / Animation | `EasingGallery.sx` | `GFX.Animation/Examples/EasingGallery.sx` |
-| Showcase / Animation | `Timeline2D.sx` | `GFX.Animation/Examples/Timeline2D.sx` |
-| Showcase / Animation | `Timeline3D.sx` | `GFX.Animation/Examples/Timeline3D.sx` |
-| Showcase / Canvas | `ShapeGallery.sx` | `GFX.Canvas/Examples/ShapeGallery2D.sx` |
-| Showcase / Charts | `Gallery.sx` | composition des exemples de `Plot/Examples/` |
-| Showcase / Scene3D | `CornellBox.sx` | `GFX.Scene3D/Examples/CornellBox.sx` |
-| Showcase / Scene3D | `Cube.sx` | `GFX.Scene3D/Examples/Cube.sx` |
-| Showcase / Scene3D | `Lighting.sx` | `GFX.Scene3D/Examples/Lighting.sx` |
-| Showcase / Scene3D | `Materials.sx` | `GFX.Scene3D/Examples/TestPBR.sx` |
-| Showcase / Scene3D | `ViewportAxis.sx` | `GFX.Scene3D/Examples/ViewportAxis.sx` |
-| Showcase / UI | `Showcase.sx` | `GFX.UI/Examples/VisualShowcase.sx` |
-| Application / Clock | `Clock.sx` | `GFX.Scene2D/Examples/Clock.sx` |
-| Application / Terminal | `QuickStart.sx` | `GFX.UI.Terminal/Examples/QuickStart.sx` |
-| Application / WebView | `EmbeddedFiles.sx` | `GFX.WebView/Examples/EmbeddedFiles.sx` |
-| Interactive / Physics2D | `RotatingContainer.sx` | `GFX.Physics/Examples/World2D/BoxRotation.sx` |
-| Interactive / Physics2D | `FallingBodies.sx` | adaptation de `GFX.Physics/Examples/World2D/FallingBody.sx` |
-| Interactive / Scene2D | `Boids.sx` | `GFX.Scene2D/Examples/Boids.sx` |
-| Interactive / Scene3D | `World.sx` | `GFX.Scene3D/Examples/World.sx` |
+| Analog clock | `Sources/AnalogClock.sx` | `GFX.Scene2D/Examples/Clock.sx` |
+| Boids simulation | `Sources/BoidsSimulation.sx` | `GFX.Scene2D/Examples/Boids.sx` |
+| Cornell box | `Sources/CornellBox.sx` | `GFX.Scene3D/Examples/CornellBox.sx` |
+| 3D cube | `Sources/Cube3D.sx` | `GFX.Scene3D/Examples/Cube.sx` |
+| Easing gallery | `Sources/EasingGallery.sx` | `GFX.Animation/Examples/EasingGallery.sx` |
+| Embedded WebView | `Sources/EmbeddedWebView/Main.sx` | `GFX.WebView/Examples/EmbeddedFiles.sx` |
+| Falling bodies | `Sources/FallingBodies/Main.sx` | adaptation de `GFX.Physics/Examples/World2D/FallingBody.sx` |
+| 3D lighting | `Sources/Lighting3D.sx` | `GFX.Scene3D/Examples/Lighting.sx` |
+| PBR materials | `Sources/PBRMaterials/Main.sx` | `GFX.Scene3D/Examples/TestPBR.sx` |
+| Plot gallery | `Sources/PlotGallery.sx` | composition des exemples de `Plot/Examples/` |
+| Rotating physics container | `Sources/RotatingPhysicsContainer/Main.sx` | `GFX.Physics/Examples/World2D/BoxRotation.sx` |
+| 2D shape gallery | `Sources/ShapeGallery2D/Main.sx` | `GFX.Canvas/Examples/ShapeGallery2D.sx` |
+| Terminal window | `Sources/TerminalWindow.sx` | `GFX.UI.Terminal/Examples/QuickStart.sx` |
+| 2D timeline | `Sources/Timeline2D.sx` | `GFX.Animation/Examples/Timeline2D.sx` |
+| 3D timeline | `Sources/Timeline3D.sx` | `GFX.Animation/Examples/Timeline3D.sx` |
+| UI control gallery | `Sources/UIControlGallery.sx` | `GFX.UI/Examples/VisualShowcase.sx` |
+| 3D viewport axis | `Sources/ViewportAxis3D.sx` | `GFX.Scene3D/Examples/ViewportAxis.sx` |
+| 3D world | `Sources/World3D/Main.sx` | `GFX.Scene3D/Examples/World.sx` |
 
 ## Commits d'origine
 
