@@ -1,0 +1,135 @@
+use GFX.Animation
+use GFX.Components
+use GFX.ECS
+use GFX.Physics
+use GFX.Resources
+use STD.Math
+use Container.rotate_offset
+use Model.PendingBody
+use Model.Showcase
+use Model.Simulation
+use Visuals.Visuals
+use Visuals.body_color
+
+func body_size(index:int, is_box:bool) Math.Vec2 {
+    let variant = index / 2 % 4
+    if is_box {
+        if variant == 0 { return Math.Vec2(0.22) }
+        if variant == 1 { return Math.Vec2(0.34, 0.20) }
+        if variant == 2 { return Math.Vec2(0.24, 0.38) }
+        return Math.Vec2(0.38, 0.28)
+    }
+    if variant == 0 { return Math.Vec2(0.22) }
+    if variant == 1 { return Math.Vec2(0.26) }
+    if variant == 2 { return Math.Vec2(0.30) }
+    return Math.Vec2(0.34)
+}
+
+public func body_radius(size:Math.Vec2, is_box:bool) float {
+    if !is_box { return size.x * 0.5 }
+    return Math.sqrt(
+        size.x * size.x + size.y * size.y
+    ) * 0.5
+}
+
+func spawn_clearance(
+    simulation:@Simulation,
+    local_position:Math.Vec2,
+    radius:float
+) float {
+    let position = simulation.container_center.add(rotate_offset(
+        local_position,
+        simulation.container_angle
+    ))
+    var clearance = Showcase.container_half_extent -
+        Math.max(Math.abs(local_position.x), Math.abs(local_position.y)) -
+        radius
+    for simulated in simulation.bodies {
+        let distance = Math.sqrt(
+            position.subtract(simulated.body.position()).length_squared()
+        )
+        clearance = Math.min(
+            clearance,
+            distance - radius - simulated.radius
+        )
+    }
+    return clearance
+}
+
+func random_spawn_position(
+    simulation:&Simulation,
+    radius:float
+) Math.Vec2 {
+    let limit = Showcase.spawn_half_extent - radius
+    var best = Math.Vec2()
+    var best_clearance = -Showcase.container_half_extent * 2.0
+    var candidate = 0
+    while candidate < Showcase.spawn_candidate_count {
+        let position = Math.Vec2(
+            simulation.randomizer.get_float(-limit, limit),
+            simulation.randomizer.get_float(-limit, limit)
+        )
+        let clearance = spawn_clearance(simulation, position, radius)
+        if clearance > best_clearance {
+            best = position
+            best_clearance = clearance
+        }
+        candidate++
+    }
+    return best
+}
+
+public func spawn_body_preview(
+    scene:&Resources.World,
+    simulation:&Simulation,
+    visuals:@Visuals,
+    index:int
+) {
+    let is_box = index % 2 == 1
+    let size = body_size(index, is_box)
+    let radius = body_radius(size, is_box)
+    let local_position = random_spawn_position(simulation, radius)
+    let local_rotation = (index % 5 - 2) as float * 0.12
+    let position = simulation.container_center.add(rotate_offset(
+        local_position,
+        simulation.container_angle
+    ))
+    let color = body_color(index)
+    let scale = Math.Vec2(
+        size.x / Showcase.base_body_size,
+        size.y / Showcase.base_body_size
+    )
+    let reveal = Animation.parallel([
+        Animation.scale_to(
+            scale,
+            Showcase.reveal_duration,
+            easing:Animation.Easing.cubic_out
+        ),
+        Animation.color_to(
+            color,
+            Showcase.reveal_duration,
+            easing:Animation.Easing.cubic_out
+        )
+    ])
+    var component = visuals.body_component(is_box)
+    component.color = color.with_alpha(0.0)
+    if is_box { component.layer = 1 }
+    scene.spawn(ECS.EntityRecipe()
+        ..with(PendingBody(
+            is_box:is_box,
+            size:size,
+            local_position:local_position,
+            local_rotation:local_rotation,
+            elapsed:0.0
+        ))
+        ..with(Components.Transform2D(
+            position:position.multiply(Showcase.pixels_per_meter),
+            rotation:simulation.container_angle + local_rotation,
+            scale:Math.Vec2()
+        ))
+        ..with(component)
+        ..with(reveal.play())
+    )
+    simulation.spawned_count++
+    simulation.pending_count++
+}

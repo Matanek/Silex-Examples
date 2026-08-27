@@ -1,0 +1,86 @@
+use GFX.Canvas
+use GFX.Color
+use STD.Math
+use Drawing.card
+use Drawing.dashed_line
+use Drawing.label
+
+public func paint_lines(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
+    card(painter, font, "Lignes, épaisseurs et extrémités", origin, Math.Vec2(275.0, 195.0))
+    let x = origin.x + 20.0
+    let y = origin.y + 55.0
+    painter.stroke(Canvas.Line(Math.Vec2(x, y), Math.Vec2(x + 92.0, y)), Canvas.Stroke(Color.sky_400(), 2.0))
+    painter.stroke(Canvas.Line(Math.Vec2(x + 118.0, y - 12.0), Math.Vec2(x + 118.0, y + 45.0)), Canvas.Stroke(Color.cyan_400(), 4.0))
+    painter.stroke(Canvas.Line(Math.Vec2(x + 150.0, y - 12.0), Math.Vec2(x + 230.0, y + 45.0)), Canvas.Stroke(Color.indigo_400(), 6.0))
+
+    let caps_y = y + 78.0
+    painter.stroke(
+        Canvas.Line(Math.Vec2(x, caps_y), Math.Vec2(x + 62.0, caps_y)),
+        Canvas.Stroke(Color.amber_400(), 10.0)..cap = Canvas.StrokeCap.butt
+    )
+    painter.stroke(
+        Canvas.Line(Math.Vec2(x + 84.0, caps_y), Math.Vec2(x + 146.0, caps_y)),
+        Canvas.Stroke(Color.orange_400(), 10.0)..cap = Canvas.StrokeCap.round
+    )
+    painter.stroke(
+        Canvas.Line(Math.Vec2(x + 168.0, caps_y), Math.Vec2(x + 230.0, caps_y)),
+        Canvas.Stroke(Color.rose_400(), 10.0)..cap = Canvas.StrokeCap.square
+    )
+    label(painter, font, "butt", Math.Vec2(x + 13.0, caps_y + 14.0), 11.0)
+    label(painter, font, "round", Math.Vec2(x + 96.0, caps_y + 14.0), 11.0)
+    label(painter, font, "square", Math.Vec2(x + 180.0, caps_y + 14.0), 11.0)
+}
+
+public func paint_dashes(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
+    card(painter, font, "Pointillés et tirets", origin, Math.Vec2(275.0, 195.0))
+    let start = origin.add(Math.Vec2(22.0, 62.0))
+    let end_x = origin.x + 252.0
+    dashed_line(painter, start, Math.Vec2(end_x, start.y), 2.0, 7.0, Canvas.Stroke(Color.sky_400(), 3.0))
+    dashed_line(painter, start.add(Math.Vec2(0.0, 38.0)), Math.Vec2(end_x, start.y + 38.0), 16.0, 9.0, Canvas.Stroke(Color.emerald_400(), 4.0))
+    dashed_line(painter, start.add(Math.Vec2(0.0, 78.0)), Math.Vec2(end_x, start.y + 78.0), 22.0, 7.0, Canvas.Stroke(Color.violet_400(), 5.0)..cap = Canvas.StrokeCap.round)
+    label(painter, font, "point · tiret · tiret arrondi", origin.add(Math.Vec2(22.0, 160.0)), 11.0)
+}
+
+public func paint_paths(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
+    card(painter, font, "Polylignes et jonctions", origin, Math.Vec2(275.0, 195.0))
+    var angular = Canvas.Path()
+        ..move_to(origin.add(Math.Vec2(24.0, 82.0)))
+        ..line_to(origin.add(Math.Vec2(62.0, 52.0)))
+        ..line_to(origin.add(Math.Vec2(100.0, 96.0)))
+        ..line_to(origin.add(Math.Vec2(140.0, 58.0)))
+        ..line_to(origin.add(Math.Vec2(178.0, 96.0)))
+        ..line_to(origin.add(Math.Vec2(246.0, 52.0)))
+    painter.stroke(
+        angular,
+        Canvas.Stroke(Color.blue_400(), 7.0)
+            ..cap = Canvas.StrokeCap.round
+            ..join = Canvas.StrokeJoin.round
+    )
+    var steps = Canvas.Path()
+        ..move_to(origin.add(Math.Vec2(25.0, 145.0)))
+        ..line_to(origin.add(Math.Vec2(70.0, 145.0)))
+        ..line_to(origin.add(Math.Vec2(70.0, 120.0)))
+        ..line_to(origin.add(Math.Vec2(125.0, 120.0)))
+        ..line_to(origin.add(Math.Vec2(125.0, 155.0)))
+        ..line_to(origin.add(Math.Vec2(245.0, 155.0)))
+    painter.stroke(steps, Canvas.Stroke(Color.green_400(), 3.0)..join = Canvas.StrokeJoin.bevel)
+}
+
+public func paint_curves(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
+    card(painter, font, "Courbes quadratiques et cubiques", origin, Math.Vec2(275.0, 195.0))
+    var quadratic = Canvas.Path()
+        ..move_to(origin.add(Math.Vec2(24.0, 105.0)))
+        ..quadratic_to(origin.add(Math.Vec2(78.0, 35.0)), origin.add(Math.Vec2(132.0, 105.0)))
+    painter.stroke(quadratic, Canvas.Stroke(Color.sky_400(), 5.0)..cap = Canvas.StrokeCap.round)
+
+    var cubic = Canvas.Path()
+        ..move_to(origin.add(Math.Vec2(145.0, 105.0)))
+        ..cubic_to(
+            origin.add(Math.Vec2(175.0, 35.0)),
+            origin.add(Math.Vec2(225.0, 165.0)),
+            origin.add(Math.Vec2(252.0, 88.0))
+        )
+    painter.stroke(cubic, Canvas.Stroke(Color.fuchsia_400(), 5.0)..cap = Canvas.StrokeCap.round)
+    label(painter, font, "quadratique", origin.add(Math.Vec2(42.0, 145.0)), 11.0)
+    label(painter, font, "Bézier cubique", origin.add(Math.Vec2(165.0, 145.0)), 11.0)
+}

@@ -1,0 +1,154 @@
+use GFX.Animation
+use GFX.Physics
+use STD.Math
+use Model.Showcase
+use Model.Simulation
+
+public func rotate_offset(offset:Math.Vec2, angle:float) Math.Vec2 {
+    let cosine = Math.cos(angle)
+    let sine = Math.sin(angle)
+    return Math.Vec2(
+        offset.x * cosine - offset.y * sine,
+        offset.x * sine + offset.y * cosine
+    )
+}
+
+func create_container_wall(
+    simulation:&Simulation,
+    offset:Math.Vec2,
+    size:Math.Vec2
+) Physics.RigidBody2D {
+    return simulation.world.create_rigid_body(
+        Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.kinematic
+        ..shape = Physics.Shape2D.box(Physics.Box2D(size))
+        ..position = offset
+        ..friction = 0.85
+        ..restitution = 0.1
+    )
+}
+
+public func create_container_walls(simulation:&Simulation) {
+    let half = Showcase.container_half_extent
+    let thickness = Showcase.container_wall_thickness
+    let offset = half + thickness * 0.5
+    let span = half * 2.0 + thickness * 2.0
+    simulation.container_left = create_container_wall(
+        simulation,
+        Math.Vec2(-offset, 0.0),
+        Math.Vec2(thickness, span)
+    )
+    simulation.container_right = create_container_wall(
+        simulation,
+        Math.Vec2(offset, 0.0),
+        Math.Vec2(thickness, span)
+    )
+    simulation.container_bottom = create_container_wall(
+        simulation,
+        Math.Vec2(0.0, -offset),
+        Math.Vec2(span, thickness)
+    )
+    simulation.container_top = create_container_wall(
+        simulation,
+        Math.Vec2(0.0, offset),
+        Math.Vec2(span, thickness)
+    )
+}
+
+public func update_container_walls(simulation:&Simulation, angle:float) {
+    let half = Showcase.container_half_extent
+    let thickness = Showcase.container_wall_thickness
+    let offset = half + thickness * 0.5
+    if var wall = simulation.container_left {
+        let target = rotate_offset(Math.Vec2(-offset, 0.0), angle)
+        wall.set_velocity(target.subtract(wall.position()).multiply(
+            1.0 / Showcase.fixed_delta
+        ))
+        wall.set_angular_velocity(
+            (angle - wall.rotation()) / Showcase.fixed_delta
+        )
+    }
+    if var wall = simulation.container_right {
+        let target = rotate_offset(Math.Vec2(offset, 0.0), angle)
+        wall.set_velocity(target.subtract(wall.position()).multiply(
+            1.0 / Showcase.fixed_delta
+        ))
+        wall.set_angular_velocity(
+            (angle - wall.rotation()) / Showcase.fixed_delta
+        )
+    }
+    if var wall = simulation.container_bottom {
+        let target = rotate_offset(Math.Vec2(0.0, -offset), angle)
+        wall.set_velocity(target.subtract(wall.position()).multiply(
+            1.0 / Showcase.fixed_delta
+        ))
+        wall.set_angular_velocity(
+            (angle - wall.rotation()) / Showcase.fixed_delta
+        )
+    }
+    if var wall = simulation.container_top {
+        let target = rotate_offset(Math.Vec2(0.0, offset), angle)
+        wall.set_velocity(target.subtract(wall.position()).multiply(
+            1.0 / Showcase.fixed_delta
+        ))
+        wall.set_angular_velocity(
+            (angle - wall.rotation()) / Showcase.fixed_delta
+        )
+    }
+}
+
+public func container_rotation() Animation.Timeline {
+    let pause = Showcase.container_turn_interval -
+        Showcase.container_turn_duration
+    let easing = Animation.Easing.in_out
+    return Animation.sequence([
+        Animation.rotate_to(
+            Math.pi() * 0.25,
+            Showcase.container_turn_duration,
+            easing:easing
+        ),
+        Animation.wait(pause),
+        Animation.rotate_to(
+            Math.pi() * 0.5,
+            Showcase.container_turn_duration,
+            easing:easing
+        ),
+        Animation.wait(pause),
+        Animation.rotate_to(
+            Math.pi() * 0.75,
+            Showcase.container_turn_duration,
+            easing:easing
+        ),
+        Animation.wait(pause),
+        Animation.rotate_to(
+            Math.pi(),
+            Showcase.container_turn_duration,
+            easing:easing
+        ),
+        Animation.wait(pause),
+        Animation.rotate_to(
+            Math.pi() * 1.25,
+            Showcase.container_turn_duration,
+            easing:easing
+        ),
+        Animation.wait(pause),
+        Animation.rotate_to(
+            Math.pi() * 1.5,
+            Showcase.container_turn_duration,
+            easing:easing
+        ),
+        Animation.wait(pause),
+        Animation.rotate_to(
+            Math.pi() * 1.75,
+            Showcase.container_turn_duration,
+            easing:easing
+        ),
+        Animation.wait(pause),
+        Animation.rotate_to(
+            Math.pi() * 2.0,
+            Showcase.container_turn_duration,
+            easing:easing
+        ),
+        Animation.wait(pause)
+    ])..loop()
+}

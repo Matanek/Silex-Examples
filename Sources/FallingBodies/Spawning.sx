@@ -1,0 +1,62 @@
+use GFX.Components
+use GFX.ECS
+use GFX.Resources
+use STD.Math
+use Model.BodyVisual
+use Model.Demo
+use Model.SimulatedBody
+use Model.Simulation
+use PhysicsBodies.create_dynamic_body
+use Visuals.Visuals
+use Visuals.body_color
+
+public func emit_body(
+    world:&Resources.World,
+    simulation:&Simulation,
+    visuals:@Visuals,
+    position:Math.Vec2
+) {
+    let index = simulation.bodies.count()
+    let velocity = Math.Vec2(
+        (simulation.randomizer.get_float() * 2.0 - 1.0) * 0.35,
+        0.0
+    )
+    var rotation = (simulation.randomizer.get_float() * 2.0 - 1.0) * 0.28
+    let angular_velocity =
+        (simulation.randomizer.get_float() * 2.0 - 1.0) * 0.9
+    let is_circle = index % 2 == 0
+    let body_scale = Demo.minimum_body_scale +
+        simulation.randomizer.get_float() *
+            (Demo.maximum_body_scale - Demo.minimum_body_scale)
+    if !is_circle { rotation = 0.0 }
+    var body = create_dynamic_body(
+        simulation,
+        is_circle,
+        body_scale,
+        position,
+        velocity,
+        rotation,
+        angular_velocity
+    )
+    var drawing = Components.Canvas(
+        visuals.drawing(is_circle),
+        Demo.body_pixels,
+        Demo.body_pixels
+    )
+    drawing.color = body_color(index)
+    drawing.layer = 1
+    if !is_circle { drawing.layer = 2 }
+    world.spawn(ECS.EntityRecipe()
+        ..with(BodyVisual(index:index))
+        ..with(Components.Transform2D(
+            position:body.position().multiply(Demo.pixels_per_meter),
+            rotation:body.rotation(),
+            scale:Math.Vec2(body_scale)
+        ))
+        ..with(drawing)
+    )
+    simulation.bodies.append(SimulatedBody(
+        body:body,
+        is_circle:is_circle
+    ))
+}

@@ -1,0 +1,96 @@
+use GFX.Components
+use GFX.ECS
+use GFX.Resources
+use STD.Math
+use Model.BodyVisual
+use Model.Demo
+use Model.Simulation
+use Model.SpawnSlots
+use PhysicsBodies.create_container
+use Spawning.emit_body
+use Visuals.Visuals
+use Visuals.stats_drawing
+
+public func create_scene(
+    world:&Resources.World,
+    simulation:&Simulation
+) {
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Camera2D())
+    )
+    create_container(world, simulation)
+    var stats = stats_drawing(simulation)
+    simulation.stats_display = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:Math.Vec2(16.0)))
+        ..with(Components.Canvas(stats, 220, 122)
+            ..anchor = Math.Vec2()
+            ..pivot = Math.Vec2()
+            ..space = Components.CanvasSpace.viewport
+            ..layer = 100
+        )
+    )
+}
+
+public func update_simulation(
+    time:@Resources.FrameTime,
+    world:&Resources.World,
+    simulation:&Simulation,
+    spawn_slots:&SpawnSlots,
+    visuals:@Visuals
+) {
+    simulation.emission_elapsed += time.delta
+    if simulation.emission_elapsed >= Demo.emission_interval &&
+        simulation.bodies.count() < Demo.maximum_bodies
+    {
+        spawn_slots.rebuild(simulation.bodies)
+        while simulation.emission_elapsed >= Demo.emission_interval &&
+            simulation.bodies.count() < Demo.maximum_bodies
+        {
+            if let x = spawn_slots.take(simulation.randomizer) {
+                emit_body(
+                    world,
+                    simulation,
+                    visuals,
+                    Math.Vec2(
+                        x,
+                        Demo.container_height * 0.5 - Demo.body_radius
+                    )
+                )
+            } else { break }
+            simulation.emission_elapsed -= Demo.emission_interval
+        }
+    }
+
+    simulation.accumulator = Math.min(
+        simulation.accumulator + time.delta,
+        Demo.fixed_delta * Demo.maximum_substeps as float
+    )
+    while simulation.accumulator >= Demo.fixed_delta {
+        simulation.physics.step(Demo.fixed_delta)
+        simulation.accumulator -= Demo.fixed_delta
+    }
+
+    simulation.stats_elapsed += time.delta
+    if simulation.stats_elapsed >= 0.25 {
+        world.update<Components.Canvas>(
+            simulation.stats_display,
+            func(display:&Components.Canvas) {
+                var drawing = stats_drawing(simulation)
+                display.replace(drawing)
+            }
+        )
+        simulation.stats_elapsed = 0.0
+    }
+}
+
+public func synchronize_visuals(
+    simulation:@Simulation,
+    bodies:ECS.Query<(@BodyVisual, &Components.Transform2D)>
+) {
+    for (visual, transform) in bodies {
+        let body = simulation.bodies[visual.index].body
+        transform.position = body.position().multiply(Demo.pixels_per_meter)
+        transform.rotation = body.rotation()
+    }
+}

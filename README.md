@@ -44,22 +44,26 @@ silex install Plot
 
 ## Lancer une démonstration
 
-Depuis la racine du dépôt :
+Les fichiers directs se lancent depuis la racine du dépôt :
 
 ```sh
 silex run Sources/AnalogClock.sx
 silex run Sources/ApplicationWindow.sx
 silex run Sources/DirectWindowInputLoop.sx
-silex run Sources/ApplicationGPUTriangle/Main.sx
-silex run Sources/DirectGPUTriangle/Main.sx
 silex run Sources/DedicatedSystemTerminal.sx
 silex run Sources/ComposedSystemTerminal.sx
 silex run Sources/ApplicationCommandConsole.sx
 silex run Sources/GeneratedHTMLWebView.sx
-silex run Sources/FallingBodies/Main.sx
 silex run Sources/BoidsSimulation.sx
-silex run Sources/World3D/Main.sx
 silex run Sources/PlotGallery.sx
+```
+
+Pour une démonstration multi-fichiers, se placer dans son dossier garde les
+modules applicatifs relatifs à son `Main.sx` :
+
+```sh
+cd Sources/FallingBodies
+silex run Main.sx
 ```
 
 La galerie Plot présente plusieurs pages successives. Fermer la fenêtre

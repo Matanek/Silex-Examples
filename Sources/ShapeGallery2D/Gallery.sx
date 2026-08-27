@@ -1,0 +1,57 @@
+use GFX.Canvas
+use GFX.Color
+use STD.Math
+use Drawing.Constants
+use Drawing.label
+use Shapes.paint_arcs
+use Shapes.paint_arrows
+use Shapes.paint_freeform
+use Shapes.paint_layering
+use Shapes.paint_polygons
+use Shapes.paint_rectangles
+use Shapes.paint_round_shapes
+use Shapes.paint_special_polygons
+use Strokes.paint_curves
+use Strokes.paint_dashes
+use Strokes.paint_lines
+use Strokes.paint_paths
+
+public func paint_gallery(painter:&Canvas.Painter, font:Canvas.Font) {
+    painter.fill(
+        Canvas.Rect(
+            Math.Vec2(),
+            Math.Vec2(
+                Constants.canvas_width as float,
+                Constants.canvas_height as float
+            ),
+            18.0
+        ),
+        Canvas.Fill.solid(Color.slate_950())
+    )
+    label(painter, font, "GFX.Canvas — galerie de formes 2D", Math.Vec2(28.0, 20.0), 26.0, Color.white())
+    label(
+        painter,
+        font,
+        "Primitives simples, chemins libres, styles, dégradés et composition",
+        Math.Vec2(30.0, 51.0),
+        13.0,
+        Color.slate_400()
+    )
+
+    let left = 20.0
+    let top = 86.0
+    let column = 288.0
+    let row = 208.0
+    paint_lines(painter, font, Math.Vec2(left, top))
+    paint_dashes(painter, font, Math.Vec2(left + column, top))
+    paint_paths(painter, font, Math.Vec2(left + column * 2.0, top))
+    paint_curves(painter, font, Math.Vec2(left + column * 3.0, top))
+    paint_round_shapes(painter, font, Math.Vec2(left, top + row))
+    paint_arcs(painter, font, Math.Vec2(left + column, top + row))
+    paint_rectangles(painter, font, Math.Vec2(left + column * 2.0, top + row))
+    paint_polygons(painter, font, Math.Vec2(left + column * 3.0, top + row))
+    paint_special_polygons(painter, font, Math.Vec2(left, top + row * 2.0))
+    paint_freeform(painter, font, Math.Vec2(left + column, top + row * 2.0))
+    paint_arrows(painter, font, Math.Vec2(left + column * 2.0, top + row * 2.0))
+    paint_layering(painter, font, Math.Vec2(left + column * 3.0, top + row * 2.0))
+}

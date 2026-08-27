@@ -1,0 +1,74 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use STD.Math
+use Model.Showcase
+
+public class Visuals {
+    var circle:Canvas
+    var box:Canvas
+    var container:Canvas
+
+    init() {
+        let body_center = Showcase.body_pixels as float * 0.5
+        let body_size = Showcase.base_body_size * Showcase.pixels_per_meter
+        let body_origin = body_center - body_size * 0.5
+        self.circle = Canvas()
+            ..paint(func(painter:&Canvas.Painter) {
+                painter.fill(
+                    Canvas.Circle(
+                        Math.Vec2(body_center),
+                        body_size * 0.5
+                    ),
+                    Canvas.Fill.solid(Color.white())
+                )
+            })
+        self.box = Canvas()
+            ..paint(func(painter:&Canvas.Painter) {
+                painter.fill(
+                    Canvas.Rect(
+                        Math.Vec2(body_origin),
+                        Math.Vec2(body_size),
+                        3.0
+                    ),
+                    Canvas.Fill.solid(Color.white())
+                )
+            })
+        self.container = Canvas()
+            ..paint(func(painter:&Canvas.Painter) {
+                painter.stroke(
+                    Canvas.Rect(Math.Vec2(4.0), Math.Vec2(460.0), 13.0),
+                    Canvas.Stroke(Color.violet_300(), 9.0)
+                )
+                painter.stroke(
+                    Canvas.Rect(Math.Vec2(12.0), Math.Vec2(444.0), 9.0),
+                    Canvas.Stroke(Color.cyan_300(), 2.0)
+                )
+            })
+    }
+
+    func body_component(is_box:bool) Components.Canvas {
+        var drawing = self.circle
+        if is_box { drawing = self.box }
+        return Components.Canvas(
+            drawing,
+            Showcase.body_pixels,
+            Showcase.body_pixels
+        )
+    }
+
+    func container_component() Components.Canvas {
+        return Components.Canvas(
+            self.container,
+            Showcase.container_pixels,
+            Showcase.container_pixels
+        )..layer = 2
+    }
+}
+
+public func body_color(index:int) Color {
+    if index % 4 == 0 { return Color.cyan_400() }
+    if index % 4 == 1 { return Color.sky_400() }
+    if index % 4 == 2 { return Color.violet_400() }
+    return Color.fuchsia_400()
+}

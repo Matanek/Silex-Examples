@@ -1,0 +1,176 @@
+use GFX.Animation
+use GFX.Components
+use GFX.ECS
+use GFX.Physics
+use GFX.Resources
+use STD.Math
+use Container.container_rotation
+use Container.create_container_walls
+use Container.rotate_offset
+use Container.update_container_walls
+use Model.BodyVisual
+use Model.ContainerVisual
+use Model.PendingBody
+use Model.Showcase
+use Model.SimulatedBody
+use Model.Simulation
+use Spawning.body_radius
+use Spawning.spawn_body_preview
+use Visuals.Visuals
+
+public func create_scene(
+    scene:&Resources.World,
+    simulation:&Simulation,
+    visuals:@Visuals
+) {
+    scene.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Camera2D())
+    )
+    create_container_walls(simulation)
+    scene.spawn(ECS.EntityRecipe()
+        ..with(ContainerVisual(center:Math.Vec2()))
+        ..with(Components.Transform2D())
+        ..with(visuals.container_component())
+        ..with(container_rotation().play())
+    )
+}
+
+public func spawn_bodies(
+    time:@Resources.FrameTime,
+    scene:&Resources.World,
+    simulation:&Simulation,
+    visuals:@Visuals
+) {
+    simulation.spawn_elapsed += time.delta
+    while simulation.spawn_elapsed >= Showcase.spawn_interval &&
+        simulation.spawned_count < Showcase.body_count
+    {
+        spawn_body_preview(
+            scene,
+            simulation,
+            visuals,
+            simulation.spawned_count
+        )
+        simulation.spawn_elapsed -= Showcase.spawn_interval
+    }
+}
+
+public func activate_bodies(
+    time:@Resources.FrameTime,
+    simulation:&Simulation,
+    commands:&Resources.Commands,
+    pending_visuals:ECS.Query<(
+        ECS.Entity,
+        &PendingBody,
+        &Components.Transform2D
+    )>
+) {
+    for (entity, pending, transform) in pending_visuals {
+        pending.elapsed += time.delta
+        transform.position = simulation.container_center.add(rotate_offset(
+            pending.local_position,
+            simulation.container_angle
+        )).multiply(Showcase.pixels_per_meter)
+        transform.rotation = simulation.container_angle +
+            pending.local_rotation
+        if pending.elapsed < Showcase.reveal_duration { continue }
+        var shape = Physics.Shape2D.circle(
+            Physics.Circle2D(pending.size.x * 0.5)
+        )
+        if pending.is_box {
+            shape = Physics.Shape2D.box(Physics.Box2D(pending.size))
+        }
+        var body = simulation.world.create_rigid_body(
+            Physics.RigidBody2DSettings()
+            ..shape = shape
+            ..position = transform.position.multiply(
+                1.0 / Showcase.pixels_per_meter
+            )
+            ..rotation = transform.rotation
+            ..friction = 0.65
+            ..restitution = 0.28
+            ..angular_damping = 0.16
+        )
+        let body_position = body.position()
+        let body_rotation = body.rotation()
+        commands.insert(
+            entity,
+            BodyVisual(index:simulation.bodies.count())
+        )
+        commands.remove<PendingBody>(entity)
+        commands.remove<Animation.Playback>(entity)
+        simulation.bodies.append(SimulatedBody(
+            body:body,
+            is_box:pending.is_box,
+            size:pending.size,
+            radius:body_radius(pending.size, pending.is_box),
+            previous_position:body_position,
+            current_position:body_position,
+            previous_rotation:body_rotation,
+            current_rotation:body_rotation
+        ))
+        simulation.pending_count--
+        if pending.is_box { simulation.box_count++ }
+    }
+}
+
+public func sync_container(
+    simulation:&Simulation,
+    containers:ECS.Query<(@ContainerVisual, @Components.Transform2D)>
+) {
+    for (container, transform) in containers {
+        simulation.container_center = container.center
+        if simulation.container_visual_angle > Math.pi() * 1.75 &&
+            transform.rotation < Math.pi() * 0.25
+        {
+            simulation.container_cycle_offset += Math.pi() * 2.0
+        }
+        simulation.container_visual_angle = transform.rotation
+        simulation.container_target_angle =
+            simulation.container_cycle_offset + transform.rotation
+    }
+}
+
+public func simulate(
+    time:@Resources.FrameTime,
+    simulation:&Simulation
+) {
+    simulation.elapsed += time.delta
+    simulation.accumulator = Math.min(
+        simulation.accumulator + time.delta,
+        Showcase.fixed_delta * 8.0
+    )
+    let step_count = Math.floor(
+        simulation.accumulator / Showcase.fixed_delta
+    ) as int
+    var step = 0
+    while simulation.accumulator >= Showcase.fixed_delta {
+        simulation.container_previous_angle = simulation.container_angle
+        var body_index = 0
+        while body_index < simulation.bodies.count() {
+            simulation.bodies[body_index].previous_position =
+                simulation.bodies[body_index].current_position
+            simulation.bodies[body_index].previous_rotation =
+                simulation.bodies[body_index].current_rotation
+            body_index++
+        }
+        simulation.container_angle = Math.lerp(
+            simulation.container_angle,
+            simulation.container_target_angle,
+            1.0 / (step_count - step) as float
+        )
+        update_container_walls(simulation, simulation.container_angle)
+        simulation.world.step(Showcase.fixed_delta)
+        body_index = 0
+        while body_index < simulation.bodies.count() {
+            simulation.bodies[body_index].current_position =
+                simulation.bodies[body_index].body.position()
+            simulation.bodies[body_index].current_rotation =
+                simulation.bodies[body_index].body.rotation()
+            body_index++
+        }
+        simulation.accumulator -= Showcase.fixed_delta
+        step++
+    }
+}

@@ -1,0 +1,93 @@
+use GFX.Components
+use GFX.ECS
+use GFX.Physics
+use GFX.Resources
+use STD.Math
+use Model.Demo
+use Model.Simulation
+use Visuals.container_drawing
+
+func create_fixed_box(
+    simulation:&Simulation,
+    position:Math.Vec2,
+    size:Math.Vec2
+) {
+    simulation.physics.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.box(Physics.Box2D(size))
+        ..position = position
+        ..friction = 0.9
+    )
+}
+
+public func create_container(world:&Resources.World, simulation:&Simulation) {
+    let half_width = Demo.container_width * 0.5
+    let half_height = Demo.container_height * 0.5
+    let boundary_half = Demo.boundary_depth * 0.5
+
+    create_fixed_box(
+        simulation,
+        Math.Vec2(-half_width - boundary_half, 0.0),
+        Math.Vec2(Demo.boundary_depth, Demo.container_height)
+    )
+    create_fixed_box(
+        simulation,
+        Math.Vec2(half_width + boundary_half, 0.0),
+        Math.Vec2(Demo.boundary_depth, Demo.container_height)
+    )
+    create_fixed_box(
+        simulation,
+        Math.Vec2(0.0, -half_height - boundary_half),
+        Math.Vec2(
+            Demo.container_width + Demo.boundary_depth * 2.0,
+            Demo.boundary_depth
+        )
+    )
+    create_fixed_box(
+        simulation,
+        Math.Vec2(0.0, half_height + boundary_half),
+        Math.Vec2(
+            Demo.container_width + Demo.boundary_depth * 2.0,
+            Demo.boundary_depth
+        )
+    )
+
+    var frame = container_drawing()
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(
+            frame,
+            (Demo.container_width * Demo.pixels_per_meter) as int,
+            (Demo.container_height * Demo.pixels_per_meter) as int
+        ))
+    )
+}
+
+public func create_dynamic_body(
+    simulation:&Simulation,
+    is_circle:bool,
+    scale:float,
+    position:Math.Vec2,
+    velocity:Math.Vec2,
+    rotation:float,
+    angular_velocity:float
+) Physics.RigidBody2D {
+    var settings = Physics.RigidBody2DSettings()
+        ..position = position
+        ..velocity = velocity
+        ..rotation = rotation
+        ..angular_velocity = angular_velocity
+        ..friction = 0.75
+        ..linear_damping = 0.2
+        ..angular_damping = 0.4
+    if is_circle {
+        settings.shape = Physics.Shape2D.circle(
+            Physics.Circle2D(Demo.body_radius * scale)
+        )
+    } else {
+        settings.shape = Physics.Shape2D.box(
+            Physics.Box2D(Math.Vec2(Demo.body_size * scale))
+        )
+    }
+    return simulation.physics.create_rigid_body(settings)
+}

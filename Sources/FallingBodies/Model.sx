@@ -1,0 +1,122 @@
+use GFX.ECS
+use GFX.Physics
+use STD.Math
+use STD.Randomizer
+
+public struct Demo {
+    static let window_width:int = 960
+    static let window_height:int = 640
+    static let pixels_per_meter:float = 100.0
+    static let container_width:float = 9.2
+    static let container_height:float = 6.0
+    static let boundary_depth:float = 4.0
+    static let body_radius:float = 0.05
+    static let body_size:float = 0.1
+    // Keeping the current size as the maximum preserves spawn-slot clearance;
+    // Transform2D scaling also keeps both Canvas drawings shared by every body.
+    static let minimum_body_scale:float = 0.75
+    static let maximum_body_scale:float = 1.0
+    static let body_pixels:int = 14
+    static let spawn_slot_count:int = 87
+    static let spawn_slot_spacing:float = 0.105
+    static let emission_interval:float = 0.02
+    static let fixed_delta:float = 1.0 / 60.0
+    static let maximum_substeps:int = 8
+    static let maximum_bodies:int = 3_000
+}
+
+public struct BodyVisual {
+    let index:int
+}
+
+public struct SimulatedBody {
+    var body:Physics.RigidBody2D
+    let is_circle:bool
+}
+
+public class Simulation {
+    var physics:Physics.World2D
+    var bodies:SimulatedBody[]
+    var randomizer:Randomizer
+    var accumulator:float
+    var emission_elapsed:float
+    var stats_elapsed:float
+    var stats_display:ECS.Entity
+
+    init() {
+        self.physics = Physics.World2D()
+        self.physics.set_profiling_enabled(true)
+        self.bodies = []
+        self.randomizer = Randomizer(0x51_1E_20_2D)
+        self.accumulator = 0.0
+        self.emission_elapsed = Demo.emission_interval
+        self.stats_elapsed = 0.0
+        self.stats_display = ECS.Entity()
+    }
+}
+
+public class SpawnSlots {
+    var available:bool[]
+    var remaining:int
+
+    init() {
+        self.available = []
+        self.remaining = 0
+    }
+
+    func position(index:int) float {
+        return (index as float -
+            (Demo.spawn_slot_count - 1) as float * 0.5) *
+            Demo.spawn_slot_spacing
+    }
+
+    func rebuild(bodies:@SimulatedBody[]) {
+        while self.available.count() < Demo.spawn_slot_count {
+            self.available.append(true)
+        }
+        var slot = 0
+        while slot < self.available.count() {
+            self.available[slot] = true
+            slot++
+        }
+        self.remaining = self.available.count()
+        let spawn_y = Demo.container_height * 0.5 - Demo.body_radius
+        let minimum_distance = Demo.spawn_slot_spacing
+        let minimum_distance_squared = minimum_distance * minimum_distance
+        for simulated in bodies {
+            let body_position = simulated.body.position()
+            let offset_y = body_position.y - spawn_y
+            if Math.abs(offset_y) < minimum_distance {
+                slot = 0
+                while slot < self.available.count() {
+                    if self.available[slot] {
+                        let offset_x = body_position.x - self.position(slot)
+                        if offset_x * offset_x + offset_y * offset_y <
+                            minimum_distance_squared
+                        {
+                            self.available[slot] = false
+                            self.remaining--
+                        }
+                    }
+                    slot++
+                }
+            }
+        }
+    }
+
+    func take(randomizer:&Randomizer) float? {
+        if self.remaining == 0 { return null }
+        let start = randomizer.get_int(0, self.available.count())
+        var offset = 0
+        while offset < self.available.count() {
+            let slot = (start + offset) % self.available.count()
+            if self.available[slot] {
+                self.available[slot] = false
+                self.remaining--
+                return self.position(slot)
+            }
+            offset++
+        }
+        return null
+    }
+}

@@ -1,0 +1,121 @@
+use GFX.Canvas
+use GFX.Color
+use STD.Math
+
+public struct Constants {
+    static let canvas_width:int = 1180
+    static let canvas_height:int = 760
+}
+
+public func label(
+    painter:&Canvas.Painter,
+    font:Canvas.Font,
+    value:str,
+    position:Math.Vec2,
+    size:float = 14.0,
+    color:Color = Color.slate_300()
+) {
+    painter.text(value, position, Canvas.TextStyle(size:size, color:color, font:font))
+}
+public func card(
+    painter:&Canvas.Painter,
+    font:Canvas.Font,
+    title:str,
+    position:Math.Vec2,
+    size:Math.Vec2
+) {
+    painter.fill(
+        Canvas.Rect(position, size, 14.0),
+        Canvas.Fill.solid(Color.slate_900().with_alpha(0.94))
+    )
+    painter.stroke(
+        Canvas.Rect(position, size, 14.0),
+        Canvas.Stroke(Color.slate_700(), 1.5)
+    )
+    label(
+        painter,
+        font,
+        title,
+        position.add(Math.Vec2(16.0, 12.0)),
+        15.0,
+        Color.slate_100()
+    )
+}
+
+public func dashed_line(
+    painter:&Canvas.Painter,
+    start:Math.Vec2,
+    end:Math.Vec2,
+    dash:float,
+    gap:float,
+    style:Canvas.Stroke
+) {
+    let direction = end.subtract(start)
+    let length = direction.length()
+    let axis = direction.normalized()
+    var distance = 0.0
+    while distance < length {
+        let dash_end = Math.min(distance + dash, length)
+        painter.stroke(
+            Canvas.Line(
+                start.add(axis.multiply(distance)),
+                start.add(axis.multiply(dash_end))
+            ),
+            style
+        )
+        distance += dash + gap
+    }
+}
+
+public func polygon(center:Math.Vec2, radius:float, sides:int, rotation:float = 0.0) Canvas.Path {
+    var path = Canvas.Path()
+    var index = 0
+    while index < sides {
+        let angle = rotation + Math.pi() * 2.0 * index as float / sides as float
+        let point = center.add(Math.Vec2(Math.cos(angle), Math.sin(angle)).multiply(radius))
+        if index == 0 { path.move_to(point) }
+        else { path.line_to(point) }
+        index++
+    }
+    path.close()
+    return path
+}
+
+public func star(center:Math.Vec2, outer:float, inner:float, points:int) Canvas.Path {
+    var path = Canvas.Path()
+    var index = 0
+    while index < points * 2 {
+        var radius = outer
+        if index % 2 == 1 { radius = inner }
+        let angle = -Math.pi() * 0.5 + Math.pi() * index as float / points as float
+        let point = center.add(Math.Vec2(Math.cos(angle), Math.sin(angle)).multiply(radius))
+        if index == 0 { path.move_to(point) }
+        else { path.line_to(point) }
+        index++
+    }
+    path.close()
+    return path
+}
+
+public func arrow(
+    painter:&Canvas.Painter,
+    start:Math.Vec2,
+    end:Math.Vec2,
+    color:Color,
+    width:float
+) {
+    let direction = end.subtract(start).normalized()
+    let normal = Math.Vec2(-direction.y, direction.x)
+    let head = Math.max(10.0, width * 2.5)
+    let shoulder = end.subtract(direction.multiply(head))
+    painter.stroke(
+        Canvas.Line(start, shoulder),
+        Canvas.Stroke(color, width)..cap = Canvas.StrokeCap.round
+    )
+    var tip = Canvas.Path()
+        ..move_to(end)
+        ..line_to(shoulder.add(normal.multiply(head * 0.55)))
+        ..line_to(shoulder.subtract(normal.multiply(head * 0.55)))
+        ..close()
+    painter.fill(tip, Canvas.Fill.solid(color))
+}
