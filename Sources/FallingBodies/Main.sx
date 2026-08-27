@@ -18,6 +18,10 @@ struct Demo {
     static let boundary_depth:float = 4.0
     static let body_radius:float = 0.05
     static let body_size:float = 0.1
+    // Keeping the current size as the maximum preserves spawn-slot clearance;
+    // Transform2D scaling also keeps both Canvas drawings shared by every body.
+    static let minimum_body_scale:float = 0.75
+    static let maximum_body_scale:float = 1.0
     static let body_pixels:int = 14
     static let spawn_slot_count:int = 87
     static let spawn_slot_spacing:float = 0.105
@@ -238,6 +242,7 @@ func body_color(index:int) Color {
 func create_dynamic_body(
     simulation:&Simulation,
     is_circle:bool,
+    scale:float,
     position:Math.Vec2,
     velocity:Math.Vec2,
     rotation:float,
@@ -253,11 +258,11 @@ func create_dynamic_body(
         ..angular_damping = 0.4
     if is_circle {
         settings.shape = Physics.Shape2D.circle(
-            Physics.Circle2D(Demo.body_radius)
+            Physics.Circle2D(Demo.body_radius * scale)
         )
     } else {
         settings.shape = Physics.Shape2D.box(
-            Physics.Box2D(Math.Vec2(Demo.body_size))
+            Physics.Box2D(Math.Vec2(Demo.body_size * scale))
         )
     }
     return simulation.physics.create_rigid_body(settings)
@@ -278,10 +283,14 @@ func emit_body(
     let angular_velocity =
         (simulation.randomizer.get_float() * 2.0 - 1.0) * 0.9
     let is_circle = index % 2 == 0
+    let body_scale = Demo.minimum_body_scale +
+        simulation.randomizer.get_float() *
+            (Demo.maximum_body_scale - Demo.minimum_body_scale)
     if !is_circle { rotation = 0.0 }
     var body = create_dynamic_body(
         simulation,
         is_circle,
+        body_scale,
         position,
         velocity,
         rotation,
@@ -299,7 +308,8 @@ func emit_body(
         ..with(BodyVisual(index:index))
         ..with(Components.Transform2D(
             position:body.position().multiply(Demo.pixels_per_meter),
-            rotation:body.rotation()
+            rotation:body.rotation(),
+            scale:Math.Vec2(body_scale)
         ))
         ..with(drawing)
     )
