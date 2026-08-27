@@ -1,27 +1,27 @@
 # Silex Examples
 
-`Silex-Examples` rassemble les démonstrations visuelles et interactives que
-l'on veut pouvoir retrouver et lancer sans parcourir les dépôts de chaque
-package. Ce dépôt est un catalogue d'applications autonomes : les illustrations
-techniques deviennent de la documentation et les preuves d'API restent sous
-`Tests/` dans leur package propriétaire.
+`Silex-Examples` gathers visual and interactive demonstrations so they can be
+found and launched without browsing each package repository. This repository
+is a catalog of standalone applications: focused technical illustrations
+belong in documentation, while API proofs remain under `Tests/` in their
+owning package.
 
-## Organisation
+## Organization
 
-Toutes les démonstrations vivent sous [`Sources/`](Sources/). Elles ne sont ni
-classées par package, ni rangées dans une catégorie subjective comme
-« showcase », « application » ou « interactif ». Leur nom exprime directement
-ce qu'elles montrent.
+All demonstrations live under [`Sources/`](Sources/). They are neither grouped
+by package nor placed in subjective categories such as “showcase”,
+“application”, or “interactive”. Each name directly expresses what the
+demonstration shows.
 
-Une démonstration autonome et compacte reste un fichier direct :
+A compact, self-contained demonstration remains a direct file:
 
 ```text
 Sources/AnalogClock.sx
 Sources/BoidsSimulation.sx
 ```
 
-Une démonstration volumineuse ou composée de plusieurs fichiers reçoit un
-dossier et un point d'entrée `Main.sx` :
+A large or multi-file demonstration receives a directory with a `Main.sx`
+entry point:
 
 ```text
 Sources/FallingBodies/Main.sx
@@ -29,10 +29,10 @@ Sources/EmbeddedWebView/Main.sx
 Sources/EmbeddedWebView/Web/...
 ```
 
-Un unique [`Package.json`](Package.json) décrit le graphe nécessaire au
-catalogue complet.
+A single [`Package.json`](Package.json) describes the dependency graph needed
+by the complete catalog.
 
-## Préparer les packages publiés
+## Installing published packages
 
 ```sh
 silex install GFX --suite
@@ -44,9 +44,9 @@ silex install HTML
 silex install Plot
 ```
 
-## Lancer une démonstration
+## Running a demonstration
 
-Les fichiers directs se lancent depuis la racine du dépôt :
+Run direct files from the repository root:
 
 ```sh
 silex run Sources/AnalogClock.sx
@@ -64,7 +64,7 @@ silex run Sources/SpatialAudio.sx
 silex run Sources/WebViewBridge.sx
 ```
 
-Les démonstrations multi-fichiers se lancent elles aussi depuis la racine :
+Run multi-file demonstrations from the repository root as well:
 
 ```sh
 silex run Sources/FallingBodies/Main.sx
@@ -72,41 +72,40 @@ silex run Sources/RotatingPhysicsContainer/Main.sx
 silex run Sources/ShapeGallery2D/Main.sx
 ```
 
-Leurs imports `Module.*` sont explicitement relatifs au dossier de chaque
-source. Le manifeste déclare `"sources": "Sources"`, donc ce dossier physique
-n'apparaît pas dans les noms de modules : `Sources/FallingBodies/Model.sx`
-devient `FallingBodies.Model` et reste accessible par
-`Package.FallingBodies.Model`. Il est également possible de se placer dans le
-dossier d'une démonstration et de lancer `silex run Main.sx` : le manifeste
-parent et ses dépendances restent actifs.
+Their `Module.*` imports are explicitly relative to each source directory. The
+manifest declares `"sources": "Sources"`, so this physical directory does not
+appear in module names: `Sources/FallingBodies/Model.sx` becomes
+`FallingBodies.Model` and remains accessible as
+`Package.FallingBodies.Model`. You can also enter a demonstration directory
+and run `silex run Main.sx`; the parent manifest and its dependencies remain
+active.
 
-La galerie Plot présente plusieurs pages successives. Fermer la fenêtre
-courante ouvre la page suivante.
+The Plot gallery presents several pages in sequence. Closing the current
+window opens the next page.
 
-Les exemples terminal forment une progression intentionnelle :
-`DedicatedSystemTerminal.sx` possède une fenêtre dédiée et son cycle de vie,
-`ComposedSystemTerminal.sx` intègre le shell dans une interface plus large, et
-`ApplicationCommandConsole.sx` expose des commandes définies par l'application
-sans donner accès au shell du système.
+The terminal examples form an intentional progression:
+`DedicatedSystemTerminal.sx` owns a dedicated window and lifecycle,
+`ComposedSystemTerminal.sx` embeds the shell in a broader interface, and
+`ApplicationCommandConsole.sx` exposes application-defined commands without
+granting access to the system shell.
 
-Les exemples WebView illustrent trois approches différentes :
-`EmbeddedWebView/Main.sx` embarque des fichiers web, tandis que
-`GeneratedHTMLWebView.sx` construit et sérialise son document avec le package
-`HTML` avant de l'afficher. `WebViewBridge.sx` montre l'échange bidirectionnel
-entre JavaScript et Silex.
+The WebView examples illustrate three different approaches:
+`EmbeddedWebView/Main.sx` embeds web files, while
+`GeneratedHTMLWebView.sx` builds and serializes its document with the `HTML`
+package before displaying it. `WebViewBridge.sx` demonstrates bidirectional
+communication between JavaScript and Silex.
 
-## Règle de synchronisation
+## Synchronization policy
 
-Une démonstration promue ici devient une application appartenant à ce dépôt.
-Elle peut diverger de l'ancien exemple de package dont elle est issue. Les
-sources ne sont pas recopiées automatiquement et aucune modification de ce
-dépôt ne doit être répercutée aveuglément vers un package.
+A demonstration promoted here becomes an application owned by this repository.
+It may diverge from the former package example it came from. Sources are not
+copied automatically, and changes from this repository must not be blindly
+propagated back to a package.
 
-La migration actuelle ne laisse plus aucun dossier `Examples/` dans les
-packages. Une future illustration focalisée rejoint la documentation de son
-package, une preuve automatisable rejoint `Tests/`, une application de
-démonstration pertinente rejoint ce dépôt et une charge de performance publique
-rejoint `Silex-Benchmarks`.
+The current migration leaves no `Examples/` directory in any package. Future
+focused illustrations belong in their package documentation, automatable
+proofs belong in `Tests/`, relevant demonstration applications belong in this
+repository, and public performance workloads belong in `Silex-Benchmarks`.
 
-Le fichier [`CATALOG.md`](CATALOG.md) conserve la provenance de la sélection et
-les autres candidats visuels repérés pendant l'inventaire.
+The [`CATALOG.md`](CATALOG.md) file records the origin of the selected examples
+and the other visual candidates identified during the inventory.
