@@ -19,12 +19,12 @@ struct Demo {
     static let body_radius:float = 0.05
     static let body_size:float = 0.1
     static let body_pixels:int = 14
-    static let spawn_slots:int = 87
-    static let spawn_spacing:float = 0.105
-    static let emission_interval:float = 0.025
+    static let spawn_slot_count:int = 87
+    static let spawn_slot_spacing:float = 0.105
+    static let emission_interval:float = 0.02
     static let fixed_delta:float = 1.0 / 60.0
     static let maximum_substeps:int = 8
-    static let maximum_bodies:int = 800
+    static let maximum_bodies:int = 3_000
 }
 
 struct BodyVisual {
@@ -87,6 +87,72 @@ class Simulation {
         self.emission_elapsed = Demo.emission_interval
         self.stats_elapsed = 0.0
         self.stats_display = ECS.Entity()
+    }
+}
+
+class SpawnSlots {
+    var available:bool[]
+    var remaining:int
+
+    init() {
+        self.available = []
+        self.remaining = 0
+    }
+
+    func position(index:int) float {
+        return (index as float -
+            (Demo.spawn_slot_count - 1) as float * 0.5) *
+            Demo.spawn_slot_spacing
+    }
+
+    func rebuild(bodies:@SimulatedBody[]) {
+        while self.available.count() < Demo.spawn_slot_count {
+            self.available.append(true)
+        }
+        var slot = 0
+        while slot < self.available.count() {
+            self.available[slot] = true
+            slot++
+        }
+        self.remaining = self.available.count()
+        let spawn_y = Demo.container_height * 0.5 - Demo.body_radius
+        let minimum_distance = Demo.spawn_slot_spacing
+        let minimum_distance_squared = minimum_distance * minimum_distance
+        for simulated in bodies {
+            let body_position = simulated.body.position()
+            let offset_y = body_position.y - spawn_y
+            if Math.abs(offset_y) < minimum_distance {
+                slot = 0
+                while slot < self.available.count() {
+                    if self.available[slot] {
+                        let offset_x = body_position.x - self.position(slot)
+                        if offset_x * offset_x + offset_y * offset_y <
+                            minimum_distance_squared
+                        {
+                            self.available[slot] = false
+                            self.remaining--
+                        }
+                    }
+                    slot++
+                }
+            }
+        }
+    }
+
+    func take(randomizer:&Randomizer) float? {
+        if self.remaining == 0 { return null }
+        let start = randomizer.get_int(0, self.available.count())
+        var offset = 0
+        while offset < self.available.count() {
+            let slot = (start + offset) % self.available.count()
+            if self.available[slot] {
+                self.available[slot] = false
+                self.remaining--
+                return self.position(slot)
+            }
+            offset++
+        }
+        return null
     }
 }
 
@@ -174,11 +240,13 @@ func create_dynamic_body(
     is_circle:bool,
     position:Math.Vec2,
     velocity:Math.Vec2,
+    rotation:float,
     angular_velocity:float
 ) Physics.RigidBody2D {
     var settings = Physics.RigidBody2DSettings()
         ..position = position
         ..velocity = velocity
+        ..rotation = rotation
         ..angular_velocity = angular_velocity
         ..friction = 0.75
         ..linear_damping = 0.2
@@ -198,27 +266,25 @@ func create_dynamic_body(
 func emit_body(
     world:&Resources.World,
     simulation:&Simulation,
-    visuals:@Visuals
+    visuals:@Visuals,
+    position:Math.Vec2
 ) {
     let index = simulation.bodies.count()
-    let slot = index % Demo.spawn_slots
-    let x = (slot as float - (Demo.spawn_slots - 1) as float * 0.5) *
-        Demo.spawn_spacing
     let velocity = Math.Vec2(
         (simulation.randomizer.get_float() * 2.0 - 1.0) * 0.35,
         0.0
     )
+    var rotation = (simulation.randomizer.get_float() * 2.0 - 1.0) * 0.28
     let angular_velocity =
         (simulation.randomizer.get_float() * 2.0 - 1.0) * 0.9
     let is_circle = index % 2 == 0
+    if !is_circle { rotation = 0.0 }
     var body = create_dynamic_body(
         simulation,
         is_circle,
-        Math.Vec2(
-            x,
-            Demo.container_height * 0.5 - Demo.body_radius
-        ),
+        position,
         velocity,
+        rotation,
         angular_velocity
     )
     var drawing = Components.Canvas(
@@ -324,14 +390,30 @@ func update_simulation(
     time:@Resources.FrameTime,
     world:&Resources.World,
     simulation:&Simulation,
+    spawn_slots:&SpawnSlots,
     visuals:@Visuals
 ) {
     simulation.emission_elapsed += time.delta
-    while simulation.emission_elapsed >= Demo.emission_interval &&
+    if simulation.emission_elapsed >= Demo.emission_interval &&
         simulation.bodies.count() < Demo.maximum_bodies
     {
-        emit_body(world, simulation, visuals)
-        simulation.emission_elapsed -= Demo.emission_interval
+        spawn_slots.rebuild(simulation.bodies)
+        while simulation.emission_elapsed >= Demo.emission_interval &&
+            simulation.bodies.count() < Demo.maximum_bodies
+        {
+            if let x = spawn_slots.take(simulation.randomizer) {
+                emit_body(
+                    world,
+                    simulation,
+                    visuals,
+                    Math.Vec2(
+                        x,
+                        Demo.container_height * 0.5 - Demo.body_radius
+                    )
+                )
+            } else { break }
+            simulation.emission_elapsed -= Demo.emission_interval
+        }
     }
 
     simulation.accumulator = Math.min(
@@ -370,6 +452,7 @@ func synchronize_visuals(
 func main() {
     Application()
         ..add_resource(Simulation())
+        ..add_resource(SpawnSlots())
         ..add_resource(Visuals())
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
             ..title = "Falling bodies"
