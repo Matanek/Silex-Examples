@@ -13,26 +13,80 @@ func add_card(grid:HTML.Node, label:str, value:str, detail:str) {
 func build_page() str {
     var page = HTML.html_document("Generated HTML WebView")
     var head = page.elements("head")[0]
-    head.append_element("style").append_raw_text(
-        ":root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;}" +
-        "*{box-sizing:border-box;}" +
-        "body{margin:0;min-height:100vh;color:#e2e8f0;background:" +
-        "radial-gradient(circle at top left,#1e3a5f 0,#0f172a 45%,#020617 100%);}" +
-        "main{max-width:980px;margin:auto;padding:72px 36px;}" +
-        ".eyebrow{color:#38bdf8;font-size:13px;font-weight:700;letter-spacing:.18em;" +
-        "text-transform:uppercase;}" +
-        "h1{max-width:720px;margin:14px 0;font-size:clamp(42px,7vw,76px);" +
-        "line-height:.98;letter-spacing:-.05em;}" +
-        ".intro{max-width:680px;color:#94a3b8;font-size:19px;line-height:1.6;}" +
-        ".grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));" +
-        "gap:16px;margin-top:44px;}" +
-        ".card{padding:24px;border:1px solid #334155;border-radius:18px;" +
-        "background:rgba(15,23,42,.72);box-shadow:0 18px 60px rgba(0,0,0,.22);}" +
-        ".card span{display:block;color:#7dd3fc;font-size:12px;font-weight:700;" +
-        "letter-spacing:.12em;text-transform:uppercase;}" +
-        ".card strong{display:block;margin:10px 0;font-size:27px;}" +
-        ".card p{margin:0;color:#94a3b8;line-height:1.5;}"
-    )
+    head.append_element("style").append_raw_text("
+        :root {
+            color-scheme: dark;
+            font-family: Inter, system-ui, sans-serif;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: #e2e8f0;
+            background: radial-gradient(
+                circle at top left,
+                #1e3a5f 0,
+                #0f172a 45%,
+                #020617 100%
+            );
+        }
+        main {
+            max-width: 980px;
+            margin: auto;
+            padding: 72px 36px;
+        }
+        .eyebrow {
+            color: #38bdf8;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: .18em;
+            text-transform: uppercase;
+        }
+        h1 {
+            max-width: 720px;
+            margin: 14px 0;
+            font-size: clamp(42px, 7vw, 76px);
+            line-height: .98;
+            letter-spacing: -.05em;
+        }
+        .intro {
+            max-width: 680px;
+            color: #94a3b8;
+            font-size: 19px;
+            line-height: 1.6;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-top: 44px;
+        }
+        .card {
+            padding: 24px;
+            border: 1px solid #334155;
+            border-radius: 18px;
+            background: rgba(15, 23, 42, .72);
+            box-shadow: 0 18px 60px rgba(0, 0, 0, .22);
+        }
+        .card span {
+            display: block;
+            color: #7dd3fc;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+        .card strong {
+            display: block;
+            margin: 10px 0;
+            font-size: 27px;
+        }
+        .card p {
+            margin: 0;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+        ")
 
     var body = page.elements("body")[0]
     var main = body.append_element("main")
@@ -42,10 +96,10 @@ func build_page() str {
     main.append_element("h1").append_text("A web interface generated from Silex values")
     main.append_element("p")
         ..set_attribute("class", "intro")
-        ..append_text(
-            "Unlike the embedded-files example, this page is constructed as " +
-            "an HTML document in Silex, serialized, then displayed by the system WebView."
-        )
+        ..append_text("
+            Unlike the embedded-files example, this page is constructed as an
+            HTML document in Silex, serialized, then displayed by the system WebView.
+            ")
 
     var grid = main.append_element("section")
     grid.set_attribute("class", "grid")
