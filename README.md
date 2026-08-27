@@ -67,10 +67,12 @@ silex run Sources/ShapeGallery2D/Main.sx
 ```
 
 Leurs imports `Module.*` sont explicitement relatifs au dossier de chaque
-source. Les mêmes modules restent accessibles par leur chemin canonique ou par
-un chemin `Package.*` ancré au `Package.json`. Il est également possible de se
-placer dans le dossier d'une démonstration et de lancer `silex run Main.sx` :
-le manifeste parent et ses dépendances restent actifs.
+source. Le manifeste déclare `"sources": "Sources"`, donc ce dossier physique
+n'apparaît pas dans les noms de modules : `Sources/FallingBodies/Model.sx`
+devient `FallingBodies.Model` et reste accessible par
+`Package.FallingBodies.Model`. Il est également possible de se placer dans le
+dossier d'une démonstration et de lancer `silex run Main.sx` : le manifeste
+parent et ses dépendances restent actifs.
 
 La galerie Plot présente plusieurs pages successives. Fermer la fenêtre
 courante ouvre la page suivante.
