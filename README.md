@@ -38,6 +38,7 @@ silex install GFX --suite
 silex install GFX.Physics
 silex install GFX.UI --suite
 silex install GFX.WebView
+silex install HTML
 silex install Plot
 ```
 
@@ -47,7 +48,14 @@ Depuis la racine du dépôt :
 
 ```sh
 silex run Sources/AnalogClock.sx
-silex run Sources/TerminalWindow.sx
+silex run Sources/ApplicationWindow.sx
+silex run Sources/DirectWindowInputLoop.sx
+silex run Sources/ApplicationGPUTriangle/Main.sx
+silex run Sources/DirectGPUTriangle/Main.sx
+silex run Sources/DedicatedSystemTerminal.sx
+silex run Sources/ComposedSystemTerminal.sx
+silex run Sources/ApplicationCommandConsole.sx
+silex run Sources/GeneratedHTMLWebView.sx
 silex run Sources/FallingBodies/Main.sx
 silex run Sources/BoidsSimulation.sx
 silex run Sources/World3D/Main.sx
@@ -56,6 +64,17 @@ silex run Sources/PlotGallery.sx
 
 La galerie Plot présente plusieurs pages successives. Fermer la fenêtre
 courante ouvre la page suivante.
+
+Les exemples terminal forment une progression intentionnelle :
+`DedicatedSystemTerminal.sx` possède une fenêtre dédiée et son cycle de vie,
+`ComposedSystemTerminal.sx` intègre le shell dans une interface plus large, et
+`ApplicationCommandConsole.sx` expose des commandes définies par l'application
+sans donner accès au shell du système.
+
+Les deux exemples WebView illustrent également deux approches différentes :
+`EmbeddedWebView/Main.sx` embarque des fichiers web, tandis que
+`GeneratedHTMLWebView.sx` construit et sérialise son document avec le package
+`HTML` avant de l'afficher.
 
 ## Règle de synchronisation
 

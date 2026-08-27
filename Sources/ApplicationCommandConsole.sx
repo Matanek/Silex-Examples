@@ -1,0 +1,56 @@
+use GFX.Color
+use GFX.UI
+use GFX.UI.Terminal
+use GFX.Viewer
+
+func status(arguments:str) str { return "application is running" }
+func echo(arguments:str) str { return arguments }
+
+func interface() UI.Column {
+    var heading = UI.Text("Application command console")
+    heading.style.font_size = 22.0
+    heading.style.font_weight = UI.FontWeight.bold
+
+    var terminal = Terminal.Console(
+        commands:[
+            Terminal.Command(
+                "status",
+                status,
+                description:"Show the application status"
+            ),
+            Terminal.Command(
+                "echo",
+                echo,
+                description:"Print the provided text"
+            )
+        ],
+        size:Terminal.Size(columns:80, rows:24),
+        prompt:"silex> ",
+        welcome:[
+            "This console exposes commands owned by the application.",
+            "Type 'help' to list commands."
+        ]
+    )
+    terminal.style.grow = 1.0
+
+    let children:UI.View[] = [heading, terminal]
+    var root = UI.Column(children)
+    root.style.padding = UI.Insets(18.0)
+    root.style.gap = 12.0
+    root.style.background = Color.slate_900()
+    root.style.foreground = Color.slate_100()
+    return root
+}
+
+func main() {
+    var root = interface()
+    Viewer.show(
+        UI.Session(root, autofocus:true),
+        Viewer.CanvasSettings(
+            width:900,
+            height:580,
+            title:"Application command console",
+            background:Color.slate_950()
+        )
+    )
+}

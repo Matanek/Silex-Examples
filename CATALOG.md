@@ -10,18 +10,25 @@ automatique.
 | Démonstration | Source actuelle | Origine |
 | --- | --- | --- |
 | Analog clock | `Sources/AnalogClock.sx` | `GFX.Scene2D/Examples/Clock.sx` |
+| Application command console | `Sources/ApplicationCommandConsole.sx` | `GFX.UI.Terminal/Examples/ApplicationConsole.sx` |
+| Application GPU triangle | `Sources/ApplicationGPUTriangle/Main.sx` | `GFX.GPU/Examples/TriangleApplication.sx` |
+| Application window | `Sources/ApplicationWindow.sx` | `GFX/Examples/ApplicationWindow.sx` |
 | Boids simulation | `Sources/BoidsSimulation.sx` | `GFX.Scene2D/Examples/Boids.sx` |
+| Composed system terminal | `Sources/ComposedSystemTerminal.sx` | `GFX.UI.Terminal/Examples/SystemTerminal.sx` |
 | Cornell box | `Sources/CornellBox.sx` | `GFX.Scene3D/Examples/CornellBox.sx` |
 | 3D cube | `Sources/Cube3D.sx` | `GFX.Scene3D/Examples/Cube.sx` |
+| Dedicated system terminal | `Sources/DedicatedSystemTerminal.sx` | `GFX.UI.Terminal/Examples/QuickStart.sx` |
+| Direct GPU triangle | `Sources/DirectGPUTriangle/Main.sx` | `GFX.GPU/Examples/TriangleDirect.sx` |
+| Direct window and input loop | `Sources/DirectWindowInputLoop.sx` | `GFX/Examples/WindowAndInput.sx` |
 | Easing gallery | `Sources/EasingGallery.sx` | `GFX.Animation/Examples/EasingGallery.sx` |
 | Embedded WebView | `Sources/EmbeddedWebView/Main.sx` | `GFX.WebView/Examples/EmbeddedFiles.sx` |
 | Falling bodies | `Sources/FallingBodies/Main.sx` | adaptation de `GFX.Physics/Examples/World2D/FallingBody.sx` |
+| Generated HTML WebView | `Sources/GeneratedHTMLWebView.sx` | composition de `HTML/Examples/BuildAndParse.sx` et `GFX.WebView` |
 | 3D lighting | `Sources/Lighting3D.sx` | `GFX.Scene3D/Examples/Lighting.sx` |
 | PBR materials | `Sources/PBRMaterials/Main.sx` | `GFX.Scene3D/Examples/TestPBR.sx` |
 | Plot gallery | `Sources/PlotGallery.sx` | composition des exemples de `Plot/Examples/` |
 | Rotating physics container | `Sources/RotatingPhysicsContainer/Main.sx` | `GFX.Physics/Examples/World2D/BoxRotation.sx` |
 | 2D shape gallery | `Sources/ShapeGallery2D/Main.sx` | `GFX.Canvas/Examples/ShapeGallery2D.sx` |
-| Terminal window | `Sources/TerminalWindow.sx` | `GFX.UI.Terminal/Examples/QuickStart.sx` |
 | 2D timeline | `Sources/Timeline2D.sx` | `GFX.Animation/Examples/Timeline2D.sx` |
 | 3D timeline | `Sources/Timeline3D.sx` | `GFX.Animation/Examples/Timeline3D.sx` |
 | UI control gallery | `Sources/UIControlGallery.sx` | `GFX.UI/Examples/VisualShowcase.sx` |
@@ -32,6 +39,8 @@ automatique.
 
 ```text
 GFX.Physics     79014e74aa244f86530231dfb30abff4f446230b
+GFX             aed6c4615ff6dbe20ee8c185373dbbaa09940455
+GFX.GPU         93af3caf52900c950a3e3a71a51b674f6f47991b
 GFX.Scene2D     959464737a66a08c77abab82c80d1483bfbd53b5
 GFX.WebView     2d85e88a09260776f62fbda319d7b329911fe2bc
 GFX.UI.Terminal 41eb79bd75ec2fcea7bfa2a45f73d6d9257a8455
@@ -40,18 +49,17 @@ GFX.Canvas      0bb0aa02125375d6d768d3a65ae70cb150759339
 Plot            b6586ba8a88059489ec4879fe18c95a54a8f12ec
 GFX.Animation   1008702712881cb5564d0ce07c3256e4be3d4109
 GFX.Scene3D     4bc4078bc39f723612ffb771ecc74b1943d1f87b
+HTML            e1a57ffaba4bfb363619097d579278b9df29dd1a
 ```
 
 ## Candidats visuels à évaluer
 
 Ils ne sont pas intégrés automatiquement :
 
-- fenêtres et entrées GFX de base ;
-- triangles `GFX.GPU` et passe alternative `GFX.Rendering` ;
+- passe alternative `GFX.Rendering` ;
 - lecture audio et audio spatial ;
 - panneaux FPS et performances autonomes ;
 - exemples minimaux `GFX.Viewer` ;
-- console applicative et terminal système complets ;
 - bridge bidirectionnel `GFX.WebView` ;
 - exemples Canvas focalisés sur l'image, le texte et les surfaces ;
 - cascade de codecs du package `Image`.

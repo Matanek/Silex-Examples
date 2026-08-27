@@ -16,7 +16,7 @@ func main() {
         Viewer.CanvasSettings(
             width:824,
             height:504,
-            title:"GFX.UI.Terminal"
+            title:"Dedicated system terminal"
         )
     )
 }
