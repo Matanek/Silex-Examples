@@ -1,0 +1,283 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.UI
+use GFX.Viewer
+use STD.Math
+
+static struct Showcase {
+    let width:int = 1180
+    let height:int = 760
+    let compact_width:int = 860
+}
+
+func report_button_action() { print("GFX.UI button action dispatched") }
+func showcase_bool_change(value:bool) {}
+func showcase_float_change(value:float) {}
+func showcase_text_change(value:str) {}
+
+func percent(value:float) str { return "$(Math.round(value) as int)%" }
+func pixels(value:float) str { return "$(Math.round(value) as int) px" }
+
+func label(value:str, size:float, color:Color) UI.Text {
+    var result = UI.Text(value)
+    result.style.font_size = size
+    result.style.foreground = color
+    return result
+}
+
+func heading(value:str, size:float) UI.Text {
+    var result = label(value, size, Color.slate_100())
+    result.style.font_weight = UI.FontWeight.bold
+    return result
+}
+
+func section_title(title:str, caption:str) UI.Column {
+    let children:UI.View[] = [
+        heading(title, 19.0),
+        label(caption, 12.0, Color.slate_400())
+    ]
+    var result = UI.Column(children, alignment:UI.Alignment.start)
+    result.style.gap = 4.0
+    return result
+}
+
+func input_label(value:str) UI.Text {
+    return label(value, 12.0, Color.slate_300())
+}
+
+func text_field(value:str, placeholder:str) UI.TextField {
+    var field = UI.TextField(value, placeholder, showcase_text_change)
+    field.style.height = 44.0
+    field.style.padding = UI.Insets(vertical:12.0, horizontal:14.0)
+    field.style.background = Color.bytes(12, 22, 38)
+    field.style.foreground = Color.slate_100()
+    field.style.border = UI.Border(1.0, Color.slate_700())
+    field.style.radius = 9.0
+    field.style.font_size = 14.0
+    return field
+}
+
+func text_area(value:str, placeholder:str) UI.TextArea {
+    var area = UI.TextArea(value, placeholder, showcase_text_change)
+    area.style.height = 116.0
+    area.style.padding = UI.Insets(13.0)
+    area.style.background = Color.bytes(12, 22, 38)
+    area.style.foreground = Color.slate_100()
+    area.style.border = UI.Border(1.0, Color.slate_700())
+    area.style.radius = 9.0
+    area.style.font_size = 14.0
+    return area
+}
+
+func field_group(caption:str, field:UI.TextField) UI.Column {
+    let children:UI.View[] = [input_label(caption), field]
+    var group = UI.Column(children)
+    group.style.gap = 7.0
+    return group
+}
+
+func area_group(caption:str, area:UI.TextArea) UI.Column {
+    let children:UI.View[] = [input_label(caption), area]
+    var group = UI.Column(children)
+    group.style.gap = 7.0
+    return group
+}
+
+func button(label:str, background:Color, border:Color) UI.Button {
+    var result = UI.Button(label, report_button_action)
+    result.style.height = 42.0
+    result.style.grow = 1.0
+    result.style.background = background
+    result.style.foreground = Color.white()
+    result.style.border = UI.Border(1.0, border)
+    result.style.radius = 9.0
+    result.style.font_size = 13.0
+    result.style.font_weight = UI.FontWeight.bold
+    return result
+}
+
+func button_row() UI.Row {
+    let children:UI.View[] = [
+        button("Primary", Color.cyan_600(), Color.cyan_500()),
+        button("Secondary", Color.slate_700(), Color.slate_600()),
+        button("Delete", Color.rose_600(), Color.rose_500())
+    ]
+    var row = UI.Row(children)
+    row.style.gap = 10.0
+    return row
+}
+
+func checkbox(label:str, checked:bool) UI.Checkbox {
+    var result = UI.Checkbox(label, checked, showcase_bool_change)
+    result.style.height = 22.0
+    result.style.background = Color.slate_800()
+    result.style.accent = Color.cyan_500()
+    result.style.foreground = Color.slate_200()
+    result.style.border = UI.Border(1.0, Color.slate_600())
+    result.style.radius = 5.0
+    result.style.font_size = 14.0
+    return result
+}
+
+func checkbox_group() UI.Column {
+    let children:UI.View[] = [
+        checkbox("Enable live preview", true),
+        checkbox("Snap controls to grid", true),
+        checkbox("Show advanced options", false)
+    ]
+    var group = UI.Column(children, alignment:UI.Alignment.start)
+    group.style.gap = 13.0
+    return group
+}
+
+func slider(
+    value:UI.State<float>,
+    minimum:float,
+    maximum:float,
+    accent:Color
+) UI.Slider {
+    var result = UI.Slider(value, minimum, maximum, showcase_float_change)
+    result.style.height = 22.0
+    result.style.background = Color.slate_700()
+    result.style.accent = accent
+    return result
+}
+
+func slider_header(
+    caption:str,
+    value:UI.State<float>,
+    format:func(float) str
+) UI.Row {
+    var name = input_label(caption)
+    name.style.grow = 1.0
+    var current = UI.Text(value, format:format)
+    current.style.font_size = 12.0
+    current.style.foreground = Color.slate_400()
+    let children:UI.View[] = [name, current]
+    return UI.Row(children, alignment:UI.Alignment.center)
+}
+
+func slider_group(
+    caption:str,
+    value:float,
+    minimum:float,
+    maximum:float,
+    format:func(float) str,
+    accent:Color
+) UI.Column {
+    var state = UI.State<float>(value)
+    let children:UI.View[] = [
+        slider_header(caption, state, format),
+        slider(state, minimum, maximum, accent)
+    ]
+    var group = UI.Column(children)
+    group.style.gap = 6.0
+    return group
+}
+
+func card(children:UI.View[]) UI.Column {
+    var result = UI.Column(children)
+    result.style.grow = 1.0
+    result.style.padding = UI.Insets(24.0)
+    result.style.gap = 20.0
+    result.style.background = Color.bytes(20, 31, 50)
+    result.style.border = UI.Border(1.0, Color.slate_700())
+    result.style.radius = 16.0
+    return result
+}
+
+func form_card() UI.Column {
+    let children:UI.View[] = [
+        section_title("Text inputs", "Single-line and multiline fields in the normal flow"),
+        field_group("Project name", text_field("Silex Studio", "Name your project")),
+        field_group("Repository", text_field("", "git@github.com:owner/project.git")),
+        area_group(
+            "Description",
+            text_area(
+                "A native editor built with GFX.UI.\nThe field keeps multiple lines.",
+                "Describe your project"
+            )
+        ),
+        checkbox("Remember these settings", true)
+    ]
+    return card(children)
+}
+
+func controls_card() UI.Column {
+    let children:UI.View[] = [
+        section_title("Controls", "Styled controls remain independent vector elements"),
+        button_row(),
+        checkbox_group(),
+        slider_group(
+            "Interface scale", 72.0, 0.0, 100.0,
+            percent, Color.cyan_500()
+        ),
+        slider_group(
+            "Corner radius", 12.0, 0.0, 32.0,
+            pixels, Color.violet_500()
+        ),
+        slider_group(
+            "Panel opacity", 86.0, 0.0, 100.0,
+            percent, Color.orange_500()
+        )
+    ]
+    return card(children)
+}
+
+func showcase_header() UI.Row {
+    var title = heading("GFX.UI Control Gallery", 27.0)
+    title.style.grow = 1.0
+    var status = label("VECTOR CANVAS", 11.0, Color.cyan_300())
+    status.style.padding = UI.Insets(vertical:8.0, horizontal:11.0)
+    status.style.background = Color.cyan_950()
+    status.style.border = UI.Border(1.0, Color.cyan_700())
+    status.style.radius = 8.0
+    let children:UI.View[] = [
+        title,
+        label("Responsive layout preview", 13.0, Color.slate_400()),
+        status
+    ]
+    var header = UI.Row(children, alignment:UI.Alignment.center)
+    header.style.height = 46.0
+    header.style.gap = 16.0
+    return header
+}
+
+func wide_body() UI.Row {
+    let children:UI.View[] = [form_card(), controls_card()]
+    var body = UI.Row(children)
+    body.style.grow = 1.0
+    body.style.gap = 18.0
+    return body
+}
+
+func compact_body() UI.Column {
+    let children:UI.View[] = [form_card(), controls_card()]
+    var body = UI.Column(children)
+    body.style.grow = 1.0
+    body.style.gap = 18.0
+    return body
+}
+
+func showcase(width:int) UI.Column {
+    var body:UI.View = wide_body()
+    if width < Showcase.compact_width { body = compact_body() }
+    let children:UI.View[] = [showcase_header(), body]
+    var root = UI.Column(children)
+    root.style.padding = UI.Insets(26.0)
+    root.style.gap = 18.0
+    root.style.background = Color.bytes(10, 18, 31)
+    root.style.foreground = Color.slate_100()
+    return root
+}
+
+func main() {
+    var root = showcase(Showcase.width)
+    var session = UI.Session(root)
+    Viewer.show(session, Viewer.CanvasSettings(
+        width:Showcase.width,
+        height:Showcase.height,
+        title:"GFX.UI — Control gallery",
+        background:Color.bytes(10, 18, 31)
+    ))
+}

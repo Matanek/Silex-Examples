@@ -1,0 +1,148 @@
+use Plot
+
+func overview() Plot.Figure {
+    let sessions:float[] = [1.0, 2.0, 3.0, 4.0, 5.0]
+    var figure = Plot.grid(2, 2)
+        ..title("Plot gallery — 1/4 — Overview")
+        ..size(1200, 800)
+
+    figure.at(0, 0)
+        ..line(sessions, [1.0, 4.0, 9.0, 16.0, 25.0], "Model")
+        ..scatter(sessions, [1.2, 3.8, 9.3, 15.6, 25.4], "Samples")
+        ..title("Growth")
+        ..x_label("Time")
+        ..y_label("Value")
+
+    figure.at(0, 1)
+        ..bar(["Silex", "C++", "Python"], [1.02, 1.0, 18.4], "Relative time")
+        ..horizontal(1.0, "C++ reference")
+        ..title("Benchmark")
+
+    figure.at(1, 0)
+        ..candlesticks(
+            sessions,
+            [100.0, 105.0, 102.0, 108.0, 111.0],
+            [108.0, 109.0, 110.0, 114.0, 116.0],
+            [98.0, 100.0, 101.0, 106.0, 109.0],
+            [105.0, 102.0, 108.0, 111.0, 114.0],
+            "OHLC"
+        )
+        ..title("Market")
+
+    figure.at(1, 1)
+        ..box_plot([9.8, 10.1, 10.0, 10.4, 9.9, 10.2], "Silex")
+        ..box_plot([9.7, 9.9, 10.3, 10.0, 9.8, 10.1], "C++")
+        ..title("Measurement spread")
+        ..y_label("ms")
+
+    return figure
+}
+
+func science() Plot.Figure {
+    let epochs:float[] = [1.0, 2.0, 3.0, 4.0, 5.0]
+    var figure = Plot.grid(2, 2)
+        ..title("Plot gallery — 2/4 — Science")
+        ..size(1200, 800)
+
+    figure.at(0, 0)
+        ..band(epochs, [0.62, 0.70, 0.77, 0.81, 0.84], [0.70, 0.78, 0.84, 0.88, 0.91], "Interval")
+        ..line(epochs, [0.66, 0.74, 0.81, 0.85, 0.88], "Validation")
+        ..title("Accuracy")
+
+    figure.at(0, 1)
+        ..histogram([0.08, 0.12, 0.14, 0.16, 0.18, 0.22, 0.31, 0.34], 5, "Error")
+        ..title("Error distribution")
+
+    figure.at(1, 0)
+        ..heatmap([
+            42.0, 3.0, 1.0,
+            2.0, 38.0, 5.0,
+            0.0, 4.0, 45.0
+        ], 3, "Confusion")
+        ..x_categories(["Cat", "Dog", "Bird"])
+        ..y_categories(["Cat", "Dog", "Bird"])
+        ..title("Confusion matrix")
+
+    figure.at(1, 1)
+        ..error_bars(
+            [1.0, 2.0, 3.0, 4.0],
+            [18.0, 12.0, 9.0, 8.0],
+            [16.0, 11.0, 8.0, 7.5],
+            [20.0, 13.0, 10.0, 8.5],
+            "Samples"
+        )
+        ..horizontal(10.0, "Target")
+        ..title("Inference time")
+
+    return figure
+}
+
+func circular() Plot.Figure {
+    var figure = Plot.grid(2, 2)
+        ..title("Plot gallery — 3/4 — Circular charts")
+        ..size(1200, 820)
+
+    figure.at(0, 0)
+        ..pie(["Product", "Services", "Support"], [52.0, 31.0, 17.0])
+        ..title("Revenue")
+        ..show_percentages()
+
+    figure.at(0, 1)
+        ..donut(["Desktop", "Web", "Mobile"], [48.0, 34.0, 18.0])
+        ..title("Platforms")
+        ..labels_outside()
+        ..show_percentages()
+
+    figure.at(1, 0)
+        ..gauge(82.0, 100.0, "Quality")
+        ..title("Quarterly target")
+
+    figure.at(1, 1)
+        ..polar_bar(["API", "Tests", "Docs", "Perf"], [82.0, 71.0, 64.0, 91.0], 100.0)
+        ..title("Coverage")
+        ..labels_outside()
+        ..show_percentages()
+
+    return figure
+}
+
+func filled() Plot.Figure {
+    let x:float[] = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+    var figure = Plot.grid(2, 2)
+        ..title("Plot gallery — 4/4 — Areas and progressions")
+        ..size(1200, 800)
+
+    figure.at(0, 0)
+        ..area(x, [18.0, 31.0, 24.0, 44.0, 39.0, 57.0], "Product")
+        ..area(x, [11.0, 17.0, 29.0, 22.0, 34.0, 30.0], "Services")
+        ..fill_opacity(0.30)
+        ..smooth()
+        ..title("Layered areas")
+
+    figure.at(0, 1)
+        ..stacked_area(x, [
+            [12.0, 18.0, 16.0, 23.0, 19.0, 28.0],
+            [8.0, 10.0, 14.0, 12.0, 17.0, 16.0],
+            [4.0, 7.0, 5.0, 9.0, 8.0, 12.0]
+        ], ["Web", "Mobile", "API"])
+        ..title("Stacked activity")
+
+    figure.at(1, 0)
+        ..pyramid(["Foundation", "Product", "Adoption", "Vision"], [100.0, 74.0, 45.0, 20.0])
+        ..show_percentages()
+        ..title("Priorities")
+
+    figure.at(1, 1)
+        ..funnel(["Visits", "Trials", "Accounts", "Customers"], [1200.0, 640.0, 310.0, 96.0])
+        ..labels_outside()
+        ..title("Conversion")
+
+    return figure
+}
+
+func main() {
+    overview().show()
+    science().show()
+    circular().show()
+    filled().show()
+}

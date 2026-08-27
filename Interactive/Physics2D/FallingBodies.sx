@@ -1,0 +1,390 @@
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use STD.Math
+use STD.Randomizer
+
+struct Demo {
+    static let window_width:int = 960
+    static let window_height:int = 640
+    static let pixels_per_meter:float = 100.0
+    static let container_width:float = 9.2
+    static let container_height:float = 6.0
+    static let boundary_depth:float = 4.0
+    static let body_radius:float = 0.05
+    static let body_size:float = 0.1
+    static let body_pixels:int = 14
+    static let spawn_slots:int = 87
+    static let spawn_spacing:float = 0.105
+    static let emission_interval:float = 0.025
+    static let fixed_delta:float = 1.0 / 60.0
+    static let maximum_substeps:int = 8
+    static let maximum_bodies:int = 800
+}
+
+struct BodyVisual {
+    let index:int
+}
+
+struct SimulatedBody {
+    var body:Physics.RigidBody2D
+    let is_circle:bool
+}
+
+class Visuals {
+    var circle:Canvas
+    var box:Canvas
+
+    init() {
+        let center = Demo.body_pixels as float * 0.5
+        let radius = Demo.body_radius * Demo.pixels_per_meter
+        let size = Demo.body_size * Demo.pixels_per_meter
+        self.circle = Canvas()
+            ..paint(func(painter:&Canvas.Painter) {
+                painter.fill(
+                    Canvas.Circle(Math.Vec2(center), radius),
+                    Canvas.Fill.solid(Color.white())
+                )
+            })
+        self.box = Canvas()
+            ..paint(func(painter:&Canvas.Painter) {
+                painter.fill(
+                    Canvas.Rect(
+                        Math.Vec2(center - size * 0.5),
+                        Math.Vec2(size)
+                    ),
+                    Canvas.Fill.solid(Color.white())
+                )
+            })
+    }
+
+    func drawing(is_circle:bool) Canvas {
+        if is_circle { return self.circle }
+        return self.box
+    }
+}
+
+class Simulation {
+    var physics:Physics.World2D
+    var bodies:SimulatedBody[]
+    var randomizer:Randomizer
+    var accumulator:float
+    var emission_elapsed:float
+    var stats_elapsed:float
+    var stats_display:ECS.Entity
+
+    init() {
+        self.physics = Physics.World2D()
+        self.physics.set_profiling_enabled(true)
+        self.bodies = []
+        self.randomizer = Randomizer(0x51_1E_20_2D)
+        self.accumulator = 0.0
+        self.emission_elapsed = Demo.emission_interval
+        self.stats_elapsed = 0.0
+        self.stats_display = ECS.Entity()
+    }
+}
+
+func create_fixed_box(
+    simulation:&Simulation,
+    position:Math.Vec2,
+    size:Math.Vec2
+) {
+    simulation.physics.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.box(Physics.Box2D(size))
+        ..position = position
+        ..friction = 0.9
+    )
+}
+
+func container_drawing() Canvas {
+    return Canvas()
+        ..paint(func(painter:&Canvas.Painter) {
+            painter.stroke(
+                Canvas.Rect(
+                    Math.Vec2(2.0),
+                    Math.Vec2(
+                        Demo.container_width * Demo.pixels_per_meter - 4.0,
+                        Demo.container_height * Demo.pixels_per_meter - 4.0
+                    )
+                ),
+                Canvas.Stroke(Color.slate_500(), 3.0)
+            )
+        })
+}
+
+func create_container(world:&Resources.World, simulation:&Simulation) {
+    let half_width = Demo.container_width * 0.5
+    let half_height = Demo.container_height * 0.5
+    let boundary_half = Demo.boundary_depth * 0.5
+
+    create_fixed_box(
+        simulation,
+        Math.Vec2(-half_width - boundary_half, 0.0),
+        Math.Vec2(Demo.boundary_depth, Demo.container_height)
+    )
+    create_fixed_box(
+        simulation,
+        Math.Vec2(half_width + boundary_half, 0.0),
+        Math.Vec2(Demo.boundary_depth, Demo.container_height)
+    )
+    create_fixed_box(
+        simulation,
+        Math.Vec2(0.0, -half_height - boundary_half),
+        Math.Vec2(
+            Demo.container_width + Demo.boundary_depth * 2.0,
+            Demo.boundary_depth
+        )
+    )
+    create_fixed_box(
+        simulation,
+        Math.Vec2(0.0, half_height + boundary_half),
+        Math.Vec2(
+            Demo.container_width + Demo.boundary_depth * 2.0,
+            Demo.boundary_depth
+        )
+    )
+
+    var frame = container_drawing()
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(
+            frame,
+            (Demo.container_width * Demo.pixels_per_meter) as int,
+            (Demo.container_height * Demo.pixels_per_meter) as int
+        ))
+    )
+}
+
+func body_color(index:int) Color {
+    if index % 4 == 0 { return Color.sky_400() }
+    if index % 4 == 1 { return Color.cyan_400() }
+    if index % 4 == 2 { return Color.violet_400() }
+    return Color.fuchsia_400()
+}
+
+func create_dynamic_body(
+    simulation:&Simulation,
+    is_circle:bool,
+    position:Math.Vec2,
+    velocity:Math.Vec2,
+    angular_velocity:float
+) Physics.RigidBody2D {
+    var settings = Physics.RigidBody2DSettings()
+        ..position = position
+        ..velocity = velocity
+        ..angular_velocity = angular_velocity
+        ..friction = 0.75
+        ..linear_damping = 0.2
+        ..angular_damping = 0.4
+    if is_circle {
+        settings.shape = Physics.Shape2D.circle(
+            Physics.Circle2D(Demo.body_radius)
+        )
+    } else {
+        settings.shape = Physics.Shape2D.box(
+            Physics.Box2D(Math.Vec2(Demo.body_size))
+        )
+    }
+    return simulation.physics.create_rigid_body(settings)
+}
+
+func emit_body(
+    world:&Resources.World,
+    simulation:&Simulation,
+    visuals:@Visuals
+) {
+    let index = simulation.bodies.count()
+    let slot = index % Demo.spawn_slots
+    let x = (slot as float - (Demo.spawn_slots - 1) as float * 0.5) *
+        Demo.spawn_spacing
+    let velocity = Math.Vec2(
+        (simulation.randomizer.get_float() * 2.0 - 1.0) * 0.35,
+        0.0
+    )
+    let angular_velocity =
+        (simulation.randomizer.get_float() * 2.0 - 1.0) * 0.9
+    let is_circle = index % 2 == 0
+    var body = create_dynamic_body(
+        simulation,
+        is_circle,
+        Math.Vec2(
+            x,
+            Demo.container_height * 0.5 - Demo.body_radius
+        ),
+        velocity,
+        angular_velocity
+    )
+    var drawing = Components.Canvas(
+        visuals.drawing(is_circle),
+        Demo.body_pixels,
+        Demo.body_pixels
+    )
+    drawing.color = body_color(index)
+    drawing.layer = 1
+    if !is_circle { drawing.layer = 2 }
+    world.spawn(ECS.EntityRecipe()
+        ..with(BodyVisual(index:index))
+        ..with(Components.Transform2D(
+            position:body.position().multiply(Demo.pixels_per_meter),
+            rotation:body.rotation()
+        ))
+        ..with(drawing)
+    )
+    simulation.bodies.append(SimulatedBody(
+        body:body,
+        is_circle:is_circle
+    ))
+}
+
+func metric(value:float, suffix:str = " ms") str {
+    let tenths = Math.round(value * 10.0) as int
+    return "$(tenths / 10).$(tenths % 10)$(suffix)"
+}
+
+func stats_drawing(simulation:@Simulation) Canvas {
+    let profile = simulation.physics.step_profile()
+    let labels:str[] = ["BODIES", "AWAKE", "CONTACTS", "STEP"]
+    let values:str[] = [
+        "$(simulation.bodies.count())",
+        "$(simulation.physics.awake_body_count())",
+        "$(simulation.physics.contact_count())",
+        metric(profile.total_ms)
+    ]
+    var canvas = Canvas()
+    canvas.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Rect(Math.Vec2(), Math.Vec2(220.0, 122.0), 9.0),
+            Canvas.Fill.solid(Color.black().with_alpha(0.82))
+        )
+        painter.stroke(
+            Canvas.Rect(Math.Vec2(0.5), Math.Vec2(219.0, 121.0), 9.0),
+            Canvas.Stroke(Color.cyan_400().with_alpha(0.48), 1.0)
+        )
+        painter.text(
+            "PHYSICS 2D",
+            Math.Vec2(14.0, 10.0),
+            Canvas.TextStyle(
+                size:14.0,
+                color:Color.cyan_300(),
+                weight:Canvas.TextWeight.bold
+            )
+        )
+        var index = 0
+        while index < labels.count() {
+            let y = 38.0 + index as float * 19.0
+            painter.text(
+                labels[index],
+                Math.Vec2(14.0, y),
+                Canvas.TextStyle(size:13.0, color:Color.slate_300())
+            )
+            painter.text(
+                values[index],
+                Math.Vec2(206.0, y),
+                Canvas.TextStyle(
+                    size:13.0,
+                    color:Color.white(),
+                    alignment:Canvas.TextAlignment.end
+                )
+            )
+            index++
+        }
+    })
+    return canvas
+}
+
+func create_scene(
+    world:&Resources.World,
+    simulation:&Simulation
+) {
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Camera2D())
+    )
+    create_container(world, simulation)
+    var stats = stats_drawing(simulation)
+    simulation.stats_display = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:Math.Vec2(16.0)))
+        ..with(Components.Canvas(stats, 220, 122)
+            ..anchor = Math.Vec2()
+            ..pivot = Math.Vec2()
+            ..space = Components.CanvasSpace.viewport
+            ..layer = 100
+        )
+    )
+}
+
+func update_simulation(
+    time:@Resources.FrameTime,
+    world:&Resources.World,
+    simulation:&Simulation,
+    visuals:@Visuals
+) {
+    simulation.emission_elapsed += time.delta
+    while simulation.emission_elapsed >= Demo.emission_interval &&
+        simulation.bodies.count() < Demo.maximum_bodies
+    {
+        emit_body(world, simulation, visuals)
+        simulation.emission_elapsed -= Demo.emission_interval
+    }
+
+    simulation.accumulator = Math.min(
+        simulation.accumulator + time.delta,
+        Demo.fixed_delta * Demo.maximum_substeps as float
+    )
+    while simulation.accumulator >= Demo.fixed_delta {
+        simulation.physics.step(Demo.fixed_delta)
+        simulation.accumulator -= Demo.fixed_delta
+    }
+
+    simulation.stats_elapsed += time.delta
+    if simulation.stats_elapsed >= 0.25 {
+        world.update<Components.Canvas>(
+            simulation.stats_display,
+            func(display:&Components.Canvas) {
+                var drawing = stats_drawing(simulation)
+                display.replace(drawing)
+            }
+        )
+        simulation.stats_elapsed = 0.0
+    }
+}
+
+func synchronize_visuals(
+    simulation:@Simulation,
+    bodies:ECS.Query<(@BodyVisual, &Components.Transform2D)>
+) {
+    for (visual, transform) in bodies {
+        let body = simulation.bodies[visual.index].body
+        transform.position = body.position().multiply(Demo.pixels_per_meter)
+        transform.rotation = body.rotation()
+    }
+}
+
+func main() {
+    Application()
+        ..add_resource(Simulation())
+        ..add_resource(Visuals())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Falling bodies"
+            ..width = Demo.window_width
+            ..height = Demo.window_height
+            ..resizable = false
+        ))
+        ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
+            ..clear = Color.slate_950()
+        ))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.FPSPanel())
+        ..add_plugin(Plugins.Time())
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, update_simulation)
+        ..add_after_system(Application.Schedule.update, synchronize_visuals)
+        ..run()
+}

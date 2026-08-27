@@ -1,0 +1,327 @@
+use GFX.Application
+use GFX.Assets.Image
+use GFX.Assets.GLTF
+use GFX.Assets.PNG
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.GPU
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+
+func textured_material(image:Image.Handle, scale:Math.Vec2) Components.MaterialSettings3D {
+    return Components.MaterialSettings3D(
+        textures:Components.MaterialTextures3D(
+            albedo:Components.MaterialTexture3D(image:image, scale:scale)
+        )
+    )
+}
+
+func add_ground(
+    world:&Resources.World,
+    meshes:&Resources.Meshes3D,
+    grid:Image.Handle
+) {
+    let ground = meshes.add(Scene3D.Geometry.Plane.make(Math.Vec2(100.0)))
+    let ground_rotation = Math.Quat.angle_axis(
+        Math.radians(-90.0),
+        Math.Vec3.right()
+    )
+
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(rotation:ground_rotation))
+        ..with(Components.Mesh3D(ground))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(190, 198, 205),
+            roughness:0.9
+        ))
+        ..with(textured_material(grid, Math.Vec2(100.0)))
+    )
+}
+
+func world_scatter(count:int, seed:int) Scene3D.Scatter {
+    var scatter = Scene3D.Scatter(
+        count:count,
+        area:Scene3D.ScatterArea.box(Math.Vec2(94.0)),
+        seed:seed
+    )
+    scatter.exclude(Scene3D.ScatterArea.circle(6.0))
+    return scatter
+}
+
+func spawn_scattered_instances(
+    world:&Resources.World,
+    transforms:Components.Transform3D[],
+    mesh:Scene3D.MeshHandle,
+    material:Components.Material3D,
+    settings:Components.MaterialSettings3D
+) {
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D())
+        ..with(Components.Instances3D(transforms))
+        ..with(Components.Mesh3D(mesh))
+        ..with(material)
+        ..with(settings)
+    )
+}
+
+func add_rocks(
+    world:&Resources.World,
+    cube:Scene3D.MeshHandle,
+    grid:Image.Handle
+) {
+    let rock_material = Components.Material3D(
+        albedo:Color.bytes(145, 153, 161),
+        roughness:0.94
+    )
+    var large = world_scatter(80, 0x51_1E_80_1D)
+    large.vary_rotation(
+        Math.Vec3(-0.28, 0.0, -0.28),
+        Math.Vec3(0.28, Math.two_pi(), 0.28)
+    )
+    large.vary_scale(
+        Math.Vec3(0.7, 0.45, 0.7),
+        Math.Vec3(3.4, 2.4, 3.4)
+    )
+    large.scale_toward_edge(1.0, 0.72)
+    var rock_texture = textured_material(grid, Math.Vec2(1.5))
+    var rock_transforms:Components.Transform3D[] = []
+    for placement in large.generate() {
+        var transform = placement
+        transform.position.y = transform.scale.y * 0.35
+        rock_transforms.append(transform)
+    }
+    spawn_scattered_instances(
+        world, rock_transforms, cube, rock_material, rock_texture
+    )
+
+    let pebble_material = Components.Material3D(
+        albedo:Color.bytes(121, 132, 141),
+        roughness:0.98
+    )
+    var pebbles = world_scatter(320, 0x51_1E_80_1E)
+        ..vary_rotation(Math.Vec3(), Math.Vec3(Math.two_pi()))
+        ..vary_scale(
+            Math.Vec3(0.12, 0.08, 0.12),
+            Math.Vec3(0.65, 0.42, 0.65)
+        )
+        ..soften_edges(0.15)
+    var pebble_texture = textured_material(grid, Math.Vec2(0.8))
+    var pebble_transforms:Components.Transform3D[] = []
+    for placement in pebbles.generate() {
+        var transform = placement
+        transform.position.y = transform.scale.y * 0.3
+        pebble_transforms.append(transform)
+    }
+    spawn_scattered_instances(
+        world, pebble_transforms, cube, pebble_material, pebble_texture
+    )
+}
+
+func add_trees(
+    world:&Resources.World,
+    cube:Scene3D.MeshHandle,
+    grid:Image.Handle
+) {
+    var trees = world_scatter(42, 0x51_1E_80_1F)
+        ..vary_rotation(Math.Vec3(), Math.Vec3(0.0, Math.two_pi(), 0.0))
+        ..vary_uniform_scale(0.72, 1.35)
+        ..soften_edges(0.28)
+
+    let trunk_material = Components.Material3D(
+        albedo:Color.bytes(102, 76, 52),
+        roughness:0.96
+    )
+    let crown_material = Components.Material3D(
+        albedo:Color.bytes(54, 104, 65),
+        roughness:0.9
+    )
+    var trunk_texture = textured_material(grid, Math.Vec2(0.7, 2.5))
+    var crown_texture = textured_material(grid, Math.Vec2(1.2))
+    var trunk_transforms:Components.Transform3D[] = []
+    var crown_transforms:Components.Transform3D[] = []
+    for placement in trees.generate() {
+        let size = placement.scale.x
+        trunk_transforms.append(Components.Transform3D(
+            position:placement.position.add(Math.Vec3(0.0, 1.35 * size, 0.0)),
+            rotation:placement.rotation,
+            scale:Math.Vec3(0.34 * size, 2.7 * size, 0.34 * size)
+        ))
+        crown_transforms.append(Components.Transform3D(
+            position:placement.position.add(Math.Vec3(0.0, 3.15 * size, 0.0)),
+            rotation:placement.rotation,
+            scale:Math.Vec3(2.0 * size, 2.25 * size, 2.0 * size)
+        ))
+    }
+    spawn_scattered_instances(
+        world, trunk_transforms, cube, trunk_material, trunk_texture
+    )
+    spawn_scattered_instances(
+        world, crown_transforms, cube, crown_material, crown_texture
+    )
+}
+
+func compose_transform(
+    parent:Components.Transform3D,
+    child:Components.Transform3D
+) Components.Transform3D {
+    let scaled_position = child.position.multiply(parent.scale)
+    return Components.Transform3D(
+        position:parent.position.add(parent.rotation.rotate(scaled_position)),
+        rotation:parent.rotation.multiply(child.rotation).normalized(),
+        scale:parent.scale.multiply(child.scale)
+    )
+}
+
+func spawn_imported_instances(
+    world:&Resources.World,
+    sources:ECS.Entity[],
+    placements:Components.Transform3D[],
+    shadow_distance:float = 0.0,
+    shadow_cascades:int = 4
+) {
+    for source in sources {
+        let source_transform = copy world.get<Components.Transform3D>(source)
+        let mesh = copy world.get<Components.Mesh3D>(source)
+        let material = copy world.get<Components.Material3D>(source)
+        var transforms:Components.Transform3D[] = []
+        for placement in placements {
+            transforms.append(compose_transform(placement, source_transform))
+        }
+        var recipe = ECS.EntityRecipe()
+            ..with(Components.Transform3D())
+            ..with(Components.Instances3D(transforms))
+            ..with(Components.Mesh3D(
+                asset:mesh.asset,
+                visible:mesh.visible,
+                casts_shadows:mesh.casts_shadows,
+                shadow_distance:shadow_distance,
+                shadow_cascades:shadow_cascades
+            ))
+            ..with(material)
+        if world.has<Components.MaterialSettings3D>(source) {
+            var settings = copy world.get<Components.MaterialSettings3D>(source)
+            recipe.with(settings)
+        }
+        world.spawn(recipe)
+    }
+}
+
+func add_blender_trees(
+    world:&Resources.World,
+    meshes:&Resources.Meshes3D,
+    images:&Resources.Images
+) {
+    let model = GLTF.load("../../Assets/Scene3D/Models/Tree.glb")
+    let source = Scene3D.instantiate(model, world, meshes, images)
+    var trees = world_scatter(18, 0x51_1E_80_21)
+        ..vary_rotation(Math.Vec3(), Math.Vec3(0.0, Math.two_pi(), 0.0))
+        ..vary_uniform_scale(0.22, 0.32)
+        ..soften_edges(0.32)
+
+    var placements:Components.Transform3D[] = []
+    for generated in trees.generate() {
+        var placement = generated
+        placement.position.y = -model.minimum_bounds().y * placement.scale.y
+        placements.append(placement)
+    }
+    spawn_imported_instances(world, source.entities, placements)
+    for entity in source.entities { world.destroy(entity) }
+}
+
+func add_grass(
+    world:&Resources.World,
+    meshes:&Resources.Meshes3D,
+    images:&Resources.Images
+) {
+    let model = GLTF.load("../../Assets/Scene3D/Models/Grass.glb")
+    let source = Scene3D.instantiate(model, world, meshes, images)
+    var grass = world_scatter(5000, 0x51_1E_80_20)
+        ..vary_rotation(Math.Vec3(), Math.Vec3(0.0, Math.two_pi(), 0.0))
+        ..vary_uniform_scale(0.5, 1.25)
+        ..soften_edges(0.2)
+
+    var placements:Components.Transform3D[] = []
+    for generated in grass.generate() {
+        var placement = generated
+        placement.position.y = -model.minimum_bounds().y * placement.scale.y
+        placements.append(placement)
+    }
+    spawn_imported_instances(
+        world,
+        source.entities,
+        placements,
+        shadow_distance:20.0,
+        shadow_cascades:1
+    )
+    for entity in source.entities { world.destroy(entity) }
+}
+
+func add_lighting(world:&Resources.World) {
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.AmbientLight3D(
+            color:Color.sky_200(),
+            intensity:0.1
+        ))
+    )
+    var sun = Components.SunLight3D()
+        ..direction = Math.Vec3(-0.35, -0.8, -0.25).normalized()
+        ..intensity = 3.6
+        ..shadow_size = Math.Vec2(42.0)
+        ..shadow_depth = 90.0
+        ..shadow_distance = 45.0
+        ..shadow_cascade_distances = Math.Vec4(22.0, 31.0, 38.0, 45.0)
+    world.spawn(ECS.EntityRecipe()..with(sun))
+}
+
+func create_world(
+    world:&Resources.World,
+    meshes:&Resources.Meshes3D,
+    images:&Resources.Images
+) {
+    let grid = images.add(PNG.load("../../Assets/Scene3D/Textures/DarkGrid.png"))
+    let cube = meshes.add(Scene3D.Geometry.Cube.make())
+    add_ground(world, meshes, grid)
+    add_rocks(world, cube, grid)
+    add_trees(world, cube, grid)
+    add_blender_trees(world, meshes, images)
+    add_grass(world, meshes, images)
+    add_lighting(world)
+}
+
+func exit_application(
+    input:@Resources.InputState,
+    controller:&Application.Controller
+) {
+    if input.is_pressed(Input.Key.escape) {
+        controller.stop()
+    }
+}
+
+func main() {
+    var camera_settings = Plugins.FirstPersonCamera3D.Settings()
+        ..position = Math.Vec3(0.0, 1.7, 8.0)
+        ..move_speed = 6.0
+        ..sprint_multiplier = 2.0
+        ..far_plane = 180.0
+    var window_settings = Plugins.Window.Settings()
+        ..title = "Scene3D — World (WASD, Shift, Escape)"
+        ..width = 1280
+        ..height = 720
+        ..maximized = true
+    Application()
+        ..add_plugin(Plugins.Window(window_settings))
+        ..add_plugin(Plugins.GPU())
+        ..add_plugin(Plugins.Rendering())
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.FirstPersonCamera3D(camera_settings))
+        ..add_plugin(Plugins.PerformancePanel())
+        ..add_resource(Resources.Skybox3D.procedural(Scene3D.ProceduralSky.day()))
+        ..add_resource(Resources.ToneMapping3D.aces(exposure:0.25))
+        ..add_system(Application.Schedule.startup, create_world)
+        ..add_system(Application.Schedule.update, exit_application)
+        ..run()
+}
