@@ -4,6 +4,7 @@
   "dependencies": {
     "GFX": "^0.39.0",
     "GFX.Animation": "^0.3.0",
+    "GFX.Audio": "^0.3.0",
     "GFX.Assets": "^0.2.0",
     "GFX.Canvas": "^0.3.0",
     "GFX.ECS": "^0.2.1",

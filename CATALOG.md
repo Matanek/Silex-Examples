@@ -1,9 +1,9 @@
 # Catalogue et provenance
 
-Ce catalogue distingue les applications de démonstration des exemples
-techniques qui restent dans les packages. Les commits indiqués correspondent à
-l'inventaire initial ; ils documentent l'origine, pas une synchronisation
-automatique.
+Ce catalogue distingue les applications de démonstration des recettes
+documentaires et des preuves automatisées des packages. Les commits indiqués
+correspondent à l'inventaire initial ; ils documentent l'origine, pas une
+synchronisation automatique.
 
 ## Démonstrations retenues
 
@@ -23,17 +23,40 @@ automatique.
 | Easing gallery | `Sources/EasingGallery.sx` | `GFX.Animation/Examples/EasingGallery.sx` |
 | Embedded WebView | `Sources/EmbeddedWebView/Main.sx` | `GFX.WebView/Examples/EmbeddedFiles.sx` |
 | Falling bodies | `Sources/FallingBodies/Main.sx` | adaptation de `GFX.Physics/Examples/World2D/FallingBody.sx` |
-| Generated HTML WebView | `Sources/GeneratedHTMLWebView.sx` | composition de `HTML/Examples/BuildAndParse.sx` et `GFX.WebView` |
+| FPS statistics panel | `Sources/FPSStatsPanel.sx` | `GFX.Stats/Examples/FPSPanel.sx` |
+| Generated HTML WebView | `Sources/GeneratedHTMLWebView.sx` | composition de la recette `HTML/Docs/Recipes.md#buildandparse` et de `GFX.WebView` |
 | 3D lighting | `Sources/Lighting3D.sx` | `GFX.Scene3D/Examples/Lighting.sx` |
 | PBR materials | `Sources/PBRMaterials/Main.sx` | `GFX.Scene3D/Examples/TestPBR.sx` |
+| Rendering performance panel | `Sources/PerformanceStatsPanel.sx` | `GFX.Stats/Examples/PerformancePanel.sx` |
 | Plot gallery | `Sources/PlotGallery.sx` | composition des exemples de `Plot/Examples/` |
 | Rotating physics container | `Sources/RotatingPhysicsContainer/Main.sx` | `GFX.Physics/Examples/World2D/BoxRotation.sx` |
 | 2D shape gallery | `Sources/ShapeGallery2D/Main.sx` | `GFX.Canvas/Examples/ShapeGallery2D.sx` |
+| Spatial audio | `Sources/SpatialAudio.sx` | `GFX.Audio/Examples/PlaySpatialSound.sx` |
 | 2D timeline | `Sources/Timeline2D.sx` | `GFX.Animation/Examples/Timeline2D.sx` |
 | 3D timeline | `Sources/Timeline3D.sx` | `GFX.Animation/Examples/Timeline3D.sx` |
 | UI control gallery | `Sources/UIControlGallery.sx` | `GFX.UI/Examples/VisualShowcase.sx` |
 | 3D viewport axis | `Sources/ViewportAxis3D.sx` | `GFX.Scene3D/Examples/ViewportAxis.sx` |
+| WebView bridge | `Sources/WebViewBridge.sx` | `GFX.WebView/Examples/BridgeWebPage.sx` |
 | 3D world | `Sources/World3D/Main.sx` | `GFX.Scene3D/Examples/World.sx` |
+
+Les chemins d'origine ci-dessus sont historiques. Après promotion, les copies
+parfaitement couvertes ont été supprimées des packages pour l'horloge, les deux
+triangles GPU, les deux parcours Window, les trois galeries Animation, Cornell
+Box, Cube, Lighting, PBR, Viewport Axis, les terminaux, les WebViews embarquée
+et pontée, les deux panneaux de statistiques, l'audio spatial, la galerie de
+formes 2D et la galerie Plot.
+
+Les variantes de package suivantes restent temporairement distinctes :
+
+- `GFX.Scene2D/Examples/Boids.sx` conserve ses options de benchmark ;
+- `GFX.Scene3D/Examples/World.sx` conserve sa matrice de benchmark ;
+- `GFX.Physics/Examples/World2D/FallingBody.sx` reste le stress consumer ;
+- `GFX.Physics/Examples/World2D/BoxRotation.sx` conserve ses contrôles smoke et
+  ses assertions de confinement.
+
+Cette liste n'est pas une organisation cible. Chaque élément restant doit être
+séparé entre documentation, tests, benchmark autonome et éventuelle application
+supplémentaire dans ce catalogue.
 
 ## Commits d'origine
 

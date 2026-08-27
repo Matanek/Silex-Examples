@@ -1,0 +1,16 @@
+use GFX.Application
+use GFX.Plugins
+use GFX.Stats
+
+func main() {
+    Application()
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Silex rendering performance panel"
+            ..width = 720
+            ..height = 420
+        ))
+        ..add_plugin(Stats.PerformancePanel(Stats.PerformancePanel.Settings()
+            ..anchor = Stats.PanelAnchor.top_left
+        ))
+        ..run()
+}

@@ -1,9 +1,10 @@
 # Silex Examples
 
-`Silex-Examples` rassemble les démonstrations visuelles que l'on veut pouvoir
-retrouver et lancer sans parcourir les dépôts de chaque package. Ce dépôt est
-un catalogue d'applications autonomes : les exemples techniques et les preuves
-d'API restent auprès de leur package propriétaire.
+`Silex-Examples` rassemble les démonstrations visuelles et interactives que
+l'on veut pouvoir retrouver et lancer sans parcourir les dépôts de chaque
+package. Ce dépôt est un catalogue d'applications autonomes : les illustrations
+techniques deviennent de la documentation et les preuves d'API restent sous
+`Tests/` dans leur package propriétaire.
 
 ## Organisation
 
@@ -35,6 +36,7 @@ catalogue complet.
 
 ```sh
 silex install GFX --suite
+silex install GFX.Audio
 silex install GFX.Physics
 silex install GFX.UI --suite
 silex install GFX.WebView
@@ -55,7 +57,11 @@ silex run Sources/ComposedSystemTerminal.sx
 silex run Sources/ApplicationCommandConsole.sx
 silex run Sources/GeneratedHTMLWebView.sx
 silex run Sources/BoidsSimulation.sx
+silex run Sources/FPSStatsPanel.sx
+silex run Sources/PerformanceStatsPanel.sx
 silex run Sources/PlotGallery.sx
+silex run Sources/SpatialAudio.sx
+silex run Sources/WebViewBridge.sx
 ```
 
 Les démonstrations multi-fichiers se lancent elles aussi depuis la racine :
@@ -83,17 +89,25 @@ Les exemples terminal forment une progression intentionnelle :
 `ApplicationCommandConsole.sx` expose des commandes définies par l'application
 sans donner accès au shell du système.
 
-Les deux exemples WebView illustrent également deux approches différentes :
+Les exemples WebView illustrent trois approches différentes :
 `EmbeddedWebView/Main.sx` embarque des fichiers web, tandis que
 `GeneratedHTMLWebView.sx` construit et sérialise son document avec le package
-`HTML` avant de l'afficher.
+`HTML` avant de l'afficher. `WebViewBridge.sx` montre l'échange bidirectionnel
+entre JavaScript et Silex.
 
 ## Règle de synchronisation
 
 Une démonstration promue ici devient une application appartenant à ce dépôt.
-Elle peut diverger de l'exemple de package dont elle est issue. Les sources ne
-sont pas recopiées automatiquement et aucune modification de ce dépôt ne doit
-être répercutée aveuglément vers un package.
+Elle peut diverger de l'ancien exemple de package dont elle est issue. Les
+sources ne sont pas recopiées automatiquement et aucune modification de ce
+dépôt ne doit être répercutée aveuglément vers un package.
+
+La cible est de ne conserver aucun dossier `Examples/` durable dans les
+packages. Une illustration focalisée rejoint la documentation de son package,
+une preuve automatisable rejoint `Tests/`, et une application de démonstration
+pertinente rejoint ce dépôt. Les exemples encore présents dans un package sont
+un inventaire transitoire : ils attendent une décision, mélangent encore démo et
+benchmark, ou ne sont pas encore couverts ici.
 
 Le fichier [`CATALOG.md`](CATALOG.md) conserve la provenance de la sélection et
 les autres candidats visuels repérés pendant l'inventaire.
