@@ -102,12 +102,11 @@ Elle peut diverger de l'ancien exemple de package dont elle est issue. Les
 sources ne sont pas recopiées automatiquement et aucune modification de ce
 dépôt ne doit être répercutée aveuglément vers un package.
 
-La cible est de ne conserver aucun dossier `Examples/` durable dans les
-packages. Une illustration focalisée rejoint la documentation de son package,
-une preuve automatisable rejoint `Tests/`, et une application de démonstration
-pertinente rejoint ce dépôt. Les exemples encore présents dans un package sont
-un inventaire transitoire : ils attendent une décision, mélangent encore démo et
-benchmark, ou ne sont pas encore couverts ici.
+La migration actuelle ne laisse plus aucun dossier `Examples/` dans les
+packages. Une future illustration focalisée rejoint la documentation de son
+package, une preuve automatisable rejoint `Tests/`, une application de
+démonstration pertinente rejoint ce dépôt et une charge de performance publique
+rejoint `Silex-Benchmarks`.
 
 Le fichier [`CATALOG.md`](CATALOG.md) conserve la provenance de la sélection et
 les autres candidats visuels repérés pendant l'inventaire.

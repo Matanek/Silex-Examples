@@ -46,17 +46,13 @@ Box, Cube, Lighting, PBR, Viewport Axis, les terminaux, les WebViews embarquée
 et pontée, les deux panneaux de statistiques, l'audio spatial, la galerie de
 formes 2D et la galerie Plot.
 
-Les variantes de package suivantes restent temporairement distinctes :
-
-- `GFX.Scene2D/Examples/Boids.sx` conserve ses options de benchmark ;
-- `GFX.Scene3D/Examples/World.sx` conserve sa matrice de benchmark ;
-- `GFX.Physics/Examples/World2D/FallingBody.sx` reste le stress consumer ;
-- `GFX.Physics/Examples/World2D/BoxRotation.sx` conserve ses contrôles smoke et
-  ses assertions de confinement.
-
-Cette liste n'est pas une organisation cible. Chaque élément restant doit être
-séparé entre documentation, tests, benchmark autonome et éventuelle application
-supplémentaire dans ce catalogue.
+Les anciennes variantes de package ont maintenant été classées. Les
+démonstrations Boids, World3D, FallingBodies et RotatingPhysicsContainer restent
+ici sous leur forme de présentation. Le benchmark Boids précis, la matrice
+World3D et le stress consumer FallingBodies2D vivent dans
+[`Silex-Benchmarks`](https://github.com/Matanek/Silex-Benchmarks). Le conteneur
+physique tournant ne possède pas de second benchmark : sa démonstration couvre
+déjà son intention.
 
 ## Commits d'origine
 
