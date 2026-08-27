@@ -2,14 +2,14 @@ use GFX.Components
 use GFX.ECS
 use GFX.Resources
 use STD.Math
-use Model.BodyVisual
-use Model.Demo
-use Model.Simulation
-use Model.SpawnSlots
-use PhysicsBodies.create_container
-use Spawning.emit_body
-use Visuals.Visuals
-use Visuals.stats_drawing
+use Module.Model.BodyVisual
+use Module.Model.Demo
+use Module.Model.Simulation
+use Module.Model.SpawnSlots
+use Module.PhysicsBodies.create_container
+use Module.Spawning.emit_body
+use Module.Visuals.Visuals
+use Module.Visuals.stats_drawing
 
 public func create_scene(
     world:&Resources.World,

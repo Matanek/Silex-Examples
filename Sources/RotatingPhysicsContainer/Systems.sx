@@ -4,19 +4,19 @@ use GFX.ECS
 use GFX.Physics
 use GFX.Resources
 use STD.Math
-use Container.container_rotation
-use Container.create_container_walls
-use Container.rotate_offset
-use Container.update_container_walls
-use Model.BodyVisual
-use Model.ContainerVisual
-use Model.PendingBody
-use Model.Showcase
-use Model.SimulatedBody
-use Model.Simulation
-use Spawning.body_radius
-use Spawning.spawn_body_preview
-use Visuals.Visuals
+use Module.Container.container_rotation
+use Module.Container.create_container_walls
+use Module.Container.rotate_offset
+use Module.Container.update_container_walls
+use Module.Model.BodyVisual
+use Module.Model.ContainerVisual
+use Module.Model.PendingBody
+use Module.Model.Showcase
+use Module.Model.SimulatedBody
+use Module.Model.Simulation
+use Module.Spawning.body_radius
+use Module.Spawning.spawn_body_preview
+use Module.Visuals.Visuals
 
 public func create_scene(
     scene:&Resources.World,

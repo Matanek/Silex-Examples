@@ -3,9 +3,9 @@ use GFX.ECS
 use GFX.Physics
 use GFX.Resources
 use STD.Math
-use Model.Demo
-use Model.Simulation
-use Visuals.container_drawing
+use Module.Model.Demo
+use Module.Model.Simulation
+use Module.Visuals.container_drawing
 
 func create_fixed_box(
     simulation:&Simulation,

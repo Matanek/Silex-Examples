@@ -4,12 +4,12 @@ use GFX.ECS
 use GFX.Physics
 use GFX.Resources
 use STD.Math
-use Container.rotate_offset
-use Model.PendingBody
-use Model.Showcase
-use Model.Simulation
-use Visuals.Visuals
-use Visuals.body_color
+use Module.Container.rotate_offset
+use Module.Model.PendingBody
+use Module.Model.Showcase
+use Module.Model.Simulation
+use Module.Visuals.Visuals
+use Module.Visuals.body_color
 
 func body_size(index:int, is_box:bool) Math.Vec2 {
     let variant = index / 2 % 4

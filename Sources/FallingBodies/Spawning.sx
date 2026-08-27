@@ -2,13 +2,13 @@ use GFX.Components
 use GFX.ECS
 use GFX.Resources
 use STD.Math
-use Model.BodyVisual
-use Model.Demo
-use Model.SimulatedBody
-use Model.Simulation
-use PhysicsBodies.create_dynamic_body
-use Visuals.Visuals
-use Visuals.body_color
+use Module.Model.BodyVisual
+use Module.Model.Demo
+use Module.Model.SimulatedBody
+use Module.Model.Simulation
+use Module.PhysicsBodies.create_dynamic_body
+use Module.Visuals.Visuals
+use Module.Visuals.body_color
 
 public func emit_body(
     world:&Resources.World,

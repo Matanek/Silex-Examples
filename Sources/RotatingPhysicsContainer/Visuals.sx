@@ -2,7 +2,7 @@ use GFX.Canvas
 use GFX.Color
 use GFX.Components
 use STD.Math
-use Model.Showcase
+use Module.Model.Showcase
 
 public class Visuals {
     var circle:Canvas

@@ -1,20 +1,20 @@
 use GFX.Canvas
 use GFX.Color
 use STD.Math
-use Drawing.Constants
-use Drawing.label
-use Shapes.paint_arcs
-use Shapes.paint_arrows
-use Shapes.paint_freeform
-use Shapes.paint_layering
-use Shapes.paint_polygons
-use Shapes.paint_rectangles
-use Shapes.paint_round_shapes
-use Shapes.paint_special_polygons
-use Strokes.paint_curves
-use Strokes.paint_dashes
-use Strokes.paint_lines
-use Strokes.paint_paths
+use Module.Drawing.Constants
+use Module.Drawing.label
+use Module.Shapes.paint_arcs
+use Module.Shapes.paint_arrows
+use Module.Shapes.paint_freeform
+use Module.Shapes.paint_layering
+use Module.Shapes.paint_polygons
+use Module.Shapes.paint_rectangles
+use Module.Shapes.paint_round_shapes
+use Module.Shapes.paint_special_polygons
+use Module.Strokes.paint_curves
+use Module.Strokes.paint_dashes
+use Module.Strokes.paint_lines
+use Module.Strokes.paint_paths
 
 public func paint_gallery(painter:&Canvas.Painter, font:Canvas.Font) {
     painter.fill(

@@ -66,11 +66,11 @@ silex run Sources/RotatingPhysicsContainer/Main.sx
 silex run Sources/ShapeGallery2D/Main.sx
 ```
 
-Leurs imports courts restent relatifs au dossier de chaque source. Les mêmes
-modules restent accessibles par leur chemin canonique relatif au
-`Package.json`. Il est également possible de se placer dans le dossier d'une
-démonstration et de lancer `silex run Main.sx` : le manifeste parent et ses
-dépendances restent actifs.
+Leurs imports `Module.*` sont explicitement relatifs au dossier de chaque
+source. Les mêmes modules restent accessibles par leur chemin canonique ou par
+un chemin `Package.*` ancré au `Package.json`. Il est également possible de se
+placer dans le dossier d'une démonstration et de lancer `silex run Main.sx` :
+le manifeste parent et ses dépendances restent actifs.
 
 La galerie Plot présente plusieurs pages successives. Fermer la fenêtre
 courante ouvre la page suivante.

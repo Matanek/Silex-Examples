@@ -2,16 +2,16 @@ use GFX.Animation
 use GFX.Application
 use GFX.Color
 use GFX.Plugins
-use Interpolation.interpolate_body_visuals
-use Interpolation.interpolate_container_visual
-use Interpolation.interpolate_pending_visuals
-use Model.Simulation
-use Systems.activate_bodies
-use Systems.create_scene
-use Systems.simulate
-use Systems.spawn_bodies
-use Systems.sync_container
-use Visuals.Visuals
+use Module.Interpolation.interpolate_body_visuals
+use Module.Interpolation.interpolate_container_visual
+use Module.Interpolation.interpolate_pending_visuals
+use Module.Model.Simulation
+use Module.Systems.activate_bodies
+use Module.Systems.create_scene
+use Module.Systems.simulate
+use Module.Systems.spawn_bodies
+use Module.Systems.sync_container
+use Module.Visuals.Visuals
 
 func main() {
     Application()

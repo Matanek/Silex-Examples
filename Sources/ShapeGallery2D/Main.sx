@@ -1,8 +1,8 @@
 use GFX.Canvas
 use GFX.Color
 use GFX.Viewer
-use Drawing.Constants
-use Gallery.paint_gallery
+use Module.Drawing.Constants
+use Module.Gallery.paint_gallery
 
 func main() {
     var font = Canvas.Font.default()

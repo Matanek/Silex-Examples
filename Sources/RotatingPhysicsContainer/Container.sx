@@ -1,8 +1,8 @@
 use GFX.Animation
 use GFX.Physics
 use STD.Math
-use Model.Showcase
-use Model.Simulation
+use Module.Model.Showcase
+use Module.Model.Simulation
 
 public func rotate_offset(offset:Math.Vec2, angle:float) Math.Vec2 {
     let cosine = Math.cos(angle)

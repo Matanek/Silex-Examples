@@ -1,11 +1,11 @@
 use GFX.Canvas
 use GFX.Color
 use STD.Math
-use Drawing.arrow
-use Drawing.card
-use Drawing.label
-use Drawing.polygon
-use Drawing.star
+use Module.Drawing.arrow
+use Module.Drawing.card
+use Module.Drawing.label
+use Module.Drawing.polygon
+use Module.Drawing.star
 
 public func paint_round_shapes(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
     card(painter, font, "Cercles et ellipses", origin, Math.Vec2(275.0, 195.0))

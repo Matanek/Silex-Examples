@@ -1,8 +1,8 @@
 use GFX.Canvas
 use GFX.Color
 use STD.Math
-use Model.Demo
-use Model.Simulation
+use Module.Model.Demo
+use Module.Model.Simulation
 
 public class Visuals {
     var circle:Canvas

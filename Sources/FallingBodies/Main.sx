@@ -1,13 +1,13 @@
 use GFX.Application
 use GFX.Color
 use GFX.Plugins
-use Model.Demo
-use Model.Simulation
-use Model.SpawnSlots
-use Systems.create_scene
-use Systems.synchronize_visuals
-use Systems.update_simulation
-use Visuals.Visuals
+use Module.Model.Demo
+use Module.Model.Simulation
+use Module.Model.SpawnSlots
+use Module.Systems.create_scene
+use Module.Systems.synchronize_visuals
+use Module.Systems.update_simulation
+use Module.Visuals.Visuals
 
 func main() {
     Application()

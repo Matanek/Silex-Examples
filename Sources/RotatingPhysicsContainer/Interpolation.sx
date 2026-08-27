@@ -1,12 +1,12 @@
 use GFX.Components
 use GFX.ECS
 use STD.Math
-use Container.rotate_offset
-use Model.BodyVisual
-use Model.ContainerVisual
-use Model.PendingBody
-use Model.Showcase
-use Model.Simulation
+use Module.Container.rotate_offset
+use Module.Model.BodyVisual
+use Module.Model.ContainerVisual
+use Module.Model.PendingBody
+use Module.Model.Showcase
+use Module.Model.Simulation
 
 func interpolation_alpha(simulation:@Simulation) float {
     return Math.clamp(

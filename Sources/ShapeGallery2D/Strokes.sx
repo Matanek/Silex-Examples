@@ -1,9 +1,9 @@
 use GFX.Canvas
 use GFX.Color
 use STD.Math
-use Drawing.card
-use Drawing.dashed_line
-use Drawing.label
+use Module.Drawing.card
+use Module.Drawing.dashed_line
+use Module.Drawing.label
 
 public func paint_lines(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
     card(painter, font, "Lignes, épaisseurs et extrémités", origin, Math.Vec2(275.0, 195.0))
