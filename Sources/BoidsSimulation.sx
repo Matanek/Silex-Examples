@@ -51,10 +51,10 @@ func boid_color(index:int) Color {
 
 func boid_drawing() Canvas {
     var shape = Canvas.Path()
-        ..move_to(Math.Vec2(16.0, 8.0))
-        ..line_to(Math.Vec2(1.0, 14.0))
-        ..line_to(Math.Vec2(5.0, 8.0))
-        ..line_to(Math.Vec2(1.0, 2.0))
+        ..move_to(Math.Vec2(8.0, 0.0))
+        ..line_to(Math.Vec2(-7.0, 6.0))
+        ..line_to(Math.Vec2(-3.0, 0.0))
+        ..line_to(Math.Vec2(-7.0, -6.0))
         ..close()
     return Canvas()
         ..paint(func(painter:&Canvas.Painter) {
@@ -92,7 +92,7 @@ func create_flock(world:&Resources.World) {
         world.spawn(ECS.EntityRecipe()
             ..with(Boid(velocity:velocity))
             ..with(Components.Transform2D(position:position, rotation:angle))
-            ..with(Components.Canvas(drawing, 16, 16)
+            ..with(Components.Canvas(drawing)
                 ..color = boid_color(index)
                 ..layer = 1
             )
