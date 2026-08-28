@@ -1,0 +1,40 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Viewer
+use STD.Math
+
+func logo_shape() Canvas.Path {
+    return Canvas.Path()
+        ..move_to(Math.Vec2(120.0, 240.0))
+        ..line_to(Math.Vec2(400.0, 80.0))
+        ..line_to(Math.Vec2(475.0, 120.0))
+        ..line_to(Math.Vec2(272.0, 420.0))
+        ..line_to(Math.Vec2(323.0, 456.0))
+        ..line_to(Math.Vec2(529.0, 152.0))
+        ..line_to(Math.Vec2(680.0, 240.0))
+        ..line_to(Math.Vec2(680.0, 568.0))
+        ..line_to(Math.Vec2(400.0, 728.0))
+        ..line_to(Math.Vec2(332.0, 690.0))
+        ..line_to(Math.Vec2(530.0, 385.0))
+        ..line_to(Math.Vec2(480.0, 350.0))
+        ..line_to(Math.Vec2(280.0, 660.0))
+        ..line_to(Math.Vec2(120.0, 568.0))
+        ..close()
+}
+
+func main() {
+    var logo = Canvas()
+    logo.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            logo_shape(),
+            Canvas.Fill.solid(Color.bytes(79, 99, 177))
+        )
+    })
+
+    Viewer.show(logo, Viewer.CanvasSettings(
+        width:800,
+        height:800,
+        title:"Silex logo",
+        background:Color.bytes(23, 23, 23)
+    ))
+}

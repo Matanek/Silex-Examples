@@ -60,6 +60,7 @@ silex run Sources/BoidsSimulation.sx
 silex run Sources/FPSStatsPanel.sx
 silex run Sources/PerformanceStatsPanel.sx
 silex run Sources/PlotGallery.sx
+silex run Sources/SilexLogo.sx
 silex run Sources/SpatialAudio.sx
 silex run Sources/WebViewBridge.sx
 ```
