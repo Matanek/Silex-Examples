@@ -3,22 +3,41 @@ use GFX.Color
 use GFX.Viewer
 use STD.Math
 
+func opposite(point:Math.Vec2, center:Math.Vec2) Math.Vec2 {
+    return center.multiply(2.0).subtract(point)
+}
+
 func logo_shape() Canvas.Path {
+    let root_three = Math.sqrt(3.0)
+    let center = Math.Vec2(400.0)
+    let radius = 350.0
+    let half_width = radius * root_three * 0.5
+    let upper_left = Math.Vec2(center.x - half_width, center.y - radius * 0.5)
+    let top = Math.Vec2(center.x, center.y - radius)
+    let upper_right = Math.Vec2(center.x + half_width, center.y - radius * 0.5)
+    let band_width = Math.Vec2(60.0, 60.0 / root_three)
+    let cut = Math.Vec2(-210.0, 210.0 * root_three)
+    let cut_start = top.add(band_width)
+    let cut_end = cut_start.add(cut)
+    let band_end = cut_end.add(band_width)
+    let band_start = cut_start.add(band_width)
+
+    // The two rotationally symmetric cutouts draw the S in negative space.
     return Canvas.Path()
-        ..move_to(Math.Vec2(120.0, 240.0))
-        ..line_to(Math.Vec2(400.0, 80.0))
-        ..line_to(Math.Vec2(475.0, 120.0))
-        ..line_to(Math.Vec2(272.0, 420.0))
-        ..line_to(Math.Vec2(323.0, 456.0))
-        ..line_to(Math.Vec2(529.0, 152.0))
-        ..line_to(Math.Vec2(680.0, 240.0))
-        ..line_to(Math.Vec2(680.0, 568.0))
-        ..line_to(Math.Vec2(400.0, 728.0))
-        ..line_to(Math.Vec2(332.0, 690.0))
-        ..line_to(Math.Vec2(530.0, 385.0))
-        ..line_to(Math.Vec2(480.0, 350.0))
-        ..line_to(Math.Vec2(280.0, 660.0))
-        ..line_to(Math.Vec2(120.0, 568.0))
+        ..move_to(upper_left)
+        ..line_to(top)
+        ..line_to(cut_start)
+        ..line_to(cut_end)
+        ..line_to(band_end)
+        ..line_to(band_start)
+        ..line_to(upper_right)
+        ..line_to(opposite(upper_left, center))
+        ..line_to(opposite(top, center))
+        ..line_to(opposite(cut_start, center))
+        ..line_to(opposite(cut_end, center))
+        ..line_to(opposite(band_end, center))
+        ..line_to(opposite(band_start, center))
+        ..line_to(opposite(upper_right, center))
         ..close()
 }
 
