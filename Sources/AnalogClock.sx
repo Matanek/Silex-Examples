@@ -4,6 +4,7 @@ use GFX.Canvas
 use GFX.Components
 use GFX.ECS
 use GFX.Plugins
+use GFX.Rendering
 use GFX.Resources
 use STD.Math
 use STD.Time.LocalTime
@@ -107,28 +108,28 @@ func clock_face_drawing(font:Canvas.Font) Canvas {
     return drawing
 }
 
-func clock_hands_drawing(seconds_of_day:float) Canvas {
+func clock_hand_drawing(
+    length:float,
+    tail:float,
+    width:float,
+    color:Color
+) Canvas {
     let center = Math.Vec2(320.0)
-    let ink = Color.bytes(82, 67, 68)
-    let hours = seconds_of_day / 3_600.0
-    let minutes = seconds_of_day / 60.0
     var drawing = Canvas()
     drawing.paint(func(painter:&Canvas.Painter) {
-        let hour_angle = -Math.pi() * 0.5 + Math.two_pi() * hours / 12.0
-        let minute_angle = -Math.pi() * 0.5 + Math.two_pi() * minutes / 60.0
-        let second_angle = -Math.pi() * 0.5 + Math.two_pi() * seconds_of_day / 60.0
-        paint_hand(painter, center, hour_angle, 132.0, 18.0, 11.0, ink)
-        paint_hand(painter, center, minute_angle, 184.0, 22.0, 7.0, ink)
-        paint_hand(
-            painter,
-            center,
-            second_angle,
-            210.0,
-            31.0,
-            2.2,
-            Color.bytes(156, 79, 70)
+        paint_hand(painter, center, 0.0, length, tail, width, color)
+    })
+    return drawing
+}
+
+func clock_center_drawing() Canvas {
+    let center = Math.Vec2(320.0)
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Circle(center, 12.0),
+            Canvas.Fill.solid(Color.bytes(82, 67, 68))
         )
-        painter.fill(Canvas.Circle(center, 12.0), Canvas.Fill.solid(ink))
         painter.fill(
             Canvas.Circle(center, 5.0),
             Canvas.Fill.solid(Color.bytes(221, 191, 177))
@@ -144,89 +145,96 @@ func seconds_of_day(time:LocalTime) float {
 }
 
 struct ClockFace {
-    var display:ECS.Entity? = null
-    var seconds:float = 0.0
-    var since_sync:float
+    var hour_hand:ECS.Entity? = null
+    var minute_hand:ECS.Entity? = null
+    var second_hand:ECS.Entity? = null
     var last_millisecond:int = -1
 }
 
-func synchronized_difference(current:float, target:float) float {
-    var difference = target - current
-    while difference > 43_200.0 { difference -= 86_400.0 }
-    while difference < -43_200.0 { difference += 86_400.0 }
-    return difference
+func spawn_clock_canvas(
+    world:&Resources.World,
+    drawing:Canvas,
+    angle:float,
+    layer:int
+) ECS.Entity {
+    return world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(rotation:angle))
+        ..with(Components.Canvas(
+            drawing,
+            Constants.canvas_size,
+            Constants.canvas_size
+        )
+            ..anchor = Math.Vec2(0.5)
+            ..pivot = Math.Vec2(0.5)
+            ..space = Components.CanvasSpace.viewport
+            ..layer = layer
+        )
+    )
+}
+
+func hour_angle(seconds:float) float {
+    return -Math.pi() * 0.5 + Math.two_pi() * seconds / 43_200.0
+}
+
+func minute_angle(seconds:float) float {
+    return -Math.pi() * 0.5 + Math.two_pi() * seconds / 3_600.0
+}
+
+func second_angle(seconds:float) float {
+    return -Math.pi() * 0.5 + Math.two_pi() * seconds / 60.0
 }
 
 func create_clock(world:&Resources.World, face:&ClockFace) {
-    face.seconds = seconds_of_day(LocalTime.now())
-    face.since_sync = 0.0
+    let seconds = seconds_of_day(LocalTime.now())
+    let ink = Color.bytes(82, 67, 68)
     face.last_millisecond = -1
     var clock_face = clock_face_drawing(Canvas.Font.default())
-    world.spawn(ECS.EntityRecipe()
-        ..with(Components.Transform2D())
-        ..with(Components.Canvas(
-            clock_face,
-            Constants.canvas_size,
-            Constants.canvas_size
-        )
-            ..anchor = Math.Vec2(0.5)
-            ..pivot = Math.Vec2(0.5)
-            ..space = Components.CanvasSpace.viewport
-        )
+    spawn_clock_canvas(world, clock_face, 0.0, 0)
+    var hour = clock_hand_drawing(132.0, 18.0, 11.0, ink)
+    face.hour_hand = spawn_clock_canvas(world, hour, hour_angle(seconds), 1)
+    var minute = clock_hand_drawing(184.0, 22.0, 7.0, ink)
+    face.minute_hand = spawn_clock_canvas(world, minute, minute_angle(seconds), 2)
+    var second = clock_hand_drawing(
+        210.0,
+        31.0,
+        2.2,
+        Color.bytes(156, 79, 70)
     )
-    var hands = clock_hands_drawing(face.seconds)
-    face.display = world.spawn(ECS.EntityRecipe()
-        ..with(Components.Transform2D())
-        ..with(Components.Canvas(
-            hands,
-            Constants.canvas_size,
-            Constants.canvas_size
-        )
-            ..anchor = Math.Vec2(0.5)
-            ..pivot = Math.Vec2(0.5)
-            ..space = Components.CanvasSpace.viewport
-            ..layer = 1
-        )
-    )
+    face.second_hand = spawn_clock_canvas(world, second, second_angle(seconds), 3)
+    var center = clock_center_drawing()
+    spawn_clock_canvas(world, center, 0.0, 4)
 }
 
-func update_clock(
-    time:@Resources.FrameTime,
-    world:&Resources.World,
-    face:&ClockFace
-) {
-    face.seconds += time.delta
-    face.since_sync += time.delta
-    if face.seconds >= 86_400.0 { face.seconds -= 86_400.0 }
-    if face.since_sync >= 1.0 {
-        let target = seconds_of_day(LocalTime.now())
-        let difference = synchronized_difference(face.seconds, target)
-        if Math.abs(difference) > 1.0 { face.seconds = target }
-        else { face.seconds += difference * 0.125 }
-        face.since_sync = 0.0
+func rotate_hand(world:&Resources.World, entity:ECS.Entity?, angle:float) {
+    if let display = entity {
+        world.update<Components.Transform2D>(
+            display,
+            func(transform:&Components.Transform2D) { transform.rotation = angle }
+        )
     }
-    let millisecond = Math.floor(face.seconds * 1_000.0) as int
+}
+
+func update_clock(world:&Resources.World, face:&ClockFace) {
+    let seconds = seconds_of_day(LocalTime.now())
+    let millisecond = Math.floor(seconds * 1_000.0) as int
     if millisecond == face.last_millisecond { return }
-    var drawing = clock_hands_drawing(face.seconds)
-    if let display = face.display {
-        world.update<Components.Canvas>(display, func(canvas:&Components.Canvas) {
-            canvas.replace(drawing)
-        })
-    }
+    rotate_hand(world, face.hour_hand, hour_angle(seconds))
+    rotate_hand(world, face.minute_hand, minute_angle(seconds))
+    rotate_hand(world, face.second_hand, second_angle(seconds))
     face.last_millisecond = millisecond
 }
 
 func main() {
     Application()
-        ..add_resource(ClockFace(since_sync:0.0))
+        ..add_resource(ClockFace())
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
             ..title = "Clock — GFX.Canvas"
             ..width = Constants.canvas_size
             ..height = Constants.canvas_size
         ))
-        ..add_plugin(Plugins.Time())
         ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
             ..clear = Constants.background_color()
+            ..present_mode = Rendering.PresentMode.immediate
         ))
         ..add_plugin(Plugins.Scene2D())
         ..add_system(Application.Schedule.startup, create_clock)
