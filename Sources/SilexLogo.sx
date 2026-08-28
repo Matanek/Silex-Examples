@@ -27,7 +27,7 @@ func main() {
     logo.paint(func(painter:&Canvas.Painter) {
         painter.fill(
             logo_shape(),
-            Canvas.Fill.solid(Color.bytes(79, 99, 177))
+            Canvas.Fill.solid(Color.bytes(230, 255, 85))
         )
     })
 
@@ -35,6 +35,6 @@ func main() {
         width:800,
         height:800,
         title:"Silex logo",
-        background:Color.bytes(23, 23, 23)
+        background:Color.bytes(12, 12, 13)
     ))
 }
