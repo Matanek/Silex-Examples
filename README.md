@@ -99,10 +99,10 @@ directory and run `silex run Main.sx`; the parent manifest and its dependencies
 remain active.
 
 `BodyControl.sx` visualizes compound mass derivation, an offset center of mass,
-an off-center impulse, and a kinematic transform target. `ShapeResponse.sx`
-drops a circle, capsule, rounded polygon, and segment onto polygonal platforms
-and a one-sided chain conveyor, exercising the shared contact response and its
-material rules.
+an off-center impulse, and a kinematic tray carrying dynamic cargo through
+contacts. `ShapeResponse.sx` repeatedly drops a circle, capsule, rounded
+polygon, and segment onto polygonal platforms and a one-sided chain conveyor,
+exercising the shared contact response and its material rules.
 
 Both focused demonstrations accept `--verify` on their compiled executable.
 This opens a hidden window, advances a fixed number of deterministic physics

@@ -13,6 +13,9 @@ static struct Demo {
     let width:int = 900
     let height:int = 560
     let pixels_per_meter:float = 75.0
+    let fixed_delta:float = 1.0 / 60.0
+    let maximum_substeps:int = 8
+    let replay_frames:int = 360
     let verification_frames:int = 240
 }
 
@@ -21,24 +24,34 @@ struct BodyVisual { let index:int }
 class Simulation {
     var world:Physics.World2D
     var bodies:Physics.RigidBody2D[]
+    var circle:Physics.RigidBody2D?
+    var capsule:Physics.RigidBody2D?
+    var polygon:Physics.RigidBody2D?
+    var segment:Physics.RigidBody2D?
     var initial_conveyor_x:float
+    var accumulator:float
     var frames:int
     let verification:bool
 
     init(verification:bool) {
         self.world = Physics.World2D()
         self.bodies = []
-        self.initial_conveyor_x = -0.8
+        self.circle = null
+        self.capsule = null
+        self.polygon = null
+        self.segment = null
+        self.initial_conveyor_x = 0.8
+        self.accumulator = 0.0
         self.frames = 0
         self.verification = verification
 
         let still = Physics.PhysicsMaterial2D()
             ..friction = 1.0
-            ..rolling_resistance = 0.35
+            ..rolling_resistance = 0.08
         let conveyor = Physics.PhysicsMaterial2D()
             ..friction = 1.0
-            ..rolling_resistance = 0.35
-            ..tangent_speed = 1.5
+            ..rolling_resistance = 0.08
+            ..tangent_speed = 0.85
         var floor = self.world.create_rigid_body(
             Physics.RigidBody2DSettings()
                 ..body_type = Physics.BodyType2D.fixed
@@ -73,15 +86,16 @@ class Simulation {
             ..segment_materials = [still, conveyor, still]
         )
 
-        self.bodies.append(self.world.create_rigid_body(
+        var circle = self.world.create_rigid_body(
             Physics.RigidBody2DSettings()
                 ..shape = Physics.Shape2D.circle(Physics.Circle2D(0.35))
                 ..position = Math.Vec2(self.initial_conveyor_x, 2.0)
                 ..friction = 1.0
-                ..angular_velocity = 7.0
-                ..allow_sleep = false
-        ))
-        self.bodies.append(self.world.create_rigid_body(
+                ..angular_velocity = 4.0
+        )
+        self.circle = circle
+        self.bodies.append(circle)
+        var capsule = self.world.create_rigid_body(
             Physics.RigidBody2DSettings()
                 ..shape = Physics.Shape2D.capsule(Physics.Capsule2D(
                     Math.Vec2(-0.45, 0.0),
@@ -90,9 +104,10 @@ class Simulation {
                 ))
                 ..position = Math.Vec2(-3.0, 2.7)
                 ..friction = 1.0
-                ..allow_sleep = false
-        ))
-        self.bodies.append(self.world.create_rigid_body(
+        )
+        self.capsule = capsule
+        self.bodies.append(capsule)
+        var polygon = self.world.create_rigid_body(
             Physics.RigidBody2DSettings()
                 ..shape = Physics.Shape2D.polygon(Physics.Polygon2D([
                     Math.Vec2(-0.5, -0.4),
@@ -103,9 +118,10 @@ class Simulation {
                 ..position = Math.Vec2(2.0, 2.15)
                 ..rotation = 0.22
                 ..restitution = 0.45
-                ..allow_sleep = false
-        ))
-        self.bodies.append(self.world.create_rigid_body(
+        )
+        self.polygon = polygon
+        self.bodies.append(polygon)
+        var segment = self.world.create_rigid_body(
             Physics.RigidBody2DSettings()
                 ..shape = Physics.Shape2D.segment(Physics.Segment2D(
                     Math.Vec2(-0.55, 0.0),
@@ -114,8 +130,9 @@ class Simulation {
                 ..position = Math.Vec2(3.4, 3.0)
                 ..rotation = -0.35
                 ..mass = 1.0
-                ..allow_sleep = false
-        ))
+        )
+        self.segment = segment
+        self.bodies.append(segment)
     }
 }
 
@@ -161,15 +178,15 @@ func capsule_drawing() Canvas {
 
 func polygon_drawing() Canvas {
     var path = Canvas.Path()
-        ..move_to(Math.Vec2(8.0, 60.0))
-        ..line_to(Math.Vec2(62.0, 60.0))
-        ..line_to(Math.Vec2(58.0, 8.0))
-        ..line_to(Math.Vec2(12.0, 8.0))
+        ..move_to(Math.Vec2(10.5, 72.0))
+        ..line_to(Math.Vec2(85.5, 72.0))
+        ..line_to(Math.Vec2(79.5, 8.25))
+        ..line_to(Math.Vec2(16.5, 8.25))
         ..close()
     var drawing = Canvas()
     drawing.paint(func(painter:&Canvas.Painter) {
         painter.fill(path, Canvas.Fill.solid(Color.violet_400()))
-        painter.stroke(path, Canvas.Stroke(Color.violet_200(), 3.0))
+        painter.stroke(path, Canvas.Stroke(Color.violet_200(), 7.5))
     })
     return drawing
 }
@@ -179,9 +196,9 @@ func segment_drawing() Canvas {
     drawing.paint(func(painter:&Canvas.Painter) {
         painter.stroke(
             Canvas.Path()
-                ..move_to(Math.Vec2(6.0, 16.0))
-                ..line_to(Math.Vec2(88.0, 16.0)),
-            Canvas.Stroke(Color.fuchsia_300(), 6.0)
+                ..move_to(Math.Vec2(6.0, 10.0))
+                ..line_to(Math.Vec2(88.0, 10.0)),
+            Canvas.Stroke(Color.fuchsia_300(), 2.0)
         )
     })
     return drawing
@@ -190,23 +207,19 @@ func segment_drawing() Canvas {
 func floor_drawing() Canvas {
     var drawing = Canvas()
     drawing.paint(func(painter:&Canvas.Painter) {
-        painter.stroke(
-            Canvas.Path()
-                ..move_to(Math.Vec2(0.0, 20.0))
-                ..line_to(Math.Vec2(225.0, 20.0)),
-            Canvas.Stroke(Color.slate_500(), 5.0)
+        painter.fill(
+            Canvas.Rect(Math.Vec2(0.0, 20.0), Math.Vec2(225.0, 20.0)),
+            Canvas.Fill.solid(Color.slate_600())
         )
         painter.stroke(
             Canvas.Path()
                 ..move_to(Math.Vec2(225.0, 20.0))
                 ..line_to(Math.Vec2(450.0, 20.0)),
-            Canvas.Stroke(Color.amber_300(), 7.0)
+            Canvas.Stroke(Color.amber_300(), 3.0)
         )
-        painter.stroke(
-            Canvas.Path()
-                ..move_to(Math.Vec2(450.0, 20.0))
-                ..line_to(Math.Vec2(675.0, 20.0)),
-            Canvas.Stroke(Color.slate_500(), 5.0)
+        painter.fill(
+            Canvas.Rect(Math.Vec2(450.0, 20.0), Math.Vec2(225.0, 20.0)),
+            Canvas.Fill.solid(Color.slate_600())
         )
     })
     return drawing
@@ -230,7 +243,7 @@ func explanation_drawing() Canvas {
             Canvas.TextStyle(size:16.0, color:Color.slate_200())
         )
         painter.text(
-            "The amber chain segment is a conveyor; materials also mix restitution and rolling resistance.",
+            "Amber: chain conveyor. Materials mix restitution and rolling resistance.",
             Math.Vec2(28.0, 92.0),
             Canvas.TextStyle(size:16.0, color:Color.slate_300())
         )
@@ -249,8 +262,8 @@ func create_scene(world:&Resources.World) {
         polygon_drawing(),
         segment_drawing()
     ]
-    let widths:int[] = [60, 112, 70, 94]
-    let heights:int[] = [60, 46, 70, 32]
+    let widths:int[] = [60, 112, 96, 94]
+    let heights:int[] = [60, 46, 84, 20]
     var index = 0
     while index < drawings.count() {
         world.spawn(ECS.EntityRecipe()
@@ -279,12 +292,43 @@ func create_scene(world:&Resources.World) {
     )
 }
 
-func simulate(
+func advance_simulation(
     simulation:&Simulation,
     controller:&Application.Controller
 ) {
-    simulation.world.step(1.0 / 60.0)
+    simulation.world.step(Demo.fixed_delta)
     simulation.frames++
+    if !simulation.verification {
+        let conveyor_start = simulation.initial_conveyor_x
+        if let circle = simulation.circle {
+            if circle.position().x < -1.1 {
+                circle.set_position(Math.Vec2(conveyor_start, 2.0))
+                circle.set_rotation(0.0)
+                circle.set_velocity(Math.Vec2())
+                circle.set_angular_velocity(4.0)
+            }
+        }
+        if simulation.frames % Demo.replay_frames == 0 {
+            if let capsule = simulation.capsule {
+                capsule.set_position(Math.Vec2(-3.0, 2.7))
+                capsule.set_rotation(0.0)
+                capsule.set_velocity(Math.Vec2())
+                capsule.set_angular_velocity(0.0)
+            }
+            if let polygon = simulation.polygon {
+                polygon.set_position(Math.Vec2(2.0, 2.15))
+                polygon.set_rotation(0.22)
+                polygon.set_velocity(Math.Vec2())
+                polygon.set_angular_velocity(0.0)
+            }
+            if let segment = simulation.segment {
+                segment.set_position(Math.Vec2(3.4, 3.0))
+                segment.set_rotation(-0.35)
+                segment.set_velocity(Math.Vec2())
+                segment.set_angular_velocity(0.0)
+            }
+        }
+    }
     if simulation.verification &&
         simulation.frames == Demo.verification_frames
     {
@@ -303,6 +347,23 @@ func simulate(
                 simulation.initial_conveyor_x
         ) > 0.4)
         controller.stop()
+    }
+}
+
+func simulate(
+    time:@Resources.FrameTime,
+    simulation:&Simulation,
+    controller:&Application.Controller
+) {
+    var elapsed:float = Demo.fixed_delta
+    if !simulation.verification { elapsed = time.delta }
+    simulation.accumulator = Math.min(
+        simulation.accumulator + elapsed,
+        Demo.fixed_delta * Demo.maximum_substeps as float
+    )
+    while simulation.accumulator >= Demo.fixed_delta {
+        advance_simulation(simulation, controller)
+        simulation.accumulator -= Demo.fixed_delta
     }
 }
 
@@ -332,6 +393,7 @@ func main() {
             ..clear = Color.slate_950()
         ))
         ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.Time())
         ..add_system(Application.Schedule.startup, create_scene)
         ..add_system(Application.Schedule.update, simulate)
         ..add_after_system(Application.Schedule.update, synchronize_visuals)
