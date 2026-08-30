@@ -50,7 +50,7 @@ Run direct files from the repository root:
 
 ```sh
 silex run Sources/AnalogClock.sx
-silex run Sources/SceneTransitions.sx
+silex run Sources/BundleTransitions.sx
 silex run Sources/ApplicationWindow.sx
 silex run Sources/DirectWindowInputLoop.sx
 silex run Sources/DedicatedSystemTerminal.sx
@@ -86,7 +86,7 @@ The Plot gallery presents several pages in sequence. Closing the current
 window opens the next page.
 
 `AnalogClock.sx` hosts its retained Canvas content in one
-`Application.Bundle`. `SceneTransitions.sx` represents each scene with a Bundle
+`Application.Bundle`. `BundleTransitions.sx` represents each scene with a Bundle
 and replaces it when you press `1` or `2`, while the global window, renderer,
 and Canvas geometry cache remain alive.
 Both accept `--verify` on their compiled executable to use a hidden window,
