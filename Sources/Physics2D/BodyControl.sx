@@ -13,7 +13,9 @@ static struct Demo {
     let width:int = 900
     let height:int = 560
     let pixels_per_meter:float = 80.0
-    let verification_frames:int = 120
+    let target_duration:float = 2.0
+    let target_frames:int = 120
+    let verification_frames:int = 360
 }
 
 struct BodyVisual { let identity:int }
@@ -85,7 +87,7 @@ class Simulation {
                 position:Math.Vec2(3.0, -2.0),
                 rotation:Math.pi() * 0.08
             ),
-            2.0
+            Demo.target_duration
         )
         self.platform = platform
     }
@@ -231,24 +233,27 @@ func simulate(
                 )
             }
         }
-        if simulation.frames % 180 == 0 {
-            if let platform = simulation.platform {
-                var target_x = -3.0
-                var target_rotation = 0.0
-                if !simulation.platform_target_right {
-                    target_x = 3.0
-                    target_rotation = Math.pi() * 0.08
-                }
-                platform.set_target_transform(
-                    Physics.Transform2D(
-                        position:Math.Vec2(target_x, -2.0),
-                        rotation:target_rotation
-                    ),
-                    2.0
-                )
-                simulation.platform_target_right =
-                    !simulation.platform_target_right
+    }
+    if let platform = simulation.platform {
+        if simulation.verification {
+            assert(Math.abs(platform.position().x) <= 3.00001)
+        }
+        if simulation.frames % Demo.target_frames == 0 {
+            var target_x = -3.0
+            var target_rotation = 0.0
+            if !simulation.platform_target_right {
+                target_x = 3.0
+                target_rotation = Math.pi() * 0.08
             }
+            platform.set_target_transform(
+                Physics.Transform2D(
+                    position:Math.Vec2(target_x, -2.0),
+                    rotation:target_rotation
+                ),
+                Demo.target_duration
+            )
+            simulation.platform_target_right =
+                !simulation.platform_target_right
         }
     }
     if simulation.verification &&
