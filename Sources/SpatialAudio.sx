@@ -17,7 +17,7 @@ struct SpatialAudioDemo {
 }
 
 func begin_demo(audio:&Resources.Audio, demo:&SpatialAudioDemo) {
-    let tone = audio.load("Assets/SpatialTone.wav")
+    let tone = audio.load("../Assets/SpatialTone.wav")
     demo.sound = tone
     demo.playing = audio.play(tone, GFXAudio.Playback(
         volume:0.2,
