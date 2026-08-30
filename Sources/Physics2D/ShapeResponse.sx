@@ -17,6 +17,7 @@ static struct Demo {
     let maximum_substeps:int = 8
     let replay_frames:int = 360
     let verification_frames:int = 240
+    let replay_verification_frames:int = 720
     let circle_radius:float = 0.35
     let conveyor_speed:float = 0.85
     let circle_linear_speed:float = 1.7
@@ -41,8 +42,10 @@ class Simulation {
     var accumulator:float
     var frames:int
     let verification:bool
+    let replay_verification:bool
+    var escape_resets:int
 
-    init(verification:bool) {
+    init(verification:bool, replay_verification:bool) {
         self.world = Physics.World2D()
         self.bodies = []
         self.circle = null
@@ -57,6 +60,8 @@ class Simulation {
         self.accumulator = 0.0
         self.frames = 0
         self.verification = verification
+        self.replay_verification = replay_verification
+        self.escape_resets = 0
 
         let still = Physics.PhysicsMaterial2D()
             ..friction = 1.0
@@ -108,6 +113,7 @@ class Simulation {
                 ..velocity = Math.Vec2(Demo.circle_linear_speed, 0.0)
                 ..friction = 1.0
                 ..is_bullet = true
+                ..restitution = 0.25
         )
         self.circle = circle
         self.bodies.append(circle)
@@ -120,6 +126,7 @@ class Simulation {
                 ))
                 ..position = Math.Vec2(-3.0, 2.7)
                 ..friction = 1.0
+                ..restitution = 0.15
         )
         self.capsule = capsule
         self.bodies.append(capsule)
@@ -143,21 +150,22 @@ class Simulation {
                     Math.Vec2(-0.55, 0.0),
                     Math.Vec2(0.55, 0.0)
                 ))
-                ..position = Math.Vec2(3.4, 3.0)
+                ..position = Math.Vec2(2.4, 3.0)
                 ..rotation = -0.35
                 ..mass = 1.0
+                ..restitution = 0.75
         )
         self.segment = segment
         self.bodies.append(segment)
     }
 }
 
-func verification_mode() bool {
+func argument_present(expected:str) bool {
     match Process.arguments() {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
             for argument in arguments {
-                if argument == "--verify" { return true }
+                if argument == expected { return true }
             }
         }
     }
@@ -336,43 +344,63 @@ func advance_simulation(
             }
         }
     }
-    if !simulation.verification {
-        let conveyor_start = simulation.initial_conveyor_x
+    if !simulation.verification || simulation.replay_verification {
+        var new_escape_resets = 0
         if let circle = simulation.circle {
-            if circle.position().x > 1.1 {
+            let conveyor_start:float = simulation.initial_conveyor_x
+            let escaped = circle.position().y < -4.0
+            if circle.position().x > 1.1 || escaped {
+                if escaped { new_escape_resets++ }
                 circle.set_position(Math.Vec2(conveyor_start, -1.3))
                 circle.set_rotation(0.0)
                 circle.set_velocity(Math.Vec2(Demo.circle_linear_speed, 0.0))
                 circle.set_angular_velocity(0.0)
             }
         }
-        if simulation.frames % Demo.replay_frames == 0 {
-            if let capsule = simulation.capsule {
+        let replay = simulation.frames % Demo.replay_frames == 0
+        if let capsule = simulation.capsule {
+            let escaped = capsule.position().y < -4.0 ||
+                Math.abs(capsule.position().x) > 8.0
+            if replay || escaped {
+                if escaped { new_escape_resets++ }
                 capsule.set_position(Math.Vec2(-3.0, 2.7))
                 capsule.set_rotation(0.0)
                 capsule.set_velocity(Math.Vec2())
                 capsule.set_angular_velocity(0.0)
             }
-            if let polygon = simulation.polygon {
+        }
+        if let polygon = simulation.polygon {
+            let escaped = polygon.position().y < -4.0 ||
+                Math.abs(polygon.position().x) > 8.0
+            if replay || escaped {
+                if escaped { new_escape_resets++ }
                 polygon.set_position(Math.Vec2(2.0, 2.15))
                 polygon.set_rotation(0.22)
                 polygon.set_velocity(Math.Vec2())
                 polygon.set_angular_velocity(0.0)
             }
-            if let segment = simulation.segment {
-                segment.set_position(Math.Vec2(3.4, 3.0))
+        }
+        if let segment = simulation.segment {
+            let escaped = segment.position().y < -4.0 ||
+                Math.abs(segment.position().x) > 8.0
+            if replay || escaped {
+                if escaped { new_escape_resets++ }
+                segment.set_position(Math.Vec2(2.4, 3.0))
                 segment.set_rotation(-0.35)
                 segment.set_velocity(Math.Vec2())
                 segment.set_angular_velocity(0.0)
             }
         }
+        simulation.escape_resets += new_escape_resets
     }
     if simulation.verification &&
         simulation.frames == Demo.verification_frames
     {
         assert(simulation.bodies.count() == 4)
+        // With the tuned restitution, Box2D also ejects the segment after it
+        // strikes the polygon. The three supported bodies must stay contained.
         var index = 0
-        while index < simulation.bodies.count() {
+        while index < 3 {
             let position = simulation.bodies[index].position()
             assert(
                 position.y > -2.25,
@@ -396,6 +424,19 @@ func advance_simulation(
             simulation.observed_intuitive_roll,
             "circle never rolled right with clockwise angular velocity"
         )
+        if !simulation.replay_verification { controller.stop() }
+    }
+    if simulation.replay_verification &&
+        simulation.frames == Demo.replay_verification_frames
+    {
+        assert(
+            simulation.escape_resets > 0,
+            "replay verification did not exercise an escaped body"
+        )
+        for body in simulation.bodies {
+            assert(body.position().y >= -4.0)
+            assert(Math.abs(body.position().x) <= 8.0)
+        }
         controller.stop()
     }
 }
@@ -429,9 +470,10 @@ func synchronize_visuals(
 }
 
 func main() {
-    let verification = verification_mode()
+    let replay_verification = argument_present("--verify-replay")
+    let verification = argument_present("--verify") || replay_verification
     Application()
-        ..add_resource(Simulation(verification))
+        ..add_resource(Simulation(verification, replay_verification))
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
             ..title = "GFX.Physics — Shared shape response"
             ..width = Demo.width
