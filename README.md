@@ -50,6 +50,7 @@ Run direct files from the repository root:
 
 ```sh
 silex run Sources/AnalogClock.sx
+silex run Sources/SceneTransitions.sx
 silex run Sources/ApplicationWindow.sx
 silex run Sources/DirectWindowInputLoop.sx
 silex run Sources/DedicatedSystemTerminal.sx
@@ -83,6 +84,12 @@ active.
 
 The Plot gallery presents several pages in sequence. Closing the current
 window opens the next page.
+
+`AnalogClock.sx` hosts its retained Canvas content in one
+`Application.Scene`. `SceneTransitions.sx` replaces one scene with another
+while the global window, renderer, and Canvas geometry cache remain alive.
+Both accept `--verify` on their compiled executable to use a hidden window,
+assert a bounded run, and stop automatically.
 
 The terminal examples form an intentional progression:
 `DedicatedSystemTerminal.sx` owns a dedicated window and lifecycle,

@@ -30,6 +30,7 @@ synchronisation automatique.
 | Rendering performance panel | `Sources/PerformanceStatsPanel.sx` | `GFX.Stats/Examples/PerformancePanel.sx` |
 | Plot gallery | `Sources/PlotGallery.sx` | composition des exemples de `Plot/Examples/` |
 | Rotating physics container | `Sources/RotatingPhysicsContainer/Main.sx` | `GFX.Physics/Examples/World2D/BoxRotation.sx` |
+| Application scene transitions | `Sources/SceneTransitions.sx` | création propre au catalogue |
 | 2D shape gallery | `Sources/ShapeGallery2D/Main.sx` | `GFX.Canvas/Examples/ShapeGallery2D.sx` |
 | Silex logo | `Sources/SilexLogo.sx` | création propre au catalogue |
 | Spatial audio | `Sources/SpatialAudio.sx` | `GFX.Audio/Examples/PlaySpatialSound.sx` |
