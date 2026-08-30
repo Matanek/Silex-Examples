@@ -100,9 +100,11 @@ remain active.
 
 `BodyControl.sx` visualizes compound mass derivation, an offset center of mass,
 an off-center impulse, and a kinematic tray carrying dynamic cargo through
-contacts. `ShapeResponse.sx` repeatedly drops a circle, capsule, rounded
-polygon, and segment onto polygonal platforms and a one-sided chain conveyor,
-exercising the shared contact response and its material rules.
+contacts and collider-aware CCD. `ShapeResponse.sx` repeatedly drops a bullet
+circle, capsule, rounded polygon, and segment onto polygonal platforms and a
+one-sided chain conveyor, exercising the shared contact response and its
+material rules. The rounded polygon outline includes its physical radius, so
+its visible support matches its collider.
 
 Both focused demonstrations accept `--verify` on their compiled executable.
 This opens a hidden window, advances a fixed number of deterministic physics
@@ -115,8 +117,9 @@ silex compile Sources/Physics2D/ShapeResponse.sx -o /tmp/silex-shape-response
 /tmp/silex-shape-response --verify
 ```
 
-These checks validate that the complete applications still integrate. The
-package consumer tests remain the correctness oracle for the underlying APIs:
+These checks also reject duplicate cargo pairs, a cargo escape, and transient
+circle penetration through the conveyor. The package consumer tests remain the
+correctness oracle for the underlying APIs:
 
 ```sh
 silex test Tests/Consumer/Tests/BodyControl.sx

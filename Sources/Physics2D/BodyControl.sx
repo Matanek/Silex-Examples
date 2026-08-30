@@ -364,6 +364,10 @@ func advance_simulation(
         }
         if simulation.verification {
             if let cargo = simulation.cargo {
+                assert(
+                    simulation.world.candidate_pair_count() <= 1,
+                    "duplicate cargo contacts at step $(simulation.frames): $(simulation.world.candidate_pair_count())"
+                )
                 let local_position = platform.local_point(cargo.position())
                 assert(
                     Math.abs(local_position.x) < 1.1,
