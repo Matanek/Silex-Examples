@@ -94,7 +94,7 @@ func main() {
             ..clear = Color.slate_950()
         ))
         ..add_plugin(Plugins.Scene2D())
-        ..add_plugin(Animation.Plugin())
+        ..add_plugin(Plugins.Animation())
         ..add_system(Application.Schedule.startup, create_square)
         ..add_system(Application.Schedule.startup, create_points)
         ..run()

@@ -1,10 +1,10 @@
 use GFX.Application
-use GFX.Window
+use GFX.Plugins
 
 func main() {
     Application()
-        ..add_plugin(Application.FramePacing(60))
-        ..add_plugin(Window.Plugin(Window.Plugin.Settings()
+        ..add_plugin(Plugins.FramePacing(60))
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
             ..title = "GFX Application Window"
             ..width = 960
             ..height = 540

@@ -1,10 +1,10 @@
 use GFX.Application
 use GFX.Color
 use GFX.Canvas
+use GFX.Components
 use GFX.ECS
 use GFX.Plugins
 use GFX.Rendering
-use GFX.Scene2D
 use STD.Math
 use STD.Process
 use STD.Time.LocalTime
@@ -180,15 +180,15 @@ func spawn_clock_canvas(
     layer:int
 ) ECS.Entity {
     return world.spawn(ECS.EntityRecipe()
-        ..with(Scene2D.Transform(rotation:angle))
-        ..with(Scene2D.Canvas(
+        ..with(Components.Transform2D(rotation:angle))
+        ..with(Components.Canvas(
             drawing,
             Const.canvas_size,
             Const.canvas_size
         )
             ..anchor = Math.Vec2(0.5)
             ..pivot = Math.Vec2(0.5)
-            ..space = Scene2D.CanvasSpace.viewport
+            ..space = Components.CanvasSpace.viewport
             ..layer = layer
         )
     )
@@ -229,9 +229,9 @@ func create_clock(world:&ECS.World, face:&ClockFace) {
 
 func rotate_hand(world:&ECS.World, entity:ECS.Entity?, angle:float) {
     if let display = entity {
-        world.update<Scene2D.Transform>(
+        world.update<Components.Transform2D>(
             display,
-            func(transform:&Scene2D.Transform) { transform.rotation = angle }
+            func(transform:&Components.Transform2D) { transform.rotation = angle }
         )
     }
 }
@@ -262,7 +262,7 @@ func main() {
     var scene = Application.Scene(application)
         ..add_resource(ClockFace())
         ..add_resource(run)
-        ..add_plugin(Scene2D.Content())
+        ..add_plugin(Plugins.Scene2DContent())
         ..add_system(Application.Schedule.startup, create_clock)
         ..add_system(Application.Schedule.update, update_clock)
         ..add_after_system(Application.Schedule.render, finish_verification)
@@ -278,8 +278,8 @@ func main() {
             ..clear = Const.background_color()
             ..present_mode = Rendering.PresentMode.immediate
         ))
-        ..add_plugin(Scene2D.Plugin())
-        ..add_plugin(Application.Scenes(scene))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.SceneManager(scene))
 
     assert(application.run() == 0)
     if verification { assert(run.frames == 3) }

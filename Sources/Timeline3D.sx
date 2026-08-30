@@ -184,7 +184,7 @@ func main() {
             ..near_plane = 0.05
             ..far_plane = 80.0
         ))
-        ..add_plugin(Animation.Plugin())
+        ..add_plugin(Plugins.Animation())
         ..add_system(Application.Schedule.startup, create_scene)
         ..add_system(Application.Schedule.startup, create_lights)
         ..add_system(Application.Schedule.startup, create_moving_light)

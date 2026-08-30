@@ -1,11 +1,11 @@
 use GFX.Application
 use GFX.Canvas
 use GFX.Color
+use GFX.Components
 use GFX.ECS
 use GFX.Input
 use GFX.Plugins
 use GFX.Resources
-use GFX.Scene2D
 use STD.Math
 use STD.Process
 
@@ -83,13 +83,13 @@ func spawn_panel(
 ) {
     world.spawn(ECS.EntityRecipe()
         ..with(SceneMarker(value:identity.value))
-        ..with(Scene2D.Transform())
-        ..with(Scene2D.Canvas(
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(
             panel_drawing(identity.value),
             Const.width,
             Const.height
         )
-            ..space = Scene2D.CanvasSpace.viewport
+            ..space = Components.CanvasSpace.viewport
             ..anchor = Math.Vec2(0.5)
             ..pivot = Math.Vec2(0.5)
         )
@@ -100,7 +100,7 @@ func configured_scene(scene:Application.Scene, identity:int) Application.Scene {
     return scene
         ..add_resource(SceneIdentity(value:identity))
         ..add_resource(LocalFrame(value:0))
-        ..add_plugin(Scene2D.Content())
+        ..add_plugin(Plugins.Scene2DContent())
         ..add_system(Application.Schedule.startup, spawn_panel)
         ..add_after_system(Application.Schedule.render, advance_scene)
         ..add_system(Application.Schedule.finalize, finalize_scene)
@@ -109,10 +109,10 @@ func configured_scene(scene:Application.Scene, identity:int) Application.Scene {
 func advance_scene(
     identity:@SceneIdentity,
     frame:&LocalFrame,
-    panels:ECS.Query<(@SceneMarker, @Scene2D.Canvas)>,
+    panels:ECS.Query<(@SceneMarker, @Components.Canvas)>,
     input:@Resources.InputState,
     run:&DemoRun,
-    scenes:&Application.Scenes,
+    manager:&Plugins.SceneManager,
     controller:&Application.Controller
 ) {
     var count = 0
@@ -120,7 +120,7 @@ func advance_scene(
         assert(marker.value == identity.value)
         assert(panel.width() == Const.width)
         assert(panel.height() == Const.height)
-        assert(panel.space == Scene2D.CanvasSpace.viewport)
+        assert(panel.space == Components.CanvasSpace.viewport)
         assert(panel.anchor.x == 0.5 && panel.anchor.y == 0.5)
         assert(panel.pivot.x == 0.5 && panel.pivot.y == 0.5)
         count++
@@ -142,7 +142,7 @@ func advance_scene(
         if input.is_pressed(Input.Key.num2) { requested = 2 }
     }
     if requested != 0 && requested != identity.value {
-        scenes.request(configured_scene(scenes.create(), requested))
+        manager.request(configured_scene(manager.create(), requested))
     }
 }
 
@@ -166,8 +166,8 @@ func main() {
         ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
             ..clear = Color.slate_950()
         ))
-        ..add_plugin(Scene2D.Plugin())
-        ..add_plugin(Application.Scenes(initial))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.SceneManager(initial))
 
     assert(application.run() == 0)
     if verification {
