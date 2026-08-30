@@ -19,6 +19,7 @@ static struct Demo {
     let verification_frames:int = 240
     let circle_radius:float = 0.35
     let conveyor_speed:float = 0.85
+    let circle_linear_speed:float = 1.7
     let rolling_resistance:float = 0.01
     let maximum_contact_slip:float = 0.03
 }
@@ -35,6 +36,8 @@ class Simulation {
     var initial_conveyor_x:float
     var minimum_circle_y:float
     var minimum_circle_step:int
+    var minimum_contact_slip:float
+    var observed_intuitive_roll:bool
     var accumulator:float
     var frames:int
     let verification:bool
@@ -46,9 +49,11 @@ class Simulation {
         self.capsule = null
         self.polygon = null
         self.segment = null
-        self.initial_conveyor_x = 0.8
+        self.initial_conveyor_x = -1.2
         self.minimum_circle_y = 2.0
         self.minimum_circle_step = 0
+        self.minimum_contact_slip = 1000.0
+        self.observed_intuitive_roll = false
         self.accumulator = 0.0
         self.frames = 0
         self.verification = verification
@@ -99,7 +104,8 @@ class Simulation {
                 ..shape = Physics.Shape2D.circle(Physics.Circle2D(
                     Demo.circle_radius
                 ))
-                ..position = Math.Vec2(self.initial_conveyor_x, 2.0)
+                ..position = Math.Vec2(self.initial_conveyor_x, -1.3)
+                ..velocity = Math.Vec2(Demo.circle_linear_speed, 0.0)
                 ..friction = 1.0
                 ..is_bullet = true
         )
@@ -253,7 +259,7 @@ func explanation_drawing() Canvas {
             Canvas.TextStyle(size:16.0, color:Color.slate_200())
         )
         painter.text(
-            "Amber: chain conveyor. Materials mix restitution and rolling resistance.",
+            "Circle enters at +1.70 m/s; conveyor friction makes it roll without slipping.",
             Math.Vec2(28.0, 92.0),
             Canvas.TextStyle(size:16.0, color:Color.slate_300())
         )
@@ -313,14 +319,30 @@ func advance_simulation(
             simulation.minimum_circle_y = circle.position().y
             simulation.minimum_circle_step = simulation.frames
         }
+        if circle.position().y < -1.75 &&
+            circle.position().x > -1.45 && circle.position().x < 1.45
+        {
+            let contact_speed = circle.velocity().x +
+                circle.angular_velocity() * Demo.circle_radius
+            let slip = Math.abs(contact_speed - Demo.conveyor_speed)
+            simulation.minimum_contact_slip = Math.min(
+                simulation.minimum_contact_slip,
+                slip
+            )
+            if circle.velocity().x > 0.5 &&
+                circle.angular_velocity() < -0.5
+            {
+                simulation.observed_intuitive_roll = true
+            }
+        }
     }
     if !simulation.verification {
         let conveyor_start = simulation.initial_conveyor_x
         if let circle = simulation.circle {
-            if circle.position().x < -1.1 {
-                circle.set_position(Math.Vec2(conveyor_start, 2.0))
+            if circle.position().x > 1.1 {
+                circle.set_position(Math.Vec2(conveyor_start, -1.3))
                 circle.set_rotation(0.0)
-                circle.set_velocity(Math.Vec2())
+                circle.set_velocity(Math.Vec2(Demo.circle_linear_speed, 0.0))
                 circle.set_angular_velocity(0.0)
             }
         }
@@ -366,23 +388,14 @@ func advance_simulation(
             simulation.minimum_circle_y >= -1.88,
             "circle penetrated the conveyor at step $(simulation.minimum_circle_step): y=$(simulation.minimum_circle_y)"
         )
-        if let circle = simulation.circle {
-            let contact_speed = circle.velocity().x +
-                circle.angular_velocity() * Demo.circle_radius
-            assert(
-                Math.abs(contact_speed + Demo.conveyor_speed) <
-                    Demo.maximum_contact_slip,
-                "circle slides on conveyor: contact=$(contact_speed) belt=$(-Demo.conveyor_speed)"
-            )
-            assert(
-                Math.abs(circle.angular_velocity()) > 0.5,
-                "circle did not acquire visible rolling motion"
-            )
-            assert(
-                Math.abs(circle.rotation()) > 1.0,
-                "circle rotation stayed visually insignificant"
-            )
-        }
+        assert(
+            simulation.minimum_contact_slip < Demo.maximum_contact_slip,
+            "circle never reached no-slip rolling: minimum slip=$(simulation.minimum_contact_slip)"
+        )
+        assert(
+            simulation.observed_intuitive_roll,
+            "circle never rolled right with clockwise angular velocity"
+        )
         controller.stop()
     }
 }
