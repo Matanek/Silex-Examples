@@ -96,11 +96,10 @@ func spawn_panel(
     )
 }
 
-func configured_scene(scene:Application.Scene, identity:int) Application.Scene {
-    return scene
+func configured_bundle(bundle:Application.Bundle, identity:int) Application.Bundle {
+    return bundle
         ..add_resource(SceneIdentity(value:identity))
         ..add_resource(LocalFrame(value:0))
-        ..add_plugin(Plugins.Scene2DContent())
         ..add_system(Application.Schedule.startup, spawn_panel)
         ..add_after_system(Application.Schedule.render, advance_scene)
         ..add_system(Application.Schedule.finalize, finalize_scene)
@@ -112,7 +111,7 @@ func advance_scene(
     panels:ECS.Query<(@SceneMarker, @Components.Canvas)>,
     input:@Resources.InputState,
     run:&DemoRun,
-    manager:&Plugins.SceneManager,
+    manager:&Plugins.BundleManager,
     controller:&Application.Controller
 ) {
     var count = 0
@@ -142,7 +141,7 @@ func advance_scene(
         if input.is_pressed(Input.Key.num2) { requested = 2 }
     }
     if requested != 0 && requested != identity.value {
-        manager.request(configured_scene(manager.create(), requested))
+        manager.replace(configured_bundle(manager.create(), requested))
     }
 }
 
@@ -154,11 +153,11 @@ func main() {
     let verification = verification_mode()
     var run = DemoRun(verification)
     var application = Application()..add_resource(run)
-    var initial = configured_scene(Application.Scene(application), 1)
+    var initial = configured_bundle(Application.Bundle(application), 1)
 
     application
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
-            ..title = "Application scene transitions"
+            ..title = "Bundle-driven scene transitions"
             ..width = Const.width
             ..height = Const.height
             ..hidden = verification
@@ -167,7 +166,7 @@ func main() {
             ..clear = Color.slate_950()
         ))
         ..add_plugin(Plugins.Scene2D())
-        ..add_plugin(Plugins.SceneManager(initial))
+        ..add_plugin(Plugins.BundleManager(initial))
 
     assert(application.run() == 0)
     if verification {

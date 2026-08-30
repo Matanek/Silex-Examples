@@ -259,10 +259,9 @@ func main() {
     let verification = verification_mode()
     var run = DemoRun(verification)
     var application = Application()
-    var scene = Application.Scene(application)
+    var bundle = Application.Bundle(application)
         ..add_resource(ClockFace())
         ..add_resource(run)
-        ..add_plugin(Plugins.Scene2DContent())
         ..add_system(Application.Schedule.startup, create_clock)
         ..add_system(Application.Schedule.update, update_clock)
         ..add_after_system(Application.Schedule.render, finish_verification)
@@ -279,7 +278,7 @@ func main() {
             ..present_mode = Rendering.PresentMode.immediate
         ))
         ..add_plugin(Plugins.Scene2D())
-        ..add_plugin(Plugins.SceneManager(scene))
+        ..add_plugin(Plugins.BundleManager(bundle))
 
     assert(application.run() == 0)
     if verification { assert(run.frames == 3) }
