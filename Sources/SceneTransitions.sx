@@ -2,14 +2,17 @@ use GFX.Application
 use GFX.Canvas
 use GFX.Color
 use GFX.ECS
+use GFX.Input
 use GFX.Plugins
+use GFX.Resources
 use GFX.Scene2D
 use STD.Math
 use STD.Process
 
-struct Constants {
-    static let width:int = 480
-    static let height:int = 270
+static struct Const {
+    let width:int = 480
+    let height:int = 270
+    let verification_frames:int = 2
 }
 
 struct SceneIdentity { let value:int }
@@ -40,12 +43,35 @@ func verification_mode() bool {
     return false
 }
 
-func panel_drawing() Canvas {
+func panel_drawing(identity:int) Canvas {
+    var accent = Color.sky_400()
+    if identity == 2 { accent = Color.amber_400() }
+    var font = Canvas.Font.default()
     var drawing = Canvas()
     drawing.paint(func(painter:&Canvas.Painter) {
         painter.fill(
             Canvas.Circle(Math.Vec2(240.0, 135.0), 92.0),
-            Canvas.Fill.solid(Color.white())
+            Canvas.Fill.solid(accent)
+        )
+        painter.text(
+            "Scene $(identity)",
+            Math.Vec2(240.0, 112.0),
+            Canvas.TextStyle(
+                size:28.0,
+                color:Color.slate_950(),
+                alignment:Canvas.TextAlignment.center,
+                font:font
+            )
+        )
+        painter.text(
+            "Press 1 or 2 to change scene",
+            Math.Vec2(240.0, 235.0),
+            Canvas.TextStyle(
+                size:14.0,
+                color:Color.slate_200(),
+                alignment:Canvas.TextAlignment.center,
+                font:font
+            )
         )
     })
     return drawing
@@ -55,18 +81,17 @@ func spawn_panel(
     identity:@SceneIdentity,
     world:&ECS.World
 ) {
-    var tint = Color.sky_400()
-    if identity.value == 2 { tint = Color.amber_400() }
     world.spawn(ECS.EntityRecipe()
         ..with(SceneMarker(value:identity.value))
         ..with(Scene2D.Transform())
         ..with(Scene2D.Canvas(
-            panel_drawing(),
-            Constants.width,
-            Constants.height
+            panel_drawing(identity.value),
+            Const.width,
+            Const.height
         )
             ..space = Scene2D.CanvasSpace.viewport
-            ..color = tint
+            ..anchor = Math.Vec2(0.5)
+            ..pivot = Math.Vec2(0.5)
         )
     )
 }
@@ -81,15 +106,11 @@ func configured_scene(scene:Application.Scene, identity:int) Application.Scene {
         ..add_system(Application.Schedule.finalize, finalize_scene)
 }
 
-func frame_limit(run:@DemoRun) int {
-    if run.verification { return 2 }
-    return 120
-}
-
 func advance_scene(
     identity:@SceneIdentity,
     frame:&LocalFrame,
     panels:ECS.Query<(@SceneMarker, @Scene2D.Canvas)>,
+    input:@Resources.InputState,
     run:&DemoRun,
     scenes:&Application.Scenes,
     controller:&Application.Controller
@@ -97,17 +118,31 @@ func advance_scene(
     var count = 0
     for (marker, panel) in panels {
         assert(marker.value == identity.value)
-        assert(panel.width() == Constants.width)
+        assert(panel.width() == Const.width)
+        assert(panel.height() == Const.height)
+        assert(panel.space == Scene2D.CanvasSpace.viewport)
+        assert(panel.anchor.x == 0.5 && panel.anchor.y == 0.5)
+        assert(panel.pivot.x == 0.5 && panel.pivot.y == 0.5)
         count++
     }
     assert(count == 1)
 
     frame.value++
     run.observed.append(identity.value)
-    if identity.value == 1 && frame.value == frame_limit(run) {
-        scenes.request(configured_scene(scenes.create(), 2))
-    } elif identity.value == 2 && frame.value == frame_limit(run) {
-        controller.stop()
+
+    var requested = 0
+    if run.verification {
+        if identity.value == 1 && frame.value == Const.verification_frames {
+            requested = 2
+        } elif identity.value == 2 && frame.value == Const.verification_frames {
+            controller.stop()
+        }
+    } else {
+        if input.is_pressed(Input.Key.num1) { requested = 1 }
+        if input.is_pressed(Input.Key.num2) { requested = 2 }
+    }
+    if requested != 0 && requested != identity.value {
+        scenes.request(configured_scene(scenes.create(), requested))
     }
 }
 
@@ -124,8 +159,8 @@ func main() {
     application
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
             ..title = "Application scene transitions"
-            ..width = Constants.width
-            ..height = Constants.height
+            ..width = Const.width
+            ..height = Const.height
             ..hidden = verification
         ))
         ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()

@@ -9,10 +9,10 @@ use STD.Math
 use STD.Process
 use STD.Time.LocalTime
 
-struct Constants {
-    static let canvas_size:int = 640
+static struct Const {
+    let canvas_size:int = 640
 
-    static func background_color() Color {
+    func background_color() Color {
         return Color.bytes(215, 210, 203)
     }
 }
@@ -183,8 +183,8 @@ func spawn_clock_canvas(
         ..with(Scene2D.Transform(rotation:angle))
         ..with(Scene2D.Canvas(
             drawing,
-            Constants.canvas_size,
-            Constants.canvas_size
+            Const.canvas_size,
+            Const.canvas_size
         )
             ..anchor = Math.Vec2(0.5)
             ..pivot = Math.Vec2(0.5)
@@ -270,12 +270,12 @@ func main() {
     application
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
             ..title = "Clock — GFX.Canvas"
-            ..width = Constants.canvas_size
-            ..height = Constants.canvas_size
+            ..width = Const.canvas_size
+            ..height = Const.canvas_size
             ..hidden = verification
         ))
         ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
-            ..clear = Constants.background_color()
+            ..clear = Const.background_color()
             ..present_mode = Rendering.PresentMode.immediate
         ))
         ..add_plugin(Scene2D.Plugin())
