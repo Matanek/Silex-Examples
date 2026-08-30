@@ -1,0 +1,321 @@
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use STD.Math
+use STD.Process
+
+static struct Demo {
+    let width:int = 900
+    let height:int = 560
+    let pixels_per_meter:float = 80.0
+    let verification_frames:int = 120
+}
+
+struct BodyVisual { let identity:int }
+
+class Simulation {
+    var world:Physics.World2D
+    var compound:Physics.RigidBody2D?
+    var platform:Physics.RigidBody2D?
+    var frames:int
+    let verification:bool
+    var platform_target_right:bool
+    var derived_mass:float
+    var derived_center:Math.Vec2
+
+    init(verification:bool) {
+        self.world = Physics.World2D(gravity:Math.Vec2())
+        self.compound = null
+        self.platform = null
+        self.frames = 0
+        self.verification = verification
+        self.platform_target_right = true
+        self.derived_mass = 0.0
+        self.derived_center = Math.Vec2()
+
+        var compound = self.world.create_rigid_body(
+            Physics.RigidBody2DSettings()
+                ..position = Math.Vec2(-3.2, 0.65)
+                ..allow_sleep = false
+                ..create_implicit_collider = false
+                ..debug_label = "compound-body"
+        )
+        self.world.create_collider(compound, Physics.Collider2DSettings()
+            ..shape = Physics.Shape2D.polygon(Physics.Polygon2D([
+                Math.Vec2(-1.0, -0.28),
+                Math.Vec2(0.0, -0.28),
+                Math.Vec2(0.0, 0.28),
+                Math.Vec2(-1.0, 0.28)
+            ]))
+            ..density = 1.0
+        )
+        self.world.create_collider(compound, Physics.Collider2DSettings()
+            ..shape = Physics.Shape2D.polygon(Physics.Polygon2D([
+                Math.Vec2(0.2, -0.48),
+                Math.Vec2(1.15, -0.48),
+                Math.Vec2(1.15, 0.48),
+                Math.Vec2(0.2, 0.48)
+            ]))
+            ..density = 2.0
+        )
+        self.derived_mass = compound.mass()
+        self.derived_center = compound.local_center_of_mass()
+        compound.apply_linear_impulse(
+            Math.Vec2(2.4, 0.85),
+            compound.world_point(Math.Vec2(-0.8, 0.0))
+        )
+        self.compound = compound
+
+        var platform = self.world.create_rigid_body(
+            Physics.RigidBody2DSettings()
+                ..body_type = Physics.BodyType2D.kinematic
+                ..shape = Physics.Shape2D.box(
+                    Physics.Box2D(Math.Vec2(1.6, 0.28))
+                )
+                ..position = Math.Vec2(-3.0, -2.0)
+                ..debug_label = "kinematic-target"
+        )
+        platform.set_target_transform(
+            Physics.Transform2D(
+                position:Math.Vec2(3.0, -2.0),
+                rotation:Math.pi() * 0.08
+            ),
+            2.0
+        )
+        self.platform = platform
+    }
+}
+
+func verification_mode() bool {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments {
+                if argument == "--verify" { return true }
+            }
+        }
+    }
+    return false
+}
+
+func compound_drawing(center:Math.Vec2) Canvas {
+    let scale = Demo.pixels_per_meter
+    let origin = Math.Vec2(90.0, 50.0)
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Rect(
+                origin.add(Math.Vec2(-scale, -0.28 * scale)),
+                Math.Vec2(scale, 0.56 * scale),
+                5.0
+            ),
+            Canvas.Fill.solid(Color.sky_400())
+        )
+        painter.fill(
+            Canvas.Rect(
+                origin.add(Math.Vec2(0.2 * scale, -0.48 * scale)),
+                Math.Vec2(0.95 * scale, 0.96 * scale),
+                7.0
+            ),
+            Canvas.Fill.solid(Color.violet_400())
+        )
+        painter.fill(
+            Canvas.Circle(origin.add(center.multiply(scale)), 6.0),
+            Canvas.Fill.solid(Color.amber_300())
+        )
+    })
+    return drawing
+}
+
+func platform_drawing() Canvas {
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Rect(Math.Vec2(4.0), Math.Vec2(120.0, 18.0), 7.0),
+            Canvas.Fill.solid(Color.cyan_400())
+        )
+        painter.stroke(
+            Canvas.Rect(Math.Vec2(4.0), Math.Vec2(120.0, 18.0), 7.0),
+            Canvas.Stroke(Color.cyan_200(), 2.0)
+        )
+    })
+    return drawing
+}
+
+func explanation_drawing(simulation:@Simulation) Canvas {
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.text(
+            "BODY CONTROL",
+            Math.Vec2(28.0, 28.0),
+            Canvas.TextStyle(
+                size:22.0,
+                color:Color.cyan_300(),
+                weight:Canvas.TextWeight.bold
+            )
+        )
+        painter.text(
+            "Two colliders derive mass $(simulation.derived_mass) and an offset center of mass.",
+            Math.Vec2(28.0, 66.0),
+            Canvas.TextStyle(size:16.0, color:Color.slate_200())
+        )
+        painter.text(
+            "The upper body receives an off-center impulse; the lower platform follows a kinematic target.",
+            Math.Vec2(28.0, 92.0),
+            Canvas.TextStyle(size:16.0, color:Color.slate_300())
+        )
+        painter.text(
+            "Amber dot: derived local center of mass",
+            Math.Vec2(28.0, 124.0),
+            Canvas.TextStyle(size:14.0, color:Color.amber_300())
+        )
+    })
+    return drawing
+}
+
+func create_scene(world:&Resources.World, simulation:@Simulation) {
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Camera2D())
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(BodyVisual(identity:1))
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(
+            compound_drawing(simulation.derived_center),
+            180,
+            100
+        ))
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(BodyVisual(identity:2))
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(platform_drawing(), 128, 26))
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(
+            explanation_drawing(simulation),
+            Demo.width,
+            160
+        )
+            ..space = Components.CanvasSpace.viewport
+            ..anchor = Math.Vec2()
+            ..pivot = Math.Vec2()
+            ..layer = 10
+        )
+    )
+}
+
+func simulate(
+    simulation:&Simulation,
+    controller:&Application.Controller
+) {
+    simulation.world.step(1.0 / 60.0)
+    simulation.frames++
+    if !simulation.verification {
+        if let compound = simulation.compound {
+            if compound.position().x > 4.5 {
+                compound.set_position(Math.Vec2(-3.2, 0.65))
+                compound.set_rotation(0.0)
+                compound.set_velocity(Math.Vec2())
+                compound.set_angular_velocity(0.0)
+                compound.apply_linear_impulse(
+                    Math.Vec2(2.4, 0.85),
+                    compound.world_point(Math.Vec2(-0.8, 0.0))
+                )
+            }
+        }
+        if simulation.frames % 180 == 0 {
+            if let platform = simulation.platform {
+                var target_x = -3.0
+                var target_rotation = 0.0
+                if !simulation.platform_target_right {
+                    target_x = 3.0
+                    target_rotation = Math.pi() * 0.08
+                }
+                platform.set_target_transform(
+                    Physics.Transform2D(
+                        position:Math.Vec2(target_x, -2.0),
+                        rotation:target_rotation
+                    ),
+                    2.0
+                )
+                simulation.platform_target_right =
+                    !simulation.platform_target_right
+            }
+        }
+    }
+    if simulation.verification &&
+        simulation.frames == Demo.verification_frames
+    {
+        assert(simulation.derived_mass > 2.0)
+        assert(simulation.derived_center.x > 0.2)
+        if let compound = simulation.compound {
+            assert(compound.velocity().length_squared() > 0.1)
+            assert(Math.abs(compound.angular_velocity()) > 0.1)
+            assert(compound.debug_label() == "compound-body")
+        }
+        if let platform = simulation.platform {
+            assert(platform.position().nearly_equal(
+                Math.Vec2(3.0, -2.0),
+                0.00001
+            ))
+            assert(Math.nearly_equal(
+                platform.rotation(),
+                Math.pi() * 0.08,
+                0.00001
+            ))
+        }
+        controller.stop()
+    }
+}
+
+func synchronize_visuals(
+    simulation:@Simulation,
+    visuals:ECS.Query<(@BodyVisual, &Components.Transform2D)>
+) {
+    for (visual, transform) in visuals {
+        if visual.identity == 1 {
+            if let value = simulation.compound {
+                transform.position = value.position().multiply(
+                    Demo.pixels_per_meter
+                )
+                transform.rotation = value.rotation()
+            }
+        } else {
+            if let value = simulation.platform {
+                transform.position = value.position().multiply(
+                    Demo.pixels_per_meter
+                )
+                transform.rotation = value.rotation()
+            }
+        }
+    }
+}
+
+func main() {
+    let verification = verification_mode()
+    Application()
+        ..add_resource(Simulation(verification))
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "GFX.Physics — Body control"
+            ..width = Demo.width
+            ..height = Demo.height
+            ..resizable = false
+            ..hidden = verification
+        ))
+        ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
+            ..clear = Color.slate_950()
+        ))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, simulate)
+        ..add_after_system(Application.Schedule.update, synchronize_visuals)
+        ..run()
+}

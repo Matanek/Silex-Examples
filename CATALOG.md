@@ -22,14 +22,16 @@ synchronisation automatique.
 | Direct window and input loop | `Sources/DirectWindowInputLoop.sx` | `GFX/Examples/WindowAndInput.sx` |
 | Easing gallery | `Sources/EasingGallery.sx` | `GFX.Animation/Examples/EasingGallery.sx` |
 | Embedded WebView | `Sources/EmbeddedWebView/Main.sx` | `GFX.WebView/Examples/EmbeddedFiles.sx` |
-| Falling bodies | `Sources/FallingBodies/Main.sx` | adaptation de `GFX.Physics/Examples/World2D/FallingBody.sx` |
+| Physics 2D body control | `Sources/Physics2D/BodyControl.sx` | création propre au catalogue pour les contrôles publics de `GFX.Physics` |
+| Physics 2D shape response | `Sources/Physics2D/ShapeResponse.sx` | création propre au catalogue pour la réponse dynamique et les matériaux de `GFX.Physics` |
+| Falling bodies | `Sources/Physics2D/FallingBodies/Main.sx` | adaptation de `GFX.Physics/Examples/World2D/FallingBody.sx` |
 | FPS statistics panel | `Sources/FPSStatsPanel.sx` | `GFX.Stats/Examples/FPSPanel.sx` |
 | Generated HTML WebView | `Sources/GeneratedHTMLWebView.sx` | composition de la recette `HTML/Docs/Recipes.md#buildandparse` et de `GFX.WebView` |
 | 3D lighting | `Sources/Lighting3D.sx` | `GFX.Scene3D/Examples/Lighting.sx` |
 | PBR materials | `Sources/PBRMaterials/Main.sx` | `GFX.Scene3D/Examples/TestPBR.sx` |
 | Rendering performance panel | `Sources/PerformanceStatsPanel.sx` | `GFX.Stats/Examples/PerformancePanel.sx` |
 | Plot gallery | `Sources/PlotGallery.sx` | composition des exemples de `Plot/Examples/` |
-| Rotating physics container | `Sources/RotatingPhysicsContainer/Main.sx` | `GFX.Physics/Examples/World2D/BoxRotation.sx` |
+| Rotating physics container | `Sources/Physics2D/RotatingPhysicsContainer/Main.sx` | `GFX.Physics/Examples/World2D/BoxRotation.sx` |
 | Bundle content transitions | `Sources/Bundle/Transitions.sx` | création propre au catalogue |
 | Bundle window replacement | `Sources/Bundle/WindowReplacement.sx` | création propre au catalogue |
 | Bundle multiple windows | `Sources/Bundle/MultipleWindows.sx` | création propre au catalogue |
@@ -51,9 +53,11 @@ et pontée, les deux panneaux de statistiques, l'audio spatial, la galerie de
 formes 2D et la galerie Plot.
 
 Les anciennes variantes de package ont maintenant été classées. Les
-démonstrations Boids, World3D, FallingBodies et RotatingPhysicsContainer restent
-ici sous leur forme de présentation. Le benchmark Boids précis, la matrice
-World3D et le stress consumer FallingBodies2D vivent dans
+démonstrations Boids et World3D restent ici sous leur forme de présentation.
+Les deux applications Physics 2D historiques sont regroupées avec les
+démonstrations focalisées de contrôle des corps et de réponse des formes sous
+`Sources/Physics2D/`. Le benchmark Boids précis, la matrice World3D et le stress
+consumer FallingBodies2D vivent dans
 [`Silex-Benchmarks`](https://github.com/Matanek/Silex-Benchmarks). Le conteneur
 physique tournant ne possède pas de second benchmark : sa démonstration couvre
 déjà son intention.

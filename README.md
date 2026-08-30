@@ -24,7 +24,7 @@ A large or multi-file demonstration receives a directory with a `Main.sx`
 entry point:
 
 ```text
-Sources/FallingBodies/Main.sx
+Sources/Physics2D/FallingBodies/Main.sx
 Sources/EmbeddedWebView/Main.sx
 Sources/EmbeddedWebView/Web/...
 ```
@@ -32,6 +32,9 @@ Sources/EmbeddedWebView/Web/...
 Closely related Bundle demonstrations share the stable `Sources/Bundle/`
 prefix so content transitions, window replacement, and simultaneous windows
 can be explored together without flattening their names into `Bundle...` files.
+The `Sources/Physics2D/` prefix similarly groups the focused body-control and
+shape-response demonstrations with the larger falling-bodies and rotating-
+container applications.
 
 A single [`Package.json`](Package.json) describes the dependency graph needed
 by the complete catalog.
@@ -75,18 +78,54 @@ silex run Sources/WebViewBridge.sx
 Run multi-file demonstrations from the repository root as well:
 
 ```sh
-silex run Sources/FallingBodies/Main.sx
-silex run Sources/RotatingPhysicsContainer/Main.sx
+silex run Sources/Physics2D/FallingBodies/Main.sx
+silex run Sources/Physics2D/RotatingPhysicsContainer/Main.sx
 silex run Sources/ShapeGallery2D/Main.sx
+```
+
+The focused Physics 2D demonstrations are direct files:
+
+```sh
+silex run Sources/Physics2D/BodyControl.sx
+silex run Sources/Physics2D/ShapeResponse.sx
 ```
 
 Their `Module.*` imports are explicitly relative to each source directory. The
 manifest declares `"sources": "Sources"`, so this physical directory does not
-appear in module names: `Sources/FallingBodies/Model.sx` becomes
-`FallingBodies.Model` and remains accessible as
-`Package.FallingBodies.Model`. You can also enter a demonstration directory
-and run `silex run Main.sx`; the parent manifest and its dependencies remain
-active.
+appear in module names: `Sources/Physics2D/FallingBodies/Model.sx` becomes
+`Physics2D.FallingBodies.Model` and remains accessible as
+`Package.Physics2D.FallingBodies.Model`. You can also enter a demonstration
+directory and run `silex run Main.sx`; the parent manifest and its dependencies
+remain active.
+
+`BodyControl.sx` visualizes compound mass derivation, an offset center of mass,
+an off-center impulse, and a kinematic transform target. `ShapeResponse.sx`
+drops a circle, capsule, rounded polygon, and segment onto polygonal platforms
+and a one-sided chain conveyor, exercising the shared contact response and its
+material rules.
+
+Both focused demonstrations accept `--verify` on their compiled executable.
+This opens a hidden window, advances a fixed number of deterministic physics
+steps, checks the expected outcome, and stops automatically:
+
+```sh
+silex compile Sources/Physics2D/BodyControl.sx -o /tmp/silex-body-control
+/tmp/silex-body-control --verify
+silex compile Sources/Physics2D/ShapeResponse.sx -o /tmp/silex-shape-response
+/tmp/silex-shape-response --verify
+```
+
+These checks validate that the complete applications still integrate. The
+package consumer tests remain the correctness oracle for the underlying APIs:
+
+```sh
+silex test Tests/Consumer/Tests/BodyControl.sx
+silex test Tests/Consumer/Tests/DynamicShapes.sx
+```
+
+Run those two commands from the `GFX.Physics` package checkout, and link that
+checkout into this workspace before compiling the demonstrations when testing
+unpublished package changes.
 
 The Plot gallery presents several pages in sequence. Closing the current
 window opens the next page.
