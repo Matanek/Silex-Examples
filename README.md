@@ -29,6 +29,10 @@ Sources/EmbeddedWebView/Main.sx
 Sources/EmbeddedWebView/Web/...
 ```
 
+Closely related Bundle demonstrations share the stable `Sources/Bundle/`
+prefix so content transitions, window replacement, and simultaneous windows
+can be explored together without flattening their names into `Bundle...` files.
+
 A single [`Package.json`](Package.json) describes the dependency graph needed
 by the complete catalog.
 
@@ -50,7 +54,9 @@ Run direct files from the repository root:
 
 ```sh
 silex run Sources/AnalogClock.sx
-silex run Sources/BundleTransitions.sx
+silex run Sources/Bundle/Transitions.sx
+silex run Sources/Bundle/WindowReplacement.sx
+silex run Sources/Bundle/MultipleWindows.sx
 silex run Sources/ApplicationWindow.sx
 silex run Sources/DirectWindowInputLoop.sx
 silex run Sources/DedicatedSystemTerminal.sx
@@ -86,11 +92,14 @@ The Plot gallery presents several pages in sequence. Closing the current
 window opens the next page.
 
 `AnalogClock.sx` hosts its retained Canvas content in one
-`Application.Bundle`. `BundleTransitions.sx` represents each scene with a Bundle
-and replaces it when you press `1` or `2`, while the global window, renderer,
-and Canvas geometry cache remain alive.
-Both accept `--verify` on their compiled executable to use a hidden window,
-assert a bounded run, and stop automatically.
+`Application.Bundle`. The `Bundle/` examples cover the three ownership layouts:
+`Transitions.sx` replaces window content while shared presentation plugins stay
+alive when you press `1` or `2`; `WindowReplacement.sx` replaces a complete
+splash window with the main window when you press Enter; and
+`MultipleWindows.sx` runs two independently closable windows in the same
+Application loop, using `1` and `2` as keyboard shortcuts. These examples
+accept `--verify` on their compiled executable to use hidden windows, assert a
+bounded run, and stop automatically.
 
 The terminal examples form an intentional progression:
 `DedicatedSystemTerminal.sx` owns a dedicated window and lifecycle,

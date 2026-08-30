@@ -1,0 +1,187 @@
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Window
+use STD.Math
+use STD.Process
+
+static struct Const {
+    let width:int = 400
+    let height:int = 240
+    let verification_frames:int = 2
+}
+
+struct WindowNumber { let value:int }
+struct LocalFrame { var value:int }
+
+class DemoRun {
+    let verification:bool
+    var observed:int[]
+    var windows:uint32[]
+    var finalizations:int
+
+    init(verification:bool) {
+        self.verification = verification
+        self.observed = []
+        self.windows = []
+        self.finalizations = 0
+    }
+}
+
+func verification_mode() bool {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments {
+                if argument == "--verify" { return true }
+            }
+        }
+    }
+    return false
+}
+
+func panel_drawing(number:int) Canvas {
+    var accent = Color.violet_400()
+    if number == 2 { accent = Color.amber_400() }
+
+    var font = Canvas.Font.default()
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Circle(Math.Vec2(200.0, 120.0), 78.0),
+            Canvas.Fill.solid(accent)
+        )
+        painter.text(
+            "Window Bundle $(number)",
+            Math.Vec2(200.0, 110.0),
+            Canvas.TextStyle(
+                size:24.0,
+                color:Color.slate_950(),
+                alignment:Canvas.TextAlignment.center,
+                font:font
+            )
+        )
+        painter.text(
+            "Press $(number) or close this window",
+            Math.Vec2(200.0, 205.0),
+            Canvas.TextStyle(
+                size:14.0,
+                color:Color.slate_200(),
+                alignment:Canvas.TextAlignment.center,
+                font:font
+            )
+        )
+    })
+    return drawing
+}
+
+func spawn_window_panel(
+    number:@WindowNumber,
+    window:@Window,
+    world:&ECS.World,
+    run:&DemoRun
+) {
+    run.windows.append(window.id().value)
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(
+            panel_drawing(number.value),
+            Const.width,
+            Const.height
+        )
+            ..space = Components.CanvasSpace.viewport
+            ..anchor = Math.Vec2(0.5)
+            ..pivot = Math.Vec2(0.5)
+        )
+    )
+}
+
+func update_window(
+    number:@WindowNumber,
+    frame:&LocalFrame,
+    input:@Resources.InputState,
+    run:&DemoRun,
+    controller:&Application.Controller
+) {
+    frame.value++
+    run.observed.append(number.value)
+
+    if run.verification {
+        if number.value == 1 && frame.value == 1 { controller.stop() }
+        if number.value == 2 && frame.value == Const.verification_frames + 1 {
+            controller.stop()
+        }
+        return
+    }
+
+    if number.value == 1 && input.is_pressed(Input.Key.num1) {
+        controller.stop()
+    }
+    if number.value == 2 && input.is_pressed(Input.Key.num2) {
+        controller.stop()
+    }
+}
+
+func finalize_window(run:&DemoRun) {
+    run.finalizations++
+}
+
+func configured_bundle(
+    bundle:Application.Bundle,
+    number:int,
+    hidden:bool
+) Application.Bundle {
+    return bundle
+        ..add_resource(WindowNumber(value:number))
+        ..add_resource(LocalFrame(value:0))
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Window Bundle $(number)"
+            ..width = Const.width
+            ..height = Const.height
+            ..hidden = hidden
+        ))
+        ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
+            ..clear = Color.slate_950()
+        ))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_system(Application.Schedule.startup, spawn_window_panel)
+        ..add_after_system(Application.Schedule.render, update_window)
+        ..add_system(Application.Schedule.finalize, finalize_window)
+}
+
+func main() {
+    let verification = verification_mode()
+    var run = DemoRun(verification)
+    var application = Application()..add_resource(run)
+    var first = configured_bundle(
+        Application.Bundle(application),
+        1,
+        verification
+    )
+    var second = configured_bundle(
+        Application.Bundle(application),
+        2,
+        verification
+    )
+    var manager = Plugins.BundleManager()
+    manager.add(first)
+    manager.add(second)
+    application.add_plugin(manager)
+
+    assert(application.run() == 0)
+    if verification {
+        assert(run.observed.count() == 4)
+        assert(run.observed[0] == 1)
+        assert(run.observed[1] == 2)
+        assert(run.observed[2] == 2)
+        assert(run.observed[3] == 2)
+        assert(run.windows.count() == 2)
+        assert(run.windows[0] != run.windows[1])
+        assert(run.finalizations == 2)
+    }
+}
