@@ -24,11 +24,13 @@ static struct Demo {
     let air_control_speed_from_rest:float = 2.4
     let coyote_time:float = 0.12
     let trampoline_speed:float = 8.4
-    let minimum_push_force:float = 2.0
-    let maximum_push_force:float = 10.0
+    let minimum_ball_push_speed:float = 2.2
+    let maximum_ball_push_speed:float = 6.0
+    let ball_push_speed_lead:float = 0.8
+    let minimum_crate_push_force:float = 2.0
     let maximum_crate_push_force:float = 28.0
-    let push_pressure_rise:float = 2.5
-    let push_pressure_fall:float = 4.0
+    let push_pressure_rise:float = 6.0
+    let push_pressure_fall:float = 6.0
     let trampoline_category:uint64 = 2
     let dynamic_prop_category:uint64 = 4
     let ball_category:uint64 = 8
@@ -131,7 +133,7 @@ class Simulation {
             ..gravity = Math.Vec2(0.0, -16.0)
             ..continuous_collision_enabled = false
             ..maximum_correction_speed = 1.5
-            ..maximum_linear_speed = 14.0
+            ..maximum_linear_speed = 10.0
         )
         self.physics.set_profiling_enabled(true)
         self.mover = Physics.CharacterMover2D(
@@ -416,10 +418,10 @@ func spawn_ball(
             ..position = ball_start(index)
             ..shape = Physics.Shape2D.circle(Physics.Circle2D(radius))
             ..mass = 0.12
-            ..friction = 0.16
-            ..restitution = 0.64
-            ..linear_damping = 0.18
-            ..angular_damping = 0.12
+            ..friction = 0.05
+            ..restitution = 0.55
+            ..linear_damping = 0.32
+            ..angular_damping = 0.2
             ..collision_filter = Physics.CollisionFilter2D(
                 category_bits:Demo.ball_category
             )
@@ -636,7 +638,7 @@ func simulate_character(
         simulation.grounded = false
         simulation.riding_platform = false
         var bounced = false
-        var push_contact_count = 0
+        var crate_push_count = 0
         for plane in result.planes() {
             let category = plane.collider().collision_filter().category_bits
             if category == Demo.trampoline_category &&
@@ -651,47 +653,78 @@ func simulate_character(
                 }
             }
             if plane.push() > 0.0 &&
-                (category == Demo.ball_category ||
-                    (category == Demo.dynamic_prop_category &&
-                        direction != 0.0 &&
-                        Math.abs(plane.normal.x) > 0.55))
+                category == Demo.dynamic_prop_category &&
+                direction != 0.0 && Math.abs(plane.normal.x) > 0.55
             {
-                push_contact_count++
+                crate_push_count++
             }
         }
+        var touched_colliders = result.colliders()
+        var ball_contact_count = 0
+        for collider in touched_colliders {
+            if collider.collision_filter().category_bits == Demo.ball_category {
+                ball_contact_count++
+            }
+        }
+        let push_contact_count = crate_push_count + ball_contact_count
         if push_contact_count > 0 {
             simulation.push_pressure = Math.min(
                 1.0,
                 simulation.push_pressure +
                     Demo.push_pressure_rise * Demo.fixed_delta
             )
+            let ball_push_speed = Math.min(
+                Demo.maximum_ball_push_speed,
+                Math.max(
+                    Demo.minimum_ball_push_speed +
+                        (Demo.maximum_ball_push_speed -
+                            Demo.minimum_ball_push_speed) *
+                            simulation.push_pressure,
+                    Math.abs(simulation.velocity.x) +
+                        Demo.ball_push_speed_lead
+                )
+            )
+            var ball_index = 0
+            while ball_index < touched_colliders.count() {
+                var collider = touched_colliders[ball_index]
+                if collider.collision_filter().category_bits !=
+                    Demo.ball_category
+                {
+                    ball_index++
+                    continue
+                }
+                var pushed = collider.body()
+                let offset_x = pushed.position().x - simulation.position.x
+                var push_direction = 1.0
+                if offset_x < -0.02 {
+                    push_direction = -1.0
+                } elif offset_x <= 0.02 {
+                    if direction != 0.0 {
+                        push_direction = direction
+                    } elif ball_index % 2 == 0 {
+                        push_direction = -1.0
+                    }
+                }
+                var ball_velocity = pushed.velocity()
+                if ball_velocity.x * push_direction < ball_push_speed {
+                    ball_velocity.x = push_direction * ball_push_speed
+                    pushed.set_velocity(ball_velocity)
+                }
+                ball_index++
+            }
             for plane in result.planes() {
                 let category = plane.collider().collision_filter().category_bits
-                if plane.push() > 0.0 && category == Demo.ball_category {
-                    var pushed = plane.body()
-                    let offset_x = pushed.position().x - simulation.position.x
-                    var push_direction = 1.0
-                    if offset_x < 0.0 { push_direction = -1.0 }
-                    let force = (
-                        Demo.minimum_push_force +
-                        (Demo.maximum_push_force - Demo.minimum_push_force) *
-                            simulation.push_pressure
-                    ) / push_contact_count as float
-                    pushed.apply_force_to_center(Math.Vec2(
-                        push_direction * force,
-                        0.0
-                    ))
-                } elif plane.push() > 0.0 &&
+                if plane.push() > 0.0 &&
                     category == Demo.dynamic_prop_category &&
                     direction != 0.0 && Math.abs(plane.normal.x) > 0.55
                 {
                     var pushed = plane.body()
                     let force = (
-                        Demo.minimum_push_force +
+                        Demo.minimum_crate_push_force +
                         (Demo.maximum_crate_push_force -
-                            Demo.minimum_push_force) *
+                            Demo.minimum_crate_push_force) *
                             simulation.push_pressure
-                    ) / push_contact_count as float
+                    ) / Math.max(1, crate_push_count) as float
                     pushed.apply_force_to_center(Math.Vec2(
                         direction * force,
                         0.0

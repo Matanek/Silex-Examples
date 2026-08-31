@@ -92,8 +92,10 @@ while fixed-step simulation keeps prop contacts and descending elevator carry
 stable. The in-window performance panel tracks current and lowest FPS, frames
 longer than 33 ms, maximum frame time, measured physics-step cost, and the
 progressive pressure applied while pushing. Balls are light, damped dynamic
-supports: the character can jump from them while contact spreads them away
-from the capsule so it can also squeeze between clustered balls.
+supports: the character collides with and can jump from them, while the first
+shape-cast contact immediately gives each touched ball enough lead velocity to
+yield without letting the capsule pass through it. Sustained pressure spreads
+clustered balls around the character.
 Because this bounded-speed playground contains no bullet, it uses discrete
 collision detection, lets idle props sleep, and caps fixed-step catch-up at
 four steps per rendered frame.
