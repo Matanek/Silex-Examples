@@ -4,6 +4,7 @@ use GFX.Font as VectorFont
 use GFX.Input.Keyboard
 use GFX.UI
 use GFX.Viewer
+use STD.Collections.Dictionary
 use STD.Math
 use STD.Process
 use STD.Text.UTF8
@@ -243,6 +244,7 @@ class DocumentContent:UI.Content {
     private var scroll:UI.ScrollState
     private var font:Canvas.Font
     private var blocks:RetainedDocumentBlock[]
+    private var block_indices:Dictionary<int, int>
     private var block_generation:int = 0
     private var focused:bool = false
     private var sample_elapsed:float = 0.0
@@ -281,6 +283,9 @@ class DocumentContent:UI.Content {
         self.scroll = scroll
         self.font = Canvas.Font.monospace()
         self.blocks = []
+        self.block_indices = Dictionary<int, int>(
+            minimum_capacity:Document.block_cache_capacity
+        )
         self.automatic_profile = automatic_profile
         self.settle_profile = settle_profile
         self.wheel_profile = wheel_profile
@@ -360,11 +365,11 @@ class DocumentContent:UI.Content {
 
     private func retained_block(index:int) RetainedDocumentBlock {
         self.block_generation++
-        for slot in self.blocks {
-            if slot.index == index {
-                slot.last_used = self.block_generation
-                return slot
-            }
+        if self.block_indices.contains(index) {
+            let slot_index:int = self.block_indices.get(index) + 0
+            var slot = self.blocks[slot_index]
+            slot.last_used = self.block_generation
+            return slot
         }
         var style = Canvas.TextStyle(
             size:Document.font_size,
@@ -380,6 +385,7 @@ class DocumentContent:UI.Content {
                 self.block_generation
             )
             self.blocks.append(retained)
+            self.block_indices.set(index, self.blocks.count() - 1)
             return retained
         }
         var selected = 0
@@ -390,16 +396,20 @@ class DocumentContent:UI.Content {
             }
             candidate++
         }
+        let previous_index = self.blocks[selected].index
+        self.block_indices.remove(previous_index)
         self.blocks[selected].index = index
         self.blocks[selected].block = block
         self.blocks[selected].last_used = self.block_generation
         self.blocks[selected].gpu_ready = false
+        self.block_indices.set(index, selected)
         return self.blocks[selected]
     }
 
     private func block_is_ready(index:int) bool {
-        for slot in self.blocks {
-            if slot.index == index { return slot.gpu_ready }
+        if self.block_indices.contains(index) {
+            let slot_index:int = self.block_indices.get(index) + 0
+            return self.blocks[slot_index].gpu_ready
         }
         return false
     }
