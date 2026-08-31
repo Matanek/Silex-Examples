@@ -20,6 +20,9 @@ static struct Document {
     let scroll_snap_distance:float = 0.001
     let maximum_animation_delta:float = 0.05
     let block_lines:int = 8
+    let block_cache_capacity:int = 128
+    let prefetch_blocks_per_frame:int = 1
+    let prefetch_blocks_ahead:int = 40
 }
 
 struct ScrollProfile {
@@ -199,20 +202,44 @@ func preload_document(samples:@str[]) str[] {
     return lines
 }
 
+func preload_document_blocks(lines:@str[]) str[] {
+    var blocks:str[] = []
+    var first_line = 0
+    while first_line < lines.count() {
+        let final_line = Math.min(
+            first_line + Document.block_lines,
+            lines.count()
+        ) as int
+        var value = ""
+        var line = first_line
+        while line < final_line {
+            if line > first_line { value = value + "\n" }
+            value = value + lines[line]
+            line++
+        }
+        blocks.append(value)
+        first_line = final_line
+    }
+    return blocks
+}
+
 class RetainedDocumentBlock {
     var index:int
     var block:Canvas.TextBlock
     var last_used:int
+    var gpu_ready:bool
 
-    init(index:int, block:Canvas.TextBlock, last_used:int) {
+    init(index:int, block:Canvas.TextBlock, last_used:int, gpu_ready:bool = false) {
         self.index = index
         self.block = block
         self.last_used = last_used
+        self.gpu_ready = gpu_ready
     }
 }
 
 class DocumentContent:UI.Content {
     private var lines:str[]
+    private var block_values:str[]
     private var scroll:UI.ScrollState
     private var font:Canvas.Font
     private var blocks:RetainedDocumentBlock[]
@@ -222,6 +249,10 @@ class DocumentContent:UI.Content {
     private var sample_frames:int = 0
     private var frames_per_second:int = 0
     private var maximum_frame_ms:float = 0.0
+    private var reported_maximum_frame_ms:float = 0.0
+    private var status_first_line:int = 0
+    private var status_block:Canvas.TextBlock? = null
+    private var prefetch_more:bool = false
     private var current_visible_rows:int = 1
     private let automatic_profile:bool
     private let settle_profile:bool
@@ -238,6 +269,7 @@ class DocumentContent:UI.Content {
 
     init(
         lines:str[],
+        block_values:str[],
         scroll:UI.ScrollState,
         automatic_profile:bool = false,
         settle_profile:bool = false,
@@ -245,6 +277,7 @@ class DocumentContent:UI.Content {
         wheel_direction:UI.ScrollWheelDirection = UI.ScrollWheelDirection.normal
     ) {
         self.lines = lines
+        self.block_values = block_values
         self.scroll = scroll
         self.font = Canvas.Font.monospace()
         self.blocks = []
@@ -299,9 +332,9 @@ class DocumentContent:UI.Content {
             Document.block_lines
         while block_index < final_block {
             let block_line = block_index * Document.block_lines
-            var block = self.retained_block(block_index)
+            var slot = self.retained_block(block_index)
             painter.text_block(
-                block,
+                slot.block,
                 Math.Vec2(
                     x,
                     frame.position.y + Document.padding +
@@ -310,17 +343,27 @@ class DocumentContent:UI.Content {
                 ),
                 clip:text_clip
             )
+            slot.gpu_ready = true
             block_index++
         }
-        self.paint_status(painter, frame, first_line, opacity)
+        self.paint_prefetch_blocks(
+            painter,
+            frame,
+            text_clip,
+            x,
+            first_line / Document.block_lines,
+            final_block
+        )
+        self.status_first_line = first_line
+        self.paint_status(painter, frame, opacity)
     }
 
-    private func retained_block(index:int) Canvas.TextBlock {
+    private func retained_block(index:int) RetainedDocumentBlock {
         self.block_generation++
         for slot in self.blocks {
             if slot.index == index {
                 slot.last_used = self.block_generation
-                return slot.block
+                return slot
             }
         }
         var style = Canvas.TextStyle(
@@ -329,26 +372,15 @@ class DocumentContent:UI.Content {
             font:self.font,
             line_height:Document.line_height
         )
-        let first_line = index * Document.block_lines
-        let final_line = Math.min(
-            first_line + Document.block_lines,
-            self.lines.count()
-        ) as int
-        var value = ""
-        var line = first_line
-        while line < final_line {
-            if line > first_line { value = value + "\n" }
-            value = value + self.lines[line]
-            line++
-        }
-        var block = Canvas.TextBlock(value, style)
-        if self.blocks.count() < 32 {
-            self.blocks.append(RetainedDocumentBlock(
+        var block = Canvas.TextBlock(self.block_values[index], style)
+        if self.blocks.count() < Document.block_cache_capacity {
+            var retained = RetainedDocumentBlock(
                 index,
                 block,
                 self.block_generation
-            ))
-            return block
+            )
+            self.blocks.append(retained)
+            return retained
         }
         var selected = 0
         var candidate = 1
@@ -361,7 +393,69 @@ class DocumentContent:UI.Content {
         self.blocks[selected].index = index
         self.blocks[selected].block = block
         self.blocks[selected].last_used = self.block_generation
-        return block
+        self.blocks[selected].gpu_ready = false
+        return self.blocks[selected]
+    }
+
+    private func block_is_ready(index:int) bool {
+        for slot in self.blocks {
+            if slot.index == index { return slot.gpu_ready }
+        }
+        return false
+    }
+
+    private func next_prefetch_block(
+        first_visible_block:int,
+        final_visible_block:int
+    ) int {
+        let maximum_block = (self.lines.count() + Document.block_lines - 1) /
+            Document.block_lines
+        let current = self.scroll.offset()
+        let target = self.wheel_target_offset
+        if target < current {
+            var first = Math.floor(target) as int / Document.block_lines -
+                Document.prefetch_blocks_ahead
+            if first < 0 { first = 0 }
+            var index = first_visible_block - 1
+            while index >= first {
+                if !self.block_is_ready(index) { return index }
+                index--
+            }
+            return -1
+        }
+        var target_block = Math.floor(target) as int / Document.block_lines
+        var final = target_block + Document.prefetch_blocks_ahead
+        if final > maximum_block { final = maximum_block }
+        var index = final_visible_block
+        while index < final {
+            if !self.block_is_ready(index) { return index }
+            index++
+        }
+        return -1
+    }
+
+    private func paint_prefetch_blocks(
+        painter:&Canvas.Painter,
+        frame:Canvas.Rect,
+        text_clip:Canvas.Rect,
+        x:float,
+        first_visible_block:int,
+        final_visible_block:int
+    ) {
+        var prepared = 0
+        var next = self.next_prefetch_block(first_visible_block, final_visible_block)
+        while next >= 0 && prepared < Document.prefetch_blocks_per_frame {
+            var slot = self.retained_block(next)
+            painter.text_block(
+                slot.block,
+                Math.Vec2(x, frame.position.y - 10_000.0 - prepared as float),
+                clip:text_clip
+            )
+            slot.gpu_ready = true
+            prepared++
+            next = self.next_prefetch_block(first_visible_block, final_visible_block)
+        }
+        self.prefetch_more = next >= 0
     }
 
     func focusable() bool { return true }
@@ -376,7 +470,7 @@ class DocumentContent:UI.Content {
     }
 
     func update(delta:float) bool {
-        var changed = self.advance_wheel_motion(delta)
+        var changed = self.advance_wheel_motion(delta) || self.prefetch_more
         self.sample_elapsed += delta
         self.sample_frames++
         let frame_ms = delta * 1_000.0
@@ -385,8 +479,11 @@ class DocumentContent:UI.Content {
             self.frames_per_second = Math.round(
                 self.sample_frames as float / self.sample_elapsed
             ) as int
+            self.reported_maximum_frame_ms = self.maximum_frame_ms
+            self.maximum_frame_ms = 0.0
             self.sample_elapsed = 0.0
             self.sample_frames = 0
+            self.status_block = null
             changed = true
         }
         if self.automatic_profile && !self.profile_done {
@@ -476,11 +573,19 @@ class DocumentContent:UI.Content {
             Document.scroll_response,
             Math.clamp(delta, 0.0, Document.maximum_animation_delta)
         )
-        let changed = self.scroll.set_offset(Math.lerp(
+        var next = Math.lerp(
             self.scroll.offset(),
             self.wheel_target_offset,
             amount
-        ))
+        )
+        let maximum_step = (Document.block_lines *
+            Document.prefetch_blocks_per_frame) as float
+        next = Math.clamp(
+            next,
+            self.scroll.offset() - maximum_step,
+            self.scroll.offset() + maximum_step
+        )
+        let changed = self.scroll.set_offset(next)
         self.wheel_applied_offset = self.scroll.offset()
         return changed
     }
@@ -591,7 +696,6 @@ class DocumentContent:UI.Content {
     private func paint_status(
         painter:&Canvas.Painter,
         frame:Canvas.Rect,
-        first_line:int,
         opacity:float
     ) {
         let y = frame.position.y + frame.size.y - Document.status_height
@@ -607,14 +711,20 @@ class DocumentContent:UI.Content {
             color:Color.slate_300().with_alpha(opacity),
             font:self.font
         )
-        let maximum = Math.round(self.maximum_frame_ms * 100.0) / 100.0
-        painter.text(
-            "FPS $(self.frames_per_second)  ·  max frame $(maximum) ms  ·  " +
-            "top line $(first_line + 1) / $(self.lines.count())",
-            Math.Vec2(frame.position.x + Document.padding, y + 6.0),
-            style
-        )
-        self.maximum_frame_ms = 0.0
+        if self.status_block == null {
+            let maximum = Math.round(self.reported_maximum_frame_ms * 100.0) / 100.0
+            self.status_block = Canvas.TextBlock(
+                "FPS $(self.frames_per_second)  ·  max frame $(maximum) ms  ·  " +
+                "top line $(self.status_first_line + 1) / $(self.lines.count())",
+                style
+            )
+        }
+        if let block = self.status_block {
+            painter.text_block(
+                block,
+                Math.Vec2(frame.position.x + Document.padding, y + 6.0)
+            )
+        }
     }
 }
 
@@ -827,11 +937,13 @@ func drawing_text_block_count(drawing:@Canvas) int {
 
 func verify(
     lines:str[],
+    block_values:str[],
     scroll:UI.ScrollState,
     wheel_direction:UI.ScrollWheelDirection
 ) {
     var content = DocumentContent(
         lines,
+        block_values,
         scroll,
         wheel_direction:wheel_direction
     )
@@ -841,7 +953,7 @@ func verify(
     assert(drawing.command_count() >= 6)
     assert(drawing.command_count() < 12)
     assert(drawing_text_block_count(drawing) >= 4)
-    assert(drawing_text_block_count(drawing) <= 6)
+    assert(drawing_text_block_count(drawing) <= 7)
     assert(runtime.pointer_pressed(Math.Vec2(10.0, 10.0)))
     assert(runtime.key_pressed(Keyboard.Key.page_down))
     assert(scroll.offset() == content.visible_row_count() as float)
@@ -870,7 +982,7 @@ func verify(
     assert(Math.abs(scroll.offset() - Document.wheel_step) < 0.001)
     drawing = runtime.drawing(1100, 600)
     assert(drawing_text_block_count(drawing) >= 4)
-    assert(drawing_text_block_count(drawing) <= 6)
+    assert(drawing_text_block_count(drawing) <= 7)
     assert(drawing.command_count() < 12)
     assert(runtime.key_pressed(Keyboard.Key.home))
     drawing = runtime.drawing(1100, 600)
@@ -908,6 +1020,7 @@ func main() {
     var preload = Stopwatch()
     preload.start()
     let lines = preload_document(corpus.samples)
+    let block_values = preload_document_blocks(lines)
     preload.stop()
     let preload_ms = preload.get_elapsed_milliseconds()
     print(
@@ -918,13 +1031,14 @@ func main() {
     var scroll = UI.ScrollState(Document.line_count as float)
     let wheel_direction = document_wheel_direction()
     if verification_mode() {
-        verify(lines, scroll, wheel_direction)
+        verify(lines, block_values, scroll, wheel_direction)
         return
     }
     let profiling = automatic_profile_mode()
     let text_mode = viewer_text_mode()
     var content = DocumentContent(
         lines,
+        block_values,
         scroll,
         profiling,
         settle_profile_mode(),
