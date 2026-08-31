@@ -20,9 +20,9 @@ static struct Demo {
     let air_control_speed_from_rest:float = 2.4
     let coyote_time:float = 0.12
     let trampoline_speed:float = 8.4
-    let push_force:float = 32.0
+    let push_force:float = 44.0
     let trampoline_category:uint64 = 2
-    let pushable_category:uint64 = 4
+    let dynamic_prop_category:uint64 = 4
 }
 
 func approach_speed(current:float, target:float, maximum_delta:float) float {
@@ -49,7 +49,23 @@ func prepare_air_control(simulation:&Simulation) {
             Demo.air_control_acceleration) * rest_influence
 }
 
-struct DemoVisual { let kind:int }
+struct DemoVisual {
+    let kind:int
+    var body:Physics.RigidBody2D?
+
+    init(kind:int, body:Physics.RigidBody2D? = null) {
+        self.kind = kind
+        self.body = body
+    }
+}
+
+func ball_start(index:int) Math.Vec2 {
+    if index == 0 { return Math.Vec2(-0.8, 2.85) }
+    if index == 1 { return Math.Vec2(0.25, 3.1) }
+    if index == 2 { return Math.Vec2(1.3, 2.75) }
+    if index == 3 { return Math.Vec2(2.35, 3.05) }
+    return Math.Vec2(3.4, 2.8)
+}
 
 class Simulation {
     var physics:Physics.World2D
@@ -58,6 +74,7 @@ class Simulation {
     var velocity:Math.Vec2
     var platform:Physics.RigidBody2D?
     var pushable:Physics.RigidBody2D?
+    var balls:Physics.RigidBody2D[]
     var elapsed:float
     var accumulator:float
     var grounded:bool
@@ -82,6 +99,7 @@ class Simulation {
         self.velocity = Math.Vec2()
         self.platform = null
         self.pushable = null
+        self.balls = []
         self.elapsed = 0.0
         self.accumulator = 0.0
         self.grounded = false
@@ -105,6 +123,15 @@ class Simulation {
             pushable.set_velocity(Math.Vec2())
             pushable.set_rotation(0.0)
             pushable.set_angular_velocity(0.0)
+        }
+        var ball_index = 0
+        while ball_index < self.balls.count() {
+            var ball = self.balls[ball_index]
+            ball.set_position(ball_start(ball_index))
+            ball.set_velocity(Math.Vec2())
+            ball.set_rotation(0.0)
+            ball.set_angular_velocity(0.0)
+            ball_index++
         }
     }
 }
@@ -150,6 +177,20 @@ func character_drawing() Canvas {
     })
 }
 
+func ball_drawing(radius:float, color:Color) Canvas {
+    let pixel_radius = radius * Demo.pixels_per_meter
+    return Canvas()..paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Circle(Math.Vec2(pixel_radius), pixel_radius),
+            Canvas.Fill.solid(color)
+        )
+        painter.stroke(
+            Canvas.Circle(Math.Vec2(pixel_radius), pixel_radius - 2.0),
+            Canvas.Stroke(Color.white().with_alpha(0.7), 3.0)
+        )
+    })
+}
+
 func status_drawing() Canvas {
     return Canvas()..paint(func(painter:&Canvas.Painter) {
         painter.fill(
@@ -171,7 +212,7 @@ func status_drawing() Canvas {
             Canvas.TextStyle(size:13.0, color:Color.slate_200())
         )
         painter.text(
-            "BOUNCE · PUSHABLE BODY · MOVING ELEVATOR",
+            "TRAMPOLINE · LIGHT CRATE · 5 BOUNCING BALLS",
             Math.Vec2(16.0, 68.0),
             Canvas.TextStyle(size:14.0, color:Color.emerald_300())
         )
@@ -223,24 +264,58 @@ func spawn_pushable_box(world:&Resources.World, simulation:&Simulation) {
             ..body_type = Physics.BodyType2D.dynamic
             ..position = Math.Vec2(-3.0, -1.8)
             ..shape = Physics.Shape2D.box(Physics.Box2D(size))
-            ..mass = 1.6
-            ..friction = 0.72
+            ..mass = 0.65
+            ..friction = 0.42
             ..restitution = 0.08
-            ..linear_damping = 0.25
-            ..angular_damping = 0.35
+            ..linear_damping = 0.15
+            ..angular_damping = 0.25
             ..allow_sleep = false
             ..collision_filter = Physics.CollisionFilter2D(
-                category_bits:Demo.pushable_category
+                category_bits:Demo.dynamic_prop_category
             )
     )
     simulation.pushable = body
     var drawing = box_drawing(size, Color.orange_400(), 7.0)
     world.spawn(ECS.EntityRecipe()
-        ..with(DemoVisual(kind:2))
+        ..with(DemoVisual(2, body))
         ..with(Components.Transform2D(
             position:body.position().multiply(Demo.pixels_per_meter)
         ))
         ..with(Components.Canvas(drawing, 65, 65)..layer = 3)
+    )
+}
+
+func spawn_ball(
+    world:&Resources.World,
+    simulation:&Simulation,
+    index:int,
+    radius:float,
+    color:Color
+) {
+    var body = simulation.physics.create_rigid_body(
+        Physics.RigidBody2DSettings()
+            ..body_type = Physics.BodyType2D.dynamic
+            ..position = ball_start(index)
+            ..shape = Physics.Shape2D.circle(Physics.Circle2D(radius))
+            ..mass = 0.28
+            ..friction = 0.25
+            ..restitution = 0.82
+            ..linear_damping = 0.06
+            ..angular_damping = 0.04
+            ..allow_sleep = false
+            ..collision_filter = Physics.CollisionFilter2D(
+                category_bits:Demo.dynamic_prop_category
+            )
+    )
+    simulation.balls.append(body)
+    var drawing = ball_drawing(radius, color)
+    let diameter = Math.round(radius * 2.0 * Demo.pixels_per_meter) as int
+    world.spawn(ECS.EntityRecipe()
+        ..with(DemoVisual(2, body))
+        ..with(Components.Transform2D(
+            position:body.position().multiply(Demo.pixels_per_meter)
+        ))
+        ..with(Components.Canvas(drawing, diameter, diameter)..layer = 3)
     )
 }
 
@@ -298,7 +373,7 @@ func create_scene(world:&Resources.World, simulation:&Simulation) {
     )
     spawn_box(
         world, simulation,
-        Math.Vec2(2.2, -3.2), Math.Vec2(1.4, 0.28),
+        Math.Vec2(4.0, -3.2), Math.Vec2(0.85, 0.28),
         Color.amber_400(),
         restitution:1.0,
         collision_filter:Physics.CollisionFilter2D(
@@ -306,6 +381,11 @@ func create_scene(world:&Resources.World, simulation:&Simulation) {
         )
     )
     spawn_pushable_box(world, simulation)
+    spawn_ball(world, simulation, 0, 0.22, Color.cyan_300())
+    spawn_ball(world, simulation, 1, 0.28, Color.violet_500())
+    spawn_ball(world, simulation, 2, 0.24, Color.rose_500())
+    spawn_ball(world, simulation, 3, 0.31, Color.amber_400())
+    spawn_ball(world, simulation, 4, 0.26, Color.emerald_500())
 
     var platform = simulation.physics.create_rigid_body(
         Physics.RigidBody2DSettings()
@@ -442,7 +522,7 @@ func simulate_character(
                     simulation.riding_platform = true
                 }
             }
-            if category == Demo.pushable_category && direction != 0.0 &&
+            if category == Demo.dynamic_prop_category && direction != 0.0 &&
                 Math.abs(plane.normal.x) > 0.55 && plane.push() > 0.0
             {
                 var pushed = plane.body()
@@ -481,11 +561,11 @@ func simulate_character(
                     Demo.pixels_per_meter
                 )
             }
-        } elif let pushable = simulation.pushable {
-            transform.position = pushable.position().multiply(
+        } elif let body = visual.body {
+            transform.position = body.position().multiply(
                 Demo.pixels_per_meter
             )
-            transform.rotation = pushable.rotation()
+            transform.rotation = body.rotation()
         }
     }
 }
