@@ -86,13 +86,15 @@ The Plot gallery presents several pages in sequence. Closing the current
 window opens the next page.
 
 `CharacterMover2D.sx` demonstrates a capsule controller across a slope, steps,
-a concave corner, and a moving elevator. Its fixed-step passenger carry keeps
-descending contact stable. Ground acceleration and deceleration preserve
-momentum instead of replacing velocity from input; jumps retain that trajectory
-at their actual takeoff speed. Air control is expressed as an acceleration whose
-influence increases as takeoff momentum decreases. Vertical jumps therefore
-remain useful for reaching nearby platforms without gaining full running speed,
-and a short coyote window makes platform edges more forgiving.
+a concave corner, a trampoline, a pushable dynamic crate, and a moving elevator.
+Arena walls retain dynamic objects, while fixed-step simulation keeps crate
+contacts and descending elevator carry stable. Ground acceleration and
+deceleration preserve momentum instead of replacing velocity from input; jumps
+retain that trajectory at their actual takeoff speed. Air control is expressed
+as an acceleration whose influence increases as takeoff momentum decreases.
+Vertical jumps therefore remain useful for reaching nearby platforms without
+gaining full running speed, and a short coyote window makes platform edges more
+forgiving.
 
 The terminal examples form an intentional progression:
 `DedicatedSystemTerminal.sx` owns a dedicated window and lifecycle,

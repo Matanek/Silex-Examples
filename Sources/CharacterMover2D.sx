@@ -19,6 +19,10 @@ static struct Demo {
     let air_control_acceleration_from_rest:float = 36.4
     let air_control_speed_from_rest:float = 2.4
     let coyote_time:float = 0.12
+    let trampoline_speed:float = 8.4
+    let push_force:float = 32.0
+    let trampoline_category:uint64 = 2
+    let pushable_category:uint64 = 4
 }
 
 func approach_speed(current:float, target:float, maximum_delta:float) float {
@@ -53,6 +57,7 @@ class Simulation {
     var position:Math.Vec2
     var velocity:Math.Vec2
     var platform:Physics.RigidBody2D?
+    var pushable:Physics.RigidBody2D?
     var elapsed:float
     var accumulator:float
     var grounded:bool
@@ -63,7 +68,7 @@ class Simulation {
     var plane_count:int
 
     init() {
-        self.physics = Physics.World2D(gravity:Math.Vec2())
+        self.physics = Physics.World2D(gravity:Math.Vec2(0.0, -16.0))
         self.mover = Physics.CharacterMover2D(
             Physics.CharacterMover2DSettings()
                 ..capsule = Physics.Capsule2D(
@@ -76,6 +81,7 @@ class Simulation {
         self.position = Math.Vec2(-4.5, -1.45)
         self.velocity = Math.Vec2()
         self.platform = null
+        self.pushable = null
         self.elapsed = 0.0
         self.accumulator = 0.0
         self.grounded = false
@@ -94,6 +100,12 @@ class Simulation {
         self.airborne_horizontal_speed = 0.0
         self.air_control_acceleration = Demo.air_control_acceleration_from_rest
         self.coyote_remaining = 0.0
+        if var pushable = self.pushable {
+            pushable.set_position(Math.Vec2(-3.0, -1.8))
+            pushable.set_velocity(Math.Vec2())
+            pushable.set_rotation(0.0)
+            pushable.set_angular_velocity(0.0)
+        }
     }
 }
 
@@ -159,7 +171,7 @@ func status_drawing() Canvas {
             Canvas.TextStyle(size:13.0, color:Color.slate_200())
         )
         painter.text(
-            "LIVE CAPSULE CAST · SLIDE · DEPENETRATION",
+            "BOUNCE · PUSHABLE BODY · MOVING ELEVATOR",
             Math.Vec2(16.0, 68.0),
             Canvas.TextStyle(size:14.0, color:Color.emerald_300())
         )
@@ -178,7 +190,9 @@ func spawn_box(
     size:Math.Vec2,
     color:Color,
     rotation:float = 0.0,
-    body_type:Physics.BodyType2D = Physics.BodyType2D.fixed
+    body_type:Physics.BodyType2D = Physics.BodyType2D.fixed,
+    restitution:float = 0.0,
+    collision_filter:Physics.CollisionFilter2D = Physics.CollisionFilter2D()
 ) Physics.RigidBody2D {
     var body = simulation.physics.create_rigid_body(
         Physics.RigidBody2DSettings()
@@ -186,6 +200,8 @@ func spawn_box(
             ..position = position
             ..rotation = rotation
             ..shape = Physics.Shape2D.box(Physics.Box2D(size))
+            ..restitution = restitution
+            ..collision_filter = collision_filter
     )
     var drawing = box_drawing(size, color)
     let width = Math.round(size.x * Demo.pixels_per_meter) as int
@@ -200,10 +216,54 @@ func spawn_box(
     return body
 }
 
+func spawn_pushable_box(world:&Resources.World, simulation:&Simulation) {
+    let size = Math.Vec2(0.72)
+    var body = simulation.physics.create_rigid_body(
+        Physics.RigidBody2DSettings()
+            ..body_type = Physics.BodyType2D.dynamic
+            ..position = Math.Vec2(-3.0, -1.8)
+            ..shape = Physics.Shape2D.box(Physics.Box2D(size))
+            ..mass = 1.6
+            ..friction = 0.72
+            ..restitution = 0.08
+            ..linear_damping = 0.25
+            ..angular_damping = 0.35
+            ..allow_sleep = false
+            ..collision_filter = Physics.CollisionFilter2D(
+                category_bits:Demo.pushable_category
+            )
+    )
+    simulation.pushable = body
+    var drawing = box_drawing(size, Color.orange_400(), 7.0)
+    world.spawn(ECS.EntityRecipe()
+        ..with(DemoVisual(kind:2))
+        ..with(Components.Transform2D(
+            position:body.position().multiply(Demo.pixels_per_meter)
+        ))
+        ..with(Components.Canvas(drawing, 65, 65)..layer = 3)
+    )
+}
+
 func create_scene(world:&Resources.World, simulation:&Simulation) {
     world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform2D())
         ..with(Components.Camera2D())
+    )
+
+    spawn_box(
+        world, simulation,
+        Math.Vec2(0.0, -3.55), Math.Vec2(11.2, 0.3),
+        Color.slate_600()
+    )
+    spawn_box(
+        world, simulation,
+        Math.Vec2(-5.55, 0.0), Math.Vec2(0.3, 7.1),
+        Color.slate_600()
+    )
+    spawn_box(
+        world, simulation,
+        Math.Vec2(5.55, 0.0), Math.Vec2(0.3, 7.1),
+        Color.slate_600()
     )
 
     spawn_box(
@@ -236,6 +296,16 @@ func create_scene(world:&Resources.World, simulation:&Simulation) {
         Math.Vec2(4.0, 1.25), Math.Vec2(1.35, 0.38),
         Color.slate_600()
     )
+    spawn_box(
+        world, simulation,
+        Math.Vec2(2.2, -3.2), Math.Vec2(1.4, 0.28),
+        Color.amber_400(),
+        restitution:1.0,
+        collision_filter:Physics.CollisionFilter2D(
+            category_bits:Demo.trampoline_category
+        )
+    )
+    spawn_pushable_box(world, simulation)
 
     var platform = simulation.physics.create_rigid_body(
         Physics.RigidBody2DSettings()
@@ -358,15 +428,35 @@ func simulate_character(
         )
         simulation.grounded = false
         simulation.riding_platform = false
+        var bounced = false
         for plane in result.planes() {
-            if plane.normal.y > 0.55 && plane.push() > 0.0 {
+            let category = plane.collider().collision_filter().category_bits
+            if category == Demo.trampoline_category &&
+                plane.normal.y > 0.55 && plane.push() > 0.0
+            {
+                simulation.velocity.y = Demo.trampoline_speed
+                bounced = true
+            } elif plane.normal.y > 0.55 && plane.push() > 0.0 {
                 simulation.grounded = true
                 if plane.body().body_type() == Physics.BodyType2D.kinematic {
                     simulation.riding_platform = true
                 }
             }
+            if category == Demo.pushable_category && direction != 0.0 &&
+                Math.abs(plane.normal.x) > 0.55 && plane.push() > 0.0
+            {
+                var pushed = plane.body()
+                pushed.apply_force_to_center(Math.Vec2(
+                    direction * Demo.push_force,
+                    0.0
+                ))
+            }
         }
-        if simulation.grounded {
+        if bounced {
+            simulation.grounded = false
+            simulation.riding_platform = false
+            simulation.coyote_remaining = 0.0
+        } elif simulation.grounded {
             simulation.coyote_remaining = Demo.coyote_time
         } else {
             simulation.coyote_remaining = Math.max(
@@ -375,6 +465,7 @@ func simulate_character(
             )
         }
         simulation.plane_count = result.planes().count()
+        simulation.physics.step(Demo.fixed_delta)
         simulation.accumulator -= Demo.fixed_delta
     }
 
@@ -384,8 +475,17 @@ func simulate_character(
             transform.position = simulation.position.multiply(
                 Demo.pixels_per_meter
             )
-        } elif let platform = simulation.platform {
-            transform.position = platform.position().multiply(Demo.pixels_per_meter)
+        } elif visual.kind == 1 {
+            if let platform = simulation.platform {
+                transform.position = platform.position().multiply(
+                    Demo.pixels_per_meter
+                )
+            }
+        } elif let pushable = simulation.pushable {
+            transform.position = pushable.position().multiply(
+                Demo.pixels_per_meter
+            )
+            transform.rotation = pushable.rotation()
         }
     }
 }
