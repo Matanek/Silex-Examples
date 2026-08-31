@@ -120,7 +120,8 @@ keyboard, mouse wheel or controlled vertical scrollbar to move through the
 retained document while evaluating latency. The interactive default uses Scene2D's hinted R8 glyph atlas; a
 compiled executable accepts `--vector` for the outline-only comparison and
 `--profile-coverage`, `--profile-vector` or `--profile-settle` for bounded
-profiles.
+profiles. `--invert-wheel` reverses mouse-wheel navigation while leaving the
+platform-normalized direction as the default.
 
 The WebView examples illustrate three different approaches:
 `EmbeddedWebView/Main.sx` embeds web files, while

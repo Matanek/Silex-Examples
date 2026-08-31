@@ -61,6 +61,13 @@ func automatic_profile_mode() bool {
 
 func settle_profile_mode() bool { return has_argument("--profile-settle") }
 
+func document_wheel_direction() UI.ScrollWheelDirection {
+    if has_argument("--invert-wheel") {
+        return UI.ScrollWheelDirection.inverted
+    }
+    return UI.ScrollWheelDirection.normal
+}
+
 func viewer_text_mode() Viewer.CanvasTextMode {
     if has_argument("--vector") || has_argument("--profile-vector") {
         return Viewer.CanvasTextMode.vector
@@ -189,6 +196,7 @@ class DocumentContent:UI.Content {
     private var current_visible_rows:int = 1
     private let automatic_profile:bool
     private let settle_profile:bool
+    private let wheel_direction:UI.ScrollWheelDirection
     private var profile_phase:int = 0
     private var profile_frames:int = 0
     private var profile_elapsed:float = 0.0
@@ -199,13 +207,15 @@ class DocumentContent:UI.Content {
         lines:str[],
         scroll:UI.ScrollState,
         automatic_profile:bool = false,
-        settle_profile:bool = false
+        settle_profile:bool = false,
+        wheel_direction:UI.ScrollWheelDirection = UI.ScrollWheelDirection.normal
     ) {
         self.lines = lines
         self.scroll = scroll
         self.font = Canvas.Font.monospace()
         self.automatic_profile = automatic_profile
         self.settle_profile = settle_profile
+        self.wheel_direction = wheel_direction
     }
 
     func measure(maximum:Math.Vec2) Math.Vec2 {
@@ -219,7 +229,7 @@ class DocumentContent:UI.Content {
     ) {
         painter.fill(
             frame,
-            Canvas.Fill.solid(Color.bytes(4, 10, 22).with_alpha(opacity))
+            Canvas.Fill.solid(Color.bytes(30, 33, 39).with_alpha(opacity))
         )
         let usable_height = frame.size.y - Document.padding * 2.0 - Document.status_height
         var visible_rows = Math.floor(usable_height / Document.line_height) as int
@@ -242,10 +252,10 @@ class DocumentContent:UI.Content {
             if row == 0 {
                 painter.fill(
                     Canvas.Rect(
-                        Math.Vec2(frame.position.x + 1.0, y - 2.0),
-                        Math.Vec2(frame.size.x - 2.0, Document.line_height)
+                        Math.Vec2(frame.position.x, y - 2.0),
+                        Math.Vec2(frame.size.x, Document.line_height)
                     ),
-                    Canvas.Fill.solid(Color.cyan_950().with_alpha(opacity))
+                    Canvas.Fill.solid(Color.bytes(45, 49, 58).with_alpha(opacity))
                 )
             }
             painter.text(
@@ -293,7 +303,11 @@ class DocumentContent:UI.Content {
 
     func pointer_scrolled(delta:Math.Vec2) bool {
         if delta.y == 0.0 { return false }
-        return self.scroll.scroll_by(-delta.y * 3.0)
+        return self.scroll.scroll_by_wheel(
+            delta.y,
+            3.0,
+            self.wheel_direction
+        )
     }
 
     func key_pressed(
@@ -403,14 +417,14 @@ class DocumentContent:UI.Content {
         let y = frame.position.y + frame.size.y - Document.status_height
         painter.fill(
             Canvas.Rect(
-                Math.Vec2(frame.position.x + 1.0, y),
-                Math.Vec2(frame.size.x - 2.0, Document.status_height - 1.0)
+                Math.Vec2(frame.position.x, y),
+                Math.Vec2(frame.size.x, Document.status_height)
             ),
-            Canvas.Fill.solid(Color.slate_900().with_alpha(opacity))
+            Canvas.Fill.solid(Color.bytes(38, 42, 50).with_alpha(opacity))
         )
         var style = Canvas.TextStyle(
             size:12.0,
-            color:Color.cyan_300().with_alpha(opacity),
+            color:Color.slate_300().with_alpha(opacity),
             font:self.font
         )
         let maximum = Math.round(self.maximum_frame_ms * 100.0) / 100.0
@@ -436,15 +450,15 @@ func label(value:str, size:float, color:Color) UI.Text {
 }
 
 func header() UI.Row {
-    var title = label("Vector text — retained document viewport", 24.0, Color.slate_100())
+    var title = label("Vector text — retained document viewport", 22.0, Color.slate_100())
     title.style.font_weight = UI.FontWeight.bold
     title.style.grow = 1.0
 
-    var badge = label("50,000 PRELOADED LINES", 11.0, Color.cyan_300())
+    var badge = label("50,000 PRELOADED LINES", 11.0, Color.slate_300())
     badge.style.padding = UI.Insets(vertical:7.0, horizontal:10.0)
-    badge.style.background = Color.cyan_950()
-    badge.style.border = UI.Border(1.0, Color.cyan_700())
-    badge.style.radius = 7.0
+    badge.style.background = Color.bytes(48, 52, 61)
+    badge.style.border = UI.Border(1.0, Color.bytes(75, 80, 91))
+    badge.style.radius = 4.0
 
     let children:UI.View[] = [title, badge]
     return UI.Row(children, alignment:UI.Alignment.center)
@@ -458,9 +472,9 @@ func facts(lines:int, glyphs:int, preload_ms:float) UI.Text {
         Color.slate_200()
     )
     result.style.padding = UI.Insets(vertical:10.0, horizontal:12.0)
-    result.style.background = Color.slate_900()
-    result.style.border = UI.Border(1.0, Color.slate_800())
-    result.style.radius = 9.0
+    result.style.background = Color.bytes(42, 46, 54)
+    result.style.border = UI.Border(1.0, Color.bytes(63, 68, 78))
+    result.style.radius = 4.0
     return result
 }
 
@@ -474,27 +488,41 @@ func navigation_hint() UI.Text {
 
 func document_viewport(
     content:DocumentContent,
-    scroll:UI.ScrollState
+    scroll:UI.ScrollState,
+    wheel_direction:UI.ScrollWheelDirection
 ) UI.Row {
     var viewport = DocumentView(content)
     viewport.style.grow = 1.0
     viewport.style.minimum_height = 300.0
 
-    var scrollbar = UI.Scrollbar(scroll, wheel_step:3.0)
-    // The interactive lane stays wider than the painted 6 px thumb so it
-    // remains easy to grab while keeping a macOS-like visual weight.
+    var scrollbar = UI.Scrollbar(
+        scroll,
+        wheel_step:3.0,
+        wheel_direction:wheel_direction,
+        appearance:UI.ScrollbarAppearance(
+            track_width:1.0,
+            thumb_width:5.0,
+            minimum_thumb_length:26.0
+        )
+    )
+    // The invisible lane stays wider than the painted thumb so it remains
+    // easy to grab without giving the control a heavy visual weight.
     scrollbar.style.width = 12.0
-    scrollbar.style.background = Color.slate_900()
-    scrollbar.style.accent = Color.cyan_500()
-    scrollbar.style.radius = 8.0
+    scrollbar.style.background = Color.bytes(58, 63, 72)
+    scrollbar.style.accent = Color.bytes(117, 123, 135)
+    scrollbar.style.radius = 3.0
 
-    let children:UI.View[] = [viewport, scrollbar]
+    var separator = UI.Container()
+    separator.style.width = 1.0
+    separator.style.background = Color.bytes(61, 66, 76)
+
+    let children:UI.View[] = [viewport, separator, scrollbar]
     var result = UI.Row(children)
-    result.style.gap = 4.0
+    result.style.gap = 0.0
     result.style.grow = 1.0
     result.style.padding = UI.Insets(1.0)
-    result.style.border = UI.Border(1.0, Color.cyan_400())
-    result.style.radius = 9.0
+    result.style.border = UI.Border(1.0, Color.bytes(75, 80, 91))
+    result.style.radius = 0.0
     return result
 }
 
@@ -502,19 +530,20 @@ func interface(
     content:DocumentContent,
     lines:str[],
     scroll:UI.ScrollState,
+    wheel_direction:UI.ScrollWheelDirection,
     glyphs:int,
     preload_ms:float
 ) UI.Column {
     let children:UI.View[] = [
         header(),
         facts(lines.count(), glyphs, preload_ms),
-        document_viewport(content, scroll),
+        document_viewport(content, scroll, wheel_direction),
         navigation_hint()
     ]
     var root = UI.Column(children)
-    root.style.padding = UI.Insets(22.0)
-    root.style.gap = 12.0
-    root.style.background = Color.bytes(8, 15, 29)
+    root.style.padding = UI.Insets(18.0)
+    root.style.gap = 10.0
+    root.style.background = Color.bytes(36, 39, 46)
     root.style.foreground = Color.slate_100()
     return root
 }
@@ -656,20 +685,29 @@ func main() {
         verify(lines, scroll)
         return
     }
+    let wheel_direction = document_wheel_direction()
     let profiling = automatic_profile_mode()
     let text_mode = viewer_text_mode()
     var content = DocumentContent(
         lines,
         scroll,
         profiling,
-        settle_profile_mode()
+        settle_profile_mode(),
+        wheel_direction
     )
-    var root = interface(content, lines, scroll, corpus.glyph_count, preload_ms)
+    var root = interface(
+        content,
+        lines,
+        scroll,
+        wheel_direction,
+        corpus.glyph_count,
+        preload_ms
+    )
     let settings = Viewer.CanvasSettings(
         width:1220,
         height:820,
         title:"Vector text — retained document viewport",
-        background:Color.bytes(8, 15, 29),
+        background:Color.bytes(36, 39, 46),
         text_mode:text_mode
     )
     if profiling {
