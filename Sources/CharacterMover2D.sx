@@ -16,6 +16,7 @@ static struct Demo {
     let ground_acceleration:float = 28.0
     let ground_deceleration:float = 15.0
     let air_control:float = 0.65
+    let air_control_from_rest_speed:float = 1.2
     let coyote_time:float = 0.12
 }
 
@@ -142,7 +143,7 @@ func status_drawing() Canvas {
             Canvas.TextStyle(size:14.0, color:Color.emerald_300())
         )
         painter.text(
-            "Takeoff momentum · tunable air steering · 120 ms coyote",
+            "Takeoff momentum · limited air steering · 120 ms coyote",
             Math.Vec2(16.0, 91.0),
             Canvas.TextStyle(size:12.0, color:Color.slate_400())
         )
@@ -276,7 +277,10 @@ func simulate_character(
     if input.is_pressed(Input.Key.space) &&
         (simulation.grounded || simulation.coyote_remaining > 0.0)
     {
-        simulation.airborne_horizontal_speed = Math.abs(simulation.velocity.x)
+        simulation.airborne_horizontal_speed = Math.max(
+            Math.abs(simulation.velocity.x),
+            Demo.air_control_from_rest_speed
+        )
         simulation.velocity.y = 6.2
         simulation.grounded = false
         simulation.riding_platform = false
@@ -299,8 +303,9 @@ func simulate_character(
                 target_speed,
                 acceleration * Demo.fixed_delta
             )
-            simulation.airborne_horizontal_speed = Math.abs(
-                simulation.velocity.x
+            simulation.airborne_horizontal_speed = Math.max(
+                Math.abs(simulation.velocity.x),
+                Demo.air_control_from_rest_speed
             )
         } elif direction != 0.0 {
             simulation.velocity.x = approach_speed(
