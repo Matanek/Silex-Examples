@@ -10,11 +10,15 @@ use STD.Text.UTF8
 use STD.Time.Stopwatch
 
 static struct Document {
-    let line_count:int = 50_000
+    let line_count:int = 5_000
     let font_size:float = 14.0
     let line_height:float = 19.0
     let padding:float = 12.0
     let status_height:float = 28.0
+    let wheel_step:float = 3.0
+    let scroll_response:float = 14.0
+    let scroll_snap_distance:float = 0.001
+    let maximum_animation_delta:float = 0.05
 }
 
 struct ScrollProfile {
@@ -30,6 +34,15 @@ struct ScrollProfile {
 struct GlyphCorpus {
     let samples:str[]
     let glyph_count:int
+}
+
+func scroll_smoothing_factor(response:float, delta:float) float {
+    if response <= 0.0 || delta <= 0.0 { return 0.0 }
+    let scaled = response * delta
+    var power = 1.0 + scaled / 256.0
+    var iteration = 0
+    while iteration < 8 { power *= power; iteration++ }
+    return 1.0 - 1.0 / power
 }
 
 func line_prefix(number:int) str {
@@ -197,6 +210,9 @@ class DocumentContent:UI.Content {
     private let automatic_profile:bool
     private let settle_profile:bool
     private let wheel_direction:UI.ScrollWheelDirection
+    private var wheel_target_offset:float
+    private var wheel_applied_offset:float
+    private var wheel_scrolling:bool = false
     private var profile_phase:int = 0
     private var profile_frames:int = 0
     private var profile_elapsed:float = 0.0
@@ -216,6 +232,8 @@ class DocumentContent:UI.Content {
         self.automatic_profile = automatic_profile
         self.settle_profile = settle_profile
         self.wheel_direction = wheel_direction
+        self.wheel_target_offset = scroll.offset()
+        self.wheel_applied_offset = scroll.offset()
     }
 
     func measure(maximum:Math.Vec2) Math.Vec2 {
@@ -237,7 +255,10 @@ class DocumentContent:UI.Content {
         self.current_visible_rows = visible_rows
         let viewport_changed = self.scroll.set_viewport_extent(visible_rows as float)
 
-        let first_line = Math.round(self.scroll.offset()) as int
+        let first_line = Math.floor(self.scroll.offset()) as int
+        let line_progress = self.scroll.offset() - first_line as float
+        var painted_rows = visible_rows
+        if line_progress > 0.0 { painted_rows++ }
 
         var text_style = Canvas.TextStyle(
             size:Document.font_size,
@@ -246,9 +267,10 @@ class DocumentContent:UI.Content {
         )
         let x = frame.position.x + Document.padding
         var row = 0
-        while row < visible_rows && first_line + row < self.lines.count() {
+        while row < painted_rows && first_line + row < self.lines.count() {
             let index = first_line + row
-            let y = frame.position.y + Document.padding + row as float * Document.line_height
+            let y = frame.position.y + Document.padding +
+                (row as float - line_progress) * Document.line_height
             if row == 0 {
                 painter.fill(
                     Canvas.Rect(
@@ -280,11 +302,11 @@ class DocumentContent:UI.Content {
     }
 
     func update(delta:float) bool {
+        var changed = self.advance_wheel_motion(delta)
         self.sample_elapsed += delta
         self.sample_frames++
         let frame_ms = delta * 1_000.0
         if frame_ms > self.maximum_frame_ms { self.maximum_frame_ms = frame_ms }
-        var changed = false
         if self.sample_elapsed >= 0.5 {
             self.frames_per_second = Math.round(
                 self.sample_frames as float / self.sample_elapsed
@@ -303,11 +325,23 @@ class DocumentContent:UI.Content {
 
     func pointer_scrolled(delta:Math.Vec2) bool {
         if delta.y == 0.0 { return false }
-        return self.scroll.scroll_by_wheel(
-            delta.y,
-            3.0,
-            self.wheel_direction
+        if !self.wheel_scrolling {
+            self.wheel_target_offset = self.scroll.offset()
+            self.wheel_applied_offset = self.scroll.offset()
+        }
+        var distance = -delta.y * Document.wheel_step
+        if self.wheel_direction == UI.ScrollWheelDirection.inverted {
+            distance = -distance
+        }
+        let target = Math.clamp(
+            self.wheel_target_offset + distance,
+            0.0,
+            self.scroll.maximum_offset()
         )
+        if target == self.wheel_target_offset { return false }
+        self.wheel_target_offset = target
+        self.wheel_scrolling = true
+        return true
     }
 
     func key_pressed(
@@ -338,7 +372,43 @@ class DocumentContent:UI.Content {
     }
 
     private func move_to(value:int) bool {
-        return self.scroll.set_offset(value as float)
+        self.wheel_scrolling = false
+        let changed = self.scroll.set_offset(value as float)
+        self.wheel_target_offset = self.scroll.offset()
+        self.wheel_applied_offset = self.scroll.offset()
+        return changed
+    }
+
+    private func advance_wheel_motion(delta:float) bool {
+        if !self.wheel_scrolling {
+            self.wheel_target_offset = self.scroll.offset()
+            self.wheel_applied_offset = self.scroll.offset()
+            return false
+        }
+        if self.scroll.offset() != self.wheel_applied_offset {
+            self.wheel_scrolling = false
+            self.wheel_target_offset = self.scroll.offset()
+            self.wheel_applied_offset = self.scroll.offset()
+            return false
+        }
+        let remaining = self.wheel_target_offset - self.scroll.offset()
+        if Math.abs(remaining) <= Document.scroll_snap_distance {
+            self.wheel_scrolling = false
+            let changed = self.scroll.set_offset(self.wheel_target_offset)
+            self.wheel_applied_offset = self.scroll.offset()
+            return changed
+        }
+        let amount = scroll_smoothing_factor(
+            Document.scroll_response,
+            Math.clamp(delta, 0.0, Document.maximum_animation_delta)
+        )
+        let changed = self.scroll.set_offset(Math.lerp(
+            self.scroll.offset(),
+            self.wheel_target_offset,
+            amount
+        ))
+        self.wheel_applied_offset = self.scroll.offset()
+        return changed
     }
 
     private func advance_profile(delta:float) bool {
@@ -449,12 +519,12 @@ func label(value:str, size:float, color:Color) UI.Text {
     return result
 }
 
-func header() UI.Row {
+func header(lines:int) UI.Row {
     var title = label("Vector text — retained document viewport", 22.0, Color.slate_100())
     title.style.font_weight = UI.FontWeight.bold
     title.style.grow = 1.0
 
-    var badge = label("50,000 PRELOADED LINES", 11.0, Color.slate_300())
+    var badge = label("$(lines) PRELOADED LINES", 11.0, Color.slate_300())
     badge.style.padding = UI.Insets(vertical:7.0, horizontal:10.0)
     badge.style.background = Color.bytes(48, 52, 61)
     badge.style.border = UI.Border(1.0, Color.bytes(75, 80, 91))
@@ -537,7 +607,7 @@ func interface(
     preload_ms:float
 ) UI.Column {
     let children:UI.View[] = [
-        header(),
+        header(lines.count()),
         facts(lines.count(), glyphs, preload_ms),
         document_viewport(content, scroll, wheel_direction),
         navigation_hint()
@@ -657,7 +727,19 @@ func verify(
         Math.Vec2(10.0, 10.0),
         Math.Vec2(0.0, wheel_delta)
     ))
-    assert(scroll.offset() == 3.0)
+    assert(scroll.offset() == 0.0)
+    assert(runtime.update(0.016))
+    assert(scroll.offset() > 0.0)
+    assert(scroll.offset() < Document.wheel_step)
+    drawing = runtime.drawing(1100, 600)
+    assert(drawing.command_count() > 25)
+    assert(drawing.command_count() < 40)
+    var settle_step = 0
+    while settle_step < 60 {
+        let changed = runtime.update(0.016)
+        settle_step++
+    }
+    assert(Math.abs(scroll.offset() - Document.wheel_step) < 0.001)
     assert(runtime.key_pressed(Keyboard.Key.home))
     drawing = runtime.drawing(1100, 600)
     assert(drawing.command_count() > 25)
