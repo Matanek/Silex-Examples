@@ -62,10 +62,10 @@ func automatic_profile_mode() bool {
 func settle_profile_mode() bool { return has_argument("--profile-settle") }
 
 func document_wheel_direction() UI.ScrollWheelDirection {
-    if has_argument("--invert-wheel") {
-        return UI.ScrollWheelDirection.inverted
+    if has_argument("--normal-wheel") {
+        return UI.ScrollWheelDirection.normal
     }
-    return UI.ScrollWheelDirection.normal
+    return UI.ScrollWheelDirection.inverted
 }
 
 func viewer_text_mode() Viewer.CanvasTextMode {
@@ -629,8 +629,16 @@ func profile_text(name:str, profile:ScrollProfile) str {
         "outlines=$(profile.outlines_ms)"
 }
 
-func verify(lines:str[], scroll:UI.ScrollState) {
-    var content = DocumentContent(lines, scroll)
+func verify(
+    lines:str[],
+    scroll:UI.ScrollState,
+    wheel_direction:UI.ScrollWheelDirection
+) {
+    var content = DocumentContent(
+        lines,
+        scroll,
+        wheel_direction:wheel_direction
+    )
     var viewport = DocumentView(content)
     var runtime = UI.Runtime(viewport)
     var drawing = runtime.drawing(1100, 600)
@@ -643,9 +651,11 @@ func verify(lines:str[], scroll:UI.ScrollState) {
     assert(scroll.offset() == scroll.maximum_offset())
     assert(runtime.key_pressed(Keyboard.Key.home))
     assert(scroll.offset() == 0.0)
+    var wheel_delta = 1.0
+    if wheel_direction == UI.ScrollWheelDirection.normal { wheel_delta = -1.0 }
     assert(runtime.pointer_scrolled(
         Math.Vec2(10.0, 10.0),
-        Math.Vec2(0.0, -1.0)
+        Math.Vec2(0.0, wheel_delta)
     ))
     assert(scroll.offset() == 3.0)
     assert(runtime.key_pressed(Keyboard.Key.home))
@@ -683,11 +693,11 @@ func main() {
     )
 
     var scroll = UI.ScrollState(Document.line_count as float)
+    let wheel_direction = document_wheel_direction()
     if verification_mode() {
-        verify(lines, scroll)
+        verify(lines, scroll, wheel_direction)
         return
     }
-    let wheel_direction = document_wheel_direction()
     let profiling = automatic_profile_mode()
     let text_mode = viewer_text_mode()
     var content = DocumentContent(
