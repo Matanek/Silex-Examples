@@ -271,15 +271,6 @@ class DocumentContent:UI.Content {
             let index = first_line + row
             let y = frame.position.y + Document.padding +
                 (row as float - line_progress) * Document.line_height
-            if row == 0 {
-                painter.fill(
-                    Canvas.Rect(
-                        Math.Vec2(frame.position.x, y - 2.0),
-                        Math.Vec2(frame.size.x, Document.line_height)
-                    ),
-                    Canvas.Fill.solid(Color.bytes(45, 49, 58).with_alpha(opacity))
-                )
-            }
             painter.text(
                 self.lines[index],
                 Math.Vec2(x, y),
