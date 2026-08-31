@@ -1,0 +1,178 @@
+use GFX.Color
+use GFX.Physics
+use GFX.Viewer
+use STD.Math
+
+func make_fixed(world:Physics.World2D, position:Math.Vec2, label:str) Physics.RigidBody2D {
+    return world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.circle(Physics.Circle2D(12.0))
+        ..position = position
+        ..debug_label = label
+    )
+}
+
+func make_dynamic(world:Physics.World2D, position:Math.Vec2, label:str) Physics.RigidBody2D {
+    return world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..shape = Physics.Shape2D.box(Physics.Box2D(Math.Vec2(24.0)))
+        ..position = position
+        ..gravity_scale = 0.0
+        ..allow_sleep = false
+        ..debug_label = label
+    )
+}
+
+func add_shapes(world:Physics.World2D) {
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.box(Physics.Box2D(Math.Vec2(130.0, 18.0), 5.0))
+        ..position = Math.Vec2(90.0, 135.0)
+        ..debug_label = "rounded box + contact"
+    )
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..shape = Physics.Shape2D.circle(Physics.Circle2D(27.0))
+        ..position = Math.Vec2(90.0, 105.0)
+        ..gravity_scale = 0.0
+        ..allow_sleep = false
+        ..debug_label = "circle"
+    )
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..shape = Physics.Shape2D.capsule(Physics.Capsule2D(
+            Math.Vec2(-32.0, 0.0), Math.Vec2(32.0, 0.0), 14.0
+        ))
+        ..position = Math.Vec2(260.0, 112.0)
+        ..gravity_scale = 0.0
+        ..debug_label = "capsule"
+    )
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..shape = Physics.Shape2D.polygon(Physics.Polygon2D([
+            Math.Vec2(-36.0, 22.0), Math.Vec2(-25.0, -28.0),
+            Math.Vec2(18.0, -34.0), Math.Vec2(42.0, 12.0)
+        ], 4.0))
+        ..position = Math.Vec2(430.0, 112.0)
+        ..gravity_scale = 0.0
+        ..debug_label = "rounded polygon"
+    )
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.segment(Physics.Segment2D(
+            Math.Vec2(-48.0, 20.0), Math.Vec2(48.0, -20.0)
+        ))
+        ..position = Math.Vec2(600.0, 112.0)
+        ..debug_label = "segment"
+    )
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.chain(Physics.Chain2D([
+            Math.Vec2(-56.0, 22.0), Math.Vec2(-22.0, -20.0),
+            Math.Vec2(22.0, -20.0), Math.Vec2(56.0, 22.0)
+        ]))
+        ..position = Math.Vec2(780.0, 112.0)
+        ..debug_label = "chain"
+    )
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.circle(Physics.Circle2D(25.0))
+        ..position = Math.Vec2(940.0, 112.0)
+        ..is_sensor = true
+        ..debug_label = "sensor"
+    )
+}
+
+func add_joints(world:Physics.World2D) {
+    var fixed_body = make_fixed(world, Math.Vec2(85.0, 300.0), "distance A")
+    var moving = make_dynamic(world, Math.Vec2(145.0, 300.0), "distance B")
+    world.create_distance_joint(fixed_body, moving,
+        Physics.DistanceJoint2DSettings()
+            ..first_anchor = Math.Vec2(85.0, 300.0)
+            ..second_anchor = Math.Vec2(145.0, 300.0)
+            ..length = 60.0)
+
+    fixed_body = make_fixed(world, Math.Vec2(285.0, 300.0), "filter A")
+    moving = make_dynamic(world, Math.Vec2(345.0, 300.0), "filter B")
+    world.create_filter_joint(fixed_body, moving)
+
+    fixed_body = make_fixed(world, Math.Vec2(485.0, 300.0), "motor A")
+    moving = make_dynamic(world, Math.Vec2(545.0, 300.0), "motor B")
+    world.create_motor_joint(fixed_body, moving,
+        Physics.MotorJoint2DSettings()
+            ..linear_offset = Math.Vec2(60.0, 0.0)
+            ..maximum_force = 100.0
+            ..maximum_torque = 100.0)
+
+    moving = make_dynamic(world, Math.Vec2(745.0, 300.0), "mouse")
+    world.create_mouse_joint(moving, Physics.MouseJoint2DSettings()
+        ..target = Math.Vec2(805.0, 270.0)
+        ..maximum_force = 100.0)
+
+    fixed_body = make_fixed(world, Math.Vec2(85.0, 500.0), "prismatic A")
+    moving = make_dynamic(world, Math.Vec2(145.0, 500.0), "prismatic B")
+    world.create_prismatic_joint(fixed_body, moving,
+        Physics.PrismaticJoint2DSettings()
+            ..anchor = Math.Vec2(115.0, 500.0)
+            ..axis = Math.Vec2(1.0, 0.0)
+            ..lower_translation = -30.0
+            ..upper_translation = 30.0
+            ..limit_enabled = true)
+
+    fixed_body = make_fixed(world, Math.Vec2(335.0, 500.0), "revolute A")
+    moving = make_dynamic(world, Math.Vec2(395.0, 500.0), "revolute B")
+    world.create_revolute_joint(fixed_body, moving,
+        Physics.RevoluteJoint2DSettings()
+            ..anchor = Math.Vec2(365.0, 500.0)
+            ..lower_angle = -0.5
+            ..upper_angle = 0.5
+            ..limit_enabled = true)
+
+    fixed_body = make_fixed(world, Math.Vec2(585.0, 500.0), "weld A")
+    moving = make_dynamic(world, Math.Vec2(645.0, 500.0), "weld B")
+    world.create_weld_joint(fixed_body, moving,
+        Physics.WeldJoint2DSettings() ..anchor = Math.Vec2(615.0, 500.0))
+
+    fixed_body = make_fixed(world, Math.Vec2(835.0, 500.0), "wheel A")
+    moving = make_dynamic(world, Math.Vec2(895.0, 500.0), "wheel B")
+    world.create_wheel_joint(fixed_body, moving,
+        Physics.WheelJoint2DSettings()
+            ..anchor = Math.Vec2(865.0, 500.0)
+            ..axis = Math.Vec2(0.0, 1.0)
+            ..spring_enabled = true)
+}
+
+func main() {
+    var world = Physics.World2D(gravity:Math.Vec2())
+    add_shapes(world)
+    add_joints(world)
+    world.step(1.0 / 60.0)
+
+    let settings = Physics.World2DDebugSettings()
+        ..shapes = true
+        ..joints = true
+        ..bounds = true
+        ..centers_of_mass = true
+        ..labels = true
+        ..contacts = true
+        ..contact_normals = true
+        ..contact_impulses = true
+        ..islands = true
+        ..constraint_graph = true
+        ..line_width = 2.0
+        ..contact_radius = 5.0
+        ..normal_length = 24.0
+        ..impulse_scale = 0.02
+        ..label_size = 13.0
+    var snapshot = Physics.World2DDebugSnapshot()
+    world.write_debug_snapshot(settings, snapshot)
+    assert(snapshot.line_count() > 80)
+    assert(snapshot.circle_count() > 20)
+    assert(snapshot.label_count() > 20)
+
+    var drawing = Physics.World2DDebug.canvas(snapshot)
+    var scene_canvas = Physics.World2DDebug.scene_canvas(snapshot)
+    assert(scene_canvas.revision() > 0)
+    Viewer.show(drawing, Viewer.CanvasSettings(
+        width:1080,
+        height:650,
+        title:"GFX.Physics — Complete 2D debug draw",
+        background:Color.slate_950()
+    ))
+}

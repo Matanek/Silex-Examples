@@ -77,6 +77,7 @@ Run multi-file demonstrations from the repository root as well:
 ```sh
 silex run Sources/FallingBodies/Main.sx
 silex run Sources/RotatingPhysicsContainer/Main.sx
+silex run Sources/PhysicsDebugDraw2D/Main.sx --release
 silex run Sources/ShapeGallery2D/Main.sx
 ```
 
