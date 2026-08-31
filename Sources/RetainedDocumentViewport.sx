@@ -5,18 +5,41 @@ use GFX.UI
 use GFX.Viewer
 use STD.Math
 use STD.Process
+use STD.Text.UTF8
 use STD.Time.Stopwatch
 
 static struct Document {
     let line_count:int = 50_000
-    let expected_visible_rows:int = 31
     let font_size:float = 14.0
     let line_height:float = 19.0
-    let gutter_width:float = 72.0
     let padding:float = 12.0
+    let status_height:float = 28.0
+}
+
+struct ScrollProfile {
+    let total_ms:float
+    let input_ms:float
+    let drawing_ms:float
+    let snapshot_ms:float
+    let preparation_ms:float
+    let shaping_ms:float
+    let outlines_ms:float
+}
+
+struct GlyphCorpus {
+    let samples:str[]
+    let glyph_count:int
 }
 
 func ignore_scroll_change(value:float) {}
+
+func line_prefix(number:int) str {
+    if number < 10 { return "    $(number)  " }
+    if number < 100 { return "   $(number)  " }
+    if number < 1_000 { return "  $(number)  " }
+    if number < 10_000 { return " $(number)  " }
+    return "$(number)  "
+}
 
 func verification_mode() bool {
     match Process.arguments() {
@@ -30,38 +53,76 @@ func verification_mode() bool {
     return false
 }
 
-func document_line(index:int) str {
-    let number = index + 1
-    let pattern = index % 8
-    if pattern == 0 {
-        return "func render_document_$(number)(viewport:Rect, first_line:int) Drawing {"
+func scalar_text(scalar:uint32) str {
+    var values:uint32[] = [scalar]
+    let view = @values[0:values.count()]
+    match UTF8.from_scalars(view) {
+        failure(error) => { panic("invalid glyph corpus scalar $(scalar)") }
+        success(value) => { return value }
     }
-    if pattern == 1 {
-        return "    let visible_$(number) = document.lines(first_line, viewport.rows())"
-    }
-    if pattern == 2 {
-        return "    // sample $(number): office AVATAR café a\u{0323}\u{0301} Ελληνικά — cached glyphs"
-    }
-    if pattern == 3 {
-        return "    for line_$(number) in visible { painter.text(line.value, line.position, style) }"
-    }
-    if pattern == 4 {
-        return "    metrics.record(frame:$(index), retained:true, invalidated:false)"
-    }
-    if pattern == 5 {
-        return "    let token_$(number) = lexer.next() // identifiers, punctuation, strings, comments"
-    }
-    if pattern == 6 {
-        return "    cache.reuse(key:$(number), font:monospace, size:14, density:2, glyphs:visible)"
-    }
-    return "} // block $(number): only the visible window is shaped and submitted"
 }
 
-func preload_document() str[] {
+func glyph_corpus(font:Canvas.Font) GlyphCorpus {
+    var face = font.face()
+    var glyphs:str[] = []
+    var scalar:uint32 = 33
+    while scalar <= 1_327 as uint32 {
+        let control = scalar >= 127 as uint32 && scalar <= 160 as uint32
+        if !control && face.supports(scalar) { glyphs.append(scalar_text(scalar)) }
+        scalar++
+    }
+    assert(glyphs.count() > 256)
+
+    var samples:str[] = []
+    var sample_index = 0
+    while sample_index < 256 {
+        var sample = ""
+        var glyph_index = 0
+        while glyph_index < 12 {
+            let index = (sample_index * 17 + glyph_index * 29) % glyphs.count()
+            sample = sample + glyphs[index]
+            glyph_index++
+        }
+        samples.append(sample)
+        sample_index++
+    }
+    return GlyphCorpus(samples:samples, glyph_count:glyphs.count())
+}
+
+func document_line(index:int, samples:@str[]) str {
+    let number = index + 1
+    let prefix = line_prefix(number)
+    let suffix = "  // glyphs " + samples[index % samples.count()]
+    let pattern = index % 8
+    if pattern == 0 {
+        return prefix + "func render_document_$(number)(viewport:Rect, first_line:int) Drawing {" + suffix
+    }
+    if pattern == 1 {
+        return prefix + "    let visible_$(number) = document.lines(first_line, viewport.rows())" + suffix
+    }
+    if pattern == 2 {
+        return prefix + "    // sample $(number): office AVATAR café a\u{0323}\u{0301} Ελληνικά" + suffix
+    }
+    if pattern == 3 {
+        return prefix + "    for line_$(number) in visible { painter.text(line.value, line.position, style) }" + suffix
+    }
+    if pattern == 4 {
+        return prefix + "    metrics.record(frame:$(index), retained:true, invalidated:false)" + suffix
+    }
+    if pattern == 5 {
+        return prefix + "    let token_$(number) = lexer.next() // identifiers and punctuation" + suffix
+    }
+    if pattern == 6 {
+        return prefix + "    cache.reuse(key:$(number), font:monospace, size:14, density:2)" + suffix
+    }
+    return prefix + "} // block $(number): visible window only" + suffix
+}
+
+func preload_document(samples:@str[]) str[] {
     var lines:str[] = []
     var index = 0
     while index < Document.line_count {
-        lines.append(document_line(index))
+        lines.append(document_line(index, samples))
         index++
     }
     return lines
@@ -72,6 +133,11 @@ class DocumentContent:UI.Content {
     private var scroll:UI.State<float>
     private var font:Canvas.Font
     private var focused:bool = false
+    private var sample_elapsed:float = 0.0
+    private var sample_frames:int = 0
+    private var frames_per_second:int = 0
+    private var maximum_frame_ms:float = 0.0
+    private var current_visible_rows:int = 1
 
     init(lines:str[], scroll:UI.State<float>) {
         self.lines = lines
@@ -96,9 +162,10 @@ class DocumentContent:UI.Content {
         if self.focused { border_color = Color.cyan_400() }
         painter.stroke(frame, Canvas.Stroke(border_color.with_alpha(opacity), 1.0))
 
-        let usable_height = frame.size.y - Document.padding * 2.0
+        let usable_height = frame.size.y - Document.padding * 2.0 - Document.status_height
         var visible_rows = Math.floor(usable_height / Document.line_height) as int
         if visible_rows < 1 { visible_rows = 1 }
+        self.current_visible_rows = visible_rows
 
         var first_line = Math.round(self.scroll.value()) as int
         var maximum_first = self.lines.count() - visible_rows
@@ -109,12 +176,6 @@ class DocumentContent:UI.Content {
         var text_style = Canvas.TextStyle(
             size:Document.font_size,
             color:Color.slate_200().with_alpha(opacity),
-            font:self.font
-        )
-        var number_style = Canvas.TextStyle(
-            size:Document.font_size,
-            color:Color.slate_500().with_alpha(opacity),
-            alignment:Canvas.TextAlignment.end,
             font:self.font
         )
         let x = frame.position.x + Document.padding
@@ -132,17 +193,13 @@ class DocumentContent:UI.Content {
                 )
             }
             painter.text(
-                "$(index + 1)",
-                Math.Vec2(x + Document.gutter_width - 14.0, y),
-                number_style
-            )
-            painter.text(
                 self.lines[index],
-                Math.Vec2(x + Document.gutter_width, y),
+                Math.Vec2(x, y),
                 text_style
             )
             row++
         }
+        self.paint_status(painter, frame, first_line, opacity)
     }
 
     func focusable() bool { return true }
@@ -156,7 +213,19 @@ class DocumentContent:UI.Content {
         return true
     }
 
-    func update(delta:float) bool { return false }
+    func update(delta:float) bool {
+        self.sample_elapsed += delta
+        self.sample_frames++
+        let frame_ms = delta * 1_000.0
+        if frame_ms > self.maximum_frame_ms { self.maximum_frame_ms = frame_ms }
+        if self.sample_elapsed < 0.5 { return false }
+        self.frames_per_second = Math.round(
+            self.sample_frames as float / self.sample_elapsed
+        ) as int
+        self.sample_elapsed = 0.0
+        self.sample_frames = 0
+        return true
+    }
     func insert_text(value:str) bool { return false }
 
     func key_pressed(
@@ -166,17 +235,19 @@ class DocumentContent:UI.Content {
         if key == Keyboard.Key.up { return self.move_by(-1) }
         if key == Keyboard.Key.down { return self.move_by(1) }
         if key == Keyboard.Key.page_up {
-            return self.move_by(-Document.expected_visible_rows)
+            return self.move_by(-self.current_visible_rows)
         }
         if key == Keyboard.Key.page_down {
-            return self.move_by(Document.expected_visible_rows)
+            return self.move_by(self.current_visible_rows)
         }
         if key == Keyboard.Key.home { return self.move_to(0) }
         if key == Keyboard.Key.end {
-            return self.move_to(Document.line_count - Document.expected_visible_rows)
+            return self.move_to(Document.line_count - self.current_visible_rows)
         }
         return false
     }
+
+    func visible_row_count() int { return self.current_visible_rows }
 
     private func move_by(distance:int) bool {
         let current = Math.round(self.scroll.value()) as int
@@ -185,11 +256,40 @@ class DocumentContent:UI.Content {
 
     private func move_to(value:int) bool {
         var next = value
-        let maximum = Document.line_count - Document.expected_visible_rows
+        let maximum = Document.line_count - self.current_visible_rows
         if next < 0 { next = 0 }
         if next > maximum { next = maximum }
         self.scroll.set(next as float)
         return true
+    }
+
+    private func paint_status(
+        painter:&Canvas.Painter,
+        frame:Canvas.Rect,
+        first_line:int,
+        opacity:float
+    ) {
+        let y = frame.position.y + frame.size.y - Document.status_height
+        painter.fill(
+            Canvas.Rect(
+                Math.Vec2(frame.position.x + 1.0, y),
+                Math.Vec2(frame.size.x - 2.0, Document.status_height - 1.0)
+            ),
+            Canvas.Fill.solid(Color.slate_900().with_alpha(opacity))
+        )
+        var style = Canvas.TextStyle(
+            size:12.0,
+            color:Color.cyan_300().with_alpha(opacity),
+            font:self.font
+        )
+        let maximum = Math.round(self.maximum_frame_ms * 100.0) / 100.0
+        painter.text(
+            "FPS $(self.frames_per_second)  ·  max frame $(maximum) ms  ·  " +
+            "top line $(first_line + 1) / $(self.lines.count())",
+            Math.Vec2(frame.position.x + Document.padding, y + 6.0),
+            style
+        )
+        self.maximum_frame_ms = 0.0
     }
 }
 
@@ -219,10 +319,10 @@ func header() UI.Row {
     return UI.Row(children, alignment:UI.Alignment.center)
 }
 
-func facts(lines:int, preload_ms:float) UI.Text {
+func facts(lines:int, glyphs:int, preload_ms:float) UI.Text {
     let preload = Math.round(preload_ms * 100.0) / 100.0
     var result = label(
-        "$(lines) lines retained in memory  ·  visible rows only  ·  preload $(preload) ms",
+        "$(lines) unique lines  ·  $(glyphs) supported glyphs  ·  visible rows only  ·  preload $(preload) ms",
         13.0,
         Color.slate_200()
     )
@@ -243,7 +343,7 @@ func navigation(scroll:UI.State<float>) UI.Column {
     var slider = UI.Slider(
         scroll,
         0.0,
-        (Document.line_count - Document.expected_visible_rows) as float,
+        (Document.line_count - 1) as float,
         ignore_scroll_change
     )
     slider.style.height = 20.0
@@ -256,14 +356,19 @@ func navigation(scroll:UI.State<float>) UI.Column {
     return result
 }
 
-func interface(lines:str[], scroll:UI.State<float>, preload_ms:float) UI.Column {
+func interface(
+    lines:str[],
+    scroll:UI.State<float>,
+    glyphs:int,
+    preload_ms:float
+) UI.Column {
     var viewport = DocumentView(DocumentContent(lines, scroll))
     viewport.style.grow = 1.0
     viewport.style.minimum_height = 300.0
 
     let children:UI.View[] = [
         header(),
-        facts(lines.count(), preload_ms),
+        facts(lines.count(), glyphs, preload_ms),
         viewport,
         navigation(scroll)
     ]
@@ -275,23 +380,83 @@ func interface(lines:str[], scroll:UI.State<float>, preload_ms:float) UI.Column 
     return root
 }
 
-func measured_scroll(runtime:UI.Runtime, key:Keyboard.Key, updates:int) float {
+func required_vector_glyphs(layer:Canvas.TextLayer) int {
+    match layer.vector_outlines() {
+        failure(error) => { panic(error.detail) }
+        success(placements) => { return placements.count() }
+    }
+}
+
+func measured_scroll(
+    runtime:UI.Runtime,
+    key:Keyboard.Key,
+    updates:int,
+    vector:bool
+) ScrollProfile {
     var drawing = runtime.drawing(1100, 600)
     var previous = drawing.snapshot(1100, 600)
-    for layer in previous.text_layers() { let warm = layer.text_layer(2.0) }
-    var scrolling = Stopwatch()
-    scrolling.start()
+    for layer in previous.text_layers() {
+        if vector {
+            var warm_runs = layer.glyph_runs()
+            let warm_glyphs = required_vector_glyphs(layer)
+        }
+        else { let warm = layer.text_layer(2.0) }
+    }
+    var total = Stopwatch()
+    var input = Stopwatch()
+    var drawing_time = Stopwatch()
+    var snapshot_time = Stopwatch()
+    var preparation = Stopwatch()
+    var shaping = Stopwatch()
+    var outlines = Stopwatch()
+    total.start()
     var update = 0
     while update < updates {
+        input.start()
         assert(runtime.key_pressed(key))
+        input.stop()
+        drawing_time.start()
         drawing = runtime.drawing(1100, 600)
+        drawing_time.stop()
+        snapshot_time.start()
         var snapshot = drawing.snapshot(1100, 600, reuse:previous)
-        for layer in snapshot.text_layers() { let raster = layer.text_layer(2.0) }
+        snapshot_time.stop()
+        preparation.start()
+        if vector {
+            shaping.start()
+            for layer in snapshot.text_layers() { var runs = layer.glyph_runs() }
+            shaping.stop()
+            outlines.start()
+            for layer in snapshot.text_layers() {
+                let glyphs = required_vector_glyphs(layer)
+            }
+            outlines.stop()
+        }
+        else {
+            for layer in snapshot.text_layers() { let raster = layer.text_layer(2.0) }
+        }
+        preparation.stop()
         previous = snapshot
         update++
     }
-    scrolling.stop()
-    return scrolling.get_elapsed_milliseconds() / updates as float
+    total.stop()
+    let divisor = updates as float
+    return ScrollProfile(
+        total_ms:total.get_elapsed_milliseconds() / divisor,
+        input_ms:input.get_elapsed_milliseconds() / divisor,
+        drawing_ms:drawing_time.get_elapsed_milliseconds() / divisor,
+        snapshot_ms:snapshot_time.get_elapsed_milliseconds() / divisor,
+        preparation_ms:preparation.get_elapsed_milliseconds() / divisor,
+        shaping_ms:shaping.get_elapsed_milliseconds() / divisor,
+        outlines_ms:outlines.get_elapsed_milliseconds() / divisor
+    )
+}
+
+func profile_text(name:str, profile:ScrollProfile) str {
+    return name + " total=$(profile.total_ms) input=$(profile.input_ms) " +
+        "drawing=$(profile.drawing_ms) snapshot=$(profile.snapshot_ms) " +
+        "prepare=$(profile.preparation_ms) shaping=$(profile.shaping_ms) " +
+        "outlines=$(profile.outlines_ms)"
 }
 
 func verify(lines:str[], scroll:UI.State<float>) {
@@ -299,36 +464,43 @@ func verify(lines:str[], scroll:UI.State<float>) {
     var viewport = DocumentView(content)
     var runtime = UI.Runtime(viewport)
     var drawing = runtime.drawing(1100, 600)
-    assert(drawing.command_count() > 50)
+    assert(drawing.command_count() > 25)
+    assert(drawing.command_count() < 40)
     assert(runtime.pointer_pressed(Math.Vec2(10.0, 10.0)))
     assert(runtime.key_pressed(Keyboard.Key.page_down))
-    assert(scroll.value() == Document.expected_visible_rows as float)
+    assert(scroll.value() == content.visible_row_count() as float)
     assert(runtime.key_pressed(Keyboard.Key.end))
-    assert(scroll.value() == (Document.line_count - Document.expected_visible_rows) as float)
+    assert(scroll.value() == (Document.line_count - content.visible_row_count()) as float)
     assert(runtime.key_pressed(Keyboard.Key.home))
     assert(scroll.value() == 0.0)
     drawing = runtime.drawing(1100, 600)
-    assert(drawing.command_count() > 50)
+    assert(drawing.command_count() > 25)
+    assert(drawing.command_count() < 40)
 
-    let line_scroll_ms = measured_scroll(runtime, Keyboard.Key.down, 60)
+    let line_coverage = measured_scroll(runtime, Keyboard.Key.down, 60, false)
     assert(runtime.key_pressed(Keyboard.Key.home))
-    let page_scroll_ms = measured_scroll(runtime, Keyboard.Key.page_down, 20)
+    let page_coverage = measured_scroll(runtime, Keyboard.Key.page_down, 20, false)
+    assert(runtime.key_pressed(Keyboard.Key.home))
+    let page_vector = measured_scroll(runtime, Keyboard.Key.page_down, 20, true)
     print(
-        "SILEX_GFX_DOCUMENT verification=passed commands=$(drawing.command_count()) " +
-        "retina_line_scroll_ms=$(line_scroll_ms) " +
-        "retina_page_scroll_ms=$(page_scroll_ms)"
+        "SILEX_GFX_DOCUMENT verification=passed commands=$(drawing.command_count())"
     )
+    print(profile_text("coverage_line", line_coverage))
+    print(profile_text("coverage_page", page_coverage))
+    print(profile_text("vector_page", page_vector))
 }
 
 func main() {
+    var font = Canvas.Font.monospace()
+    let corpus = glyph_corpus(font)
     var preload = Stopwatch()
     preload.start()
-    let lines = preload_document()
+    let lines = preload_document(corpus.samples)
     preload.stop()
     let preload_ms = preload.get_elapsed_milliseconds()
     print(
-        "SILEX_GFX_DOCUMENT lines=$(lines.count()) preload_ms=$(preload_ms) " +
-        "policy=visible-rows-only"
+        "SILEX_GFX_DOCUMENT lines=$(lines.count()) glyphs=$(corpus.glyph_count) " +
+        "preload_ms=$(preload_ms) policy=visible-rows-only"
     )
 
     var scroll = UI.State<float>(0.0)
@@ -336,7 +508,7 @@ func main() {
         verify(lines, scroll)
         return
     }
-    var root = interface(lines, scroll, preload_ms)
+    var root = interface(lines, scroll, corpus.glyph_count, preload_ms)
     Viewer.show(
         UI.Session(root, autofocus:true),
         Viewer.CanvasSettings(

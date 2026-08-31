@@ -109,9 +109,15 @@ The terminal examples form an intentional progression:
 granting access to the system shell.
 
 `RetainedDocumentViewport.sx` preloads 50,000 lines and renders only the
-visible rows through `GFX.Font` and `GFX.Canvas`. It is a read-only load probe,
-not a substitute for a scrollable `GFX.UI.TextArea`: use the keyboard or its
-slider to move through the retained document while evaluating latency.
+visible rows through `GFX.Font` and `GFX.Canvas`. Its generated source remains
+unique per line and rotates through 1,237 glyphs supported by the bundled
+monospace face, so the load does not collapse to a tiny ASCII cache. The status
+bar reports live FPS, the longest observed frame and the first visible line.
+The `--verify` mode pins the submitted Canvas command count below 40, proving
+that the 50,000 retained lines are not sent to the renderer. It is a read-only
+load probe, not a substitute for a scrollable `GFX.UI.TextArea`: use the
+keyboard or its slider to move through the retained document while evaluating
+latency.
 
 The WebView examples illustrate three different approaches:
 `EmbeddedWebView/Main.sx` embeds web files, while
