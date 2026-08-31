@@ -1,0 +1,487 @@
+use GFX.Application
+use GFX.Assets.PNG
+use GFX.Canvas
+use GFX.Color
+use GFX.ECS
+use GFX.Font
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Scene3D
+use STD.File
+use STD.Math
+use STD.Process
+use STD.Text
+
+static struct Layout {
+    let width:int = 1280
+    let height:int = 720
+    let header:float = 72.0
+    let footer:float = 48.0
+}
+
+class ShowcaseState {
+    let verification:bool
+    var view:int = 1
+    var overlays:bool = true
+    var paused:bool = false
+    var panel:ECS.Entity? = null
+    var text:ECS.Entity? = null
+    var receiver:ECS.Entity? = null
+    var light:ECS.Entity? = null
+    var frames:int = 0
+    var elapsed:float = 0.0
+
+    init(verification:bool) { self.verification = verification }
+}
+
+struct Options {
+    let verification:bool
+    let capture:str?
+}
+
+func options() Options {
+    var verification = false
+    var capture:str? = null
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments {
+                if argument == "--verify" { verification = true }
+                if Text.starts_with(argument, "--capture=") {
+                    capture = Text.slice(argument, 10, argument.count())
+                }
+            }
+        }
+    }
+    return Options(verification:verification, capture:capture)
+}
+
+func required_face(result:Result<Font.Face, Font.Error>) Font.Face {
+    match result {
+        failure(error) => { panic(error.detail) }
+        success(face) => { return face }
+    }
+}
+
+func required_instance(result:Result<Font.Instance, Font.Error>) Font.Instance {
+    match result {
+        failure(error) => { panic(error.detail) }
+        success(instance) => { return instance }
+    }
+}
+
+func required_run(result:Result<Font.GlyphRun, Font.Error>) Font.GlyphRun {
+    match result {
+        failure(error) => { panic(error.detail) }
+        success(run) => { return run }
+    }
+}
+
+func required_text(
+    result:Result<Scene3D.MeshHandle, Scene3D.TextError>
+) Scene3D.MeshHandle {
+    match result {
+        failure(error) => { panic(error.detail) }
+        success(handle) => { return handle }
+    }
+}
+
+func ink() Color { return Color.bytes(232, 236, 244) }
+func muted() Color { return Color.bytes(143, 154, 176) }
+func panel() Color { return Color.bytes(25, 31, 45) }
+func background() Color { return Color.bytes(12, 16, 27) }
+func cyan() Color { return Color.bytes(72, 211, 231) }
+func amber() Color { return Color.bytes(248, 190, 84) }
+
+func canvas_font(face:Font.Face) Canvas.Font { return Canvas.Font(face) }
+
+func chrome(painter:&Canvas.Painter, font:Canvas.Font, selected:int) {
+    painter.fill(
+        Canvas.Rect(Math.Vec2(), Math.Vec2(Layout.width as float, Layout.height as float)),
+        Canvas.Fill.solid(background())
+    )
+    painter.fill(
+        Canvas.Rect(Math.Vec2(), Math.Vec2(Layout.width as float, Layout.header)),
+        Canvas.Fill.solid(Color.bytes(18, 24, 38))
+    )
+    painter.text(
+        "Vector Font Showcase",
+        Math.Vec2(28.0, 18.0),
+        Canvas.TextStyle(size:30.0, color:ink(), font:font)
+    )
+    let labels:str[] = ["1  Typographie", "2  Scene2D vector", "3  Scene3D shadow"]
+    var index = 0
+    while index < labels.count() {
+        let x = 590.0 + index as float * 210.0
+        if selected == index + 1 {
+            painter.fill(
+                Canvas.Rect(Math.Vec2(x - 12.0, 14.0), Math.Vec2(194.0, 42.0), 8.0),
+                Canvas.Fill.solid(Color.bytes(35, 61, 77))
+            )
+        }
+        var label_color = muted()
+        if selected == index + 1 { label_color = cyan() }
+        painter.text(
+            labels[index],
+            Math.Vec2(x, 25.0),
+            Canvas.TextStyle(
+                size:15.0,
+                color:label_color,
+                font:font
+            )
+        )
+        index++
+    }
+}
+
+func footer(painter:&Canvas.Painter, font:Canvas.Font, message:str) {
+    painter.fill(
+        Canvas.Rect(
+            Math.Vec2(0.0, Layout.height as float - Layout.footer),
+            Math.Vec2(Layout.width as float, Layout.footer)
+        ),
+        Canvas.Fill.solid(Color.bytes(18, 24, 38))
+    )
+    painter.text(
+        message,
+        Math.Vec2(24.0, Layout.height as float - 33.0),
+        Canvas.TextStyle(size:14.0, color:muted(), font:font)
+    )
+}
+
+func typography_board(face:Font.Face, overlays:bool) Canvas {
+    var font = canvas_font(face)
+    var instance = required_instance(Font.Instance.create(face, size:32.0))
+    var latin = required_run(instance.shape("office  a\u{0323}\u{0301}  Ελληνικά  Кириллица"))
+    var missing = required_run(instance.shape("देवनागरी  العربية"))
+    let glyphs = latin.glyph_count() + missing.glyph_count()
+    let notdef = latin.missing_glyph_count() + missing.missing_glyph_count()
+    return Canvas()..paint(func(painter:&Canvas.Painter) {
+        chrome(painter, font, 1)
+        painter.fill(
+            Canvas.Rect(Math.Vec2(24.0, 92.0), Math.Vec2(782.0, 550.0), 16.0),
+            Canvas.Fill.solid(panel())
+        )
+        painter.fill(
+            Canvas.Rect(Math.Vec2(830.0, 92.0), Math.Vec2(426.0, 550.0), 16.0),
+            Canvas.Fill.solid(Color.bytes(20, 27, 40))
+        )
+        painter.text("Shaping Unicode — même face, mêmes GlyphRuns", Math.Vec2(52.0, 120.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
+        painter.text("office", Math.Vec2(52.0, 164.0), Canvas.TextStyle(size:56.0, color:ink(), font:font))
+        painter.text("ligature ffi · kerning AVATAR", Math.Vec2(52.0, 226.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
+        painter.text("a\u{0323}\u{0301}   Ελληνικά   Кириллица", Math.Vec2(52.0, 278.0), Canvas.TextStyle(size:36.0, color:ink(), font:font))
+        painter.text("देवनागरी   العربية", Math.Vec2(52.0, 348.0), Canvas.TextStyle(size:38.0, color:ink(), font:font))
+        painter.text("La face distribuée reste volontairement bornée : le notdef est visible.", Math.Vec2(52.0, 402.0), Canvas.TextStyle(size:15.0, color:amber(), font:font))
+        painter.text("Terminal — couverture hintée à petite taille", Math.Vec2(52.0, 462.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
+        painter.text("silex> build --release   80×24   status: ready", Math.Vec2(52.0, 504.0), Canvas.TextStyle(size:14.0, color:ink(), font:font, fixed_advance:8.4))
+        painter.text("marks: a\u{0323}\u{0301}  glyph cache stable  frame 0167", Math.Vec2(52.0, 532.0), Canvas.TextStyle(size:16.0, color:ink(), font:font, fixed_advance:9.6))
+        painter.text("Métriques", Math.Vec2(858.0, 120.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
+        painter.text("glyphes façonnés  $(glyphs)", Math.Vec2(858.0, 170.0), Canvas.TextStyle(size:18.0, color:ink(), font:font))
+        var notdef_color = ink()
+        if notdef > 0 { notdef_color = amber() }
+        painter.text("notdef  $(notdef)", Math.Vec2(858.0, 204.0), Canvas.TextStyle(size:18.0, color:notdef_color, font:font))
+        painter.text("direction RTL explicite", Math.Vec2(858.0, 260.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
+        painter.text("clusters UTF-8 conservés", Math.Vec2(858.0, 292.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
+        painter.text("Y-up Font / Y-down Canvas", Math.Vec2(858.0, 324.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
+        if overlays {
+            painter.stroke(Canvas.Line(Math.Vec2(858.0, 382.0), Math.Vec2(1218.0, 382.0)), Canvas.Stroke(Color.bytes(76, 92, 119), 1.0))
+            painter.text("O overlay : baseline · bounds · clusters", Math.Vec2(858.0, 398.0), Canvas.TextStyle(size:15.0, color:amber(), font:font))
+        }
+        footer(painter, font, "1/2/3 vues · O overlays · Espace pause · Échap quitter")
+    })
+}
+
+func f32(value:float64) float {
+    return Math.round(value * 4096.0) as int as float / 4096.0
+}
+
+func placed_point(point:Font.Position, transform:Font.OutlineTransform, origin:Math.Vec2, zoom:float) Math.Vec2 {
+    let x = f32(transform.xx) * f32(point.x) + f32(transform.xy) * f32(point.y) + f32(transform.dx)
+    let y = f32(transform.yx) * f32(point.x) + f32(transform.yy) * f32(point.y) + f32(transform.dy)
+    return origin.add(Math.Vec2(x * zoom, -y * zoom))
+}
+
+func stroke_outline(
+    painter:&Canvas.Painter,
+    placed:Font.PlacedOutline,
+    origin:Math.Vec2,
+    zoom:float,
+    color:Color
+) {
+    if let outline = placed.outline {
+        for contour in outline.contours {
+            var path = Canvas.Path()
+            for step in contour.steps {
+                match step {
+                    move_to(point) => { path.move_to(placed_point(point, placed.transform, origin, zoom)) }
+                    line_to(point) => { path.line_to(placed_point(point, placed.transform, origin, zoom)) }
+                    quadratic_to(curve) => {
+                        path.quadratic_to(
+                            placed_point(curve.control, placed.transform, origin, zoom),
+                            placed_point(curve.endpoint, placed.transform, origin, zoom)
+                        )
+                    }
+                    cubic_to(curve) => {
+                        path.cubic_to(
+                            placed_point(curve.control_1, placed.transform, origin, zoom),
+                            placed_point(curve.control_2, placed.transform, origin, zoom),
+                            placed_point(curve.endpoint, placed.transform, origin, zoom)
+                        )
+                    }
+                    close => { path.close() }
+                }
+            }
+            painter.stroke(path, Canvas.Stroke(color, 2.0))
+        }
+    }
+}
+
+func vector_board(face:Font.Face, overlays:bool) Canvas {
+    var font = canvas_font(face)
+    var instance = required_instance(Font.Instance.create(face, size:1.0))
+    var run = required_run(instance.shape("OBé"))
+    var outlines:Font.PlacedOutline[] = []
+    match run.outlines() {
+        failure(error) => { panic(error.detail) }
+        success(values) => { outlines = values }
+    }
+    return Canvas()..paint(func(painter:&Canvas.Painter) {
+        chrome(painter, font, 2)
+        painter.fill(Canvas.Rect(Math.Vec2(24.0, 92.0), Math.Vec2(1232.0, 550.0), 16.0), Canvas.Fill.solid(panel()))
+        painter.text("Scene2D — GlyphRun retenu, tessellation partagée", Math.Vec2(52.0, 120.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
+        painter.text("Couverture hintée", Math.Vec2(52.0, 172.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
+        painter.text("Terminal 14 px — office a\u{0323}\u{0301}", Math.Vec2(52.0, 208.0), Canvas.TextStyle(size:14.0, color:ink(), font:font))
+        painter.text("Interface 18 px — AVATAR Ελληνικά", Math.Vec2(52.0, 244.0), Canvas.TextStyle(size:18.0, color:ink(), font:font))
+        painter.text("Contours ×8 — courbes indépendantes de la résolution", Math.Vec2(468.0, 172.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
+        for outline in outlines { stroke_outline(painter, outline, Math.Vec2(500.0, 470.0), 190.0, amber()) }
+        painter.stroke(Canvas.Line(Math.Vec2(468.0, 470.0), Math.Vec2(1190.0, 470.0)), Canvas.Stroke(Color.bytes(76, 92, 119), 1.0))
+        if overlays {
+            painter.text("baseline  y=470", Math.Vec2(1040.0, 478.0), Canvas.TextStyle(size:13.0, color:cyan(), font:font))
+            var x = 468.0
+            for glyph in run.glyphs() {
+                painter.text("gid $(glyph.id) · [$(glyph.cluster_start),$(glyph.cluster_end))", Math.Vec2(x, 540.0), Canvas.TextStyle(size:13.0, color:muted(), font:font))
+                x += 210.0
+            }
+        }
+        painter.text("Le trou de O reste vide ; taille, couleur et transform ne retessellent pas.", Math.Vec2(468.0, 590.0), Canvas.TextStyle(size:15.0, color:ink(), font:font))
+        footer(painter, font, "mode vector explicite · cache 1024 glyph meshes · MSAA 4×")
+    })
+}
+
+func scene_overlay(face:Font.Face) Canvas {
+    var font = canvas_font(face)
+    return Canvas()..paint(func(painter:&Canvas.Painter) {
+        painter.fill(Canvas.Rect(Math.Vec2(), Math.Vec2(Layout.width as float, Layout.header)), Canvas.Fill.solid(Color.bytes(18, 24, 38)))
+        painter.text("Vector Font Showcase", Math.Vec2(28.0, 18.0), Canvas.TextStyle(size:30.0, color:ink(), font:font))
+        painter.text("3  Scene3D — mesh planaire éclairé + vraie shadow map", Math.Vec2(620.0, 26.0), Canvas.TextStyle(size:16.0, color:cyan(), font:font))
+        painter.fill(Canvas.Rect(Math.Vec2(24.0, 92.0), Math.Vec2(390.0, 118.0), 12.0), Canvas.Fill.solid(Color.bytes(18, 24, 38)))
+        painter.text("Même GlyphRun", Math.Vec2(48.0, 114.0), Canvas.TextStyle(size:18.0, color:amber(), font:font))
+        painter.text("normales physiques · PBR · holes", Math.Vec2(48.0, 154.0), Canvas.TextStyle(size:15.0, color:ink(), font:font))
+        painter.text("caster et receiver séparés", Math.Vec2(48.0, 180.0), Canvas.TextStyle(size:15.0, color:muted(), font:font))
+        footer(painter, font, "Vue GPU interactive — la capture PNG ne simule pas cette shadow map")
+    })
+}
+
+func capture_board(face:Font.Face) Canvas {
+    var font = canvas_font(face)
+    var drawing = typography_board(face, true)
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(Canvas.Rect(Math.Vec2(824.0, 356.0), Math.Vec2(408.0, 242.0), 12.0), Canvas.Fill.solid(Color.bytes(30, 35, 49)))
+        painter.text("Scene2D outline", Math.Vec2(848.0, 378.0), Canvas.TextStyle(size:16.0, color:cyan(), font:font))
+        painter.text("O  Bé", Math.Vec2(848.0, 420.0), Canvas.TextStyle(size:72.0, color:amber(), font:font))
+        painter.text("Scene3D : voir la vue 3 interactive", Math.Vec2(848.0, 520.0), Canvas.TextStyle(size:15.0, color:ink(), font:font))
+        painter.text("PNG = Canvas déterministe, pas capture GPU", Math.Vec2(848.0, 552.0), Canvas.TextStyle(size:13.0, color:muted(), font:font))
+    })
+    return drawing
+}
+
+func save_capture(path:str, face:Font.Face) {
+    if path == "" { panic("capture path cannot be empty") }
+    var drawing = capture_board(face)
+    let image = drawing.rasterize(Layout.width, Layout.height, background())
+    assert(image.width() == Layout.width)
+    assert(image.height() == Layout.height)
+    let pixels = image.pixels()
+    var changed = 0
+    var index = 0
+    while index < pixels.count() {
+        if pixels[index] != 12 as uint8 || pixels[index + 1] != 16 as uint8 ||
+            pixels[index + 2] != 27 as uint8
+        { changed++ }
+        index += 4
+    }
+    assert(changed > 200000)
+    let png = PNG.encode(image)
+    assert(png.count() > 10000)
+    match File.write_all(path, @png[0:png.count()]) {
+        failure(error) => { panic(error.detail) }
+        success => {}
+    }
+    print("VECTOR_FONT_SHOWCASE capture=", path, " changed_pixels=", changed, " png_bytes=", png.count())
+}
+
+func create_showcase(
+    world:&Resources.World,
+    meshes:&Resources.Meshes3D,
+    state:&ShowcaseState
+) {
+    var face = required_face(Font.Face.default())
+    let panel_entity = world.spawn(ECS.EntityRecipe()
+        ..with(Scene2D.Transform())
+        ..with(Scene2D.Canvas(typography_board(face, true), Layout.width, Layout.height)
+            ..space = Scene2D.CanvasSpace.viewport
+            ..pivot = Math.Vec2()
+            ..layer = 100
+            ..text_mode = Scene2D.CanvasTextMode.coverage
+            ..coverage_density = 1.0
+        )
+    )
+    state.panel = panel_entity
+
+    var instance = required_instance(Font.Instance.create(face, size:1.0))
+    var run = required_run(instance.shape("Vector O Bé"))
+    let text_mesh = required_text(meshes.add_text(Scene3D.Text(
+        run,
+        plane:Scene3D.TextPlane(
+            origin:Math.Vec3(-3.4, 0.2, 0.0),
+            x_axis:Math.Vec3.right(),
+            y_axis:Math.Vec3.up()
+        ),
+        tolerance:0.003
+    )))
+    let receiver_mesh = meshes.add(Scene3D.Geometry.Plane.make(Math.Vec2(9.4, 3.4)))
+    state.text = world.spawn(ECS.EntityRecipe()
+        ..with(Scene3D.Transform())
+        ..with(Scene3D.Mesh(text_mesh, casts_shadows:true)..visible = false)
+        ..with(Scene3D.Material(albedo:amber(), metallic:0.12, roughness:0.46))
+        ..with(Scene3D.MaterialSettings(double_sided:true))
+    )
+    state.receiver = world.spawn(ECS.EntityRecipe()
+        ..with(Scene3D.Transform(position:Math.Vec3(0.0, 0.1, -0.7)))
+        ..with(Scene3D.Mesh(receiver_mesh, casts_shadows:false)..visible = false)
+        ..with(Scene3D.Material(albedo:Color.bytes(42, 49, 65), roughness:0.92))
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Scene3D.Transform(position:Math.Vec3(0.0, 1.0, 7.0)))
+        ..with(Scene3D.Camera(near_plane:0.05, far_plane:50.0))
+    )
+    world.spawn(ECS.EntityRecipe()..with(Scene3D.AmbientLight(intensity:0.1)))
+    state.light = world.spawn(ECS.EntityRecipe()
+        ..with(Scene3D.SunLight(
+            direction:Math.Vec3(0.3, -0.35, -1.0).normalized(),
+            intensity:4.5
+        ))
+    )
+}
+
+func mesh_visibility(world:&Resources.World, entity:ECS.Entity?, visible:bool) {
+    if let value = entity {
+        world.update<Scene3D.Mesh>(value, func(mesh:&Scene3D.Mesh) { mesh.visible = visible })
+    }
+}
+
+func apply_view(world:&Resources.World, state:&ShowcaseState, view:int) {
+    state.view = view
+    var face = required_face(Font.Face.default())
+    if let panel_entity = state.panel {
+        world.update<Scene2D.Canvas>(panel_entity, func(canvas:&Scene2D.Canvas) {
+            if view == 1 {
+                canvas.replace(typography_board(face, state.overlays))
+                canvas.text_mode = Scene2D.CanvasTextMode.coverage
+            } elif view == 2 {
+                canvas.replace(vector_board(face, state.overlays))
+                canvas.text_mode = Scene2D.CanvasTextMode.vector
+            } else {
+                canvas.replace(scene_overlay(face))
+                canvas.text_mode = Scene2D.CanvasTextMode.coverage
+            }
+        })
+    }
+    mesh_visibility(world, state.text, view == 3)
+    mesh_visibility(world, state.receiver, view == 3)
+}
+
+func input_showcase(
+    input:@Resources.InputState,
+    world:&Resources.World,
+    state:&ShowcaseState,
+    controller:&Application.Controller
+) {
+    if input.is_pressed(Input.Key.num1) { apply_view(world, state, 1) }
+    if input.is_pressed(Input.Key.num2) { apply_view(world, state, 2) }
+    if input.is_pressed(Input.Key.num3) { apply_view(world, state, 3) }
+    if input.is_pressed(Input.Key.o) {
+        state.overlays = !state.overlays
+        apply_view(world, state, state.view)
+    }
+    if input.is_pressed(Input.Key.space) { state.paused = !state.paused }
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+}
+
+func animate_light(
+    time:@Resources.FrameTime,
+    world:&Resources.World,
+    state:&ShowcaseState
+) {
+    if state.paused { return }
+    state.elapsed += time.delta
+    if let light_entity = state.light {
+        let angle = state.elapsed * 0.35
+        world.update<Scene3D.SunLight>(light_entity, func(light:&Scene3D.SunLight) {
+            light.direction = Math.Vec3(Math.sin(angle) * 0.35, -0.4, -1.0).normalized()
+        })
+    }
+}
+
+func finish_verification(
+    world:&Resources.World,
+    state:&ShowcaseState,
+    meshes:@Resources.Meshes3D,
+    controller:&Application.Controller
+) {
+    if !state.verification { return }
+    state.frames++
+    if state.frames == 1 { apply_view(world, state, 2) }
+    if state.frames == 2 { apply_view(world, state, 3) }
+    if state.frames < 5 { return }
+    let stats = meshes.text_cache_stats()
+    assert(stats.tessellations > 0)
+    assert(stats.text_builds == 1)
+    print(
+        "VECTOR_FONT_SHOWCASE verify=ok frames=", state.frames,
+        " text_tessellations=", stats.tessellations,
+        " text_meshes=", stats.glyph_meshes
+    )
+    controller.stop()
+}
+
+func run_showcase(verification:bool) {
+    Application()
+        ..add_resource(ShowcaseState(verification))
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Vector Font Showcase — 1/2/3, O, Space, Escape"
+            ..width = Layout.width
+            ..height = Layout.height
+            ..hidden = verification
+        ))
+        ..add_plugin(Plugins.Input())
+        ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()..clear = background()))
+        ..add_plugin(Scene2D.Plugin())
+        ..add_plugin(Scene3D.Plugin())
+        ..add_plugin(Plugins.Time())
+        ..add_system(Application.Schedule.startup, create_showcase)
+        ..add_system(Application.Schedule.pre_update, input_showcase)
+        ..add_system(Application.Schedule.update, animate_light)
+        ..add_after_system(Application.Schedule.render, finish_verification)
+        ..run()
+}
+
+func main() {
+    let configured = options()
+    var face = required_face(Font.Face.default())
+    if let path = configured.capture { save_capture(path, face) }
+    if configured.capture != null && !configured.verification { return }
+    run_showcase(configured.verification)
+}

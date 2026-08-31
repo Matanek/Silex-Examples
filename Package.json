@@ -9,6 +9,7 @@
     "GFX.Assets": "^0.2.0",
     "GFX.Canvas": "^0.3.0",
     "GFX.ECS": "^0.2.1",
+    "GFX.Font": "^0.1.0",
     "GFX.GPU": "^0.2.0",
     "GFX.Physics": "^0.5.0",
     "GFX.Rendering": "^0.3.0",
