@@ -12,10 +12,10 @@ use STD.Math
 static struct Demo {
     let pixels_per_meter:float = 90.0
     let fixed_delta:float = 1.0 / 120.0
-    let maximum_horizontal_speed:float = 3.2
-    let ground_acceleration:float = 18.0
-    let ground_deceleration:float = 12.0
-    let air_control:float = 0.3
+    let maximum_horizontal_speed:float = 5.2
+    let ground_acceleration:float = 28.0
+    let ground_deceleration:float = 15.0
+    let air_control:float = 0.65
     let coyote_time:float = 0.12
 }
 
@@ -38,6 +38,7 @@ class Simulation {
     var accumulator:float
     var grounded:bool
     var riding_platform:bool
+    var airborne_horizontal_speed:float
     var coyote_remaining:float
     var plane_count:int
 
@@ -59,6 +60,7 @@ class Simulation {
         self.accumulator = 0.0
         self.grounded = false
         self.riding_platform = false
+        self.airborne_horizontal_speed = 0.0
         self.coyote_remaining = 0.0
         self.plane_count = 0
     }
@@ -68,6 +70,7 @@ class Simulation {
         self.velocity = Math.Vec2()
         self.grounded = false
         self.riding_platform = false
+        self.airborne_horizontal_speed = 0.0
         self.coyote_remaining = 0.0
     }
 }
@@ -139,7 +142,7 @@ func status_drawing() Canvas {
             Canvas.TextStyle(size:14.0, color:Color.emerald_300())
         )
         painter.text(
-            "Momentum · 30% air control · 120 ms coyote",
+            "Takeoff momentum · tunable air steering · 120 ms coyote",
             Math.Vec2(16.0, 91.0),
             Canvas.TextStyle(size:12.0, color:Color.slate_400())
         )
@@ -270,15 +273,14 @@ func simulate_character(
     if input.is_down(Input.Key.d) || input.is_down(Input.Key.right) {
         direction += 1.0
     }
-    var started_jump = false
     if input.is_pressed(Input.Key.space) &&
         (simulation.grounded || simulation.coyote_remaining > 0.0)
     {
+        simulation.airborne_horizontal_speed = Math.abs(simulation.velocity.x)
         simulation.velocity.y = 6.2
         simulation.grounded = false
         simulation.riding_platform = false
         simulation.coyote_remaining = 0.0
-        started_jump = true
     }
 
     simulation.accumulator = Math.min(
@@ -287,7 +289,7 @@ func simulate_character(
     )
     while simulation.accumulator >= Demo.fixed_delta {
         let target_speed = direction * Demo.maximum_horizontal_speed
-        if simulation.grounded || started_jump {
+        if simulation.grounded {
             var acceleration = Demo.ground_acceleration
             if direction == 0.0 {
                 acceleration = Demo.ground_deceleration
@@ -297,14 +299,16 @@ func simulate_character(
                 target_speed,
                 acceleration * Demo.fixed_delta
             )
+            simulation.airborne_horizontal_speed = Math.abs(
+                simulation.velocity.x
+            )
         } elif direction != 0.0 {
             simulation.velocity.x = approach_speed(
                 simulation.velocity.x,
-                target_speed,
+                direction * simulation.airborne_horizontal_speed,
                 Demo.ground_acceleration * Demo.air_control * Demo.fixed_delta
             )
         }
-        started_jump = false
 
         var platform_delta = Math.Vec2()
         if var platform = simulation.platform {
