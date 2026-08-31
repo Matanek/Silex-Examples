@@ -14,6 +14,7 @@ synchronisation automatique.
 | Application GPU triangle | `Sources/ApplicationGPUTriangle/Main.sx` | `GFX.GPU/Examples/TriangleApplication.sx` |
 | Application window | `Sources/ApplicationWindow.sx` | `GFX/Examples/ApplicationWindow.sx` |
 | Boids simulation | `Sources/BoidsSimulation.sx` | `GFX.Scene2D/Examples/Boids.sx` |
+| Character mover 2D | `Sources/CharacterMover2D.sx` | `GFX.Physics/Examples/CharacterMover2D.sx` |
 | Composed system terminal | `Sources/ComposedSystemTerminal.sx` | `GFX.UI.Terminal/Examples/SystemTerminal.sx` |
 | Cornell box | `Sources/CornellBox.sx` | `GFX.Scene3D/Examples/CornellBox.sx` |
 | 3D cube | `Sources/Cube3D.sx` | `GFX.Scene3D/Examples/Cube.sx` |

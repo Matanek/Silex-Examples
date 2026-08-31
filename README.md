@@ -57,6 +57,7 @@ silex run Sources/ComposedSystemTerminal.sx
 silex run Sources/ApplicationCommandConsole.sx
 silex run Sources/GeneratedHTMLWebView.sx
 silex run Sources/BoidsSimulation.sx
+silex run Sources/CharacterMover2D.sx
 silex run Sources/FPSStatsPanel.sx
 silex run Sources/PerformanceStatsPanel.sx
 silex run Sources/PlotGallery.sx
@@ -83,6 +84,11 @@ active.
 
 The Plot gallery presents several pages in sequence. Closing the current
 window opens the next page.
+
+`CharacterMover2D.sx` demonstrates a capsule controller across a slope, steps,
+a concave corner, and a moving elevator. Its fixed-step passenger carry keeps
+descending contact stable, while a short coyote window makes edge jumps more
+forgiving.
 
 The terminal examples form an intentional progression:
 `DedicatedSystemTerminal.sx` owns a dedicated window and lifecycle,
