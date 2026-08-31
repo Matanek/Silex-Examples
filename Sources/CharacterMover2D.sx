@@ -12,7 +12,18 @@ use STD.Math
 static struct Demo {
     let pixels_per_meter:float = 90.0
     let fixed_delta:float = 1.0 / 120.0
+    let maximum_horizontal_speed:float = 3.2
+    let ground_acceleration:float = 18.0
+    let ground_deceleration:float = 12.0
+    let air_control:float = 0.3
     let coyote_time:float = 0.12
+}
+
+func approach_speed(current:float, target:float, maximum_delta:float) float {
+    if current < target {
+        return Math.min(current + maximum_delta, target)
+    }
+    return Math.max(current - maximum_delta, target)
 }
 
 struct DemoVisual { let kind:int }
@@ -128,7 +139,7 @@ func status_drawing() Canvas {
             Canvas.TextStyle(size:14.0, color:Color.emerald_300())
         )
         painter.text(
-            "Slope · step · concave corner · moving platform",
+            "Momentum · 30% air control · 120 ms coyote",
             Math.Vec2(16.0, 91.0),
             Canvas.TextStyle(size:12.0, color:Color.slate_400())
         )
@@ -259,7 +270,7 @@ func simulate_character(
     if input.is_down(Input.Key.d) || input.is_down(Input.Key.right) {
         direction += 1.0
     }
-    simulation.velocity.x = direction * 3.2
+    var started_jump = false
     if input.is_pressed(Input.Key.space) &&
         (simulation.grounded || simulation.coyote_remaining > 0.0)
     {
@@ -267,6 +278,7 @@ func simulate_character(
         simulation.grounded = false
         simulation.riding_platform = false
         simulation.coyote_remaining = 0.0
+        started_jump = true
     }
 
     simulation.accumulator = Math.min(
@@ -274,6 +286,26 @@ func simulate_character(
         Demo.fixed_delta * 8.0
     )
     while simulation.accumulator >= Demo.fixed_delta {
+        let target_speed = direction * Demo.maximum_horizontal_speed
+        if simulation.grounded || started_jump {
+            var acceleration = Demo.ground_acceleration
+            if direction == 0.0 {
+                acceleration = Demo.ground_deceleration
+            }
+            simulation.velocity.x = approach_speed(
+                simulation.velocity.x,
+                target_speed,
+                acceleration * Demo.fixed_delta
+            )
+        } elif direction != 0.0 {
+            simulation.velocity.x = approach_speed(
+                simulation.velocity.x,
+                target_speed,
+                Demo.ground_acceleration * Demo.air_control * Demo.fixed_delta
+            )
+        }
+        started_jump = false
+
         var platform_delta = Math.Vec2()
         if var platform = simulation.platform {
             let previous_position = platform.position()

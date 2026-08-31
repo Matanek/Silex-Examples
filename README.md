@@ -87,8 +87,9 @@ window opens the next page.
 
 `CharacterMover2D.sx` demonstrates a capsule controller across a slope, steps,
 a concave corner, and a moving elevator. Its fixed-step passenger carry keeps
-descending contact stable, while a short coyote window makes edge jumps more
-forgiving.
+descending contact stable. Ground acceleration and deceleration preserve
+momentum instead of replacing velocity from input; jumps retain that trajectory
+with 30% configurable air control and a short coyote window.
 
 The terminal examples form an intentional progression:
 `DedicatedSystemTerminal.sx` owns a dedicated window and lifecycle,
