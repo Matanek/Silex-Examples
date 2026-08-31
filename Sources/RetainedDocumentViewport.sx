@@ -259,14 +259,21 @@ class DocumentContent:UI.Content {
         var first_line = current_line
         if first_line > 0 { first_line-- }
         let line_progress = self.scroll.offset() - first_line as float
-        var painted_rows = visible_rows
-        if line_progress > 0.0 { painted_rows++ }
-        if line_progress > 1.0 { painted_rows++ }
+        // Keep one row on each side of the logical visible window. The clip
+        // resolves partial pixels; culling must not remove either row first.
+        let painted_rows = visible_rows + (current_line - first_line) + 1
 
         var text_style = Canvas.TextStyle(
             size:Document.font_size,
             color:Color.slate_200().with_alpha(opacity),
             font:self.font
+        )
+        let text_clip = Canvas.Rect(
+            frame.position,
+            Math.Vec2(
+                frame.size.x,
+                frame.size.y - Document.status_height
+            )
         )
         let x = frame.position.x + Document.padding
         var row = 0
@@ -277,7 +284,8 @@ class DocumentContent:UI.Content {
             painter.text(
                 self.lines[index],
                 Math.Vec2(x, y),
-                text_style
+                text_style,
+                clip:text_clip
             )
             row++
         }
@@ -634,7 +642,7 @@ func measured_scroll(
             var warm_runs = layer.glyph_runs()
             let warm_glyphs = required_vector_glyphs(layer)
         }
-        else { let warm = layer.text_layer(2.0) }
+        else { var warm_runs = layer.coverage_runs(2.0) }
     }
     var total = Stopwatch()
     var input = Stopwatch()
@@ -667,7 +675,7 @@ func measured_scroll(
             outlines.stop()
         }
         else {
-            for layer in snapshot.text_layers() { let raster = layer.text_layer(2.0) }
+            for layer in snapshot.text_layers() { var runs = layer.coverage_runs(2.0) }
         }
         preparation.stop()
         previous = snapshot
@@ -718,6 +726,7 @@ func verify(
     var drawing = runtime.drawing(1100, 600)
     assert(drawing.command_count() > 25)
     assert(drawing.command_count() < 40)
+    assert(drawing_contains_text(drawing, lines[content.visible_row_count()]))
     assert(runtime.pointer_pressed(Math.Vec2(10.0, 10.0)))
     assert(runtime.key_pressed(Keyboard.Key.page_down))
     assert(scroll.offset() == content.visible_row_count() as float)
