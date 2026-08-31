@@ -1,0 +1,349 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Keyboard
+use GFX.UI
+use GFX.Viewer
+use STD.Math
+use STD.Process
+use STD.Time.Stopwatch
+
+static struct Document {
+    let line_count:int = 50_000
+    let expected_visible_rows:int = 31
+    let font_size:float = 14.0
+    let line_height:float = 19.0
+    let gutter_width:float = 72.0
+    let padding:float = 12.0
+}
+
+func ignore_scroll_change(value:float) {}
+
+func verification_mode() bool {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments {
+                if argument == "--verify" { return true }
+            }
+        }
+    }
+    return false
+}
+
+func document_line(index:int) str {
+    let number = index + 1
+    let pattern = index % 8
+    if pattern == 0 {
+        return "func render_document_$(number)(viewport:Rect, first_line:int) Drawing {"
+    }
+    if pattern == 1 {
+        return "    let visible_$(number) = document.lines(first_line, viewport.rows())"
+    }
+    if pattern == 2 {
+        return "    // sample $(number): office AVATAR café a\u{0323}\u{0301} Ελληνικά — cached glyphs"
+    }
+    if pattern == 3 {
+        return "    for line_$(number) in visible { painter.text(line.value, line.position, style) }"
+    }
+    if pattern == 4 {
+        return "    metrics.record(frame:$(index), retained:true, invalidated:false)"
+    }
+    if pattern == 5 {
+        return "    let token_$(number) = lexer.next() // identifiers, punctuation, strings, comments"
+    }
+    if pattern == 6 {
+        return "    cache.reuse(key:$(number), font:monospace, size:14, density:2, glyphs:visible)"
+    }
+    return "} // block $(number): only the visible window is shaped and submitted"
+}
+
+func preload_document() str[] {
+    var lines:str[] = []
+    var index = 0
+    while index < Document.line_count {
+        lines.append(document_line(index))
+        index++
+    }
+    return lines
+}
+
+class DocumentContent:UI.Content {
+    private var lines:str[]
+    private var scroll:UI.State<float>
+    private var font:Canvas.Font
+    private var focused:bool = false
+
+    init(lines:str[], scroll:UI.State<float>) {
+        self.lines = lines
+        self.scroll = scroll
+        self.font = Canvas.Font.monospace()
+    }
+
+    func measure(maximum:Math.Vec2) Math.Vec2 {
+        return Math.Vec2(1040.0, 520.0)
+    }
+
+    func paint(
+        painter:&Canvas.Painter,
+        frame:Canvas.Rect,
+        opacity:float
+    ) {
+        painter.fill(
+            frame,
+            Canvas.Fill.solid(Color.bytes(4, 10, 22).with_alpha(opacity))
+        )
+        var border_color = Color.slate_700()
+        if self.focused { border_color = Color.cyan_400() }
+        painter.stroke(frame, Canvas.Stroke(border_color.with_alpha(opacity), 1.0))
+
+        let usable_height = frame.size.y - Document.padding * 2.0
+        var visible_rows = Math.floor(usable_height / Document.line_height) as int
+        if visible_rows < 1 { visible_rows = 1 }
+
+        var first_line = Math.round(self.scroll.value()) as int
+        var maximum_first = self.lines.count() - visible_rows
+        if maximum_first < 0 { maximum_first = 0 }
+        if first_line < 0 { first_line = 0 }
+        if first_line > maximum_first { first_line = maximum_first }
+
+        var text_style = Canvas.TextStyle(
+            size:Document.font_size,
+            color:Color.slate_200().with_alpha(opacity),
+            font:self.font
+        )
+        var number_style = Canvas.TextStyle(
+            size:Document.font_size,
+            color:Color.slate_500().with_alpha(opacity),
+            alignment:Canvas.TextAlignment.end,
+            font:self.font
+        )
+        let x = frame.position.x + Document.padding
+        var row = 0
+        while row < visible_rows && first_line + row < self.lines.count() {
+            let index = first_line + row
+            let y = frame.position.y + Document.padding + row as float * Document.line_height
+            if row == 0 {
+                painter.fill(
+                    Canvas.Rect(
+                        Math.Vec2(frame.position.x + 1.0, y - 2.0),
+                        Math.Vec2(frame.size.x - 2.0, Document.line_height)
+                    ),
+                    Canvas.Fill.solid(Color.cyan_950().with_alpha(opacity))
+                )
+            }
+            painter.text(
+                "$(index + 1)",
+                Math.Vec2(x + Document.gutter_width - 14.0, y),
+                number_style
+            )
+            painter.text(
+                self.lines[index],
+                Math.Vec2(x + Document.gutter_width, y),
+                text_style
+            )
+            row++
+        }
+    }
+
+    func focusable() bool { return true }
+    // GFX.UI currently routes keyboard focus through accepts_text_input even
+    // for read-only custom content. insert_text remains deliberately inert.
+    func accepts_text_input() bool { return true }
+
+    func focus_changed(focused:bool) bool {
+        if self.focused == focused { return false }
+        self.focused = focused
+        return true
+    }
+
+    func update(delta:float) bool { return false }
+    func insert_text(value:str) bool { return false }
+
+    func key_pressed(
+        key:Keyboard.Key,
+        modifiers:Keyboard.Modifiers
+    ) bool {
+        if key == Keyboard.Key.up { return self.move_by(-1) }
+        if key == Keyboard.Key.down { return self.move_by(1) }
+        if key == Keyboard.Key.page_up {
+            return self.move_by(-Document.expected_visible_rows)
+        }
+        if key == Keyboard.Key.page_down {
+            return self.move_by(Document.expected_visible_rows)
+        }
+        if key == Keyboard.Key.home { return self.move_to(0) }
+        if key == Keyboard.Key.end {
+            return self.move_to(Document.line_count - Document.expected_visible_rows)
+        }
+        return false
+    }
+
+    private func move_by(distance:int) bool {
+        let current = Math.round(self.scroll.value()) as int
+        return self.move_to(current + distance)
+    }
+
+    private func move_to(value:int) bool {
+        var next = value
+        let maximum = Document.line_count - Document.expected_visible_rows
+        if next < 0 { next = 0 }
+        if next > maximum { next = maximum }
+        self.scroll.set(next as float)
+        return true
+    }
+}
+
+class DocumentView:UI.CustomView {
+    init(content:UI.Content):super(content) {}
+}
+
+func label(value:str, size:float, color:Color) UI.Text {
+    var result = UI.Text(value)
+    result.style.font_size = size
+    result.style.foreground = color
+    return result
+}
+
+func header() UI.Row {
+    var title = label("Vector text — retained document viewport", 24.0, Color.slate_100())
+    title.style.font_weight = UI.FontWeight.bold
+    title.style.grow = 1.0
+
+    var badge = label("50,000 PRELOADED LINES", 11.0, Color.cyan_300())
+    badge.style.padding = UI.Insets(vertical:7.0, horizontal:10.0)
+    badge.style.background = Color.cyan_950()
+    badge.style.border = UI.Border(1.0, Color.cyan_700())
+    badge.style.radius = 7.0
+
+    let children:UI.View[] = [title, badge]
+    return UI.Row(children, alignment:UI.Alignment.center)
+}
+
+func facts(lines:int, preload_ms:float) UI.Text {
+    let preload = Math.round(preload_ms * 100.0) / 100.0
+    var result = label(
+        "$(lines) lines retained in memory  ·  visible rows only  ·  preload $(preload) ms",
+        13.0,
+        Color.slate_200()
+    )
+    result.style.padding = UI.Insets(vertical:10.0, horizontal:12.0)
+    result.style.background = Color.slate_900()
+    result.style.border = UI.Border(1.0, Color.slate_800())
+    result.style.radius = 9.0
+    return result
+}
+
+func navigation(scroll:UI.State<float>) UI.Column {
+    var hint = label(
+        "Focus the viewport · ↑/↓ line · Page Up/Down · Home/End · drag the slider",
+        12.0,
+        Color.slate_400()
+    )
+
+    var slider = UI.Slider(
+        scroll,
+        0.0,
+        (Document.line_count - Document.expected_visible_rows) as float,
+        ignore_scroll_change
+    )
+    slider.style.height = 20.0
+    slider.style.background = Color.slate_700()
+    slider.style.accent = Color.cyan_500()
+
+    let children:UI.View[] = [hint, slider]
+    var result = UI.Column(children)
+    result.style.gap = 6.0
+    return result
+}
+
+func interface(lines:str[], scroll:UI.State<float>, preload_ms:float) UI.Column {
+    var viewport = DocumentView(DocumentContent(lines, scroll))
+    viewport.style.grow = 1.0
+    viewport.style.minimum_height = 300.0
+
+    let children:UI.View[] = [
+        header(),
+        facts(lines.count(), preload_ms),
+        viewport,
+        navigation(scroll)
+    ]
+    var root = UI.Column(children)
+    root.style.padding = UI.Insets(22.0)
+    root.style.gap = 12.0
+    root.style.background = Color.bytes(8, 15, 29)
+    root.style.foreground = Color.slate_100()
+    return root
+}
+
+func measured_scroll(runtime:UI.Runtime, key:Keyboard.Key, updates:int) float {
+    var drawing = runtime.drawing(1100, 600)
+    var previous = drawing.snapshot(1100, 600)
+    for layer in previous.text_layers() { let warm = layer.text_layer(2.0) }
+    var scrolling = Stopwatch()
+    scrolling.start()
+    var update = 0
+    while update < updates {
+        assert(runtime.key_pressed(key))
+        drawing = runtime.drawing(1100, 600)
+        var snapshot = drawing.snapshot(1100, 600, reuse:previous)
+        for layer in snapshot.text_layers() { let raster = layer.text_layer(2.0) }
+        previous = snapshot
+        update++
+    }
+    scrolling.stop()
+    return scrolling.get_elapsed_milliseconds() / updates as float
+}
+
+func verify(lines:str[], scroll:UI.State<float>) {
+    var content = DocumentContent(lines, scroll)
+    var viewport = DocumentView(content)
+    var runtime = UI.Runtime(viewport)
+    var drawing = runtime.drawing(1100, 600)
+    assert(drawing.command_count() > 50)
+    assert(runtime.pointer_pressed(Math.Vec2(10.0, 10.0)))
+    assert(runtime.key_pressed(Keyboard.Key.page_down))
+    assert(scroll.value() == Document.expected_visible_rows as float)
+    assert(runtime.key_pressed(Keyboard.Key.end))
+    assert(scroll.value() == (Document.line_count - Document.expected_visible_rows) as float)
+    assert(runtime.key_pressed(Keyboard.Key.home))
+    assert(scroll.value() == 0.0)
+    drawing = runtime.drawing(1100, 600)
+    assert(drawing.command_count() > 50)
+
+    let line_scroll_ms = measured_scroll(runtime, Keyboard.Key.down, 60)
+    assert(runtime.key_pressed(Keyboard.Key.home))
+    let page_scroll_ms = measured_scroll(runtime, Keyboard.Key.page_down, 20)
+    print(
+        "SILEX_GFX_DOCUMENT verification=passed commands=$(drawing.command_count()) " +
+        "retina_line_scroll_ms=$(line_scroll_ms) " +
+        "retina_page_scroll_ms=$(page_scroll_ms)"
+    )
+}
+
+func main() {
+    var preload = Stopwatch()
+    preload.start()
+    let lines = preload_document()
+    preload.stop()
+    let preload_ms = preload.get_elapsed_milliseconds()
+    print(
+        "SILEX_GFX_DOCUMENT lines=$(lines.count()) preload_ms=$(preload_ms) " +
+        "policy=visible-rows-only"
+    )
+
+    var scroll = UI.State<float>(0.0)
+    if verification_mode() {
+        verify(lines, scroll)
+        return
+    }
+    var root = interface(lines, scroll, preload_ms)
+    Viewer.show(
+        UI.Session(root, autofocus:true),
+        Viewer.CanvasSettings(
+            width:1220,
+            height:820,
+            title:"Vector text — retained document viewport",
+            background:Color.bytes(8, 15, 29)
+        )
+    )
+}

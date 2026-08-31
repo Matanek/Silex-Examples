@@ -61,6 +61,7 @@ silex run Sources/ApplicationWindow.sx
 silex run Sources/DirectWindowInputLoop.sx
 silex run Sources/DedicatedSystemTerminal.sx
 silex run Sources/ComposedSystemTerminal.sx
+silex run Sources/RetainedDocumentViewport.sx
 silex run Sources/ApplicationCommandConsole.sx
 silex run Sources/GeneratedHTMLWebView.sx
 silex run Sources/BoidsSimulation.sx
@@ -106,6 +107,11 @@ The terminal examples form an intentional progression:
 `ComposedSystemTerminal.sx` embeds the shell in a broader interface, and
 `ApplicationCommandConsole.sx` exposes application-defined commands without
 granting access to the system shell.
+
+`RetainedDocumentViewport.sx` preloads 50,000 lines and renders only the
+visible rows through `GFX.Font` and `GFX.Canvas`. It is a read-only load probe,
+not a substitute for a scrollable `GFX.UI.TextArea`: use the keyboard or its
+slider to move through the retained document while evaluating latency.
 
 The WebView examples illustrate three different approaches:
 `EmbeddedWebView/Main.sx` embeds web files, while
