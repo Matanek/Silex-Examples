@@ -25,30 +25,21 @@ public struct Demo {
     static let maximum_bodies:int = 3_000
 }
 
-public struct BodyVisual {
-    let index:int
-}
-
 public struct SimulatedBody {
-    var body:Physics.RigidBody2D
+    let entity:ECS.Entity
     let is_circle:bool
 }
 
 public class Simulation {
-    var physics:Physics.World2D
     var bodies:SimulatedBody[]
     var randomizer:Randomizer
-    var accumulator:float
     var emission_elapsed:float
     var stats_elapsed:float
     var stats_display:ECS.Entity
 
     init() {
-        self.physics = Physics.World2D()
-        self.physics.set_profiling_enabled(true)
         self.bodies = []
         self.randomizer = Randomizer(0x51_1E_20_2D)
-        self.accumulator = 0.0
         self.emission_elapsed = Demo.emission_interval
         self.stats_elapsed = 0.0
         self.stats_display = ECS.Entity()
@@ -70,7 +61,7 @@ public class SpawnSlots {
             Demo.spawn_slot_spacing
     }
 
-    func rebuild(bodies:@SimulatedBody[]) {
+    func rebuild(bodies:@SimulatedBody[], world:@ECS.World) {
         while self.available.count() < Demo.spawn_slot_count {
             self.available.append(true)
         }
@@ -84,7 +75,10 @@ public class SpawnSlots {
         let minimum_distance = Demo.spawn_slot_spacing
         let minimum_distance_squared = minimum_distance * minimum_distance
         for simulated in bodies {
-            let body_position = simulated.body.position()
+            if !world.is_alive(simulated.entity) { continue }
+            let body_position = world.get<GFX.Components.Transform2D>(
+                simulated.entity
+            ).position.divide(Demo.pixels_per_meter)
             let offset_y = body_position.y - spawn_y
             if Math.abs(offset_y) < minimum_distance {
                 slot = 0

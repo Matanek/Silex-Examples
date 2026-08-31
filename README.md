@@ -80,6 +80,11 @@ silex run Sources/RotatingPhysicsContainer/Main.sx
 silex run Sources/ShapeGallery2D/Main.sx
 ```
 
+`FallingBodies` and `RotatingPhysicsContainer` exercise the application-level
+`Plugins.Physics2D` integration: ECS entities own their physics components,
+the plugin advances a fixed-step world, and dynamic poses flow back to
+Scene2D transforms without a demonstration-specific simulation loop.
+
 Their `Module.*` imports are explicitly relative to each source directory. The
 manifest declares `"sources": "Sources"`, so this physical directory does not
 appear in module names: `Sources/FallingBodies/Model.sx` becomes

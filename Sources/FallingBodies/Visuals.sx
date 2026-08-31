@@ -1,5 +1,6 @@
 use GFX.Canvas
 use GFX.Color
+use GFX.Physics
 use STD.Math
 use Module.Model.Demo
 use Module.Model.Simulation
@@ -65,13 +66,16 @@ func metric(value:float, suffix:str = " ms") str {
     return "$(tenths / 10).$(tenths % 10)$(suffix)"
 }
 
-public func stats_drawing(simulation:@Simulation) Canvas {
-    let profile = simulation.physics.step_profile()
+public func stats_drawing(
+    simulation:@Simulation,
+    physics:@Physics.World2D
+) Canvas {
+    let profile = physics.step_profile()
     let labels:str[] = ["BODIES", "AWAKE", "CONTACTS", "STEP"]
     let values:str[] = [
         "$(simulation.bodies.count())",
-        "$(simulation.physics.awake_body_count())",
-        "$(simulation.physics.contact_count())",
+        "$(physics.awake_body_count())",
+        "$(physics.contact_count())",
         metric(profile.total_ms)
     ]
     var canvas = Canvas()

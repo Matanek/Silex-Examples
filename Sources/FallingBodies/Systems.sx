@@ -1,8 +1,8 @@
 use GFX.Components
 use GFX.ECS
+use GFX.Physics
 use GFX.Resources
 use STD.Math
-use Module.Model.BodyVisual
 use Module.Model.Demo
 use Module.Model.Simulation
 use Module.Model.SpawnSlots
@@ -13,14 +13,16 @@ use Module.Visuals.stats_drawing
 
 public func create_scene(
     world:&Resources.World,
-    simulation:&Simulation
+    simulation:&Simulation,
+    physics:&Resources.World2D
 ) {
+    physics.set_profiling_enabled(true)
     world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform2D())
         ..with(Components.Camera2D())
     )
-    create_container(world, simulation)
-    var stats = stats_drawing(simulation)
+    create_container(world)
+    var stats = stats_drawing(simulation, physics)
     simulation.stats_display = world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform2D(position:Math.Vec2(16.0)))
         ..with(Components.Canvas(stats, 220, 122)
@@ -37,13 +39,14 @@ public func update_simulation(
     world:&Resources.World,
     simulation:&Simulation,
     spawn_slots:&SpawnSlots,
-    visuals:@Visuals
+    visuals:@Visuals,
+    physics:@Resources.World2D
 ) {
     simulation.emission_elapsed += time.delta
     if simulation.emission_elapsed >= Demo.emission_interval &&
         simulation.bodies.count() < Demo.maximum_bodies
     {
-        spawn_slots.rebuild(simulation.bodies)
+        spawn_slots.rebuild(simulation.bodies, world)
         while simulation.emission_elapsed >= Demo.emission_interval &&
             simulation.bodies.count() < Demo.maximum_bodies
         {
@@ -62,35 +65,15 @@ public func update_simulation(
         }
     }
 
-    simulation.accumulator = Math.min(
-        simulation.accumulator + time.delta,
-        Demo.fixed_delta * Demo.maximum_substeps as float
-    )
-    while simulation.accumulator >= Demo.fixed_delta {
-        simulation.physics.step(Demo.fixed_delta)
-        simulation.accumulator -= Demo.fixed_delta
-    }
-
     simulation.stats_elapsed += time.delta
     if simulation.stats_elapsed >= 0.25 {
         world.update<Components.Canvas>(
             simulation.stats_display,
             func(display:&Components.Canvas) {
-                var drawing = stats_drawing(simulation)
+                var drawing = stats_drawing(simulation, physics)
                 display.replace(drawing)
             }
         )
         simulation.stats_elapsed = 0.0
-    }
-}
-
-public func synchronize_visuals(
-    simulation:@Simulation,
-    bodies:ECS.Query<(@BodyVisual, &Components.Transform2D)>
-) {
-    for (visual, transform) in bodies {
-        let body = simulation.bodies[visual.index].body
-        transform.position = body.position().multiply(Demo.pixels_per_meter)
-        transform.rotation = body.rotation()
     }
 }

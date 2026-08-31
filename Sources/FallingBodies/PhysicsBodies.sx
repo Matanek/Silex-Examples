@@ -8,35 +8,39 @@ use Module.Model.Simulation
 use Module.Visuals.container_drawing
 
 func create_fixed_box(
-    simulation:&Simulation,
+    world:&Resources.World,
     position:Math.Vec2,
     size:Math.Vec2
 ) {
-    simulation.physics.create_rigid_body(Physics.RigidBody2DSettings()
-        ..body_type = Physics.BodyType2D.fixed
-        ..shape = Physics.Shape2D.box(Physics.Box2D(size))
-        ..position = position
-        ..friction = 0.9
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(
+            position:position.multiply(Demo.pixels_per_meter)
+        ))
+        ..with(Components.PhysicsBody2D(Physics.RigidBody2DSettings()
+            ..body_type = Physics.BodyType2D.fixed
+            ..shape = Physics.Shape2D.box(Physics.Box2D(size))
+            ..friction = 0.9
+        ))
     )
 }
 
-public func create_container(world:&Resources.World, simulation:&Simulation) {
+public func create_container(world:&Resources.World) {
     let half_width = Demo.container_width * 0.5
     let half_height = Demo.container_height * 0.5
     let boundary_half = Demo.boundary_depth * 0.5
 
     create_fixed_box(
-        simulation,
+        world,
         Math.Vec2(-half_width - boundary_half, 0.0),
         Math.Vec2(Demo.boundary_depth, Demo.container_height)
     )
     create_fixed_box(
-        simulation,
+        world,
         Math.Vec2(half_width + boundary_half, 0.0),
         Math.Vec2(Demo.boundary_depth, Demo.container_height)
     )
     create_fixed_box(
-        simulation,
+        world,
         Math.Vec2(0.0, -half_height - boundary_half),
         Math.Vec2(
             Demo.container_width + Demo.boundary_depth * 2.0,
@@ -44,7 +48,7 @@ public func create_container(world:&Resources.World, simulation:&Simulation) {
         )
     )
     create_fixed_box(
-        simulation,
+        world,
         Math.Vec2(0.0, half_height + boundary_half),
         Math.Vec2(
             Demo.container_width + Demo.boundary_depth * 2.0,
@@ -64,18 +68,13 @@ public func create_container(world:&Resources.World, simulation:&Simulation) {
 }
 
 public func create_dynamic_body(
-    simulation:&Simulation,
     is_circle:bool,
     scale:float,
-    position:Math.Vec2,
     velocity:Math.Vec2,
-    rotation:float,
     angular_velocity:float
-) Physics.RigidBody2D {
+) Physics.RigidBody2DSettings {
     var settings = Physics.RigidBody2DSettings()
-        ..position = position
         ..velocity = velocity
-        ..rotation = rotation
         ..angular_velocity = angular_velocity
         ..friction = 0.75
         ..linear_damping = 0.2
@@ -89,5 +88,5 @@ public func create_dynamic_body(
             Physics.Box2D(Math.Vec2(Demo.body_size * scale))
         )
     }
-    return simulation.physics.create_rigid_body(settings)
+    return settings
 }

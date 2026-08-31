@@ -1,11 +1,11 @@
 use GFX.Application
 use GFX.Color
+use GFX.Physics
 use GFX.Plugins
 use Module.Model.Demo
 use Module.Model.Simulation
 use Module.Model.SpawnSlots
 use Module.Systems.create_scene
-use Module.Systems.synchronize_visuals
 use Module.Systems.update_simulation
 use Module.Visuals.Visuals
 
@@ -24,10 +24,14 @@ func main() {
             ..clear = Color.slate_950()
         ))
         ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.Physics2D(Plugins.Physics2D.Settings()
+            ..fixed_delta = Demo.fixed_delta
+            ..maximum_catch_up_steps = Demo.maximum_substeps
+            ..scene_units_per_meter = Demo.pixels_per_meter
+            ..execution = Physics.Physics2DExecutionMode.workers(4)
+        ))
         ..add_plugin(Plugins.FPSPanel())
-        ..add_plugin(Plugins.Time())
         ..add_system(Application.Schedule.startup, create_scene)
         ..add_system(Application.Schedule.update, update_simulation)
-        ..add_after_system(Application.Schedule.update, synchronize_visuals)
         ..run()
 }

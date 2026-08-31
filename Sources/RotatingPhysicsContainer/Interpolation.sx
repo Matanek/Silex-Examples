@@ -2,45 +2,9 @@ use GFX.Components
 use GFX.ECS
 use STD.Math
 use Module.Container.rotate_offset
-use Module.Model.BodyVisual
-use Module.Model.ContainerVisual
 use Module.Model.PendingBody
 use Module.Model.Showcase
 use Module.Model.Simulation
-
-func interpolation_alpha(simulation:@Simulation) float {
-    return Math.clamp(
-        simulation.accumulator / Showcase.fixed_delta,
-        0.0,
-        1.0
-    )
-}
-
-func interpolate_position(
-    previous:Math.Vec2,
-    current:Math.Vec2,
-    alpha:float
-) Math.Vec2 {
-    return previous.add(current.subtract(previous).multiply(alpha))
-}
-
-public func interpolate_container_visual(
-    simulation:@Simulation,
-    containers:ECS.Query<(@ContainerVisual, &Components.Transform2D)>
-) {
-    let alpha = interpolation_alpha(simulation)
-    let angle = Math.lerp(
-        simulation.container_previous_angle,
-        simulation.container_angle,
-        alpha
-    )
-    for (container, transform) in containers {
-        transform.position = container.center.multiply(
-            Showcase.pixels_per_meter
-        )
-        transform.rotation = angle
-    }
-}
 
 public func interpolate_pending_visuals(
     simulation:@Simulation,
@@ -49,37 +13,11 @@ public func interpolate_pending_visuals(
         &Components.Transform2D
     )>
 ) {
-    let alpha = interpolation_alpha(simulation)
-    let angle = Math.lerp(
-        simulation.container_previous_angle,
-        simulation.container_angle,
-        alpha
-    )
     for (pending, transform) in pending_visuals {
         transform.position = simulation.container_center.add(rotate_offset(
             pending.local_position,
-            angle
+            simulation.container_angle
         )).multiply(Showcase.pixels_per_meter)
-        transform.rotation = angle + pending.local_rotation
-    }
-}
-
-public func interpolate_body_visuals(
-    simulation:@Simulation,
-    body_visuals:ECS.Query<(@BodyVisual, &Components.Transform2D)>
-) {
-    let alpha = interpolation_alpha(simulation)
-    for (visual, transform) in body_visuals {
-        let simulated = simulation.bodies[visual.index]
-        transform.position = interpolate_position(
-            simulated.previous_position,
-            simulated.current_position,
-            alpha
-        ).multiply(Showcase.pixels_per_meter)
-        transform.rotation = Math.lerp(
-            simulated.previous_rotation,
-            simulated.current_rotation,
-            alpha
-        )
+        transform.rotation = simulation.container_angle + pending.local_rotation
     }
 }

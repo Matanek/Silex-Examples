@@ -22,14 +22,14 @@ synchronisation automatique.
 | Direct window and input loop | `Sources/DirectWindowInputLoop.sx` | `GFX/Examples/WindowAndInput.sx` |
 | Easing gallery | `Sources/EasingGallery.sx` | `GFX.Animation/Examples/EasingGallery.sx` |
 | Embedded WebView | `Sources/EmbeddedWebView/Main.sx` | `GFX.WebView/Examples/EmbeddedFiles.sx` |
-| Falling bodies | `Sources/FallingBodies/Main.sx` | adaptation de `GFX.Physics/Examples/World2D/FallingBody.sx` |
+| Falling bodies | `Sources/FallingBodies/Main.sx` | adaptation de `GFX.Physics/Examples/World2D/FallingBody.sx`, migrée vers `Plugins.Physics2D` |
 | FPS statistics panel | `Sources/FPSStatsPanel.sx` | `GFX.Stats/Examples/FPSPanel.sx` |
 | Generated HTML WebView | `Sources/GeneratedHTMLWebView.sx` | composition de la recette `HTML/Docs/Recipes.md#buildandparse` et de `GFX.WebView` |
 | 3D lighting | `Sources/Lighting3D.sx` | `GFX.Scene3D/Examples/Lighting.sx` |
 | PBR materials | `Sources/PBRMaterials/Main.sx` | `GFX.Scene3D/Examples/TestPBR.sx` |
 | Rendering performance panel | `Sources/PerformanceStatsPanel.sx` | `GFX.Stats/Examples/PerformancePanel.sx` |
 | Plot gallery | `Sources/PlotGallery.sx` | composition des exemples de `Plot/Examples/` |
-| Rotating physics container | `Sources/RotatingPhysicsContainer/Main.sx` | `GFX.Physics/Examples/World2D/BoxRotation.sx` |
+| Rotating physics container | `Sources/RotatingPhysicsContainer/Main.sx` | `GFX.Physics/Examples/World2D/BoxRotation.sx`, migré vers `Plugins.Physics2D` |
 | Bundle content transitions | `Sources/Bundle/Transitions.sx` | création propre au catalogue |
 | Bundle window replacement | `Sources/Bundle/WindowReplacement.sx` | création propre au catalogue |
 | Bundle multiple windows | `Sources/Bundle/MultipleWindows.sx` | création propre au catalogue |

@@ -1,4 +1,4 @@
-use GFX.Physics
+use GFX.ECS
 use STD.Math
 use STD.Randomizer
 
@@ -20,20 +20,12 @@ public struct Showcase {
     static let container_turn_interval:float = 0.8
 }
 
-public struct BodyVisual {
-    let index:int
+public struct SimulatedBody {
+    let entity:ECS.Entity
+    let radius:float
 }
 
-public struct SimulatedBody {
-    var body:Physics.RigidBody2D
-    let is_box:bool
-    let size:Math.Vec2
-    let radius:float
-    var previous_position:Math.Vec2
-    var current_position:Math.Vec2
-    var previous_rotation:float
-    var current_rotation:float
-}
+public struct ContainerWall { let offset:Math.Vec2 }
 
 public struct PendingBody {
     let is_box:bool
@@ -48,42 +40,26 @@ public struct ContainerVisual {
 }
 
 public class Simulation {
-    var world:Physics.World2D
     var bodies:SimulatedBody[]
     var randomizer:Randomizer
-    var container_left:Physics.RigidBody2D?
-    var container_right:Physics.RigidBody2D?
-    var container_bottom:Physics.RigidBody2D?
-    var container_top:Physics.RigidBody2D?
     var container_center:Math.Vec2
-    var container_previous_angle:float
     var container_angle:float
     var container_visual_angle:float
     var container_cycle_offset:float
     var container_target_angle:float
-    var accumulator:float
-    var elapsed:float
     var spawn_elapsed:float
     var spawned_count:int
     var pending_count:int
     var box_count:int
 
     init() {
-        self.world = Physics.World2D()
         self.bodies = []
         self.randomizer = Randomizer(0xB0_2D_12_0D)
-        self.container_left = null
-        self.container_right = null
-        self.container_bottom = null
-        self.container_top = null
         self.container_center = Math.Vec2()
-        self.container_previous_angle = 0.0
         self.container_angle = 0.0
         self.container_visual_angle = 0.0
         self.container_cycle_offset = 0.0
         self.container_target_angle = 0.0
-        self.accumulator = 0.0
-        self.elapsed = 0.0
         self.spawn_elapsed = 0.0
         self.spawned_count = 0
         self.pending_count = 0
