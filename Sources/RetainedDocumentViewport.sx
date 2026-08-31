@@ -17,8 +17,13 @@ static struct Document {
     let padding:float = 12.0
     let status_height:float = 28.0
     let wheel_step:float = 3.0
-    let scroll_response:float = 14.0
-    let scroll_snap_distance:float = 0.001
+    let precise_wheel_scale:float = 0.5
+    let precise_wheel_epsilon:float = 0.001
+    let maximum_target_viewports:float = 8.0
+    let minimum_target_distance:float = 96.0
+    let maximum_wheel_step:float = 32.0
+    let scroll_response:float = 48.0
+    let scroll_snap_distance:float = 0.1
     let maximum_animation_delta:float = 0.05
     let block_lines:int = 8
     let block_cache_capacity:int = 128
@@ -48,6 +53,17 @@ func scroll_smoothing_factor(response:float, delta:float) float {
     var iteration = 0
     while iteration < 8 { power *= power; iteration++ }
     return 1.0 - 1.0 / power
+}
+
+// SDL reports discrete wheel notches as exact integer deltas while precise
+// trackpads retain a fractional component. Keep notches unchanged, but avoid
+// multiplying every high-resolution trackpad sample by the full line step.
+func scaled_wheel_delta(value:float) float {
+    let nearest_integer = Math.round(value)
+    if Math.abs(value - nearest_integer) <= Document.precise_wheel_epsilon {
+        return value
+    }
+    return value * Document.precise_wheel_scale
 }
 
 func line_prefix(number:int) str {
@@ -510,14 +526,23 @@ class DocumentContent:UI.Content {
             self.wheel_target_offset = self.scroll.offset()
             self.wheel_applied_offset = self.scroll.offset()
         }
-        var distance = -delta.y * Document.wheel_step
+        var distance = -scaled_wheel_delta(delta.y) * Document.wheel_step
         if self.wheel_direction == UI.ScrollWheelDirection.inverted {
             distance = -distance
         }
+        let maximum_target_distance = self.maximum_wheel_target_distance()
+        let minimum_target = Math.max(
+            0.0,
+            self.scroll.offset() - maximum_target_distance
+        )
+        let maximum_target = Math.min(
+            self.scroll.maximum_offset(),
+            self.scroll.offset() + maximum_target_distance
+        )
         let target = Math.clamp(
             self.wheel_target_offset + distance,
-            0.0,
-            self.scroll.maximum_offset()
+            minimum_target,
+            maximum_target
         )
         if target == self.wheel_target_offset { return false }
         self.wheel_target_offset = target
@@ -546,6 +571,16 @@ class DocumentContent:UI.Content {
 
     func visible_row_count() int { return self.current_visible_rows }
     func profile_complete() bool { return self.profile_done }
+    func wheel_motion_active() bool { return self.wheel_scrolling }
+    func wheel_target_distance() float {
+        return Math.abs(self.wheel_target_offset - self.scroll.offset())
+    }
+    func maximum_wheel_target_distance() float {
+        return Math.max(
+            Document.minimum_target_distance,
+            self.current_visible_rows as float * Document.maximum_target_viewports
+        )
+    }
 
     private func move_by(distance:int) bool {
         let current = Math.round(self.scroll.offset()) as int
@@ -588,12 +623,10 @@ class DocumentContent:UI.Content {
             self.wheel_target_offset,
             amount
         )
-        let maximum_step = (Document.block_lines *
-            Document.prefetch_blocks_per_frame) as float
         next = Math.clamp(
             next,
-            self.scroll.offset() - maximum_step,
-            self.scroll.offset() + maximum_step
+            self.scroll.offset() - Document.maximum_wheel_step,
+            self.scroll.offset() + Document.maximum_wheel_step
         )
         let changed = self.scroll.set_offset(next)
         self.wheel_applied_offset = self.scroll.offset()
@@ -978,6 +1011,7 @@ func verify(
         Math.Vec2(0.0, wheel_delta)
     ))
     assert(scroll.offset() == 0.0)
+    assert(Math.abs(content.wheel_target_distance() - Document.wheel_step) < 0.001)
     assert(runtime.update(0.016))
     assert(scroll.offset() > 0.0)
     assert(scroll.offset() < Document.wheel_step)
@@ -985,10 +1019,12 @@ func verify(
     assert(drawing.command_count() >= 6)
     assert(drawing.command_count() < 12)
     var settle_step = 0
-    while settle_step < 60 {
+    while content.wheel_motion_active() && settle_step < 60 {
         let changed = runtime.update(0.016)
+        drawing = runtime.drawing(1100, 600)
         settle_step++
     }
+    assert(!content.wheel_motion_active())
     assert(Math.abs(scroll.offset() - Document.wheel_step) < 0.001)
     drawing = runtime.drawing(1100, 600)
     assert(drawing_text_block_count(drawing) >= 4)
@@ -998,6 +1034,38 @@ func verify(
     drawing = runtime.drawing(1100, 600)
     assert(drawing.command_count() >= 6)
     assert(drawing.command_count() < 12)
+
+    // Model a dense precise-trackpad burst received before the next presented
+    // frame. Its target must saturate near the viewport instead of accumulating
+    // seconds of latent animation, then converge in a short bounded interval.
+    var burst_delta = 6.75
+    if wheel_direction == UI.ScrollWheelDirection.normal { burst_delta = -6.75 }
+    var burst_sample = 0
+    while burst_sample < 48 {
+        let accepted = runtime.pointer_scrolled(
+            Math.Vec2(10.0, 10.0),
+            Math.Vec2(0.0, burst_delta)
+        )
+        burst_sample++
+    }
+    let burst_target_distance = content.wheel_target_distance()
+    assert(
+        burst_target_distance <= content.maximum_wheel_target_distance() + 0.001
+    )
+    assert(
+        Math.abs(
+            burst_target_distance - content.maximum_wheel_target_distance()
+        ) < 0.001
+    )
+    var burst_settle_frames = 0
+    while content.wheel_motion_active() && burst_settle_frames < 60 {
+        let changed = runtime.update(1.0 / 120.0)
+        drawing = runtime.drawing(1100, 600)
+        burst_settle_frames++
+    }
+    assert(!content.wheel_motion_active())
+    assert(burst_settle_frames <= 24)
+    assert(runtime.key_pressed(Keyboard.Key.home))
 
     let line_coverage = measured_scroll(runtime, Keyboard.Key.down, 60, false)
     assert(runtime.key_pressed(Keyboard.Key.home))
@@ -1013,7 +1081,9 @@ func verify(
     assert(runtime.key_pressed(Keyboard.Key.home))
     let page_vector = measured_scroll(runtime, Keyboard.Key.page_down, 20, true)
     print(
-        "SILEX_GFX_DOCUMENT verification=passed commands=$(drawing.command_count())"
+        "SILEX_GFX_DOCUMENT verification=passed commands=$(drawing.command_count()) " +
+        "burst_target=$(burst_target_distance) " +
+        "burst_settle_frames=$(burst_settle_frames)"
     )
     print(profile_text("coverage_line", line_coverage))
     print(profile_text("coverage_page", page_coverage))
