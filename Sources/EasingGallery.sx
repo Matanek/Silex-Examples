@@ -164,7 +164,7 @@ func main() {
                     pan:Input.MouseButton.left
                 )
         ))
-        ..add_plugin(Animation.Plugin())
+        ..add_plugin(Plugins.Animation())
         ..add_system(Application.Schedule.startup, create_gallery)
         ..add_system(Application.Schedule.startup, create_help)
         ..run()

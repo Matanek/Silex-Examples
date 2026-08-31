@@ -1,0 +1,188 @@
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Window
+use STD.Math
+use STD.Process
+
+static struct Const {
+    let width:int = 480
+    let height:int = 270
+    let verification_frames:int = 2
+}
+
+struct Stage { let value:int }
+struct LocalFrame { var value:int }
+
+class DemoRun {
+    let verification:bool
+    var observed:int[]
+    var windows:uint32[]
+    var finalizations:int
+
+    init(verification:bool) {
+        self.verification = verification
+        self.observed = []
+        self.windows = []
+        self.finalizations = 0
+    }
+}
+
+func verification_mode() bool {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments {
+                if argument == "--verify" { return true }
+            }
+        }
+    }
+    return false
+}
+
+func panel_drawing(stage:int) Canvas {
+    var accent = Color.sky_400()
+    var heading = "Splash Bundle"
+    var instruction = "Press Enter to open the main window"
+    if stage == 2 {
+        accent = Color.emerald_400()
+        heading = "Main Bundle"
+        instruction = "Press Escape or close this window to quit"
+    }
+
+    var font = Canvas.Font.default()
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Circle(Math.Vec2(240.0, 135.0), 92.0),
+            Canvas.Fill.solid(accent)
+        )
+        painter.text(
+            heading,
+            Math.Vec2(240.0, 124.0),
+            Canvas.TextStyle(
+                size:28.0,
+                color:Color.slate_950(),
+                alignment:Canvas.TextAlignment.center,
+                font:font
+            )
+        )
+        painter.text(
+            instruction,
+            Math.Vec2(240.0, 235.0),
+            Canvas.TextStyle(
+                size:14.0,
+                color:Color.slate_200(),
+                alignment:Canvas.TextAlignment.center,
+                font:font
+            )
+        )
+    })
+    return drawing
+}
+
+func spawn_panel(stage:@Stage, world:&ECS.World) {
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(
+            panel_drawing(stage.value),
+            Const.width,
+            Const.height
+        )
+            ..space = Components.CanvasSpace.viewport
+            ..anchor = Math.Vec2(0.5)
+            ..pivot = Math.Vec2(0.5)
+        )
+    )
+}
+
+func record_window(window:@Window, run:&DemoRun) {
+    run.windows.append(window.id().value)
+}
+
+func advance(
+    stage:@Stage,
+    frame:&LocalFrame,
+    input:@Resources.InputState,
+    run:&DemoRun,
+    manager:&Plugins.BundleManager,
+    controller:&Application.Controller
+) {
+    frame.value++
+    run.observed.append(stage.value)
+
+    if run.verification {
+        if stage.value == 1 && frame.value == Const.verification_frames {
+            manager.replace(configured_bundle(manager.create(), 2, true))
+        } elif stage.value == 2 && frame.value == Const.verification_frames {
+            controller.stop()
+        }
+        return
+    }
+
+    if stage.value == 1 && input.is_pressed(Input.Key.enter) {
+        manager.replace(configured_bundle(manager.create(), 2, false))
+    } elif stage.value == 2 && input.is_pressed(Input.Key.escape) {
+        controller.stop()
+    }
+}
+
+func finalize_bundle(run:&DemoRun) {
+    run.finalizations++
+}
+
+func configured_bundle(
+    bundle:Application.Bundle,
+    stage:int,
+    hidden:bool
+) Application.Bundle {
+    var title = "Splash Bundle"
+    if stage == 2 { title = "Main Bundle" }
+
+    return bundle
+        ..add_resource(Stage(value:stage))
+        ..add_resource(LocalFrame(value:0))
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = title
+            ..width = Const.width
+            ..height = Const.height
+            ..hidden = hidden
+        ))
+        ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
+            ..clear = Color.slate_950()
+        ))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_system(Application.Schedule.startup, spawn_panel)
+        ..add_system(Application.Schedule.startup, record_window)
+        ..add_after_system(Application.Schedule.render, advance)
+        ..add_system(Application.Schedule.finalize, finalize_bundle)
+}
+
+func main() {
+    let verification = verification_mode()
+    var run = DemoRun(verification)
+    var application = Application()..add_resource(run)
+    var initial = configured_bundle(
+        Application.Bundle(application),
+        1,
+        verification
+    )
+
+    application.add_plugin(Plugins.BundleManager(initial))
+    assert(application.run() == 0)
+
+    if verification {
+        assert(run.observed.count() == 4)
+        assert(run.observed[0] == 1)
+        assert(run.observed[1] == 1)
+        assert(run.observed[2] == 2)
+        assert(run.observed[3] == 2)
+        assert(run.windows.count() == 2)
+        assert(run.finalizations == 2)
+    }
+}

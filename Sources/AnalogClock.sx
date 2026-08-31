@@ -5,11 +5,11 @@ use GFX.Components
 use GFX.ECS
 use GFX.Plugins
 use GFX.Rendering
-use GFX.Resources
 use STD.Math
+use STD.Process
 use STD.Time.LocalTime
 
-static struct Constants {
+static struct Const {
     let canvas_size:int = 640
 
     func background_color() Color {
@@ -151,8 +151,30 @@ struct ClockFace {
     var last_millisecond:int = -1
 }
 
+class DemoRun {
+    let verification:bool
+    var frames:int
+
+    init(verification:bool) {
+        self.verification = verification
+        self.frames = 0
+    }
+}
+
+func verification_mode() bool {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments {
+                if argument == "--verify" { return true }
+            }
+        }
+    }
+    return false
+}
+
 func spawn_clock_canvas(
-    world:&Resources.World,
+    world:&ECS.World,
     drawing:Canvas,
     angle:float,
     layer:int
@@ -161,8 +183,8 @@ func spawn_clock_canvas(
         ..with(Components.Transform2D(rotation:angle))
         ..with(Components.Canvas(
             drawing,
-            Constants.canvas_size,
-            Constants.canvas_size
+            Const.canvas_size,
+            Const.canvas_size
         )
             ..anchor = Math.Vec2(0.5)
             ..pivot = Math.Vec2(0.5)
@@ -184,7 +206,7 @@ func second_angle(seconds:float) float {
     return -Math.pi() * 0.5 + Math.two_pi() * seconds / 60.0
 }
 
-func create_clock(world:&Resources.World, face:&ClockFace) {
+func create_clock(world:&ECS.World, face:&ClockFace) {
     let seconds = seconds_of_day(LocalTime.now())
     let ink = Color.bytes(82, 67, 68)
     face.last_millisecond = -1
@@ -205,7 +227,7 @@ func create_clock(world:&Resources.World, face:&ClockFace) {
     spawn_clock_canvas(world, center, 0.0, 4)
 }
 
-func rotate_hand(world:&Resources.World, entity:ECS.Entity?, angle:float) {
+func rotate_hand(world:&ECS.World, entity:ECS.Entity?, angle:float) {
     if let display = entity {
         world.update<Components.Transform2D>(
             display,
@@ -214,7 +236,7 @@ func rotate_hand(world:&Resources.World, entity:ECS.Entity?, angle:float) {
     }
 }
 
-func update_clock(world:&Resources.World, face:&ClockFace) {
+func update_clock(world:&ECS.World, face:&ClockFace) {
     let seconds = seconds_of_day(LocalTime.now())
     let millisecond = Math.floor(seconds * 1_000.0) as int
     if millisecond == face.last_millisecond { return }
@@ -224,20 +246,40 @@ func update_clock(world:&Resources.World, face:&ClockFace) {
     face.last_millisecond = millisecond
 }
 
+func finish_verification(
+    run:&DemoRun,
+    controller:&Application.Controller
+) {
+    if !run.verification { return }
+    run.frames++
+    if run.frames == 3 { controller.stop() }
+}
+
 func main() {
-    Application()
+    let verification = verification_mode()
+    var run = DemoRun(verification)
+    var application = Application()
+    var bundle = Application.Bundle(application)
         ..add_resource(ClockFace())
+        ..add_resource(run)
+        ..add_system(Application.Schedule.startup, create_clock)
+        ..add_system(Application.Schedule.update, update_clock)
+        ..add_after_system(Application.Schedule.render, finish_verification)
+
+    application
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
             ..title = "Clock — GFX.Canvas"
-            ..width = Constants.canvas_size
-            ..height = Constants.canvas_size
+            ..width = Const.canvas_size
+            ..height = Const.canvas_size
+            ..hidden = verification
         ))
         ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
-            ..clear = Constants.background_color()
+            ..clear = Const.background_color()
             ..present_mode = Rendering.PresentMode.immediate
         ))
         ..add_plugin(Plugins.Scene2D())
-        ..add_system(Application.Schedule.startup, create_clock)
-        ..add_system(Application.Schedule.update, update_clock)
-        ..run()
+        ..add_plugin(Plugins.BundleManager(bundle))
+
+    assert(application.run() == 0)
+    if verification { assert(run.frames == 3) }
 }
