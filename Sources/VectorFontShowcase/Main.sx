@@ -33,8 +33,7 @@ class ShowcaseState {
     var scene_panel:ECS.Entity? = null
     var typography_overlay:ECS.Entity? = null
     var vector_overlay:ECS.Entity? = null
-    var scene_overlay:ECS.Entity? = null
-    var cursor:ECS.Entity? = null
+    var plane_guides:ECS.Entity[] = []
     var text:ECS.Entity? = null
     var receiver:ECS.Entity? = null
     var light:ECS.Entity? = null
@@ -176,7 +175,7 @@ func typography_board(font:Canvas.Font, terminal_font:Canvas.Font) Canvas {
         )
         painter.text("Shaping Unicode — même face, mêmes GlyphRuns", Math.Vec2(52.0, 120.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
         painter.text("office", Math.Vec2(52.0, 164.0), Canvas.TextStyle(size:56.0, color:ink(), font:font))
-        painter.text("ligature ffi · kerning AVATAR", Math.Vec2(52.0, 226.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
+        painter.text("ligature ffi · kerning AVATAR", Math.Vec2(52.0, 244.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
         painter.text("a\u{0323}\u{0301}   Ελληνικά   Кириллица", Math.Vec2(52.0, 278.0), Canvas.TextStyle(size:36.0, color:ink(), font:font))
         painter.text("देवनागरी   العربية", Math.Vec2(52.0, 348.0), Canvas.TextStyle(size:38.0, color:ink(), font:font))
         painter.text("La face distribuée reste volontairement bornée : le notdef est visible.", Math.Vec2(52.0, 402.0), Canvas.TextStyle(size:15.0, color:amber(), font:font))
@@ -192,7 +191,7 @@ func typography_board(font:Canvas.Font, terminal_font:Canvas.Font) Canvas {
         painter.text("clusters UTF-8 conservés", Math.Vec2(858.0, 292.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
         painter.text("Y-up Font / Y-down Canvas", Math.Vec2(858.0, 324.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
         painter.text("O : géométrie réelle du run office", Math.Vec2(858.0, 398.0), Canvas.TextStyle(size:15.0, color:amber(), font:font))
-        footer(painter, font, "1/2/3 vues · O géométrie · Espace curseur cyan · Échap quitter")
+        footer(painter, font, "1/2/3 vues · O géométrie · Espace lumière 3D · Échap quitter")
     })
 }
 
@@ -228,8 +227,8 @@ func paint_typography_geometry(
         painter.fill(Canvas.Circle(Math.Vec2(x, baseline), 2.5), Canvas.Fill.solid(cyan()))
     }
     painter.text("baseline", Math.Vec2(375.0, baseline - 9.0), Canvas.TextStyle(size:12.0, color:cyan(), font:font))
-    painter.text("bounds logiques", Math.Vec2(52.0, baseline + 18.0), Canvas.TextStyle(size:12.0, color:amber(), font:font))
     painter.text("boîtes d'encre + origines de clusters", Math.Vec2(858.0, 432.0), Canvas.TextStyle(size:14.0, color:cyan(), font:font))
+    painter.text("ambre : bounds logiques", Math.Vec2(858.0, 458.0), Canvas.TextStyle(size:14.0, color:amber(), font:font))
 }
 
 func typography_geometry(font:Canvas.Font) Canvas {
@@ -306,7 +305,7 @@ func vector_board(font:Canvas.Font) Canvas {
         for outline in outlines { stroke_outline(painter, outline, Math.Vec2(500.0, 470.0), 190.0, amber()) }
         painter.stroke(Canvas.Line(Math.Vec2(468.0, 470.0), Math.Vec2(1190.0, 470.0)), Canvas.Stroke(Color.bytes(76, 92, 119), 1.0))
         painter.text("Le trou de O reste vide ; taille, couleur et transform ne retessellent pas.", Math.Vec2(468.0, 590.0), Canvas.TextStyle(size:15.0, color:ink(), font:font))
-        footer(painter, font, "O : bounds/origines/clusters · Espace : suspend le curseur cyan")
+        footer(painter, font, "O : bounds/origines/clusters · Espace : suspend la lumière 3D")
     })
 }
 
@@ -354,23 +353,8 @@ func scene_board(font:Canvas.Font) Canvas {
         painter.text("Même GlyphRun", Math.Vec2(48.0, 114.0), Canvas.TextStyle(size:18.0, color:amber(), font:font))
         painter.text("normales physiques · PBR · holes", Math.Vec2(48.0, 154.0), Canvas.TextStyle(size:15.0, color:ink(), font:font))
         painter.text("caster et receiver séparés", Math.Vec2(48.0, 180.0), Canvas.TextStyle(size:15.0, color:muted(), font:font))
-        footer(painter, font, "O : repères du plan · Espace : lumière + curseur cyan")
-    })
-}
-
-func scene_geometry(font:Canvas.Font) Canvas {
-    return Canvas()..paint(func(painter:&Canvas.Painter) {
-        painter.stroke(Canvas.Rect(Math.Vec2(438.0, 214.0), Math.Vec2(760.0, 300.0)), Canvas.Stroke(cyan(), 2.0))
-        painter.stroke(Canvas.Line(Math.Vec2(470.0, 500.0), Math.Vec2(1160.0, 500.0)), Canvas.Stroke(amber(), 2.0))
-        painter.fill(Canvas.Circle(Math.Vec2(470.0, 500.0), 6.0), Canvas.Fill.solid(cyan()))
-        painter.text("plan du GlyphRun · origine · receiver d'ombre", Math.Vec2(454.0, 226.0), Canvas.TextStyle(size:14.0, color:cyan(), font:font))
-    })
-}
-
-func cursor_board() Canvas {
-    return Canvas()..paint(func(painter:&Canvas.Painter) {
-        painter.stroke(Canvas.Line(Math.Vec2(2.0, 10.0), Math.Vec2(34.0, 10.0)), Canvas.Stroke(cyan(), 2.0))
-        painter.fill(Canvas.Circle(Math.Vec2(34.0, 10.0), 5.0), Canvas.Fill.solid(cyan()))
+        painter.text("O affiche les axes X/Y du vrai plan", Math.Vec2(48.0, 206.0), Canvas.TextStyle(size:14.0, color:cyan(), font:font))
+        footer(painter, font, "O : axes X/Y du plan 3D · Espace : suspend la lumière")
     })
 }
 
@@ -484,26 +468,6 @@ func create_showcase(
             ..text_mode = Scene2D.CanvasTextMode.coverage
         )
     )
-    state.scene_overlay = world.spawn(ECS.EntityRecipe()
-        ..with(Scene2D.Transform())
-        ..with(Scene2D.Canvas(scene_geometry(font), Layout.width, Layout.height)
-            ..space = Scene2D.CanvasSpace.viewport
-            ..pivot = Math.Vec2()
-            ..layer = 120
-            ..visible = false
-            ..text_mode = Scene2D.CanvasTextMode.coverage
-        )
-    )
-    state.cursor = world.spawn(ECS.EntityRecipe()
-        ..with(Scene2D.Transform(position:Math.Vec2(26.0, 646.0)))
-        ..with(Scene2D.Canvas(cursor_board(), 40, 20)
-            ..space = Scene2D.CanvasSpace.viewport
-            ..pivot = Math.Vec2()
-            ..layer = 140
-            ..text_mode = Scene2D.CanvasTextMode.vector
-        )
-    )
-
     var instance = required_instance(Font.Instance.create(face, size:1.0))
     var run = required_run(instance.shape("Vector O Bé"))
     let text_mesh = required_text(meshes.add_text(Scene3D.Text(
@@ -527,6 +491,27 @@ func create_showcase(
         ..with(Scene3D.Mesh(receiver_mesh, casts_shadows:false)..visible = false)
         ..with(Scene3D.Material(albedo:Color.bytes(42, 49, 65), roughness:0.92))
     )
+    let x_axis_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(6.8, 0.035, 0.035)))
+    let y_axis_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.035, 1.7, 0.035)))
+    let origin_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.12)))
+    state.plane_guides.append(world.spawn(ECS.EntityRecipe()
+        ..with(Scene3D.Transform(position:Math.Vec3(0.0, 0.18, 0.08)))
+        ..with(Scene3D.Mesh(x_axis_mesh, casts_shadows:false)..visible = false)
+        ..with(Scene3D.Material.unlit(cyan()))
+        ..with(Scene3D.MaterialSettings(unlit:true))
+    ))
+    state.plane_guides.append(world.spawn(ECS.EntityRecipe()
+        ..with(Scene3D.Transform(position:Math.Vec3(-3.38, 1.03, 0.08)))
+        ..with(Scene3D.Mesh(y_axis_mesh, casts_shadows:false)..visible = false)
+        ..with(Scene3D.Material.unlit(amber()))
+        ..with(Scene3D.MaterialSettings(unlit:true))
+    ))
+    state.plane_guides.append(world.spawn(ECS.EntityRecipe()
+        ..with(Scene3D.Transform(position:Math.Vec3(-3.38, 0.18, 0.1)))
+        ..with(Scene3D.Mesh(origin_mesh, casts_shadows:false)..visible = false)
+        ..with(Scene3D.Material.unlit(Color.white()))
+        ..with(Scene3D.MaterialSettings(unlit:true))
+    ))
     world.spawn(ECS.EntityRecipe()
         ..with(Scene3D.Transform(position:Math.Vec3(0.0, 1.0, 7.0)))
         ..with(Scene3D.Camera(near_plane:0.05, far_plane:50.0))
@@ -544,6 +529,12 @@ func create_showcase(
 func mesh_visibility(world:&Resources.World, entity:ECS.Entity?, visible:bool) {
     if let value = entity {
         world.update<Scene3D.Mesh>(value, func(mesh:&Scene3D.Mesh) { mesh.visible = visible })
+    }
+}
+
+func guide_visibility(world:&Resources.World, state:&ShowcaseState, visible:bool) {
+    for entity in state.plane_guides {
+        world.update<Scene3D.Mesh>(entity, func(mesh:&Scene3D.Mesh) { mesh.visible = visible })
     }
 }
 
@@ -571,9 +562,9 @@ func apply_view(world:&Resources.World, state:&ShowcaseState, view:int) {
     var vector_overlay_color = Color.bytes(255, 255, 255, 0)
     if state.overlays && view == 2 { vector_overlay_color = Color.white() }
     canvas_color(world, state.vector_overlay, vector_overlay_color)
-    canvas_visibility(world, state.scene_overlay, state.overlays && view == 3)
     mesh_visibility(world, state.text, view == 3)
     mesh_visibility(world, state.receiver, view == 3)
+    guide_visibility(world, state, state.overlays && view == 3)
 }
 
 func timed_view(world:&Resources.World, state:&ShowcaseState, view:int) {
@@ -600,13 +591,6 @@ func input_showcase(
     }
     if input.is_pressed(Input.Key.space) {
         state.paused = !state.paused
-        var cursor_color = Color.white()
-        if state.paused { cursor_color = amber() }
-        if let cursor_entity = state.cursor {
-            world.update<Scene2D.Canvas>(cursor_entity, func(canvas:&Scene2D.Canvas) {
-                canvas.color = cursor_color
-            })
-        }
     }
     if input.is_pressed(Input.Key.escape) { controller.stop() }
 }
@@ -618,12 +602,6 @@ func animate_showcase(
 ) {
     if state.paused { return }
     state.elapsed += time.delta
-    if let cursor_entity = state.cursor {
-        let x = 26.0 + (Math.sin(state.elapsed * 1.8) * 0.5 + 0.5) * 1190.0
-        world.update<Scene2D.Transform>(cursor_entity, func(transform:&Scene2D.Transform) {
-            transform.position = Math.Vec2(x, 646.0)
-        })
-    }
     if let light_entity = state.light {
         let angle = state.elapsed * 0.35
         world.update<Scene3D.SunLight>(light_entity, func(light:&Scene3D.SunLight) {
