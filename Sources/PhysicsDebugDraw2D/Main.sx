@@ -6,7 +6,6 @@ use GFX.ECS
 use GFX.Physics
 use GFX.Plugins
 use GFX.Resources
-use GFX.Rendering
 use STD.Math
 use STD.Process
 
@@ -469,7 +468,6 @@ func main() {
         ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
             ..clear = Color.slate_950()
             ..antialiasing = Plugins.RenderingAntialiasing.none
-            ..present_mode = Rendering.PresentMode.immediate
         ))
         ..add_plugin(Plugins.Scene2D())
         ..add_plugin(Plugins.FPSPanel())
