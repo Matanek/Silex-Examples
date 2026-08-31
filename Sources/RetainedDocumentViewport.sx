@@ -1,5 +1,6 @@
 use GFX.Canvas
 use GFX.Color
+use GFX.Font as VectorFont
 use GFX.Input.Keyboard
 use GFX.UI
 use GFX.Viewer
@@ -31,8 +32,6 @@ struct GlyphCorpus {
     let glyph_count:int
 }
 
-func ignore_scroll_change(value:float) {}
-
 func line_prefix(number:int) str {
     if number < 10 { return "    $(number)  " }
     if number < 100 { return "   $(number)  " }
@@ -41,16 +40,32 @@ func line_prefix(number:int) str {
     return "$(number)  "
 }
 
-func verification_mode() bool {
+func has_argument(expected:str) bool {
     match Process.arguments() {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
             for argument in arguments {
-                if argument == "--verify" { return true }
+                if argument == expected { return true }
             }
         }
     }
     return false
+}
+
+func verification_mode() bool { return has_argument("--verify") }
+
+func automatic_profile_mode() bool {
+    return has_argument("--profile-vector") || has_argument("--profile-coverage") ||
+        has_argument("--profile-settle")
+}
+
+func settle_profile_mode() bool { return has_argument("--profile-settle") }
+
+func viewer_text_mode() Viewer.CanvasTextMode {
+    if has_argument("--vector") || has_argument("--profile-vector") {
+        return Viewer.CanvasTextMode.vector
+    }
+    return Viewer.CanvasTextMode.coverage
 }
 
 func scalar_text(scalar:uint32) str {
@@ -62,13 +77,47 @@ func scalar_text(scalar:uint32) str {
     }
 }
 
-func glyph_corpus(font:Canvas.Font) GlyphCorpus {
+func required_instance(
+    result:Result<VectorFont.Instance, VectorFont.Error>
+) VectorFont.Instance {
+    match result {
+        failure(error) => { panic(error.detail) }
+        success(value) => { return value }
+    }
+}
+
+func has_vector_outline(instance:VectorFont.Instance, value:str) bool {
+    var retained = instance
+    match retained.shape(value) {
+        failure(error) => { return false }
+        success(run) => {
+            match run.outlines() {
+                failure(error) => { return false }
+                success(placements) => {
+                    if placements.is_empty() { return false }
+                    for placement in placements {
+                        if placement.outline == null { return false }
+                    }
+                    return true
+                }
+            }
+        }
+    }
+}
+
+func glyph_corpus(font:Canvas.Font, require_outlines:bool = false) GlyphCorpus {
     var face = font.face()
+    var vector_instance = required_instance(VectorFont.Instance.create(face, size:14.0))
     var glyphs:str[] = []
     var scalar:uint32 = 33
     while scalar <= 1_327 as uint32 {
         let control = scalar >= 127 as uint32 && scalar <= 160 as uint32
-        if !control && face.supports(scalar) { glyphs.append(scalar_text(scalar)) }
+        if !control && face.supports(scalar) {
+            let value = scalar_text(scalar)
+            if !require_outlines || has_vector_outline(vector_instance, value) {
+                glyphs.append(value)
+            }
+        }
         scalar++
     }
     assert(glyphs.count() > 256)
@@ -130,7 +179,7 @@ func preload_document(samples:@str[]) str[] {
 
 class DocumentContent:UI.Content {
     private var lines:str[]
-    private var scroll:UI.State<float>
+    private var scroll:UI.ScrollState
     private var font:Canvas.Font
     private var focused:bool = false
     private var sample_elapsed:float = 0.0
@@ -138,11 +187,25 @@ class DocumentContent:UI.Content {
     private var frames_per_second:int = 0
     private var maximum_frame_ms:float = 0.0
     private var current_visible_rows:int = 1
+    private let automatic_profile:bool
+    private let settle_profile:bool
+    private var profile_phase:int = 0
+    private var profile_frames:int = 0
+    private var profile_elapsed:float = 0.0
+    private var profile_maximum_frame_ms:float = 0.0
+    private var profile_done:bool = false
 
-    init(lines:str[], scroll:UI.State<float>) {
+    init(
+        lines:str[],
+        scroll:UI.ScrollState,
+        automatic_profile:bool = false,
+        settle_profile:bool = false
+    ) {
         self.lines = lines
         self.scroll = scroll
         self.font = Canvas.Font.monospace()
+        self.automatic_profile = automatic_profile
+        self.settle_profile = settle_profile
     }
 
     func measure(maximum:Math.Vec2) Math.Vec2 {
@@ -158,20 +221,13 @@ class DocumentContent:UI.Content {
             frame,
             Canvas.Fill.solid(Color.bytes(4, 10, 22).with_alpha(opacity))
         )
-        var border_color = Color.slate_700()
-        if self.focused { border_color = Color.cyan_400() }
-        painter.stroke(frame, Canvas.Stroke(border_color.with_alpha(opacity), 1.0))
-
         let usable_height = frame.size.y - Document.padding * 2.0 - Document.status_height
         var visible_rows = Math.floor(usable_height / Document.line_height) as int
         if visible_rows < 1 { visible_rows = 1 }
         self.current_visible_rows = visible_rows
+        let viewport_changed = self.scroll.set_viewport_extent(visible_rows as float)
 
-        var first_line = Math.round(self.scroll.value()) as int
-        var maximum_first = self.lines.count() - visible_rows
-        if maximum_first < 0 { maximum_first = 0 }
-        if first_line < 0 { first_line = 0 }
-        if first_line > maximum_first { first_line = maximum_first }
+        let first_line = Math.round(self.scroll.offset()) as int
 
         var text_style = Canvas.TextStyle(
             size:Document.font_size,
@@ -218,15 +274,27 @@ class DocumentContent:UI.Content {
         self.sample_frames++
         let frame_ms = delta * 1_000.0
         if frame_ms > self.maximum_frame_ms { self.maximum_frame_ms = frame_ms }
-        if self.sample_elapsed < 0.5 { return false }
-        self.frames_per_second = Math.round(
-            self.sample_frames as float / self.sample_elapsed
-        ) as int
-        self.sample_elapsed = 0.0
-        self.sample_frames = 0
-        return true
+        var changed = false
+        if self.sample_elapsed >= 0.5 {
+            self.frames_per_second = Math.round(
+                self.sample_frames as float / self.sample_elapsed
+            ) as int
+            self.sample_elapsed = 0.0
+            self.sample_frames = 0
+            changed = true
+        }
+        if self.automatic_profile && !self.profile_done {
+            let profile_changed = self.advance_profile(delta)
+            return changed || profile_changed
+        }
+        return changed
     }
     func insert_text(value:str) bool { return false }
+
+    func pointer_scrolled(delta:Math.Vec2) bool {
+        if delta.y == 0.0 { return false }
+        return self.scroll.scroll_by(-delta.y * 3.0)
+    }
 
     func key_pressed(
         key:Keyboard.Key,
@@ -248,18 +316,81 @@ class DocumentContent:UI.Content {
     }
 
     func visible_row_count() int { return self.current_visible_rows }
+    func profile_complete() bool { return self.profile_done }
 
     private func move_by(distance:int) bool {
-        let current = Math.round(self.scroll.value()) as int
+        let current = Math.round(self.scroll.offset()) as int
         return self.move_to(current + distance)
     }
 
     private func move_to(value:int) bool {
-        var next = value
-        let maximum = Document.line_count - self.current_visible_rows
-        if next < 0 { next = 0 }
-        if next > maximum { next = maximum }
-        self.scroll.set(next as float)
+        return self.scroll.set_offset(value as float)
+    }
+
+    private func advance_profile(delta:float) bool {
+        if self.settle_profile {
+            return self.advance_settle_profile(delta)
+        }
+        let warmup = 30
+        let measured = 120
+        if self.profile_frames >= warmup {
+            self.profile_elapsed += delta
+            let frame_ms = delta * 1_000.0
+            if frame_ms > self.profile_maximum_frame_ms {
+                self.profile_maximum_frame_ms = frame_ms
+            }
+        }
+        self.profile_frames++
+        let maximum = self.scroll.maximum_offset() as int
+        let step = self.current_visible_rows * 37
+        let current = Math.round(self.scroll.offset()) as int
+        if current + step > maximum { self.move_to(0) }
+        else { self.move_by(step) }
+        if self.profile_frames < warmup + measured { return true }
+        let fps = measured as float / self.profile_elapsed
+        print(
+            "SILEX_GFX_DOCUMENT interactive_profile frames=$(measured) " +
+            "fps=$(fps) max_frame_ms=$(self.profile_maximum_frame_ms)"
+        )
+        self.profile_done = true
+        return true
+    }
+
+    private func advance_settle_profile(delta:float) bool {
+        let warmup = 30
+        let measured = 120
+        var changed = false
+        if self.profile_phase == 1 {
+            let maximum = self.scroll.maximum_offset() as int
+            let step = self.current_visible_rows * 37
+            let current = Math.round(self.scroll.offset()) as int
+            if current + step > maximum { changed = self.move_to(0) }
+            else { changed = self.move_by(step) }
+        }
+        if self.profile_frames >= warmup {
+            self.profile_elapsed += delta
+            let frame_ms = delta * 1_000.0
+            if frame_ms > self.profile_maximum_frame_ms {
+                self.profile_maximum_frame_ms = frame_ms
+            }
+        }
+        self.profile_frames++
+        if self.profile_frames < warmup + measured { return changed }
+        var label = "idle_before"
+        if self.profile_phase == 1 { label = "churn" }
+        elif self.profile_phase == 2 { label = "idle_after" }
+        elif self.profile_phase == 3 { label = "idle_home" }
+        let fps = measured as float / self.profile_elapsed
+        print(
+            "SILEX_GFX_DOCUMENT settle_profile phase=$(label) frames=$(measured) " +
+            "fps=$(fps) max_frame_ms=$(self.profile_maximum_frame_ms)"
+        )
+        self.profile_phase++
+        self.profile_frames = 0
+        self.profile_elapsed = 0.0
+        self.profile_maximum_frame_ms = 0.0
+        if self.profile_phase == 3 { changed = self.move_to(0) }
+        if self.profile_phase > 3 { self.profile_done = true }
         return true
     }
 
@@ -333,44 +464,52 @@ func facts(lines:int, glyphs:int, preload_ms:float) UI.Text {
     return result
 }
 
-func navigation(scroll:UI.State<float>) UI.Column {
-    var hint = label(
-        "Focus the viewport · ↑/↓ line · Page Up/Down · Home/End · drag the slider",
+func navigation_hint() UI.Text {
+    return label(
+        "Focus the viewport · mouse wheel · Up/Down line · Page Up/Down · Home/End",
         12.0,
         Color.slate_400()
     )
+}
 
-    var slider = UI.Slider(
-        scroll,
-        0.0,
-        (Document.line_count - 1) as float,
-        ignore_scroll_change
-    )
-    slider.style.height = 20.0
-    slider.style.background = Color.slate_700()
-    slider.style.accent = Color.cyan_500()
+func document_viewport(
+    content:DocumentContent,
+    scroll:UI.ScrollState
+) UI.Row {
+    var viewport = DocumentView(content)
+    viewport.style.grow = 1.0
+    viewport.style.minimum_height = 300.0
 
-    let children:UI.View[] = [hint, slider]
-    var result = UI.Column(children)
-    result.style.gap = 6.0
+    var scrollbar = UI.Scrollbar(scroll, wheel_step:3.0)
+    // The interactive lane stays wider than the painted 6 px thumb so it
+    // remains easy to grab while keeping a macOS-like visual weight.
+    scrollbar.style.width = 12.0
+    scrollbar.style.background = Color.slate_900()
+    scrollbar.style.accent = Color.cyan_500()
+    scrollbar.style.radius = 8.0
+
+    let children:UI.View[] = [viewport, scrollbar]
+    var result = UI.Row(children)
+    result.style.gap = 4.0
+    result.style.grow = 1.0
+    result.style.padding = UI.Insets(1.0)
+    result.style.border = UI.Border(1.0, Color.cyan_400())
+    result.style.radius = 9.0
     return result
 }
 
 func interface(
+    content:DocumentContent,
     lines:str[],
-    scroll:UI.State<float>,
+    scroll:UI.ScrollState,
     glyphs:int,
     preload_ms:float
 ) UI.Column {
-    var viewport = DocumentView(DocumentContent(lines, scroll))
-    viewport.style.grow = 1.0
-    viewport.style.minimum_height = 300.0
-
     let children:UI.View[] = [
         header(),
         facts(lines.count(), glyphs, preload_ms),
-        viewport,
-        navigation(scroll)
+        document_viewport(content, scroll),
+        navigation_hint()
     ]
     var root = UI.Column(children)
     root.style.padding = UI.Insets(22.0)
@@ -459,7 +598,7 @@ func profile_text(name:str, profile:ScrollProfile) str {
         "outlines=$(profile.outlines_ms)"
 }
 
-func verify(lines:str[], scroll:UI.State<float>) {
+func verify(lines:str[], scroll:UI.ScrollState) {
     var content = DocumentContent(lines, scroll)
     var viewport = DocumentView(content)
     var runtime = UI.Runtime(viewport)
@@ -468,11 +607,17 @@ func verify(lines:str[], scroll:UI.State<float>) {
     assert(drawing.command_count() < 40)
     assert(runtime.pointer_pressed(Math.Vec2(10.0, 10.0)))
     assert(runtime.key_pressed(Keyboard.Key.page_down))
-    assert(scroll.value() == content.visible_row_count() as float)
+    assert(scroll.offset() == content.visible_row_count() as float)
     assert(runtime.key_pressed(Keyboard.Key.end))
-    assert(scroll.value() == (Document.line_count - content.visible_row_count()) as float)
+    assert(scroll.offset() == scroll.maximum_offset())
     assert(runtime.key_pressed(Keyboard.Key.home))
-    assert(scroll.value() == 0.0)
+    assert(scroll.offset() == 0.0)
+    assert(runtime.pointer_scrolled(
+        Math.Vec2(10.0, 10.0),
+        Math.Vec2(0.0, -1.0)
+    ))
+    assert(scroll.offset() == 3.0)
+    assert(runtime.key_pressed(Keyboard.Key.home))
     drawing = runtime.drawing(1100, 600)
     assert(drawing.command_count() > 25)
     assert(drawing.command_count() < 40)
@@ -492,7 +637,10 @@ func verify(lines:str[], scroll:UI.State<float>) {
 
 func main() {
     var font = Canvas.Font.monospace()
-    let corpus = glyph_corpus(font)
+    let corpus = glyph_corpus(
+        font,
+        has_argument("--vector") || has_argument("--profile-vector")
+    )
     var preload = Stopwatch()
     preload.start()
     let lines = preload_document(corpus.samples)
@@ -503,19 +651,35 @@ func main() {
         "preload_ms=$(preload_ms) policy=visible-rows-only"
     )
 
-    var scroll = UI.State<float>(0.0)
+    var scroll = UI.ScrollState(Document.line_count as float)
     if verification_mode() {
         verify(lines, scroll)
         return
     }
-    var root = interface(lines, scroll, corpus.glyph_count, preload_ms)
-    Viewer.show(
-        UI.Session(root, autofocus:true),
-        Viewer.CanvasSettings(
-            width:1220,
-            height:820,
-            title:"Vector text — retained document viewport",
-            background:Color.bytes(8, 15, 29)
-        )
+    let profiling = automatic_profile_mode()
+    let text_mode = viewer_text_mode()
+    var content = DocumentContent(
+        lines,
+        scroll,
+        profiling,
+        settle_profile_mode()
     )
+    var root = interface(content, lines, scroll, corpus.glyph_count, preload_ms)
+    let settings = Viewer.CanvasSettings(
+        width:1220,
+        height:820,
+        title:"Vector text — retained document viewport",
+        background:Color.bytes(8, 15, 29),
+        text_mode:text_mode
+    )
+    if profiling {
+        let code = Viewer.show_until(
+            UI.Session(root, autofocus:true),
+            func() bool { return content.profile_complete() },
+            settings
+        )
+        assert(code == 0)
+        return
+    }
+    Viewer.show(UI.Session(root, autofocus:true), settings)
 }

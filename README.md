@@ -116,8 +116,11 @@ bar reports live FPS, the longest observed frame and the first visible line.
 The `--verify` mode pins the submitted Canvas command count below 40, proving
 that the 50,000 retained lines are not sent to the renderer. It is a read-only
 load probe, not a substitute for a scrollable `GFX.UI.TextArea`: use the
-keyboard or its slider to move through the retained document while evaluating
-latency.
+keyboard, mouse wheel or controlled vertical scrollbar to move through the
+retained document while evaluating latency. The interactive default uses Scene2D's hinted R8 glyph atlas; a
+compiled executable accepts `--vector` for the outline-only comparison and
+`--profile-coverage`, `--profile-vector` or `--profile-settle` for bounded
+profiles.
 
 The WebView examples illustrate three different approaches:
 `EmbeddedWebView/Main.sx` embeds web files, while
