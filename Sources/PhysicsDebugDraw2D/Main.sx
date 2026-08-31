@@ -6,6 +6,7 @@ use GFX.ECS
 use GFX.Physics
 use GFX.Plugins
 use GFX.Resources
+use GFX.Rendering
 use STD.Math
 use STD.Process
 
@@ -56,49 +57,6 @@ struct FallingBody {
         self.body.set_velocity(self.velocity)
         self.body.set_rotation(self.rotation)
         self.body.set_angular_velocity(self.angular_velocity)
-    }
-}
-
-struct JointAnimation {
-    var distance:Physics.DistanceJoint2D
-    var motor:Physics.MotorJoint2D
-    var mouse:Physics.MouseJoint2D
-    var prismatic:Physics.PrismaticJoint2D
-    var revolute:Physics.RevoluteJoint2D
-    var wheel:Physics.WheelJoint2D
-
-    init(
-        distance:Physics.DistanceJoint2D,
-        motor:Physics.MotorJoint2D,
-        mouse:Physics.MouseJoint2D,
-        prismatic:Physics.PrismaticJoint2D,
-        revolute:Physics.RevoluteJoint2D,
-        wheel:Physics.WheelJoint2D
-    ) {
-        self.distance = distance
-        self.motor = motor
-        self.mouse = mouse
-        self.prismatic = prismatic
-        self.revolute = revolute
-        self.wheel = wheel
-    }
-
-    func retarget(elapsed:float) {
-        self.distance.set_length(1.0 + Math.sin(elapsed * 1.7) * 0.28)
-        self.motor.set_offsets(
-            Math.Vec2(
-                1.0 + Math.cos(elapsed * 1.3) * 0.3,
-                Math.sin(elapsed * 1.3) * 0.25
-            ),
-            Math.sin(elapsed) * 0.45
-        )
-        self.mouse.set_target(Math.Vec2(
-            6.8 + Math.cos(elapsed * 1.2) * 0.65,
-            5.1 + Math.sin(elapsed * 1.6) * 0.45
-        ))
-        self.prismatic.set_target_translation(Math.sin(elapsed * 1.8) * 0.45)
-        self.revolute.set_target_angle(Math.sin(elapsed * 1.5) * 0.75)
-        self.wheel.set_motor(Math.cos(elapsed * 1.4) * 4.0, 120.0)
     }
 }
 
@@ -247,10 +205,10 @@ func add_gravity_scene(world:Physics.World2D) FallingBody[] {
     return falling
 }
 
-func add_joints(world:Physics.World2D) JointAnimation {
+func add_joints(world:Physics.World2D) {
     var fixed_body = make_fixed(world, Math.Vec2(2.1, 7.1), "distance")
     var moving = make_joint_body(world, Math.Vec2(3.1, 7.1))
-    var distance = world.create_distance_joint(fixed_body, moving,
+    world.create_distance_joint(fixed_body, moving,
         Physics.DistanceJoint2DSettings()
             ..first_anchor = Math.Vec2(2.1, 7.1)
             ..second_anchor = Math.Vec2(3.1, 7.1)
@@ -266,20 +224,20 @@ func add_joints(world:Physics.World2D) JointAnimation {
 
     fixed_body = make_fixed(world, Math.Vec2(2.1, 5.1), "motor")
     moving = make_joint_body(world, Math.Vec2(3.1, 5.1))
-    var motor = world.create_motor_joint(fixed_body, moving,
+    world.create_motor_joint(fixed_body, moving,
         Physics.MotorJoint2DSettings()
             ..linear_offset = Math.Vec2(1.0, 0.0)
             ..maximum_force = 120.0
             ..maximum_torque = 120.0)
 
     moving = make_joint_body(world, Math.Vec2(6.8, 5.1))
-    var mouse = world.create_mouse_joint(moving, Physics.MouseJoint2DSettings()
+    world.create_mouse_joint(moving, Physics.MouseJoint2DSettings()
         ..target = Math.Vec2(6.8, 5.1)
         ..maximum_force = 120.0)
 
     fixed_body = make_fixed(world, Math.Vec2(2.1, 3.0), "prismatic")
     moving = make_joint_body(world, Math.Vec2(3.1, 3.0))
-    var prismatic = world.create_prismatic_joint(fixed_body, moving,
+    world.create_prismatic_joint(fixed_body, moving,
         Physics.PrismaticJoint2DSettings()
             ..anchor = Math.Vec2(2.6, 3.0)
             ..axis = Math.Vec2(1.0, 0.0)
@@ -292,7 +250,7 @@ func add_joints(world:Physics.World2D) JointAnimation {
 
     fixed_body = make_fixed(world, Math.Vec2(5.8, 3.0), "revolute")
     moving = make_joint_body(world, Math.Vec2(6.8, 3.0))
-    var revolute = world.create_revolute_joint(fixed_body, moving,
+    world.create_revolute_joint(fixed_body, moving,
         Physics.RevoluteJoint2DSettings()
             ..anchor = Math.Vec2(6.3, 3.0)
             ..spring_enabled = true
@@ -309,7 +267,7 @@ func add_joints(world:Physics.World2D) JointAnimation {
 
     fixed_body = make_fixed(world, Math.Vec2(5.8, 1.0), "wheel")
     moving = make_joint_body(world, Math.Vec2(6.8, 1.0))
-    var wheel = world.create_wheel_joint(fixed_body, moving,
+    world.create_wheel_joint(fixed_body, moving,
         Physics.WheelJoint2DSettings()
             ..anchor = Math.Vec2(6.3, 1.0)
             ..axis = Math.Vec2(0.0, 1.0)
@@ -319,14 +277,6 @@ func add_joints(world:Physics.World2D) JointAnimation {
             ..motor_enabled = true
             ..maximum_motor_torque = 120.0)
 
-    return JointAnimation(
-        distance,
-        motor,
-        mouse,
-        prismatic,
-        revolute,
-        wheel
-    )
 }
 
 func header_drawing() Canvas.Canvas {
@@ -342,7 +292,7 @@ func header_drawing() Canvas.Canvas {
                 Canvas.TextStyle(size:14.0, color:Color.cyan_300())
             )
             painter.text(
-                "metres · fixed 60 Hz · falling bodies · contacts · joints",
+                "metres · fixed 60 Hz · falling bodies · contacts · joint reference",
                 Math.Vec2(14.0, 31.0),
                 Canvas.TextStyle(size:12.0, color:Color.slate_300())
             )
@@ -351,20 +301,23 @@ func header_drawing() Canvas.Canvas {
 
 class Showcase {
     private var world:Physics.World2D
+    private var joint_world:Physics.World2D
     private var settings:Physics.World2DDebugSettings
     private var snapshot:Physics.World2DDebugSnapshot
+    private var joint_snapshot:Physics.World2DDebugSnapshot
     private var canvas:Canvas.Canvas
+    private var joint_canvas:Canvas.Canvas
     private var falling:FallingBody[]
-    private var joints:JointAnimation
     private var accumulator:float
-    private var elapsed:float
     private var respawn_elapsed:float
     private var next_respawn:int
 
     init() {
         self.world = Physics.World2D(gravity:Math.Vec2(0.0, -9.81))
         self.falling = add_gravity_scene(self.world)
-        self.joints = add_joints(self.world)
+        self.joint_world = Physics.World2D(gravity:Math.Vec2())
+        add_joints(self.joint_world)
+        self.joint_world.step(Demo.fixed_delta)
         self.settings = Physics.World2DDebugSettings()
             ..shapes = true
             ..joints = true
@@ -382,28 +335,29 @@ class Showcase {
             ..impulse_scale = 0.04
             ..label_size = 0.2
         self.snapshot = Physics.World2DDebugSnapshot()
+        self.joint_snapshot = Physics.World2DDebugSnapshot()
         self.canvas = Canvas.Canvas()
+        self.joint_canvas = Canvas.Canvas()
         self.accumulator = 0.0
-        self.elapsed = 0.0
         self.respawn_elapsed = 0.0
         self.next_respawn = 0
         self.advance_fixed_step()
         self.redraw()
         assert(self.world.gravity() == Math.Vec2(0.0, -9.81))
-        assert(self.snapshot.line_count() > 80)
-        assert(self.snapshot.circle_count() > 20)
-        assert(self.snapshot.label_count() > 8)
+        assert(self.snapshot.line_count() + self.joint_snapshot.line_count() > 80)
+        assert(self.snapshot.circle_count() + self.joint_snapshot.circle_count() > 20)
+        assert(self.snapshot.label_count() + self.joint_snapshot.label_count() > 8)
     }
 
     private func advance_fixed_step() {
-        self.elapsed += Demo.fixed_delta
-        self.joints.retarget(self.elapsed)
         self.world.step(Demo.fixed_delta)
     }
 
     private func redraw() {
         self.world.write_debug_snapshot(self.settings, self.snapshot)
+        self.joint_world.write_debug_snapshot(self.settings, self.joint_snapshot)
         Physics.World2DDebug.draw(self.snapshot, self.canvas)
+        Physics.World2DDebug.draw(self.joint_snapshot, self.joint_canvas)
     }
 
     private func restart_next_body() {
@@ -413,10 +367,14 @@ class Showcase {
     }
 
     func drawing() Canvas.Canvas { return self.canvas }
+    func joint_drawing() Canvas.Canvas { return self.joint_canvas }
 
     func update(delta:float) {
         let frame_delta = Math.min(delta, Demo.maximum_frame_delta)
-        self.accumulator += frame_delta
+        self.accumulator = Math.min(
+            self.accumulator + frame_delta,
+            Demo.fixed_delta
+        )
         self.respawn_elapsed += frame_delta
         while self.respawn_elapsed >= Demo.respawn_interval {
             self.restart_next_body()
@@ -426,7 +384,8 @@ class Showcase {
             self.advance_fixed_step()
             self.accumulator -= Demo.fixed_delta
         }
-        self.redraw()
+        self.world.write_debug_snapshot(self.settings, self.snapshot)
+        Physics.World2DDebug.draw(self.snapshot, self.canvas)
     }
 
     func verify_motion() {
@@ -443,8 +402,8 @@ class Showcase {
             self.update(Demo.fixed_delta)
             frame++
         }
-        assert(self.snapshot.line_count() > 80)
-        assert(self.snapshot.circle_count() > 20)
+        assert(self.snapshot.line_count() + self.joint_snapshot.line_count() > 80)
+        assert(self.snapshot.circle_count() + self.joint_snapshot.circle_count() > 20)
     }
 }
 
@@ -464,6 +423,15 @@ func create_scene(
             scale:Math.Vec2(Demo.pixels_per_meter, -Demo.pixels_per_meter)
         ))
         ..with(debug_canvas)
+    )
+    var joint_canvas = Components.Canvas(showcase.joint_drawing())
+    joint_canvas.layer = 2
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(
+            position:Math.Vec2(0.0, -240.0),
+            scale:Math.Vec2(Demo.pixels_per_meter, -Demo.pixels_per_meter)
+        ))
+        ..with(joint_canvas)
     )
     var header = header_drawing()
     world.spawn(ECS.EntityRecipe()
@@ -500,6 +468,8 @@ func main() {
         ))
         ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
             ..clear = Color.slate_950()
+            ..antialiasing = Plugins.RenderingAntialiasing.none
+            ..present_mode = Rendering.PresentMode.immediate
         ))
         ..add_plugin(Plugins.Scene2D())
         ..add_plugin(Plugins.FPSPanel())

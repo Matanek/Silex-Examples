@@ -30,7 +30,7 @@ synchronisation automatique.
 | Rendering performance panel | `Sources/PerformanceStatsPanel.sx` | `GFX.Stats/Examples/PerformancePanel.sx` |
 | Plot gallery | `Sources/PlotGallery.sx` | composition des exemples de `Plot/Examples/` |
 | Rotating physics container | `Sources/RotatingPhysicsContainer/Main.sx` | `GFX.Physics/Examples/World2D/BoxRotation.sx` |
-| Physics 2D debug draw | `Sources/PhysicsDebugDraw2D/Main.sx` | SI gravity, falling contacts, animated joints, retained Canvas and live FPS |
+| Physics 2D debug draw | `Sources/PhysicsDebugDraw2D/Main.sx` | SI gravity, falling contacts, complete joint reference, retained Canvas and live FPS |
 | Bundle content transitions | `Sources/Bundle/Transitions.sx` | création propre au catalogue |
 | Bundle window replacement | `Sources/Bundle/WindowReplacement.sx` | création propre au catalogue |
 | Bundle multiple windows | `Sources/Bundle/MultipleWindows.sx` | création propre au catalogue |
