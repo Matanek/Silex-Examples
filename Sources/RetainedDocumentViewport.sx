@@ -19,6 +19,7 @@ static struct Document {
     let scroll_response:float = 14.0
     let scroll_snap_distance:float = 0.001
     let maximum_animation_delta:float = 0.05
+    let block_lines:int = 8
 }
 
 struct ScrollProfile {
@@ -69,10 +70,11 @@ func verification_mode() bool { return has_argument("--verify") }
 
 func automatic_profile_mode() bool {
     return has_argument("--profile-vector") || has_argument("--profile-coverage") ||
-        has_argument("--profile-settle")
+        has_argument("--profile-settle") || has_argument("--profile-wheel")
 }
 
 func settle_profile_mode() bool { return has_argument("--profile-settle") }
+func wheel_profile_mode() bool { return has_argument("--profile-wheel") }
 
 func document_wheel_direction() UI.ScrollWheelDirection {
     if has_argument("--normal-wheel") {
@@ -197,10 +199,24 @@ func preload_document(samples:@str[]) str[] {
     return lines
 }
 
+class RetainedDocumentBlock {
+    var index:int
+    var block:Canvas.TextBlock
+    var last_used:int
+
+    init(index:int, block:Canvas.TextBlock, last_used:int) {
+        self.index = index
+        self.block = block
+        self.last_used = last_used
+    }
+}
+
 class DocumentContent:UI.Content {
     private var lines:str[]
     private var scroll:UI.ScrollState
     private var font:Canvas.Font
+    private var blocks:RetainedDocumentBlock[]
+    private var block_generation:int = 0
     private var focused:bool = false
     private var sample_elapsed:float = 0.0
     private var sample_frames:int = 0
@@ -209,6 +225,7 @@ class DocumentContent:UI.Content {
     private var current_visible_rows:int = 1
     private let automatic_profile:bool
     private let settle_profile:bool
+    private let wheel_profile:bool
     private let wheel_direction:UI.ScrollWheelDirection
     private var wheel_target_offset:float
     private var wheel_applied_offset:float
@@ -224,13 +241,16 @@ class DocumentContent:UI.Content {
         scroll:UI.ScrollState,
         automatic_profile:bool = false,
         settle_profile:bool = false,
+        wheel_profile:bool = false,
         wheel_direction:UI.ScrollWheelDirection = UI.ScrollWheelDirection.normal
     ) {
         self.lines = lines
         self.scroll = scroll
         self.font = Canvas.Font.monospace()
+        self.blocks = []
         self.automatic_profile = automatic_profile
         self.settle_profile = settle_profile
+        self.wheel_profile = wheel_profile
         self.wheel_direction = wheel_direction
         self.wheel_target_offset = scroll.offset()
         self.wheel_applied_offset = scroll.offset()
@@ -253,21 +273,15 @@ class DocumentContent:UI.Content {
         var visible_rows = Math.floor(usable_height / Document.line_height) as int
         if visible_rows < 1 { visible_rows = 1 }
         self.current_visible_rows = visible_rows
-        let viewport_changed = self.scroll.set_viewport_extent(visible_rows as float)
+        self.scroll.set_viewport_extent(visible_rows as float)
 
         let current_line = Math.floor(self.scroll.offset()) as int
         var first_line = current_line
         if first_line > 0 { first_line-- }
-        let line_progress = self.scroll.offset() - first_line as float
         // Keep one row on each side of the logical visible window. The clip
         // resolves partial pixels; culling must not remove either row first.
         let painted_rows = visible_rows + (current_line - first_line) + 1
 
-        var text_style = Canvas.TextStyle(
-            size:Document.font_size,
-            color:Color.slate_200().with_alpha(opacity),
-            font:self.font
-        )
         let text_clip = Canvas.Rect(
             frame.position,
             Math.Vec2(
@@ -276,20 +290,78 @@ class DocumentContent:UI.Content {
             )
         )
         let x = frame.position.x + Document.padding
-        var row = 0
-        while row < painted_rows && first_line + row < self.lines.count() {
-            let index = first_line + row
-            let y = frame.position.y + Document.padding +
-                (row as float - line_progress) * Document.line_height
-            painter.text(
-                self.lines[index],
-                Math.Vec2(x, y),
-                text_style,
+        var block_index = first_line / Document.block_lines
+        let final_line = Math.min(
+            first_line + painted_rows,
+            self.lines.count()
+        ) as int
+        let final_block = (final_line + Document.block_lines - 1) /
+            Document.block_lines
+        while block_index < final_block {
+            let block_line = block_index * Document.block_lines
+            var block = self.retained_block(block_index)
+            painter.text_block(
+                block,
+                Math.Vec2(
+                    x,
+                    frame.position.y + Document.padding +
+                        (block_line as float - self.scroll.offset()) *
+                            Document.line_height
+                ),
                 clip:text_clip
             )
-            row++
+            block_index++
         }
         self.paint_status(painter, frame, first_line, opacity)
+    }
+
+    private func retained_block(index:int) Canvas.TextBlock {
+        self.block_generation++
+        for slot in self.blocks {
+            if slot.index == index {
+                slot.last_used = self.block_generation
+                return slot.block
+            }
+        }
+        var style = Canvas.TextStyle(
+            size:Document.font_size,
+            color:Color.slate_200(),
+            font:self.font,
+            line_height:Document.line_height
+        )
+        let first_line = index * Document.block_lines
+        let final_line = Math.min(
+            first_line + Document.block_lines,
+            self.lines.count()
+        ) as int
+        var value = ""
+        var line = first_line
+        while line < final_line {
+            if line > first_line { value = value + "\n" }
+            value = value + self.lines[line]
+            line++
+        }
+        var block = Canvas.TextBlock(value, style)
+        if self.blocks.count() < 32 {
+            self.blocks.append(RetainedDocumentBlock(
+                index,
+                block,
+                self.block_generation
+            ))
+            return block
+        }
+        var selected = 0
+        var candidate = 1
+        while candidate < self.blocks.count() {
+            if self.blocks[candidate].last_used < self.blocks[selected].last_used {
+                selected = candidate
+            }
+            candidate++
+        }
+        self.blocks[selected].index = index
+        self.blocks[selected].block = block
+        self.blocks[selected].last_used = self.block_generation
+        return block
     }
 
     func focusable() bool { return true }
@@ -417,6 +489,9 @@ class DocumentContent:UI.Content {
         if self.settle_profile {
             return self.advance_settle_profile(delta)
         }
+        if self.wheel_profile {
+            return self.advance_wheel_profile(delta)
+        }
         let warmup = 30
         let measured = 120
         if self.profile_frames >= warmup {
@@ -439,6 +514,39 @@ class DocumentContent:UI.Content {
             "fps=$(fps) max_frame_ms=$(self.profile_maximum_frame_ms)"
         )
         self.profile_done = true
+        return true
+    }
+
+    private func advance_wheel_profile(delta:float) bool {
+        let measured = 30
+        var changed = false
+        if self.profile_phase < 3 {
+            var wheel_delta = 1.0
+            if self.wheel_direction == UI.ScrollWheelDirection.normal {
+                wheel_delta = -1.0
+            }
+            changed = self.pointer_scrolled(Math.Vec2(0.0, wheel_delta))
+        }
+        self.profile_elapsed += delta
+        let frame_ms = delta * 1_000.0
+        if frame_ms > self.profile_maximum_frame_ms {
+            self.profile_maximum_frame_ms = frame_ms
+        }
+        self.profile_frames++
+        if self.profile_frames < measured { return changed }
+        var label = "wheel_$(self.profile_phase + 1)"
+        if self.profile_phase == 3 { label = "idle_after_wheel" }
+        let fps = measured as float / self.profile_elapsed
+        print(
+            "SILEX_GFX_DOCUMENT wheel_profile phase=$(label) " +
+            "offset=$(self.scroll.offset()) fps=$(fps) " +
+            "max_frame_ms=$(self.profile_maximum_frame_ms)"
+        )
+        self.profile_phase++
+        self.profile_frames = 0
+        self.profile_elapsed = 0.0
+        self.profile_maximum_frame_ms = 0.0
+        if self.profile_phase > 3 { self.profile_done = true }
         return true
     }
 
@@ -633,7 +741,8 @@ func measured_scroll(
     runtime:UI.Runtime,
     key:Keyboard.Key,
     updates:int,
-    vector:bool
+    vector:bool,
+    repetitions:int = 1
 ) ScrollProfile {
     var drawing = runtime.drawing(1100, 600)
     var previous = drawing.snapshot(1100, 600)
@@ -655,7 +764,11 @@ func measured_scroll(
     var update = 0
     while update < updates {
         input.start()
-        assert(runtime.key_pressed(key))
+        var repetition = 0
+        while repetition < repetitions {
+            assert(runtime.key_pressed(key))
+            repetition++
+        }
         input.stop()
         drawing_time.start()
         drawing = runtime.drawing(1100, 600)
@@ -701,14 +814,15 @@ func profile_text(name:str, profile:ScrollProfile) str {
         "outlines=$(profile.outlines_ms)"
 }
 
-func drawing_contains_text(drawing:@Canvas, expected:str) bool {
+func drawing_text_block_count(drawing:@Canvas) int {
+    var count = 0
     for command in drawing.commands() {
         match command {
-            text(value) => { if value.value == expected { return true } }
+            text(value) => { if value.block_identity > 0 { count++ } }
             else => {}
         }
     }
-    return false
+    return count
 }
 
 func verify(
@@ -724,9 +838,10 @@ func verify(
     var viewport = DocumentView(content)
     var runtime = UI.Runtime(viewport)
     var drawing = runtime.drawing(1100, 600)
-    assert(drawing.command_count() > 25)
-    assert(drawing.command_count() < 40)
-    assert(drawing_contains_text(drawing, lines[content.visible_row_count()]))
+    assert(drawing.command_count() >= 6)
+    assert(drawing.command_count() < 12)
+    assert(drawing_text_block_count(drawing) >= 4)
+    assert(drawing_text_block_count(drawing) <= 6)
     assert(runtime.pointer_pressed(Math.Vec2(10.0, 10.0)))
     assert(runtime.key_pressed(Keyboard.Key.page_down))
     assert(scroll.offset() == content.visible_row_count() as float)
@@ -745,8 +860,8 @@ func verify(
     assert(scroll.offset() > 0.0)
     assert(scroll.offset() < Document.wheel_step)
     drawing = runtime.drawing(1100, 600)
-    assert(drawing.command_count() > 25)
-    assert(drawing.command_count() < 40)
+    assert(drawing.command_count() >= 6)
+    assert(drawing.command_count() < 12)
     var settle_step = 0
     while settle_step < 60 {
         let changed = runtime.update(0.016)
@@ -754,16 +869,25 @@ func verify(
     }
     assert(Math.abs(scroll.offset() - Document.wheel_step) < 0.001)
     drawing = runtime.drawing(1100, 600)
-    assert(drawing_contains_text(drawing, lines[2]))
-    assert(drawing.command_count() < 40)
+    assert(drawing_text_block_count(drawing) >= 4)
+    assert(drawing_text_block_count(drawing) <= 6)
+    assert(drawing.command_count() < 12)
     assert(runtime.key_pressed(Keyboard.Key.home))
     drawing = runtime.drawing(1100, 600)
-    assert(drawing.command_count() > 25)
-    assert(drawing.command_count() < 40)
+    assert(drawing.command_count() >= 6)
+    assert(drawing.command_count() < 12)
 
     let line_coverage = measured_scroll(runtime, Keyboard.Key.down, 60, false)
     assert(runtime.key_pressed(Keyboard.Key.home))
     let page_coverage = measured_scroll(runtime, Keyboard.Key.page_down, 20, false)
+    assert(runtime.key_pressed(Keyboard.Key.home))
+    let fling_coverage = measured_scroll(
+        runtime,
+        Keyboard.Key.page_down,
+        10,
+        false,
+        repetitions:9
+    )
     assert(runtime.key_pressed(Keyboard.Key.home))
     let page_vector = measured_scroll(runtime, Keyboard.Key.page_down, 20, true)
     print(
@@ -771,6 +895,7 @@ func verify(
     )
     print(profile_text("coverage_line", line_coverage))
     print(profile_text("coverage_page", page_coverage))
+    print(profile_text("coverage_fling_250", fling_coverage))
     print(profile_text("vector_page", page_vector))
 }
 
@@ -803,6 +928,7 @@ func main() {
         scroll,
         profiling,
         settle_profile_mode(),
+        wheel_profile_mode(),
         wheel_direction
     )
     var root = interface(
@@ -818,7 +944,8 @@ func main() {
         height:820,
         title:"Vector text — retained document viewport",
         background:Color.bytes(36, 39, 46),
-        text_mode:text_mode
+        text_mode:text_mode,
+        hidden:profiling
     )
     if profiling {
         let code = Viewer.show_until(
