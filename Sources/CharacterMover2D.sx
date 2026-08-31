@@ -15,8 +15,9 @@ static struct Demo {
     let maximum_horizontal_speed:float = 5.2
     let ground_acceleration:float = 28.0
     let ground_deceleration:float = 15.0
-    let air_control:float = 0.65
-    let air_control_from_rest_speed:float = 1.2
+    let air_control_acceleration:float = 18.2
+    let air_control_acceleration_from_rest:float = 36.4
+    let air_control_speed_from_rest:float = 2.4
     let coyote_time:float = 0.12
 }
 
@@ -25,6 +26,23 @@ func approach_speed(current:float, target:float, maximum_delta:float) float {
         return Math.min(current + maximum_delta, target)
     }
     return Math.max(current - maximum_delta, target)
+}
+
+func prepare_air_control(simulation:&Simulation) {
+    let takeoff_speed = Math.min(
+        Math.abs(simulation.velocity.x),
+        Demo.maximum_horizontal_speed
+    )
+    let rest_influence = 1.0 -
+        takeoff_speed / Demo.maximum_horizontal_speed
+    simulation.airborne_horizontal_speed = Math.max(
+        takeoff_speed,
+        Demo.air_control_speed_from_rest * rest_influence
+    )
+    simulation.air_control_acceleration =
+        Demo.air_control_acceleration +
+        (Demo.air_control_acceleration_from_rest -
+            Demo.air_control_acceleration) * rest_influence
 }
 
 struct DemoVisual { let kind:int }
@@ -40,6 +58,7 @@ class Simulation {
     var grounded:bool
     var riding_platform:bool
     var airborne_horizontal_speed:float
+    var air_control_acceleration:float
     var coyote_remaining:float
     var plane_count:int
 
@@ -62,6 +81,7 @@ class Simulation {
         self.grounded = false
         self.riding_platform = false
         self.airborne_horizontal_speed = 0.0
+        self.air_control_acceleration = Demo.air_control_acceleration_from_rest
         self.coyote_remaining = 0.0
         self.plane_count = 0
     }
@@ -72,6 +92,7 @@ class Simulation {
         self.grounded = false
         self.riding_platform = false
         self.airborne_horizontal_speed = 0.0
+        self.air_control_acceleration = Demo.air_control_acceleration_from_rest
         self.coyote_remaining = 0.0
     }
 }
@@ -143,7 +164,7 @@ func status_drawing() Canvas {
             Canvas.TextStyle(size:14.0, color:Color.emerald_300())
         )
         painter.text(
-            "Takeoff momentum · limited air steering · 120 ms coyote",
+            "Momentum-sensitive air force · 120 ms coyote",
             Math.Vec2(16.0, 91.0),
             Canvas.TextStyle(size:12.0, color:Color.slate_400())
         )
@@ -277,10 +298,7 @@ func simulate_character(
     if input.is_pressed(Input.Key.space) &&
         (simulation.grounded || simulation.coyote_remaining > 0.0)
     {
-        simulation.airborne_horizontal_speed = Math.max(
-            Math.abs(simulation.velocity.x),
-            Demo.air_control_from_rest_speed
-        )
+        prepare_air_control(simulation)
         simulation.velocity.y = 6.2
         simulation.grounded = false
         simulation.riding_platform = false
@@ -303,15 +321,12 @@ func simulate_character(
                 target_speed,
                 acceleration * Demo.fixed_delta
             )
-            simulation.airborne_horizontal_speed = Math.max(
-                Math.abs(simulation.velocity.x),
-                Demo.air_control_from_rest_speed
-            )
+            prepare_air_control(simulation)
         } elif direction != 0.0 {
             simulation.velocity.x = approach_speed(
                 simulation.velocity.x,
                 direction * simulation.airborne_horizontal_speed,
-                Demo.ground_acceleration * Demo.air_control * Demo.fixed_delta
+                simulation.air_control_acceleration * Demo.fixed_delta
             )
         }
 

@@ -89,9 +89,10 @@ window opens the next page.
 a concave corner, and a moving elevator. Its fixed-step passenger carry keeps
 descending contact stable. Ground acceleration and deceleration preserve
 momentum instead of replacing velocity from input; jumps retain that trajectory
-at their actual takeoff speed. A separate, modest configurable steering allowance
-keeps vertical jumps controllable without granting them full running speed, and
-a short coyote window makes platform edges more forgiving.
+at their actual takeoff speed. Air control is expressed as an acceleration whose
+influence increases as takeoff momentum decreases. Vertical jumps therefore
+remain useful for reaching nearby platforms without gaining full running speed,
+and a short coyote window makes platform edges more forgiving.
 
 The terminal examples form an intentional progression:
 `DedicatedSystemTerminal.sx` owns a dedicated window and lifecycle,
