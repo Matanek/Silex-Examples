@@ -81,11 +81,12 @@ silex run Sources/PhysicsDebugDraw2D/Main.sx --release
 silex run Sources/ShapeGallery2D/Main.sx
 ```
 
-`PhysicsDebugDraw2D` is a live diagnostic scene. It advances a fixed-step
-physics world, continuously retargets several constraints, and regenerates the
-complete debug snapshot so contacts, islands, bounds, and graph colors can be
-read while bodies move. Pass `--verify` to run its bounded headless motion
-check without opening a window.
+`PhysicsDebugDraw2D` is a live metric diagnostic scene. It applies the
+`(0, -9.81) m/s²` world gravity at a fixed 60 Hz, continuously recycles falling
+bodies through ramps, a chain, a sensor, and a floor, and drives the complete
+joint gallery. Every debug layer is redrawn into one retained Canvas while the
+FPS panel reports the measured render cadence. Pass `--verify` to run its
+bounded headless gravity and motion check without opening a window.
 
 Their `Module.*` imports are explicitly relative to each source directory. The
 manifest declares `"sources": "Sources"`, so this physical directory does not
