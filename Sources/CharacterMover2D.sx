@@ -12,6 +12,10 @@ use STD.Math
 static struct Demo {
     let pixels_per_meter:float = 90.0
     let fixed_delta:float = 1.0 / 120.0
+    let maximum_substeps:int = 4
+    let ball_count:int = 10
+    let performance_sample_time:float = 0.25
+    let slow_frame_time:float = 1.0 / 30.0
     let maximum_horizontal_speed:float = 5.2
     let ground_acceleration:float = 28.0
     let ground_deceleration:float = 15.0
@@ -20,9 +24,14 @@ static struct Demo {
     let air_control_speed_from_rest:float = 2.4
     let coyote_time:float = 0.12
     let trampoline_speed:float = 8.4
-    let push_force:float = 44.0
+    let minimum_push_force:float = 2.0
+    let maximum_push_force:float = 10.0
+    let maximum_crate_push_force:float = 28.0
+    let push_pressure_rise:float = 2.5
+    let push_pressure_fall:float = 4.0
     let trampoline_category:uint64 = 2
     let dynamic_prop_category:uint64 = 4
+    let ball_category:uint64 = 8
 }
 
 func approach_speed(current:float, target:float, maximum_delta:float) float {
@@ -59,12 +68,33 @@ struct DemoVisual {
     }
 }
 
+struct PerformanceDisplay {
+    let tracked:bool
+
+    init() { self.tracked = true }
+}
+
 func ball_start(index:int) Math.Vec2 {
-    if index == 0 { return Math.Vec2(-0.8, 2.85) }
-    if index == 1 { return Math.Vec2(0.25, 3.1) }
-    if index == 2 { return Math.Vec2(1.3, 2.75) }
-    if index == 3 { return Math.Vec2(2.35, 3.05) }
-    return Math.Vec2(3.4, 2.8)
+    let column = index % 5
+    let row = index / 5
+    return Math.Vec2(
+        -1.6 + column as float * 0.8,
+        2.35 + row as float * 0.65
+    )
+}
+
+func ball_radius(index:int) float {
+    if index % 3 == 0 { return 0.22 }
+    if index % 3 == 1 { return 0.28 }
+    return 0.25
+}
+
+func ball_color(index:int) Color {
+    if index % 5 == 0 { return Color.cyan_300() }
+    if index % 5 == 1 { return Color.violet_500() }
+    if index % 5 == 2 { return Color.rose_500() }
+    if index % 5 == 3 { return Color.amber_400() }
+    return Color.emerald_500()
 }
 
 class Simulation {
@@ -72,11 +102,23 @@ class Simulation {
     var mover:Physics.CharacterMover2D
     var position:Math.Vec2
     var velocity:Math.Vec2
+    var push_pressure:float
     var platform:Physics.RigidBody2D?
     var pushable:Physics.RigidBody2D?
     var balls:Physics.RigidBody2D[]
     var elapsed:float
     var accumulator:float
+    var performance_elapsed:float
+    var performance_frames:int
+    var performance_steps:int
+    var performance_physics_ms:float
+    var performance_minimum_fps:float
+    var performance_slow_frames:int
+    var performance_maximum_frame_ms:float
+    var performance_fps:float
+    var performance_step_ms:float
+    var performance_steps_per_second:int
+    var performance_dirty:bool
     var grounded:bool
     var riding_platform:bool
     var airborne_horizontal_speed:float
@@ -85,7 +127,13 @@ class Simulation {
     var plane_count:int
 
     init() {
-        self.physics = Physics.World2D(gravity:Math.Vec2(0.0, -16.0))
+        self.physics = Physics.World2D(Physics.World2DSettings()
+            ..gravity = Math.Vec2(0.0, -16.0)
+            ..continuous_collision_enabled = false
+            ..maximum_correction_speed = 1.5
+            ..maximum_linear_speed = 14.0
+        )
+        self.physics.set_profiling_enabled(true)
         self.mover = Physics.CharacterMover2D(
             Physics.CharacterMover2DSettings()
                 ..capsule = Physics.Capsule2D(
@@ -97,11 +145,23 @@ class Simulation {
         )
         self.position = Math.Vec2(-4.5, -1.45)
         self.velocity = Math.Vec2()
+        self.push_pressure = 0.0
         self.platform = null
         self.pushable = null
         self.balls = []
         self.elapsed = 0.0
         self.accumulator = 0.0
+        self.performance_elapsed = 0.0
+        self.performance_frames = 0
+        self.performance_steps = 0
+        self.performance_physics_ms = 0.0
+        self.performance_minimum_fps = 0.0
+        self.performance_slow_frames = 0
+        self.performance_maximum_frame_ms = 0.0
+        self.performance_fps = 0.0
+        self.performance_step_ms = 0.0
+        self.performance_steps_per_second = 0
+        self.performance_dirty = true
         self.grounded = false
         self.riding_platform = false
         self.airborne_horizontal_speed = 0.0
@@ -113,6 +173,7 @@ class Simulation {
     func reset() {
         self.position = Math.Vec2(-4.5, -1.45)
         self.velocity = Math.Vec2()
+        self.push_pressure = 0.0
         self.grounded = false
         self.riding_platform = false
         self.airborne_horizontal_speed = 0.0
@@ -133,6 +194,20 @@ class Simulation {
             ball.set_angular_velocity(0.0)
             ball_index++
         }
+    }
+
+    func reset_performance() {
+        self.performance_elapsed = 0.0
+        self.performance_frames = 0
+        self.performance_steps = 0
+        self.performance_physics_ms = 0.0
+        self.performance_minimum_fps = 0.0
+        self.performance_slow_frames = 0
+        self.performance_maximum_frame_ms = 0.0
+        self.performance_fps = 0.0
+        self.performance_step_ms = 0.0
+        self.performance_steps_per_second = 0
+        self.performance_dirty = true
     }
 }
 
@@ -191,10 +266,23 @@ func ball_drawing(radius:float, color:Color) Canvas {
     })
 }
 
-func status_drawing() Canvas {
+func metric(value:float) str {
+    let tenths = Math.round(value * 10.0) as int
+    return "$(tenths / 10).$(tenths % 10)"
+}
+
+func status_drawing(
+    fps:float,
+    minimum_fps:float,
+    slow_frames:int,
+    maximum_frame_ms:float,
+    physics_ms:float,
+    physics_steps:int,
+    push_pressure:float
+) Canvas {
     return Canvas()..paint(func(painter:&Canvas.Painter) {
         painter.fill(
-            Canvas.Rect(Math.Vec2(), Math.Vec2(390.0, 112.0), 10.0),
+            Canvas.Rect(Math.Vec2(), Math.Vec2(430.0, 188.0), 10.0),
             Canvas.Fill.solid(Color.black().with_alpha(0.82))
         )
         painter.text(
@@ -207,12 +295,12 @@ func status_drawing() Canvas {
             )
         )
         painter.text(
-            "A/D or arrows: move   SPACE: jump + coyote   R: reset",
+            "A/D or arrows: move   SPACE: jump   R: reset/stats",
             Math.Vec2(16.0, 40.0),
             Canvas.TextStyle(size:13.0, color:Color.slate_200())
         )
         painter.text(
-            "TRAMPOLINE · LIGHT CRATE · 5 BOUNCING BALLS",
+            "TRAMPOLINE · LIGHT CRATE · 10 BOUNCING BALLS",
             Math.Vec2(16.0, 68.0),
             Canvas.TextStyle(size:14.0, color:Color.emerald_300())
         )
@@ -221,6 +309,37 @@ func status_drawing() Canvas {
             Math.Vec2(16.0, 91.0),
             Canvas.TextStyle(size:12.0, color:Color.slate_400())
         )
+        painter.text(
+            "FPS $(metric(fps))   LOW $(metric(minimum_fps))   " +
+            ">33ms $(slow_frames)",
+            Math.Vec2(16.0, 114.0),
+            Canvas.TextStyle(size:13.0, color:Color.amber_300())
+        )
+        painter.text(
+            "MAX FRAME $(metric(maximum_frame_ms)) ms   " +
+            "PHYSICS $(metric(physics_ms)) ms · $(physics_steps) steps/s",
+            Math.Vec2(16.0, 136.0),
+            Canvas.TextStyle(size:12.0, color:Color.slate_200())
+        )
+        painter.text(
+            "PUSH",
+            Math.Vec2(16.0, 160.0),
+            Canvas.TextStyle(size:12.0, color:Color.orange_300())
+        )
+        painter.fill(
+            Canvas.Rect(Math.Vec2(64.0, 162.0), Math.Vec2(344.0, 12.0), 5.0),
+            Canvas.Fill.solid(Color.slate_700())
+        )
+        if push_pressure > 0.0 {
+            painter.fill(
+                Canvas.Rect(
+                    Math.Vec2(64.0, 162.0),
+                    Math.Vec2(344.0 * push_pressure, 12.0),
+                    5.0
+                ),
+                Canvas.Fill.solid(Color.orange_400())
+            )
+        }
     })
 }
 
@@ -269,7 +388,6 @@ func spawn_pushable_box(world:&Resources.World, simulation:&Simulation) {
             ..restitution = 0.08
             ..linear_damping = 0.15
             ..angular_damping = 0.25
-            ..allow_sleep = false
             ..collision_filter = Physics.CollisionFilter2D(
                 category_bits:Demo.dynamic_prop_category
             )
@@ -297,14 +415,13 @@ func spawn_ball(
             ..body_type = Physics.BodyType2D.dynamic
             ..position = ball_start(index)
             ..shape = Physics.Shape2D.circle(Physics.Circle2D(radius))
-            ..mass = 0.28
-            ..friction = 0.25
-            ..restitution = 0.82
-            ..linear_damping = 0.06
-            ..angular_damping = 0.04
-            ..allow_sleep = false
+            ..mass = 0.12
+            ..friction = 0.16
+            ..restitution = 0.64
+            ..linear_damping = 0.18
+            ..angular_damping = 0.12
             ..collision_filter = Physics.CollisionFilter2D(
-                category_bits:Demo.dynamic_prop_category
+                category_bits:Demo.ball_category
             )
     )
     simulation.balls.append(body)
@@ -381,11 +498,17 @@ func create_scene(world:&Resources.World, simulation:&Simulation) {
         )
     )
     spawn_pushable_box(world, simulation)
-    spawn_ball(world, simulation, 0, 0.22, Color.cyan_300())
-    spawn_ball(world, simulation, 1, 0.28, Color.violet_500())
-    spawn_ball(world, simulation, 2, 0.24, Color.rose_500())
-    spawn_ball(world, simulation, 3, 0.31, Color.amber_400())
-    spawn_ball(world, simulation, 4, 0.26, Color.emerald_500())
+    var ball_index = 0
+    while ball_index < Demo.ball_count {
+        spawn_ball(
+            world,
+            simulation,
+            ball_index,
+            ball_radius(ball_index),
+            ball_color(ball_index)
+        )
+        ball_index++
+    }
 
     var platform = simulation.physics.create_rigid_body(
         Physics.RigidBody2DSettings()
@@ -416,10 +539,11 @@ func create_scene(world:&Resources.World, simulation:&Simulation) {
         ..with(Components.Canvas(character, 54, 135)..layer = 4)
     )
 
-    var status = status_drawing()
+    var status = status_drawing(0.0, 0.0, 0, 0.0, 0.0, 0, 0.0)
     world.spawn(ECS.EntityRecipe()
+        ..with(PerformanceDisplay())
         ..with(Components.Transform2D(position:Math.Vec2(18.0)))
-        ..with(Components.Canvas(status, 390, 112)
+        ..with(Components.Canvas(status, 430, 188)
             ..anchor = Math.Vec2()
             ..pivot = Math.Vec2()
             ..space = Components.CanvasSpace.viewport
@@ -436,7 +560,10 @@ func simulate_character(
     visuals:ECS.Query<(@DemoVisual, &Components.Transform2D)>
 ) {
     if input.is_pressed(Input.Key.escape) { controller.stop() }
-    if input.is_pressed(Input.Key.r) { simulation.reset() }
+    if input.is_pressed(Input.Key.r) {
+        simulation.reset()
+        simulation.reset_performance()
+    }
 
     var direction = 0.0
     if input.is_down(Input.Key.a) || input.is_down(Input.Key.left) {
@@ -457,7 +584,7 @@ func simulate_character(
 
     simulation.accumulator = Math.min(
         simulation.accumulator + time.delta,
-        Demo.fixed_delta * 8.0
+        Demo.fixed_delta * Demo.maximum_substeps as float
     )
     while simulation.accumulator >= Demo.fixed_delta {
         let target_speed = direction * Demo.maximum_horizontal_speed
@@ -509,6 +636,7 @@ func simulate_character(
         simulation.grounded = false
         simulation.riding_platform = false
         var bounced = false
+        var push_contact_count = 0
         for plane in result.planes() {
             let category = plane.collider().collision_filter().category_bits
             if category == Demo.trampoline_category &&
@@ -522,15 +650,60 @@ func simulate_character(
                     simulation.riding_platform = true
                 }
             }
-            if category == Demo.dynamic_prop_category && direction != 0.0 &&
-                Math.abs(plane.normal.x) > 0.55 && plane.push() > 0.0
+            if plane.push() > 0.0 &&
+                (category == Demo.ball_category ||
+                    (category == Demo.dynamic_prop_category &&
+                        direction != 0.0 &&
+                        Math.abs(plane.normal.x) > 0.55))
             {
-                var pushed = plane.body()
-                pushed.apply_force_to_center(Math.Vec2(
-                    direction * Demo.push_force,
-                    0.0
-                ))
+                push_contact_count++
             }
+        }
+        if push_contact_count > 0 {
+            simulation.push_pressure = Math.min(
+                1.0,
+                simulation.push_pressure +
+                    Demo.push_pressure_rise * Demo.fixed_delta
+            )
+            for plane in result.planes() {
+                let category = plane.collider().collision_filter().category_bits
+                if plane.push() > 0.0 && category == Demo.ball_category {
+                    var pushed = plane.body()
+                    let offset_x = pushed.position().x - simulation.position.x
+                    var push_direction = 1.0
+                    if offset_x < 0.0 { push_direction = -1.0 }
+                    let force = (
+                        Demo.minimum_push_force +
+                        (Demo.maximum_push_force - Demo.minimum_push_force) *
+                            simulation.push_pressure
+                    ) / push_contact_count as float
+                    pushed.apply_force_to_center(Math.Vec2(
+                        push_direction * force,
+                        0.0
+                    ))
+                } elif plane.push() > 0.0 &&
+                    category == Demo.dynamic_prop_category &&
+                    direction != 0.0 && Math.abs(plane.normal.x) > 0.55
+                {
+                    var pushed = plane.body()
+                    let force = (
+                        Demo.minimum_push_force +
+                        (Demo.maximum_crate_push_force -
+                            Demo.minimum_push_force) *
+                            simulation.push_pressure
+                    ) / push_contact_count as float
+                    pushed.apply_force_to_center(Math.Vec2(
+                        direction * force,
+                        0.0
+                    ))
+                }
+            }
+        } else {
+            simulation.push_pressure = Math.max(
+                0.0,
+                simulation.push_pressure -
+                    Demo.push_pressure_fall * Demo.fixed_delta
+            )
         }
         if bounced {
             simulation.grounded = false
@@ -546,7 +719,55 @@ func simulate_character(
         }
         simulation.plane_count = result.planes().count()
         simulation.physics.step(Demo.fixed_delta)
+        simulation.performance_steps++
+        simulation.performance_physics_ms +=
+            simulation.physics.step_profile().total_ms
         simulation.accumulator -= Demo.fixed_delta
+    }
+
+    simulation.performance_elapsed += time.delta
+    simulation.performance_frames++
+    let frame_ms = time.delta * 1000.0
+    simulation.performance_maximum_frame_ms = Math.max(
+        simulation.performance_maximum_frame_ms,
+        frame_ms
+    )
+    if time.delta > Demo.slow_frame_time {
+        simulation.performance_slow_frames++
+    }
+    if simulation.performance_elapsed >= Demo.performance_sample_time {
+        let fps = simulation.performance_frames as float /
+            simulation.performance_elapsed
+        if simulation.performance_minimum_fps == 0.0 ||
+            fps < simulation.performance_minimum_fps
+        {
+            simulation.performance_minimum_fps = fps
+        }
+        var physics_ms = 0.0
+        if simulation.performance_steps > 0 {
+            physics_ms = simulation.performance_physics_ms /
+                simulation.performance_steps as float
+        }
+        let physics_steps = Math.round(
+            simulation.performance_steps as float /
+                simulation.performance_elapsed
+        ) as int
+        simulation.performance_fps = fps
+        simulation.performance_step_ms = physics_ms
+        simulation.performance_steps_per_second = physics_steps
+        simulation.performance_dirty = true
+        if fps < 50.0 {
+            print(
+                "FPS_DROP fps=$(metric(fps)) " +
+                "max_frame_ms=$(metric(simulation.performance_maximum_frame_ms)) " +
+                "physics_ms=$(metric(physics_ms)) " +
+                "steps_per_second=$(physics_steps)"
+            )
+        }
+        simulation.performance_elapsed = 0.0
+        simulation.performance_frames = 0
+        simulation.performance_steps = 0
+        simulation.performance_physics_ms = 0.0
     }
 
     if simulation.position.y < -5.0 { simulation.reset() }
@@ -570,6 +791,27 @@ func simulate_character(
     }
 }
 
+func update_performance_display(
+    simulation:&Simulation,
+    displays:ECS.Query<(@PerformanceDisplay, &Components.Canvas)>
+) {
+    if !simulation.performance_dirty { return }
+    for (tracked, display) in displays {
+        if !tracked.tracked { continue }
+        var drawing = status_drawing(
+            simulation.performance_fps,
+            simulation.performance_minimum_fps,
+            simulation.performance_slow_frames,
+            simulation.performance_maximum_frame_ms,
+            simulation.performance_step_ms,
+            simulation.performance_steps_per_second,
+            simulation.push_pressure
+        )
+        display.replace(drawing)
+    }
+    simulation.performance_dirty = false
+}
+
 func main() {
     Application()
         ..add_resource(Simulation())
@@ -586,5 +828,6 @@ func main() {
         ..add_plugin(Plugins.Time())
         ..add_system(Application.Schedule.startup, create_scene)
         ..add_system(Application.Schedule.update, simulate_character)
+        ..add_system(Application.Schedule.update, update_performance_display)
         ..run()
 }

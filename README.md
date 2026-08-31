@@ -87,9 +87,17 @@ window opens the next page.
 
 `CharacterMover2D.sx` demonstrates a capsule controller across a slope, steps,
 a concave corner, an unobstructed trampoline, a light pushable dynamic crate,
-five bouncing balls, and a moving elevator. Arena walls retain dynamic objects,
+ten bouncing balls, and a moving elevator. Arena walls retain dynamic objects,
 while fixed-step simulation keeps prop contacts and descending elevator carry
-stable. Ground acceleration and
+stable. The in-window performance panel tracks current and lowest FPS, frames
+longer than 33 ms, maximum frame time, measured physics-step cost, and the
+progressive pressure applied while pushing. Balls are light, damped dynamic
+supports: the character can jump from them while contact spreads them away
+from the capsule so it can also squeeze between clustered balls.
+Because this bounded-speed playground contains no bullet, it uses discrete
+collision detection, lets idle props sleep, and caps fixed-step catch-up at
+four steps per rendered frame.
+Ground acceleration and
 deceleration preserve momentum instead of replacing velocity from input; jumps
 retain that trajectory at their actual takeoff speed. Air control is expressed
 as an acceleration whose influence increases as takeoff momentum decreases.
