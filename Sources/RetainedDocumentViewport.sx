@@ -255,10 +255,13 @@ class DocumentContent:UI.Content {
         self.current_visible_rows = visible_rows
         let viewport_changed = self.scroll.set_viewport_extent(visible_rows as float)
 
-        let first_line = Math.floor(self.scroll.offset()) as int
+        let current_line = Math.floor(self.scroll.offset()) as int
+        var first_line = current_line
+        if first_line > 0 { first_line-- }
         let line_progress = self.scroll.offset() - first_line as float
         var painted_rows = visible_rows
         if line_progress > 0.0 { painted_rows++ }
+        if line_progress > 1.0 { painted_rows++ }
 
         var text_style = Canvas.TextStyle(
             size:Document.font_size,
@@ -690,6 +693,16 @@ func profile_text(name:str, profile:ScrollProfile) str {
         "outlines=$(profile.outlines_ms)"
 }
 
+func drawing_contains_text(drawing:@Canvas, expected:str) bool {
+    for command in drawing.commands() {
+        match command {
+            text(value) => { if value.value == expected { return true } }
+            else => {}
+        }
+    }
+    return false
+}
+
 func verify(
     lines:str[],
     scroll:UI.ScrollState,
@@ -731,6 +744,9 @@ func verify(
         settle_step++
     }
     assert(Math.abs(scroll.offset() - Document.wheel_step) < 0.001)
+    drawing = runtime.drawing(1100, 600)
+    assert(drawing_contains_text(drawing, lines[2]))
+    assert(drawing.command_count() < 40)
     assert(runtime.key_pressed(Keyboard.Key.home))
     drawing = runtime.drawing(1100, 600)
     assert(drawing.command_count() > 25)
