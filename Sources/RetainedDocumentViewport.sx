@@ -494,13 +494,16 @@ func document_viewport(
     var viewport = DocumentView(content)
     viewport.style.grow = 1.0
     viewport.style.minimum_height = 300.0
+    // Keyboard focus remains active, but this editor-like composition uses
+    // row selection instead of the default cyan focus ring.
+    viewport.style.accent = Color.transparent()
 
     var scrollbar = UI.Scrollbar(
         scroll,
         wheel_step:3.0,
         wheel_direction:wheel_direction,
         appearance:UI.ScrollbarAppearance(
-            track_width:1.0,
+            track_width:0.0,
             thumb_width:5.0,
             minimum_thumb_length:26.0
         )
@@ -520,8 +523,7 @@ func document_viewport(
     var result = UI.Row(children)
     result.style.gap = 0.0
     result.style.grow = 1.0
-    result.style.padding = UI.Insets(1.0)
-    result.style.border = UI.Border(1.0, Color.bytes(75, 80, 91))
+    result.style.padding = UI.Insets(0.0)
     result.style.radius = 0.0
     return result
 }
