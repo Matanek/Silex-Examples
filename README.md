@@ -78,16 +78,19 @@ Run multi-file demonstrations from the repository root as well:
 silex run Sources/FallingBodies/Main.sx
 silex run Sources/RotatingPhysicsContainer/Main.sx
 silex run Sources/PhysicsDebugDraw2D/Main.sx --release
+silex run Sources/PhysicsJointDebugDraw2D/Main.sx --release
 silex run Sources/ShapeGallery2D/Main.sx
 ```
 
 `PhysicsDebugDraw2D` is a live metric diagnostic scene. It applies the
 `(0, -9.81) m/s²` world gravity at a fixed 60 Hz and continuously recycles
-falling bodies through ramps, a chain, a sensor, and a floor. The complete
-joint gallery remains a stable diagnostic reference, while only the live
-gravity Canvas is rewritten per frame. The FPS panel reports the measured
-render cadence. Pass `--verify` to run its bounded headless gravity and motion
-check without opening a window.
+falling bodies through ramps, a chain, a sensor, and a floor. Its fixed labels
+live in a separate retained vector Canvas; the geometric Canvas
+is rebuilt only after a physics step. `PhysicsJointDebugDraw2D` gives the eight
+joint families their own animated diagnostic scene instead of presenting them
+as an unmoving reference beside the gravity world. Both examples display an
+FPS panel and accept `--verify` for a bounded motion check followed by a
+three-frame hidden renderer smoke.
 
 Their `Module.*` imports are explicitly relative to each source directory. The
 manifest declares `"sources": "Sources"`, so this physical directory does not

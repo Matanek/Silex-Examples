@@ -6,11 +6,12 @@ use GFX.ECS
 use GFX.Physics
 use GFX.Plugins
 use GFX.Resources
+use GFX.Scene2D
 use STD.Math
 use STD.Process
 
 static struct Demo {
-    let window_width:int = 1080
+    let window_width:int = 620
     let window_height:int = 650
     let pixels_per_meter:float = 56.0
     let fixed_delta:float = 1.0 / 60.0
@@ -59,51 +60,33 @@ struct FallingBody {
     }
 }
 
-func make_fixed(
-    world:Physics.World2D,
-    position:Math.Vec2,
-    label:str
-) Physics.RigidBody2D {
-    return world.create_rigid_body(Physics.RigidBody2DSettings()
-        ..body_type = Physics.BodyType2D.fixed
-        ..shape = Physics.Shape2D.circle(Physics.Circle2D(0.18))
-        ..position = position
-        ..debug_label = label
-    )
-}
+class VerificationRun {
+    let enabled:bool
+    var frames:int
 
-func make_joint_body(
-    world:Physics.World2D,
-    position:Math.Vec2
-) Physics.RigidBody2D {
-    return world.create_rigid_body(Physics.RigidBody2DSettings()
-        ..shape = Physics.Shape2D.box(Physics.Box2D(Math.Vec2(0.42)))
-        ..position = position
-        ..gravity_scale = 0.0
-        ..mass = 1.0
-        ..linear_damping = 0.25
-        ..angular_damping = 0.2
-        ..allow_sleep = false
-    )
+    init(enabled:bool) {
+        self.enabled = enabled
+        self.frames = 0
+    }
 }
 
 func add_gravity_scene(world:Physics.World2D) FallingBody[] {
     world.create_rigid_body(Physics.RigidBody2DSettings()
         ..body_type = Physics.BodyType2D.fixed
         ..shape = Physics.Shape2D.box(Physics.Box2D(Math.Vec2(9.4, 0.35), 0.08))
-        ..position = Math.Vec2(-4.0, 0.0)
+        ..position = Math.Vec2(0.0, 0.0)
         ..friction = 0.9
         ..debug_label = "gravity floor"
     )
     world.create_rigid_body(Physics.RigidBody2DSettings()
         ..body_type = Physics.BodyType2D.fixed
         ..shape = Physics.Shape2D.box(Physics.Box2D(Math.Vec2(0.25, 8.5)))
-        ..position = Math.Vec2(-8.7, 4.1)
+        ..position = Math.Vec2(-4.7, 4.1)
     )
     world.create_rigid_body(Physics.RigidBody2DSettings()
         ..body_type = Physics.BodyType2D.fixed
         ..shape = Physics.Shape2D.box(Physics.Box2D(Math.Vec2(0.25, 8.5)))
-        ..position = Math.Vec2(0.7, 4.1)
+        ..position = Math.Vec2(4.7, 4.1)
     )
     world.create_rigid_body(Physics.RigidBody2DSettings()
         ..body_type = Physics.BodyType2D.fixed
@@ -111,7 +94,7 @@ func add_gravity_scene(world:Physics.World2D) FallingBody[] {
             Math.Vec2(-1.2, 0.45),
             Math.Vec2(1.2, -0.45)
         ))
-        ..position = Math.Vec2(-6.2, 2.25)
+        ..position = Math.Vec2(-2.2, 2.25)
         ..friction = 0.75
         ..debug_label = "ramp"
     )
@@ -122,20 +105,20 @@ func add_gravity_scene(world:Physics.World2D) FallingBody[] {
             Math.Vec2(0.2, -0.15), Math.Vec2(-0.7, 0.1),
             Math.Vec2(-1.4, 0.65)
         ]))
-        ..position = Math.Vec2(-2.0, 1.35)
+        ..position = Math.Vec2(2.0, 1.35)
         ..friction = 0.65
         ..debug_label = "chain"
     )
     world.create_rigid_body(Physics.RigidBody2DSettings()
         ..body_type = Physics.BodyType2D.fixed
         ..shape = Physics.Shape2D.circle(Physics.Circle2D(0.55))
-        ..position = Math.Vec2(-1.25, 4.4)
+        ..position = Math.Vec2(2.75, 4.4)
         ..is_sensor = true
         ..debug_label = "sensor"
     )
 
     var falling:FallingBody[] = []
-    let circle_origin = Math.Vec2(-7.4, 7.6)
+    let circle_origin = Math.Vec2(-3.4, 7.6)
     var body = world.create_rigid_body(Physics.RigidBody2DSettings()
         ..shape = Physics.Shape2D.circle(Physics.Circle2D(0.45))
         ..position = circle_origin
@@ -149,7 +132,7 @@ func add_gravity_scene(world:Physics.World2D) FallingBody[] {
         body, circle_origin, Math.Vec2(0.75, 0.0), 0.0, 0.0
     ))
 
-    let capsule_origin = Math.Vec2(-5.6, 6.5)
+    let capsule_origin = Math.Vec2(-1.6, 6.5)
     body = world.create_rigid_body(Physics.RigidBody2DSettings()
         ..shape = Physics.Shape2D.capsule(Physics.Capsule2D(
             Math.Vec2(-0.48, 0.0), Math.Vec2(0.48, 0.0), 0.25
@@ -167,7 +150,7 @@ func add_gravity_scene(world:Physics.World2D) FallingBody[] {
         body, capsule_origin, Math.Vec2(0.25, 0.0), 0.18, 0.55
     ))
 
-    let polygon_origin = Math.Vec2(-3.8, 8.1)
+    let polygon_origin = Math.Vec2(0.2, 8.1)
     body = world.create_rigid_body(Physics.RigidBody2DSettings()
         ..shape = Physics.Shape2D.polygon(Physics.Polygon2D([
             Math.Vec2(-0.5, -0.38), Math.Vec2(0.5, -0.38),
@@ -186,7 +169,7 @@ func add_gravity_scene(world:Physics.World2D) FallingBody[] {
         body, polygon_origin, Math.Vec2(-0.2, 0.0), 0.22, -0.42
     ))
 
-    let box_origin = Math.Vec2(-2.2, 6.9)
+    let box_origin = Math.Vec2(1.8, 6.9)
     body = world.create_rigid_body(Physics.RigidBody2DSettings()
         ..shape = Physics.Shape2D.box(Physics.Box2D(Math.Vec2(0.75), 0.1))
         ..position = box_origin
@@ -204,85 +187,37 @@ func add_gravity_scene(world:Physics.World2D) FallingBody[] {
     return falling
 }
 
-func add_joints(world:Physics.World2D) {
-    var fixed_body = make_fixed(world, Math.Vec2(2.1, 7.1), "distance")
-    var moving = make_joint_body(world, Math.Vec2(3.1, 7.1))
-    world.create_distance_joint(fixed_body, moving,
-        Physics.DistanceJoint2DSettings()
-            ..first_anchor = Math.Vec2(2.1, 7.1)
-            ..second_anchor = Math.Vec2(3.1, 7.1)
-            ..length = 1.0
-            ..spring_enabled = true
-            ..spring_hertz = 2.0
-            ..spring_damping_ratio = 0.45)
+func live_debug_settings() Physics.World2DDebugSettings {
+    return Physics.World2DDebugSettings()
+        ..shapes = true
+        ..joints = false
+        ..bounds = true
+        ..centers_of_mass = true
+        ..labels = false
+        ..contacts = true
+        ..contact_normals = true
+        ..contact_impulses = true
+        ..islands = true
+        ..constraint_graph = true
+        ..line_width = 0.025
+        ..contact_radius = 0.065
+        ..normal_length = 0.3
+        ..impulse_scale = 0.04
+}
 
-    fixed_body = make_fixed(world, Math.Vec2(5.8, 7.1), "filter")
-    moving = make_joint_body(world, Math.Vec2(6.8, 7.1))
-    world.create_filter_joint(fixed_body, moving)
-    moving.set_velocity(Math.Vec2(0.0, 0.8))
-
-    fixed_body = make_fixed(world, Math.Vec2(2.1, 5.1), "motor")
-    moving = make_joint_body(world, Math.Vec2(3.1, 5.1))
-    world.create_motor_joint(fixed_body, moving,
-        Physics.MotorJoint2DSettings()
-            ..linear_offset = Math.Vec2(1.0, 0.0)
-            ..maximum_force = 120.0
-            ..maximum_torque = 120.0)
-
-    moving = make_joint_body(world, Math.Vec2(6.8, 5.1))
-    world.create_mouse_joint(moving, Physics.MouseJoint2DSettings()
-        ..target = Math.Vec2(6.8, 5.1)
-        ..maximum_force = 120.0)
-
-    fixed_body = make_fixed(world, Math.Vec2(2.1, 3.0), "prismatic")
-    moving = make_joint_body(world, Math.Vec2(3.1, 3.0))
-    world.create_prismatic_joint(fixed_body, moving,
-        Physics.PrismaticJoint2DSettings()
-            ..anchor = Math.Vec2(2.6, 3.0)
-            ..axis = Math.Vec2(1.0, 0.0)
-            ..spring_enabled = true
-            ..spring_hertz = 2.2
-            ..spring_damping_ratio = 0.5
-            ..lower_translation = -0.5
-            ..upper_translation = 0.5
-            ..limit_enabled = true)
-
-    fixed_body = make_fixed(world, Math.Vec2(5.8, 3.0), "revolute")
-    moving = make_joint_body(world, Math.Vec2(6.8, 3.0))
-    world.create_revolute_joint(fixed_body, moving,
-        Physics.RevoluteJoint2DSettings()
-            ..anchor = Math.Vec2(6.3, 3.0)
-            ..spring_enabled = true
-            ..spring_hertz = 2.0
-            ..spring_damping_ratio = 0.45
-            ..lower_angle = -0.8
-            ..upper_angle = 0.8
-            ..limit_enabled = true)
-
-    fixed_body = make_fixed(world, Math.Vec2(2.1, 1.0), "weld")
-    moving = make_joint_body(world, Math.Vec2(3.1, 1.0))
-    world.create_weld_joint(fixed_body, moving,
-        Physics.WeldJoint2DSettings() ..anchor = Math.Vec2(2.6, 1.0))
-
-    fixed_body = make_fixed(world, Math.Vec2(5.8, 1.0), "wheel")
-    moving = make_joint_body(world, Math.Vec2(6.8, 1.0))
-    world.create_wheel_joint(fixed_body, moving,
-        Physics.WheelJoint2DSettings()
-            ..anchor = Math.Vec2(6.3, 1.0)
-            ..axis = Math.Vec2(0.0, 1.0)
-            ..spring_enabled = true
-            ..spring_hertz = 2.0
-            ..spring_damping_ratio = 0.45
-            ..motor_enabled = true
-            ..maximum_motor_torque = 120.0)
-
+func static_label_settings() Physics.World2DDebugSettings {
+    return Physics.World2DDebugSettings()
+        ..shapes = false
+        ..joints = false
+        ..labels = true
+        ..label_size = 0.2
 }
 
 func header_drawing() Canvas.Canvas {
     return Canvas.Canvas()
         ..paint(func(painter:&Canvas.Painter) {
             painter.fill(
-                Canvas.Rect(Math.Vec2(), Math.Vec2(700.0, 54.0), 8.0),
+                Canvas.Rect(Math.Vec2(), Math.Vec2(588.0, 54.0), 8.0),
                 Canvas.Fill.solid(Color.black().with_alpha(0.78))
             )
             painter.text(
@@ -291,7 +226,7 @@ func header_drawing() Canvas.Canvas {
                 Canvas.TextStyle(size:14.0, color:Color.cyan_300())
             )
             painter.text(
-                "metres · fixed 60 Hz · falling bodies · contacts · joint reference",
+                "fixed 60 Hz · falling bodies · contacts · normals · impulses",
                 Math.Vec2(14.0, 31.0),
                 Canvas.TextStyle(size:12.0, color:Color.slate_300())
             )
@@ -300,12 +235,11 @@ func header_drawing() Canvas.Canvas {
 
 class Showcase {
     private var world:Physics.World2D
-    private var joint_world:Physics.World2D
     private var settings:Physics.World2DDebugSettings
     private var snapshot:Physics.World2DDebugSnapshot
-    private var joint_snapshot:Physics.World2DDebugSnapshot
+    private var label_snapshot:Physics.World2DDebugSnapshot
     private var canvas:Canvas.Canvas
-    private var joint_canvas:Canvas.Canvas
+    private var label_canvas:Canvas.Canvas
     private var falling:FallingBody[]
     private var accumulator:float
     private var respawn_elapsed:float
@@ -314,38 +248,25 @@ class Showcase {
     init() {
         self.world = Physics.World2D(gravity:Math.Vec2(0.0, -9.81))
         self.falling = add_gravity_scene(self.world)
-        self.joint_world = Physics.World2D(gravity:Math.Vec2())
-        add_joints(self.joint_world)
-        self.joint_world.step(Demo.fixed_delta)
-        self.settings = Physics.World2DDebugSettings()
-            ..shapes = true
-            ..joints = true
-            ..bounds = true
-            ..centers_of_mass = true
-            ..labels = true
-            ..contacts = true
-            ..contact_normals = true
-            ..contact_impulses = true
-            ..islands = true
-            ..constraint_graph = true
-            ..line_width = 0.025
-            ..contact_radius = 0.065
-            ..normal_length = 0.3
-            ..impulse_scale = 0.04
-            ..label_size = 0.2
+        self.settings = live_debug_settings()
         self.snapshot = Physics.World2DDebugSnapshot()
-        self.joint_snapshot = Physics.World2DDebugSnapshot()
+        self.label_snapshot = Physics.World2DDebugSnapshot()
         self.canvas = Canvas.Canvas()
-        self.joint_canvas = Canvas.Canvas()
+        self.label_canvas = Canvas.Canvas()
         self.accumulator = 0.0
         self.respawn_elapsed = 0.0
         self.next_respawn = 0
         self.advance_fixed_step()
         self.redraw()
+        self.world.write_debug_snapshot(
+            static_label_settings(),
+            self.label_snapshot
+        )
+        Physics.World2DDebug.draw(self.label_snapshot, self.label_canvas)
         assert(self.world.gravity() == Math.Vec2(0.0, -9.81))
-        assert(self.snapshot.line_count() + self.joint_snapshot.line_count() > 80)
-        assert(self.snapshot.circle_count() + self.joint_snapshot.circle_count() > 20)
-        assert(self.snapshot.label_count() + self.joint_snapshot.label_count() > 8)
+        assert(self.snapshot.line_count() > 40)
+        assert(self.snapshot.circle_count() > 8)
+        assert(self.label_snapshot.label_count() == 4)
     }
 
     private func advance_fixed_step() {
@@ -354,9 +275,7 @@ class Showcase {
 
     private func redraw() {
         self.world.write_debug_snapshot(self.settings, self.snapshot)
-        self.joint_world.write_debug_snapshot(self.settings, self.joint_snapshot)
         Physics.World2DDebug.draw(self.snapshot, self.canvas)
-        Physics.World2DDebug.draw(self.joint_snapshot, self.joint_canvas)
     }
 
     private func restart_next_body() {
@@ -366,43 +285,42 @@ class Showcase {
     }
 
     func drawing() Canvas.Canvas { return self.canvas }
-    func joint_drawing() Canvas.Canvas { return self.joint_canvas }
+    func labels() Canvas.Canvas { return self.label_canvas }
 
     func update(delta:float) {
         let frame_delta = Math.min(delta, Demo.maximum_frame_delta)
-        self.accumulator = Math.min(
-            self.accumulator + frame_delta,
-            Demo.fixed_delta
-        )
+        self.accumulator += frame_delta
         self.respawn_elapsed += frame_delta
         while self.respawn_elapsed >= Demo.respawn_interval {
             self.restart_next_body()
             self.respawn_elapsed -= Demo.respawn_interval
         }
+        var advanced = false
         while self.accumulator >= Demo.fixed_delta {
             self.advance_fixed_step()
             self.accumulator -= Demo.fixed_delta
+            advanced = true
         }
-        self.world.write_debug_snapshot(self.settings, self.snapshot)
-        Physics.World2DDebug.draw(self.snapshot, self.canvas)
+        if advanced { self.redraw() }
     }
 
     func verify_motion() {
-        var probe = self.falling[0]
-        let initial = probe.body.position()
+        var falling = self.falling[0]
+        let initial = falling.body.position()
         var frame = 0
         while frame < 30 {
             self.update(Demo.fixed_delta)
             frame++
         }
-        let final_position = probe.body.position()
+        let final_position = falling.body.position()
         assert(final_position.y < initial.y - 0.5)
         while frame < 120 {
             self.update(Demo.fixed_delta)
             frame++
         }
-        assert(self.snapshot.line_count() + self.joint_snapshot.line_count() > 80)
-        assert(self.snapshot.circle_count() + self.joint_snapshot.circle_count() > 20)
+        assert(self.snapshot.line_count() > 40)
+        assert(self.snapshot.circle_count() > 8)
+        assert(self.label_snapshot.label_count() == 4)
     }
 }
 
@@ -423,19 +341,20 @@ func create_scene(
         ))
         ..with(debug_canvas)
     )
-    var joint_canvas = Components.Canvas(showcase.joint_drawing())
-    joint_canvas.layer = 2
+    var label_canvas = Components.Canvas(showcase.labels())
+    label_canvas.layer = 2
+    label_canvas.text_mode = Scene2D.CanvasTextMode.vector
     world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform2D(
             position:Math.Vec2(0.0, -240.0),
             scale:Math.Vec2(Demo.pixels_per_meter, -Demo.pixels_per_meter)
         ))
-        ..with(joint_canvas)
+        ..with(label_canvas)
     )
     var header = header_drawing()
     world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform2D(position:Math.Vec2(16.0)))
-        ..with(Components.Canvas(header, 700, 54)
+        ..with(Components.Canvas(header, 588, 54)
             ..anchor = Math.Vec2()
             ..pivot = Math.Vec2()
             ..space = Components.CanvasSpace.viewport
@@ -451,19 +370,29 @@ func update_scene(
     showcase.update(time.delta)
 }
 
+func finish_verification(
+    run:&VerificationRun,
+    controller:&Application.Controller
+) {
+    if !run.enabled { return }
+    run.frames++
+    if run.frames == 3 { controller.stop() }
+}
+
 func main() {
+    let verification = verification_mode()
     var showcase = Showcase()
-    if verification_mode() {
-        showcase.verify_motion()
-        return
-    }
-    Application()
+    if verification { showcase.verify_motion() }
+    var run = VerificationRun(verification)
+    var application = Application()
         ..add_resource(showcase)
+        ..add_resource(run)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
-            ..title = "GFX.Physics — SI gravity debug draw"
+            ..title = "GFX.Physics — live SI gravity debug draw"
             ..width = Demo.window_width
             ..height = Demo.window_height
             ..resizable = false
+            ..hidden = verification
         ))
         ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
             ..clear = Color.slate_950()
@@ -474,5 +403,7 @@ func main() {
         ..add_plugin(Plugins.Time())
         ..add_system(Application.Schedule.startup, create_scene)
         ..add_system(Application.Schedule.update, update_scene)
-        ..run()
+        ..add_after_system(Application.Schedule.render, finish_verification)
+    assert(application.run() == 0)
+    if verification { assert(run.frames == 3) }
 }
