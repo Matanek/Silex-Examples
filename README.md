@@ -86,11 +86,12 @@ silex run Sources/ShapeGallery2D/Main.sx
 `(0, -9.81) m/s²` world gravity at a fixed 60 Hz and continuously recycles
 falling bodies through ramps, a chain, a sensor, and a floor. Its fixed labels
 live in a separate retained vector Canvas; the geometric Canvas
-is rebuilt only after a physics step. `PhysicsJointDebugDraw2D` gives the eight
-joint families their own animated diagnostic scene instead of presenting them
-as an unmoving reference beside the gravity world. Both examples display an
-FPS panel and accept `--verify` for a bounded motion check followed by a
-three-frame hidden renderer smoke.
+is rebuilt only after a physics step. `PhysicsJointDebugDraw2D` places all
+eight joint families under the same SI gravity as suspended mechanisms: spring
+mass, pass-through pendulums, servo, soft target, slider, pendulum, rigid welded
+pair, and wheel suspension. Continuous targets preserve motion without hiding
+the body's inertia. Both examples display an FPS panel and accept `--verify`
+for a bounded motion check followed by a three-frame hidden renderer smoke.
 
 Their `Module.*` imports are explicitly relative to each source directory. The
 manifest declares `"sources": "Sources"`, so this physical directory does not
