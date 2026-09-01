@@ -81,6 +81,8 @@ Run multi-file demonstrations from the repository root as well:
 ```sh
 silex run Sources/Physics2D/FallingBodies/Main.sx
 silex run Sources/Physics2D/RotatingPhysicsContainer/Main.sx
+silex run Sources/PhysicsDebugDraw2D/Main.sx --release
+silex run Sources/PhysicsJointDebugDraw2D/Main.sx --release
 silex run Sources/ShapeGallery2D/Main.sx
 ```
 
@@ -88,6 +90,17 @@ silex run Sources/ShapeGallery2D/Main.sx
 `Plugins.Physics2D` integration: ECS entities own their physics components,
 the plugin advances a fixed-step world, and dynamic poses flow back to
 Scene2D transforms without a demonstration-specific simulation loop.
+
+`PhysicsDebugDraw2D` is a live metric diagnostic scene. It applies the
+`(0, -9.81) m/s²` world gravity at a fixed 60 Hz and continuously recycles
+falling bodies through ramps, a chain, a sensor, and a floor. Its fixed labels
+live in a separate retained vector Canvas; the geometric Canvas
+is rebuilt only after a physics step. `PhysicsJointDebugDraw2D` places all
+eight joint families under the same SI gravity as suspended mechanisms: spring
+mass, pass-through pendulums, servo, soft target, slider, pendulum, rigid welded
+pair, and wheel suspension. Continuous targets preserve motion without hiding
+the body's inertia. Both examples display an FPS panel and accept `--verify`
+for a bounded motion check followed by a three-frame hidden renderer smoke.
 
 The focused Physics 2D demonstrations are direct files:
 
