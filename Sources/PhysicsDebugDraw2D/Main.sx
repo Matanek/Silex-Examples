@@ -17,6 +17,7 @@ static struct Demo {
     let fixed_delta:float = 1.0 / 60.0
     let maximum_frame_delta:float = 0.05
     let respawn_interval:float = 0.85
+    let physics_origin_y:float = -240.0
 }
 
 func verification_mode() bool {
@@ -60,6 +61,16 @@ struct FallingBody {
     }
 }
 
+func bowl_shape() Physics.Shape2D {
+    return Physics.Shape2D.chain(Physics.Chain2D([
+        Math.Vec2(2.5, 1.2),
+        Math.Vec2(1.8, 0.65), Math.Vec2(1.1, 0.1),
+        Math.Vec2(0.2, -0.15), Math.Vec2(-0.7, 0.1),
+        Math.Vec2(-1.4, 0.65),
+        Math.Vec2(-2.1, 1.2)
+    ]))
+}
+
 class VerificationRun {
     let enabled:bool
     var frames:int
@@ -100,11 +111,7 @@ func add_gravity_scene(world:Physics.World2D) FallingBody[] {
     )
     world.create_rigid_body(Physics.RigidBody2DSettings()
         ..body_type = Physics.BodyType2D.fixed
-        ..shape = Physics.Shape2D.chain(Physics.Chain2D([
-            Math.Vec2(1.8, 0.65), Math.Vec2(1.1, 0.1),
-            Math.Vec2(0.2, -0.15), Math.Vec2(-0.7, 0.1),
-            Math.Vec2(-1.4, 0.65)
-        ]))
+        ..shape = bowl_shape()
         ..position = Math.Vec2(2.0, 1.35)
         ..friction = 0.65
         ..debug_label = "chain"
@@ -187,6 +194,40 @@ func add_gravity_scene(world:Physics.World2D) FallingBody[] {
     return falling
 }
 
+func verify_bowl_segment(first:Math.Vec2, second:Math.Vec2) {
+    let edge = second.subtract(first)
+    let normal = Math.Vec2(edge.y, -edge.x).normalized()
+    let midpoint = first.add(second).multiply(0.5)
+    var world = Physics.World2D(gravity:Math.Vec2())
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = bowl_shape()
+    )
+    var probe = world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..shape = Physics.Shape2D.circle(Physics.Circle2D(0.12))
+        ..position = midpoint.add(normal.multiply(0.8))
+        ..velocity = normal.multiply(-6.0)
+        ..gravity_scale = 0.0
+        ..friction = 0.0
+        ..allow_sleep = false
+        ..is_bullet = true
+    )
+    var step = 0
+    while step < 20 {
+        world.step(Demo.fixed_delta)
+        step++
+    }
+    let side = probe.position().subtract(midpoint).dot(normal)
+    assert(side > 0.05, "bowl segment crossed: side=$(side)")
+}
+
+func verify_bowl_collision() {
+    verify_bowl_segment(Math.Vec2(1.8, 0.65), Math.Vec2(1.1, 0.1))
+    verify_bowl_segment(Math.Vec2(1.1, 0.1), Math.Vec2(0.2, -0.15))
+    verify_bowl_segment(Math.Vec2(0.2, -0.15), Math.Vec2(-0.7, 0.1))
+    verify_bowl_segment(Math.Vec2(-0.7, 0.1), Math.Vec2(-1.4, 0.65))
+}
+
 func live_debug_settings() Physics.World2DDebugSettings {
     return Physics.World2DDebugSettings()
         ..shapes = true
@@ -211,6 +252,33 @@ func static_label_settings() Physics.World2DDebugSettings {
         ..joints = false
         ..labels = true
         ..label_size = 0.2
+}
+
+func label_screen_position(position:Math.Vec2) Math.Vec2 {
+    return Math.Vec2(
+        Demo.window_width as float * 0.5 + position.x * Demo.pixels_per_meter,
+        Demo.window_height as float * 0.5 - Demo.physics_origin_y -
+            position.y * Demo.pixels_per_meter
+    )
+}
+
+func label_drawing(snapshot:Physics.World2DDebugSnapshot) Canvas.Canvas {
+    return Canvas.Canvas()
+        ..paint(func(painter:&Canvas.Painter) {
+            var index = 0
+            while index < snapshot.label_count() {
+                let label = snapshot.label(index)
+                painter.text(
+                    label.text,
+                    label_screen_position(label.position),
+                    Canvas.TextStyle(
+                        size:label.size * Demo.pixels_per_meter,
+                        color:label.color
+                    )
+                )
+                index++
+            }
+        })
 }
 
 func header_drawing() Canvas.Canvas {
@@ -262,11 +330,13 @@ class Showcase {
             static_label_settings(),
             self.label_snapshot
         )
-        Physics.World2DDebug.draw(self.label_snapshot, self.label_canvas)
+        self.label_canvas = label_drawing(self.label_snapshot)
         assert(self.world.gravity() == Math.Vec2(0.0, -9.81))
         assert(self.snapshot.line_count() > 40)
         assert(self.snapshot.circle_count() > 8)
         assert(self.label_snapshot.label_count() == 4)
+        assert(label_screen_position(Math.Vec2(0.0, 1.0)).y <
+            label_screen_position(Math.Vec2()).y)
     }
 
     private func advance_fixed_step() {
@@ -305,6 +375,7 @@ class Showcase {
     }
 
     func verify_motion() {
+        verify_bowl_collision()
         var falling = self.falling[0]
         let initial = falling.body.position()
         var frame = 0
@@ -336,19 +407,17 @@ func create_scene(
     debug_canvas.layer = 1
     world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform2D(
-            position:Math.Vec2(0.0, -240.0),
+            position:Math.Vec2(0.0, Demo.physics_origin_y),
             scale:Math.Vec2(Demo.pixels_per_meter, -Demo.pixels_per_meter)
         ))
         ..with(debug_canvas)
     )
     var label_canvas = Components.Canvas(showcase.labels())
     label_canvas.layer = 2
+    label_canvas.space = Components.CanvasSpace.viewport
     label_canvas.text_mode = Scene2D.CanvasTextMode.vector
     world.spawn(ECS.EntityRecipe()
-        ..with(Components.Transform2D(
-            position:Math.Vec2(0.0, -240.0),
-            scale:Math.Vec2(Demo.pixels_per_meter, -Demo.pixels_per_meter)
-        ))
+        ..with(Components.Transform2D())
         ..with(label_canvas)
     )
     var header = header_drawing()
