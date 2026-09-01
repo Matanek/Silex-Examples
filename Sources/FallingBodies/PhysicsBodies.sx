@@ -66,7 +66,6 @@ public func create_container(world:&Resources.World, simulation:&Simulation) {
 public func create_dynamic_body(
     simulation:&Simulation,
     is_circle:bool,
-    scale:float,
     position:Math.Vec2,
     velocity:Math.Vec2,
     rotation:float,
@@ -82,11 +81,11 @@ public func create_dynamic_body(
         ..angular_damping = 0.4
     if is_circle {
         settings.shape = Physics.Shape2D.circle(
-            Physics.Circle2D(Demo.body_radius * scale)
+            Physics.Circle2D(Demo.body_radius)
         )
     } else {
         settings.shape = Physics.Shape2D.box(
-            Physics.Box2D(Math.Vec2(Demo.body_size * scale))
+            Physics.Box2D(Math.Vec2(Demo.body_size))
         )
     }
     return simulation.physics.create_rigid_body(settings)

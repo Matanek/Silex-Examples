@@ -25,14 +25,10 @@ public func emit_body(
     let angular_velocity =
         (simulation.randomizer.get_float() * 2.0 - 1.0) * 0.9
     let is_circle = index % 2 == 0
-    let body_scale = Demo.minimum_body_scale +
-        simulation.randomizer.get_float() *
-            (Demo.maximum_body_scale - Demo.minimum_body_scale)
     if !is_circle { rotation = 0.0 }
     var body = create_dynamic_body(
         simulation,
         is_circle,
-        body_scale,
         position,
         velocity,
         rotation,
@@ -50,8 +46,7 @@ public func emit_body(
         ..with(BodyVisual(index:index))
         ..with(Components.Transform2D(
             position:body.position().multiply(Demo.pixels_per_meter),
-            rotation:body.rotation(),
-            scale:Math.Vec2(body_scale)
+            rotation:body.rotation()
         ))
         ..with(drawing)
     )
