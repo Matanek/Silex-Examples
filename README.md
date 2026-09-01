@@ -67,6 +67,7 @@ silex run Sources/ComposedSystemTerminal.sx
 silex run Sources/ApplicationCommandConsole.sx
 silex run Sources/GeneratedHTMLWebView.sx
 silex run Sources/BoidsSimulation.sx
+silex run Sources/CharacterMover2D.sx
 silex run Sources/FPSStatsPanel.sx
 silex run Sources/PerformanceStatsPanel.sx
 silex run Sources/PlotGallery.sx
@@ -137,6 +138,28 @@ unpublished package changes.
 
 The Plot gallery presents several pages in sequence. Closing the current
 window opens the next page.
+
+`CharacterMover2D.sx` demonstrates a capsule controller across a slope, steps,
+a concave corner, an unobstructed trampoline, a light pushable dynamic crate,
+ten bouncing balls, and a moving elevator. Arena walls retain dynamic objects,
+while fixed-step simulation keeps prop contacts and descending elevator carry
+stable. The in-window performance panel tracks current and lowest FPS, frames
+longer than 33 ms, maximum frame time, measured physics-step cost, and the
+progressive pressure applied while pushing. Balls are light, damped dynamic
+supports: the character collides with and can jump from them, while the first
+shape-cast contact immediately gives each touched ball enough lead velocity to
+yield without letting the capsule pass through it. Sustained pressure spreads
+clustered balls around the character.
+Because this bounded-speed playground contains no bullet, it uses discrete
+collision detection, lets idle props sleep, and caps fixed-step catch-up at
+four steps per rendered frame.
+Ground acceleration and
+deceleration preserve momentum instead of replacing velocity from input; jumps
+retain that trajectory at their actual takeoff speed. Air control is expressed
+as an acceleration whose influence increases as takeoff momentum decreases.
+Vertical jumps therefore remain useful for reaching nearby platforms without
+gaining full running speed, and a short coyote window makes platform edges more
+forgiving.
 
 `AnalogClock.sx` hosts its retained Canvas content in one
 `Application.Bundle`. The `Bundle/` examples cover the three ownership layouts:
