@@ -17,17 +17,6 @@ use Module.Strokes.paint_lines
 use Module.Strokes.paint_paths
 
 public func paint_gallery(painter:&Canvas.Painter, font:Canvas.Font) {
-    painter.fill(
-        Canvas.Rect(
-            Math.Vec2(),
-            Math.Vec2(
-                Constants.canvas_width as float,
-                Constants.canvas_height as float
-            ),
-            18.0
-        ),
-        Canvas.Fill.solid(Color.slate_950())
-    )
     label(painter, font, "GFX.Canvas — galerie de formes 2D", Math.Vec2(28.0, 20.0), 26.0, Color.white())
     label(
         painter,

@@ -1,6 +1,7 @@
 use GFX.Canvas
 use GFX.Color
 use GFX.Viewer
+use STD.Math
 use Module.Drawing.Constants
 use Module.Gallery.paint_gallery
 
@@ -10,9 +11,14 @@ func main() {
     gallery.paint(func(painter:&Canvas.Painter) { paint_gallery(painter, font) })
     assert(gallery.command_count() > 50)
     Viewer.show(gallery, Viewer.CanvasSettings(
-        width:Constants.canvas_width + 40,
-        height:Constants.canvas_height + 40,
+        width:Constants.canvas_width + Constants.window_padding * 2,
+        height:Constants.canvas_height + Constants.window_padding * 2,
         title:"GFX.Canvas — Shape gallery",
-        background:Color.black()
+        background:Color.slate_950(),
+        position:Math.Vec2(
+            Constants.canvas_width as float,
+            Constants.canvas_height as float
+        ).multiply(-0.5),
+        anchor:Math.Vec2(0.5)
     ))
 }

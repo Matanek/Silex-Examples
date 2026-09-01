@@ -5,6 +5,7 @@ use STD.Math
 public struct Constants {
     static let canvas_width:int = 1180
     static let canvas_height:int = 760
+    static let window_padding:int = 20
 }
 
 public func label(
