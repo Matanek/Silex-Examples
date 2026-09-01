@@ -5,6 +5,7 @@ use GFX.Components
 use GFX.ECS
 use GFX.Physics
 use GFX.Plugins
+use GFX.Rendering
 use GFX.Resources
 use GFX.Scene2D
 use STD.Math
@@ -20,12 +21,12 @@ static struct Demo {
     let physics_origin_y:float = -240.0
 }
 
-func verification_mode() bool {
+func option_requested(expected:str) bool {
     match Process.arguments() {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
             for argument in arguments {
-                if argument == "--verify" { return true }
+                if argument == expected { return true }
             }
         }
     }
@@ -449,7 +450,11 @@ func finish_verification(
 }
 
 func main() {
-    let verification = verification_mode()
+    let verification = option_requested("--verify")
+    var present_mode = Rendering.PresentMode.synchronized
+    if option_requested("--immediate") {
+        present_mode = Rendering.PresentMode.immediate
+    }
     var showcase = Showcase()
     if verification { showcase.verify_motion() }
     var run = VerificationRun(verification)
@@ -466,6 +471,7 @@ func main() {
         ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
             ..clear = Color.slate_950()
             ..antialiasing = Plugins.RenderingAntialiasing.none
+            ..present_mode = present_mode
         ))
         ..add_plugin(Plugins.Scene2D())
         ..add_plugin(Plugins.FPSPanel())

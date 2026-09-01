@@ -5,10 +5,12 @@ use GFX.Components
 use GFX.ECS
 use GFX.Physics
 use GFX.Plugins
+use GFX.Rendering
 use GFX.Resources
 use GFX.Scene2D
 use STD.Math
 use STD.Process
+use STD.Time.Clock
 
 static struct Demo {
     let window_width:int = 980
@@ -31,12 +33,30 @@ class VerificationRun {
     }
 }
 
-func verification_mode() bool {
+class BenchmarkRun {
+    let enabled:bool
+    let present_mode:str
+    var warmup_frames:int
+    var measured_frames:int
+    var elapsed:float
+    var clock:Clock
+
+    init(enabled:bool, present_mode:str) {
+        self.enabled = enabled
+        self.present_mode = present_mode
+        self.warmup_frames = 0
+        self.measured_frames = 0
+        self.elapsed = 0.0
+        self.clock = Clock()
+    }
+}
+
+func option_requested(expected:str) bool {
     match Process.arguments() {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
             for argument in arguments {
-                if argument == "--verify" { return true }
+                if argument == expected { return true }
             }
         }
     }
@@ -593,6 +613,47 @@ class Showcase {
         assert(self.snapshot.circle_count() > 20)
         assert(self.label_snapshot.label_count() == 8)
     }
+
+    func benchmark_cpu(steps:int) {
+        var warmup = 0
+        while warmup < 60 {
+            self.advance_fixed_step()
+            self.redraw()
+            warmup++
+        }
+
+        var physics_seconds = 0.0
+        var snapshot_seconds = 0.0
+        var canvas_seconds = 0.0
+        var prepare_seconds = 0.0
+        var clock = Clock()
+        var step = 0
+        while step < steps {
+            clock.tick()
+            self.advance_fixed_step()
+            physics_seconds += clock.tick()
+
+            clock.tick()
+            self.world.write_debug_snapshot(self.settings, self.snapshot)
+            snapshot_seconds += clock.tick()
+
+            clock.tick()
+            Physics.World2DDebug.draw(self.snapshot, self.canvas)
+            canvas_seconds += clock.tick()
+
+            clock.tick()
+            var prepared = self.canvas.prepared()
+            prepare_seconds += clock.tick()
+            step++
+        }
+        print(
+            "PHYSICS_JOINT_DEBUG_CPU steps=$(steps) " +
+            "physics_ms=$(physics_seconds * 1000.0 / steps as float) " +
+            "snapshot_ms=$(snapshot_seconds * 1000.0 / steps as float) " +
+            "canvas_ms=$(canvas_seconds * 1000.0 / steps as float) " +
+            "prepare_ms=$(prepare_seconds * 1000.0 / steps as float)"
+        )
+    }
 }
 
 func create_scene(
@@ -648,14 +709,55 @@ func finish_verification(
     if run.frames == 3 { controller.stop() }
 }
 
+func benchmark_render(
+    run:&BenchmarkRun,
+    renderer:@Resources.Renderer,
+    controller:&Application.Controller
+) {
+    if !run.enabled { return }
+    let delta = run.clock.tick()
+    if run.warmup_frames < 60 {
+        run.warmup_frames++
+        if run.warmup_frames == 60 { run.clock.tick() }
+        return
+    }
+    run.elapsed += delta
+    run.measured_frames++
+    if run.elapsed < 2.0 { return }
+
+    let stats = renderer.stats()
+    print(
+        "PHYSICS_JOINT_DEBUG_RENDER present=$(run.present_mode) " +
+        "frames=$(run.measured_frames) seconds=$(run.elapsed) " +
+        "fps=$(run.measured_frames as float / run.elapsed) " +
+        "color_draws=$(stats.color_draw_calls()) " +
+        "color_triangles=$(stats.color_triangles())"
+    )
+    controller.stop()
+}
+
 func main() {
-    let verification = verification_mode()
+    let verification = option_requested("--verify")
+    let benchmark = option_requested("--benchmark") ||
+        option_requested("--benchmark-synchronized")
+    let immediate = option_requested("--immediate") ||
+        (option_requested("--benchmark") &&
+            !option_requested("--benchmark-synchronized"))
+    var present_mode = Rendering.PresentMode.synchronized
+    var present_mode_name = "synchronized"
+    if immediate {
+        present_mode = Rendering.PresentMode.immediate
+        present_mode_name = "immediate"
+    }
     var showcase = Showcase()
     if verification { showcase.verify_motion() }
+    if benchmark { showcase.benchmark_cpu(600) }
     var run = VerificationRun(verification)
+    var benchmark_run = BenchmarkRun(benchmark, present_mode_name)
     var application = Application()
         ..add_resource(showcase)
         ..add_resource(run)
+        ..add_resource(benchmark_run)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
             ..title = "GFX.Physics — joint mechanisms under gravity"
             ..width = Demo.window_width
@@ -666,6 +768,7 @@ func main() {
         ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
             ..clear = Color.slate_950()
             ..antialiasing = Plugins.RenderingAntialiasing.none
+            ..present_mode = present_mode
         ))
         ..add_plugin(Plugins.Scene2D())
         ..add_plugin(Plugins.FPSPanel())
@@ -673,6 +776,7 @@ func main() {
         ..add_system(Application.Schedule.startup, create_scene)
         ..add_system(Application.Schedule.update, update_scene)
         ..add_after_system(Application.Schedule.render, finish_verification)
+        ..add_after_system(Application.Schedule.render, benchmark_render)
     assert(application.run() == 0)
     if verification { assert(run.frames == 3) }
 }
