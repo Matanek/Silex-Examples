@@ -61,7 +61,6 @@ silex run Sources/ApplicationWindow.sx
 silex run Sources/DirectWindowInputLoop.sx
 silex run Sources/DedicatedSystemTerminal.sx
 silex run Sources/ComposedSystemTerminal.sx
-silex run Sources/RetainedDocumentViewport.sx
 silex run Sources/ApplicationCommandConsole.sx
 silex run Sources/GeneratedHTMLWebView.sx
 silex run Sources/BoidsSimulation.sx
@@ -107,24 +106,6 @@ The terminal examples form an intentional progression:
 `ComposedSystemTerminal.sx` embeds the shell in a broader interface, and
 `ApplicationCommandConsole.sx` exposes application-defined commands without
 granting access to the system shell.
-
-`RetainedDocumentViewport.sx` preloads 5,000 lines and renders only the
-visible rows through `GFX.Font` and `GFX.Canvas`. Its generated source remains
-unique per line and rotates through 1,237 glyphs supported by the bundled
-monospace face, so the load does not collapse to a tiny ASCII cache. The status
-bar reports live FPS, the longest observed frame and the first visible line.
-The `--verify` mode pins the submitted Canvas command count below 40, proving
-that the 5,000 retained lines are not sent to the renderer. It is a read-only
-load probe, not a substitute for a scrollable `GFX.UI.TextArea`: use the
-keyboard, mouse wheel or controlled vertical scrollbar to move through the
-retained document while evaluating latency. The interactive default uses Scene2D's hinted R8 glyph atlas; a
-compiled executable accepts `--vector` for the outline-only comparison and
-`--profile-coverage`, `--profile-vector` or `--profile-settle` for bounded
-profiles. Mouse-wheel navigation uses the inverted, natural-scroll direction
-by default; `--normal-wheel` restores the platform-normalized direction for
-comparison. Wheel and trackpad input target a fractional line offset with
-bounded overscan, then decelerate smoothly; keyboard navigation and direct
-scrollbar dragging remain immediate.
 
 The WebView examples illustrate three different approaches:
 `EmbeddedWebView/Main.sx` embeds web files, while
