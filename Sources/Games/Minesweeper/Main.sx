@@ -1,0 +1,54 @@
+use GFX.Application
+use GFX.Color
+use GFX.Plugins
+use GFX.Window
+use Module.Presentation.menu_bundle
+use Module.Session.GameSession
+use STD.Math
+use STD.Process
+
+func verification_mode() bool {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments { if argument == "--verify" { return true } }
+        }
+    }
+    return false
+}
+
+func configure_window(window:&Window) {
+    window.set_minimum_size(Math.Vec2(560.0, 620.0))
+}
+
+func main() {
+    let verification = verification_mode()
+    var session = GameSession(verification)
+    var application = Application()..add_resource(session)
+    var initial = menu_bundle(Application.Bundle(application))
+    application
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Minesweeper"
+            ..width = 800
+            ..height = 800
+            ..hidden = verification
+        ))
+        ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
+            ..clear = Color.bytes(7, 12, 24)
+        ))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.Time())
+        ..add_plugin(Plugins.BundleManager(initial))
+        ..add_after_system(Application.Schedule.startup, configure_window)
+
+    assert(application.run() == 0)
+    if verification {
+        assert(session.settings().width == 48)
+        assert(session.settings().height == 12)
+        assert(session.settings().difficulty == 3)
+        assert(session.menu_visits == 2)
+        assert(session.menu_finalizations == 2)
+        assert(session.game_finalizations == 1)
+        print("Minesweeper menu verification passed")
+    }
+}

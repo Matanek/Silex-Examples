@@ -1,0 +1,123 @@
+use Module.Model.Settings
+use STD.Math
+
+public enum Request {
+    none
+    play
+    menu
+    quit
+}
+
+public class GameSession {
+    private var current_settings:Settings
+    private var pending:Request
+    private var current_revision:int
+    let verification:bool
+    var menu_visits:int
+    var menu_finalizations:int
+    var game_finalizations:int
+
+    init(verification:bool = false) {
+        self.current_settings = Settings.compact()
+        self.pending = Request.none
+        self.current_revision = 1
+        self.verification = verification
+        self.menu_visits = 0
+        self.menu_finalizations = 0
+        self.game_finalizations = 0
+    }
+
+    func settings() Settings { return self.current_settings }
+    func revision() int { return self.current_revision }
+    func request() Request { return self.pending }
+    func clear_request() { self.pending = Request.none }
+    func play() { self.pending = Request.play }
+    func show_menu() { self.pending = Request.menu }
+    func quit() { self.pending = Request.quit }
+
+    func summary() str {
+        let settings = self.current_settings
+        return "$(settings.mine_count()) mines pour $(settings.width) × $(settings.height) cases"
+    }
+
+    func set_width(value:float) {
+        self.replace(Settings(
+            discrete_dimension(value),
+            self.current_settings.height,
+            self.current_settings.difficulty
+        ))
+    }
+
+    func set_height(value:float) {
+        self.replace(Settings(
+            self.current_settings.width,
+            discrete_dimension(value),
+            self.current_settings.difficulty
+        ))
+    }
+
+    func set_difficulty(value:float) {
+        var difficulty = Math.round(value) as int
+        if difficulty < 1 { difficulty = 1 }
+        if difficulty > 6 { difficulty = 6 }
+        self.replace(Settings(
+            self.current_settings.width,
+            self.current_settings.height,
+            difficulty
+        ))
+    }
+
+    func adjust_width(delta:int) {
+        self.set_width((self.current_settings.width + delta * 4) as float)
+    }
+
+    func adjust_height(delta:int) {
+        self.set_height((self.current_settings.height + delta * 4) as float)
+    }
+
+    func preset(index:int) {
+        var selected = Settings.compact(self.current_settings.difficulty)
+        if index == 1 { selected = Settings.wide(self.current_settings.difficulty) }
+        elif index == 2 { selected = Settings.large(self.current_settings.difficulty) }
+        elif index == 3 { selected = Settings.huge(self.current_settings.difficulty) }
+        self.replace(selected)
+    }
+
+    func fit_width(viewport:Math.Vec2) {
+        let fitted = Settings.fit(viewport, self.current_settings.difficulty)
+        self.replace(Settings(
+            fitted.width,
+            self.current_settings.height,
+            self.current_settings.difficulty
+        ))
+    }
+
+    func fit_height(viewport:Math.Vec2) {
+        let fitted = Settings.fit(viewport, self.current_settings.difficulty)
+        self.replace(Settings(
+            self.current_settings.width,
+            fitted.height,
+            self.current_settings.difficulty
+        ))
+    }
+
+    func fit_screen(viewport:Math.Vec2) {
+        self.replace(Settings.fit(viewport, self.current_settings.difficulty))
+    }
+
+    private func replace(settings:Settings) {
+        if settings.width == self.current_settings.width &&
+            settings.height == self.current_settings.height &&
+            settings.difficulty == self.current_settings.difficulty
+        { return }
+        self.current_settings = settings
+        self.current_revision++
+    }
+}
+
+func discrete_dimension(value:float) int {
+    var result = Math.round(value / 4.0) as int * 4
+    if result < 4 { return 4 }
+    if result > 256 { return 256 }
+    return result
+}

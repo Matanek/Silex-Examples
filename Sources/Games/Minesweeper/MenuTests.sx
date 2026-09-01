@@ -1,0 +1,45 @@
+use Module.Menu.MenuLayout
+use Module.Session.GameSession
+use STD.Math
+
+test "round every menu setting into the canonical model" {
+    var session = GameSession()
+    session.set_width(21.0)
+    session.set_height(14.0)
+    session.set_difficulty(5.7)
+    assert(session.settings().width == 20)
+    assert(session.settings().height == 16)
+    assert(session.settings().difficulty == 6)
+    assert(session.summary() == "120 mines pour 20 × 16 cases")
+
+    session.adjust_width(-20)
+    session.adjust_height(100)
+    assert(session.settings().width == 4)
+    assert(session.settings().height == 256)
+}
+
+test "preserve one dimension across the three fit actions" {
+    var session = GameSession()
+    session.preset(3)
+    session.fit_width(Math.Vec2(1_260.0, 876.0))
+    assert(session.settings().width == 20)
+    assert(session.settings().height == 12)
+    session.fit_height(Math.Vec2(1_260.0, 1_068.0))
+    assert(session.settings().width == 20)
+    assert(session.settings().height == 16)
+    session.fit_screen(Math.Vec2(1_260.0, 876.0))
+    assert(session.settings().width == 20)
+    assert(session.settings().height == 12)
+}
+
+test "stack compact controls and keep actions inside the centered card" {
+    let compact = MenuLayout.calculate(Math.Vec2(600.0, 700.0))
+    let wide = MenuLayout.calculate(Math.Vec2(1_280.0, 800.0))
+    assert(compact.compact)
+    assert(!wide.compact)
+    assert(compact.card.x >= 0.0 && compact.card.maximum().x <= 600.0)
+    assert(wide.card.center().x == 640.0)
+    assert(compact.hit_test(compact.play.center()) == "play")
+    assert(wide.hit_test(wide.quit.center()) == "quit")
+    assert(wide.hit_test(Math.Vec2()) == "background")
+}

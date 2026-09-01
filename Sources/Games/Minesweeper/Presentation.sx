@@ -1,0 +1,226 @@
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use GFX.UI
+use GFX.Window
+use Module.Menu.menu
+use Module.Model.Settings
+use Module.Session.GameSession
+use Module.Session.Request
+use STD.Math
+
+class MenuLocal {
+    var interface:UI.Session? = null
+    var display:ECS.Entity? = null
+    var width:int = 0
+    var height:int = 0
+    var revision:int = 0
+    var frames:int = 0
+}
+
+class GameLocal {
+    var display:ECS.Entity? = null
+    var frames:int = 0
+}
+
+public func menu_bundle(bundle:Application.Bundle) Application.Bundle {
+    return bundle
+        ..add_resource(MenuLocal())
+        ..add_system(Application.Schedule.startup, start_menu)
+        ..add_system(Application.Schedule.update, update_menu)
+        ..add_system(Application.Schedule.finalize, finalize_menu)
+}
+
+public func game_bundle(bundle:Application.Bundle) Application.Bundle {
+    return bundle
+        ..add_resource(GameLocal())
+        ..add_system(Application.Schedule.startup, start_game)
+        ..add_system(Application.Schedule.update, update_game)
+        ..add_system(Application.Schedule.finalize, finalize_game)
+}
+
+func start_menu(
+    session:&GameSession,
+    window:@Window,
+    world:&ECS.World,
+    presentation:&MenuLocal
+) {
+    session.menu_visits++
+    rebuild_menu(session, window, world, presentation)
+}
+
+func update_menu(
+    session:&GameSession,
+    input:@Resources.InputState,
+    time:@Resources.FrameTime,
+    window:@Window,
+    world:&ECS.World,
+    presentation:&MenuLocal,
+    manager:&Plugins.BundleManager,
+    controller:&Application.Controller
+) {
+    presentation.frames++
+    if input.is_pressed(Input.Key.escape) { session.quit() }
+    var changed = false
+    if var interface = presentation.interface {
+        changed = interface.update(time.delta)
+        for event in input.events() {
+            changed = interface.handle(event) || changed
+        }
+    }
+
+    if session.verification && presentation.frames == 1 &&
+        session.menu_visits == 1
+    {
+        session.set_width(21.0)
+        session.set_height(13.0)
+        session.set_difficulty(3.2)
+        assert(session.settings().width == 20)
+        assert(session.settings().height == 12)
+        assert(session.settings().difficulty == 3)
+        session.preset(3)
+    }
+    if session.verification && presentation.frames == 2 {
+        if session.menu_visits == 1 { session.play() }
+        else { session.quit() }
+    }
+
+    let size = window.size()
+    if changed || session.revision() != presentation.revision ||
+        size.x as int != presentation.width || size.y as int != presentation.height
+    {
+        rebuild_menu(session, window, world, presentation)
+    }
+
+    if session.request() == Request.play {
+        session.clear_request()
+        manager.replace(game_bundle(manager.create()))
+    } elif session.request() == Request.quit {
+        session.clear_request()
+        controller.stop()
+    }
+}
+
+func rebuild_menu(
+    session:@GameSession,
+    window:@Window,
+    world:&ECS.World,
+    presentation:&MenuLocal
+) {
+    let size = window.size()
+    let width = size.x as int
+    let height = size.y as int
+    if width <= 0 || height <= 0 { return }
+    var interface = UI.Session(menu(session, size))
+    var drawing = interface.drawing(width, height)
+    presentation.interface = interface
+    replace_display(world, presentation, drawing, width, height, size)
+    presentation.revision = session.revision()
+}
+
+func replace_display(
+    world:&ECS.World,
+    presentation:&MenuLocal,
+    drawing:Canvas,
+    width:int,
+    height:int,
+    size:Math.Vec2
+) {
+    if width == presentation.width && height == presentation.height {
+        if let entity = presentation.display {
+            if world.is_alive(entity) {
+                world.update<Components.Canvas>(entity, func(canvas:&Components.Canvas) {
+                    canvas.replace(drawing)
+                    canvas.size = size
+                })
+                return
+            }
+        }
+    }
+    if let entity = presentation.display { if world.is_alive(entity) { world.destroy(entity) } }
+    presentation.display = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(drawing, width, height)
+            ..size = size
+            ..space = Components.CanvasSpace.viewport
+            ..text_mode = Scene2D.CanvasTextMode.coverage
+        )
+    )
+    presentation.width = width
+    presentation.height = height
+}
+
+func finalize_menu(session:&GameSession) { session.menu_finalizations++ }
+
+func placeholder_drawing(settings:Settings, size:Math.Vec2) Canvas {
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Rect(Math.Vec2(), size),
+            Canvas.Fill.solid(Color.bytes(7, 12, 24))
+        )
+        painter.text(
+            "PLATEAU $(settings.width) × $(settings.height)",
+            Math.Vec2(size.x * 0.5, size.y * 0.5 - 20.0),
+            Canvas.TextStyle(
+                size:28.0,
+                color:Color.amber_300(),
+                alignment:Canvas.TextAlignment.center,
+                weight:Canvas.TextWeight.bold
+            )
+        )
+        painter.text(
+            "Partie jouable ajoutée à la prochaine tranche\nÉchap pour revenir au menu",
+            Math.Vec2(size.x * 0.5, size.y * 0.5 + 22.0),
+            Canvas.TextStyle(
+                size:14.0,
+                color:Color.slate_300(),
+                alignment:Canvas.TextAlignment.center
+            )
+        )
+    })
+    return drawing
+}
+
+func start_game(
+    session:@GameSession,
+    window:@Window,
+    world:&ECS.World,
+    presentation:&GameLocal
+) {
+    let size = window.size()
+    presentation.display = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(
+            placeholder_drawing(session.settings(), size),
+            size.x as int,
+            size.y as int
+        )..space = Components.CanvasSpace.viewport)
+    )
+}
+
+func update_game(
+    session:&GameSession,
+    input:@Resources.InputState,
+    presentation:&GameLocal,
+    manager:&Plugins.BundleManager
+) {
+    presentation.frames++
+    if input.is_pressed(Input.Key.escape) ||
+        (session.verification && presentation.frames == 2)
+    {
+        session.show_menu()
+    }
+    if session.request() == Request.menu {
+        session.clear_request()
+        manager.replace(menu_bundle(manager.create()))
+    }
+}
+
+func finalize_game(session:&GameSession) { session.game_finalizations++ }

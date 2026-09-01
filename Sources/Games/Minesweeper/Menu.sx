@@ -1,0 +1,189 @@
+use GFX.Color
+use GFX.UI
+use Module.Session.GameSession
+use STD.Math
+
+public struct MenuLayout {
+    let compact:bool
+    let card:Math.Rect
+    let play:Math.Rect
+    let quit:Math.Rect
+
+    static func calculate(viewport:Math.Vec2) MenuLayout {
+        let compact = viewport.x < 700.0
+        var card_width = 560.0
+        if compact { card_width = Math.max(320.0, viewport.x - 32.0) }
+        card_width = Math.min(card_width, viewport.x - 16.0)
+        let card_height = Math.min(700.0, viewport.y - 16.0)
+        let card = Math.Rect(
+            (viewport.x - card_width) * 0.5,
+            Math.max(8.0, (viewport.y - card_height) * 0.5),
+            card_width,
+            card_height
+        )
+        let button_width = (card_width - 58.0) * 0.5
+        let button_y = card.y + card.h - 70.0
+        return MenuLayout(
+            compact:compact,
+            card:card,
+            play:Math.Rect(card.x + 20.0, button_y, button_width, 46.0),
+            quit:Math.Rect(card.x + 38.0 + button_width, button_y, button_width, 46.0)
+        )
+    }
+
+    func hit_test(point:Math.Vec2) str {
+        if self.play.contains(point) { return "play" }
+        if self.quit.contains(point) { return "quit" }
+        if self.card.contains(point) { return "card" }
+        return "background"
+    }
+}
+
+func text(value:str, size:float, color:Color) UI.Text {
+    var result = UI.Text(value)
+    result.style.font_size = size
+    result.style.foreground = color
+    return result
+}
+
+func title(value:str, size:float) UI.Text {
+    var result = text(value, size, Color.slate_100())
+    result.style.font_weight = UI.FontWeight.bold
+    return result
+}
+
+func button(label:str, action:func(), accent:bool = false) UI.Button {
+    var background = Color.bytes(31, 41, 55)
+    var border = Color.slate_600()
+    if accent {
+        background = Color.amber_500()
+        border = Color.amber_300()
+    }
+    var result = UI.Button(label, action)
+    result.style.height = 42.0
+    result.style.grow = 1.0
+    result.style.background = background
+    result.style.foreground = Color.white()
+    result.style.border = UI.Border(1.0, border)
+    result.style.radius = 7.0
+    result.style.font_size = 13.0
+    result.style.font_weight = UI.FontWeight.bold
+    return result
+}
+
+func dimension_group(
+    name:str,
+    value:int,
+    decrease:func(),
+    increase:func(),
+    changed:func(float)
+) UI.Column {
+    var caption = text("$(name)  $(value)", 13.0, Color.slate_200())
+    var slider = UI.Slider(value as float, 4.0, 256.0, changed)
+    slider.style.height = 20.0
+    slider.style.background = Color.slate_700()
+    slider.style.accent = Color.cyan_400()
+    var buttons:UI.View[] = [
+        button("− 4", decrease),
+        button("+ 4", increase)
+    ]
+    var row = UI.Row(buttons)
+    row.style.gap = 8.0
+    var children:UI.View[] = [caption, slider, row]
+    var result = UI.Column(children)
+    result.style.gap = 7.0
+    return result
+}
+
+public func menu(session:@GameSession, viewport:Math.Vec2) UI.Column {
+    let settings = session.settings()
+    let metrics = MenuLayout.calculate(viewport)
+    let captured_viewport = viewport
+    var width = dimension_group(
+        "Largeur", settings.width,
+        func() { session.adjust_width(-1) },
+        func() { session.adjust_width(1) },
+        func(value:float) { session.set_width(value) }
+    )
+    var height = dimension_group(
+        "Hauteur", settings.height,
+        func() { session.adjust_height(-1) },
+        func() { session.adjust_height(1) },
+        func(value:float) { session.set_height(value) }
+    )
+    var dimensions:UI.View = UI.Row([width, height])
+    if metrics.compact { dimensions = UI.Column([width, height]) }
+
+    var difficulty = UI.Slider(
+        settings.difficulty as float,
+        1.0,
+        6.0,
+        func(value:float) { session.set_difficulty(value) }
+    )
+    difficulty.style.height = 20.0
+    difficulty.style.background = Color.slate_700()
+    difficulty.style.accent = Color.rose_400()
+
+    var presets:UI.View[] = [
+        button("8 × 8", func() { session.preset(0) }),
+        button("16 × 8", func() { session.preset(1) }),
+        button("32 × 8", func() { session.preset(2) }),
+        button("48 × 12", func() { session.preset(3) })
+    ]
+    var preset_row:UI.View = UI.Row(presets)
+    if metrics.compact {
+        preset_row = UI.Column([
+            UI.Row([presets[0], presets[1]]),
+            UI.Row([presets[2], presets[3]])
+        ])
+    }
+
+    var fits:UI.View[] = [
+        button("Fit largeur", func() { session.fit_width(captured_viewport) }),
+        button("Fit hauteur", func() { session.fit_height(captured_viewport) }),
+        button("Fit écran", func() { session.fit_screen(captured_viewport) })
+    ]
+    var fit_row:UI.View = UI.Row(fits)
+    if metrics.compact { fit_row = UI.Column(fits) }
+
+    var actions:UI.View[] = [
+        button("JOUER", func() { session.play() }, accent:true),
+        button("QUITTER", func() { session.quit() })
+    ]
+    var action_row = UI.Row(actions)
+    action_row.style.gap = 10.0
+
+    var children:UI.View[] = [
+        title("MINESWEEPER", 30.0),
+        text(session.summary(), 14.0, Color.amber_300()),
+        dimensions,
+        text("Difficulté  $(settings.difficulty) / 6", 13.0, Color.slate_200()),
+        difficulty,
+        preset_row,
+        fit_row,
+        text(
+            "Clic gauche : ouvrir  •  clic droit ou Maj+clic : drapeau\n" +
+            "Drag milieu / scroll : déplacer  •  Entrée : recommencer  •  Échap : retour",
+            11.0,
+            Color.slate_400()
+        ),
+        action_row
+    ]
+    var card = UI.Column(children, alignment:UI.Alignment.center)
+    card.style.width = metrics.card.w
+    card.style.padding = UI.Insets(20.0)
+    card.style.gap = 12.0
+    card.style.background = Color.bytes(17, 24, 39)
+    card.style.border = UI.Border(2.0, Color.amber_600())
+    card.style.radius = 10.0
+
+    var outer:UI.View[] = [card]
+    var root = UI.Column(outer, alignment:UI.Alignment.center)
+    root.style.padding = UI.Insets(
+        vertical:Math.max(8.0, metrics.card.y),
+        horizontal:8.0
+    )
+    root.style.background = Color.bytes(7, 12, 24)
+    root.style.foreground = Color.slate_100()
+    return root
+}
