@@ -1,0 +1,133 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Keyboard
+use GFX.UI
+use STD.Math
+use Module.Calculator.Calculator
+
+class DisplayContent:UI.Content {
+    var calculator:Calculator
+
+    init(calculator:Calculator) {
+        self.calculator = calculator
+    }
+
+    func measure(maximum:Math.Vec2) Math.Vec2 {
+        return Math.Vec2(Math.min(360.0, maximum.x), 72.0)
+    }
+
+    func paint(
+        painter:&Canvas.Painter,
+        frame:Canvas.Rect,
+        opacity:float
+    ) {
+        var color = Color.slate_100()
+        if self.calculator.has_error() { color = Color.rose_400() }
+        painter.text(
+            self.calculator.display(),
+            Math.Vec2(
+                frame.position.x + frame.size.x,
+                frame.position.y + 8.0
+            ),
+            Canvas.TextStyle(
+                size:48.0,
+                color:color.with_alpha(opacity),
+                alignment:Canvas.TextAlignment.end,
+                weight:Canvas.TextWeight.bold
+            ),
+            clip:frame
+        )
+    }
+
+    func focusable() bool { return false }
+    func accepts_text_input() bool { return false }
+    func focus_changed(focused:bool) bool { return false }
+    func update(delta:float) bool { return false }
+    func pointer_scrolled(delta:Math.Vec2) bool { return false }
+    func insert_text(value:str) bool { return false }
+    func key_pressed(
+        key:Keyboard.Key,
+        modifiers:Keyboard.Modifiers
+    ) bool { return false }
+}
+
+func styled_button(
+    label:str,
+    action:func(),
+    background:Color,
+    foreground:Color
+) UI.Button {
+    var result = UI.Button(label, action)
+    result.style.height = 62.0
+    result.style.grow = 1.0
+    result.style.background = background
+    result.style.foreground = foreground
+    result.style.radius = 14.0
+    result.style.font_size = 21.0
+    result.style.font_weight = UI.FontWeight.bold
+    return result
+}
+
+public func calculator_display(calculator:Calculator) UI.CustomView {
+    var result = UI.CustomView(DisplayContent(calculator))
+    result.style.height = 116.0
+    result.style.padding = UI.Insets(18.0)
+    result.style.background = Color.bytes(15, 23, 42)
+    result.style.border = UI.Border(1.0, Color.slate_700())
+    result.style.radius = 18.0
+    return result
+}
+
+public func digit_button(label:str, action:func()) UI.Button {
+    return styled_button(
+        label,
+        action,
+        Color.bytes(30, 41, 59),
+        Color.slate_100()
+    )
+}
+
+public func zero_button(action:func()) UI.Button {
+    var result = digit_button("0", action)
+    result.style.grow = 2.0
+    return result
+}
+
+public func action_button(label:str, action:func()) UI.Button {
+    return styled_button(
+        label,
+        action,
+        Color.slate_300(),
+        Color.slate_950()
+    )
+}
+
+public func operation_button(label:str, action:func()) UI.Button {
+    return styled_button(
+        label,
+        action,
+        Color.orange_500(),
+        Color.white()
+    )
+}
+
+public func key_row(children:UI.View[]) UI.Row {
+    var result = UI.Row(children)
+    result.style.gap = 10.0
+    return result
+}
+
+public func calculator_header() UI.Row {
+    var title = UI.Text("Calculator")
+    title.style.grow = 1.0
+    title.style.foreground = Color.slate_100()
+    title.style.font_size = 24.0
+    title.style.font_weight = UI.FontWeight.bold
+
+    var caption = UI.Text("GFX.UI + Canvas")
+    caption.style.foreground = Color.slate_400()
+    caption.style.font_size = 12.0
+
+    let children:UI.View[] = [title, caption]
+    return UI.Row(children, alignment:UI.Alignment.center)
+}

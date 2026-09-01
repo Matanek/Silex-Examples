@@ -1,0 +1,243 @@
+use STD.Math
+
+public enum Operation {
+    none
+    add
+    subtract
+    multiply
+    divide
+}
+
+// Owns the calculator rules without depending on a graphical package.
+public class Calculator {
+    private static let maximum_input_digits:int = 12
+    private static let display_precision:float = 1_000_000.0
+
+    private var current:float
+    private var accumulator:float
+    private var pending:Operation
+    private var replace_current:bool
+    private var decimal_mode:bool
+    private var fractional_place:float
+    private var input_digits:int
+    private var failed:bool
+
+    init() {
+        self.current = 0.0
+        self.accumulator = 0.0
+        self.pending = Operation.none
+        self.replace_current = true
+        self.decimal_mode = false
+        self.fractional_place = 0.1
+        self.input_digits = 0
+        self.failed = false
+    }
+
+    func value() float { return self.current }
+
+    func has_error() bool { return self.failed }
+
+    func display() str {
+        if self.failed { return "Error" }
+        var shown = Math.round(
+            self.current * Calculator.display_precision
+        ) / Calculator.display_precision
+        if Math.abs(shown) < 0.5 / Calculator.display_precision {
+            shown = 0.0
+        }
+        var result = "$(shown)"
+        if self.decimal_mode && self.fractional_place == 0.1 {
+            result += "."
+        }
+        return result
+    }
+
+    func clear() {
+        self.current = 0.0
+        self.accumulator = 0.0
+        self.pending = Operation.none
+        self.replace_current = true
+        self.decimal_mode = false
+        self.fractional_place = 0.1
+        self.input_digits = 0
+        self.failed = false
+    }
+
+    func digit(value:int) {
+        if value < 0 || value > 9 { panic("Calculator digits must be between 0 and 9") }
+        if self.failed { self.clear() }
+        if self.replace_current {
+            self.current = 0.0
+            self.replace_current = false
+            self.decimal_mode = false
+            self.fractional_place = 0.1
+            self.input_digits = 0
+        }
+        if self.input_digits >= Calculator.maximum_input_digits { return }
+
+        let digit = value as float
+        if self.decimal_mode {
+            if self.current < 0.0 { self.current -= digit * self.fractional_place }
+            else { self.current += digit * self.fractional_place }
+            self.fractional_place *= 0.1
+        } elif self.current < 0.0 {
+            self.current = self.current * 10.0 - digit
+        } else {
+            self.current = self.current * 10.0 + digit
+        }
+        self.input_digits++
+    }
+
+    func decimal() {
+        if self.failed { self.clear() }
+        if self.replace_current {
+            self.current = 0.0
+            self.replace_current = false
+            self.input_digits = 0
+        }
+        if self.decimal_mode { return }
+        self.decimal_mode = true
+        self.fractional_place = 0.1
+    }
+
+    func toggle_sign() {
+        if self.failed || self.current == 0.0 { return }
+        self.current = -self.current
+    }
+
+    func percent() {
+        if self.failed { return }
+        self.current /= 100.0
+        self.replace_current = true
+        self.decimal_mode = false
+    }
+
+    func backspace() {
+        if self.failed {
+            self.clear()
+            return
+        }
+        if self.replace_current { return }
+        if self.decimal_mode && self.fractional_place == 0.1 {
+            self.decimal_mode = false
+            return
+        }
+        if self.input_digits == 0 { return }
+
+        if self.decimal_mode {
+            let quantum = self.fractional_place * 100.0
+            self.current = Math.trunc(self.current / quantum) * quantum
+            self.fractional_place *= 10.0
+        } else {
+            self.current = Math.trunc(self.current / 10.0)
+        }
+        self.input_digits--
+    }
+
+    func choose(operation:Operation) {
+        if operation == Operation.none { return }
+        if self.failed { self.clear() }
+
+        if self.pending != Operation.none && !self.replace_current {
+            self.evaluate_pending()
+        } elif self.pending == Operation.none {
+            self.accumulator = self.current
+        }
+        if self.failed { return }
+
+        self.pending = operation
+        self.replace_current = true
+        self.decimal_mode = false
+        self.fractional_place = 0.1
+        self.input_digits = 0
+    }
+
+    func equals() {
+        if self.failed || self.pending == Operation.none || self.replace_current {
+            return
+        }
+        self.evaluate_pending()
+        self.replace_current = true
+        self.decimal_mode = false
+        self.fractional_place = 0.1
+        self.input_digits = 0
+    }
+
+    private func evaluate_pending() {
+        if self.pending == Operation.divide && self.current == 0.0 {
+            self.fail()
+            return
+        }
+
+        var result = self.accumulator
+        if self.pending == Operation.add { result += self.current }
+        elif self.pending == Operation.subtract { result -= self.current }
+        elif self.pending == Operation.multiply { result *= self.current }
+        elif self.pending == Operation.divide { result /= self.current }
+
+        if !Math.is_finite(result) {
+            self.fail()
+            return
+        }
+        self.current = result
+        self.accumulator = result
+        self.pending = Operation.none
+    }
+
+    private func fail() {
+        self.current = 0.0
+        self.accumulator = 0.0
+        self.pending = Operation.none
+        self.replace_current = true
+        self.decimal_mode = false
+        self.fractional_place = 0.1
+        self.input_digits = 0
+        self.failed = true
+    }
+}
+
+public func verify_calculator() {
+    var calculator = Calculator()
+    calculator.digit(1)
+    calculator.digit(2)
+    calculator.choose(Operation.add)
+    calculator.digit(3)
+    calculator.equals()
+    assert(calculator.value() == 15.0, "calculator addition")
+
+    calculator.clear()
+    calculator.digit(1)
+    calculator.decimal()
+    calculator.digit(5)
+    calculator.choose(Operation.multiply)
+    calculator.digit(2)
+    calculator.equals()
+    assert(calculator.value() == 3.0, "calculator decimals")
+
+    calculator.toggle_sign()
+    assert(calculator.value() == -3.0, "calculator sign")
+    calculator.percent()
+    assert(Math.abs(calculator.value() + 0.03) < 0.000001, "calculator percent")
+
+    calculator.clear()
+    calculator.digit(1)
+    calculator.digit(2)
+    calculator.digit(3)
+    calculator.backspace()
+    assert(calculator.value() == 12.0, "calculator backspace")
+
+    calculator.clear()
+    calculator.digit(8)
+    calculator.choose(Operation.add)
+    calculator.choose(Operation.subtract)
+    calculator.digit(3)
+    calculator.equals()
+    assert(calculator.value() == 5.0, "calculator operation replacement")
+
+    calculator.choose(Operation.divide)
+    calculator.digit(0)
+    calculator.equals()
+    assert(calculator.has_error(), "calculator division by zero")
+    calculator.digit(7)
+    assert(!calculator.has_error() && calculator.value() == 7.0, "calculator error reset")
+}

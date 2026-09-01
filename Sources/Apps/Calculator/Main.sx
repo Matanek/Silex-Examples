@@ -1,0 +1,91 @@
+use GFX.Color
+use GFX.UI
+use GFX.Viewer
+use Module.Calculator.Calculator
+use Module.Calculator.Operation
+use Module.Calculator.verify_calculator
+use Module.Interface.action_button
+use Module.Interface.calculator_display
+use Module.Interface.calculator_header
+use Module.Interface.digit_button
+use Module.Interface.key_row
+use Module.Interface.operation_button
+use Module.Interface.zero_button
+use Module.Session.CalculatorSession
+use Module.Session.verify_calculator_shortcuts
+use STD.Process
+
+func verification_mode() bool {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments {
+                if argument == "--verify" { return true }
+            }
+        }
+    }
+    return false
+}
+
+func main() {
+    if verification_mode() {
+        verify_calculator()
+        verify_calculator_shortcuts()
+        print("Calculator verification passed")
+        return
+    }
+
+    var calculator = Calculator()
+
+    let actions:UI.View[] = [
+        action_button("AC", func() { calculator.clear() }),
+        action_button("±", func() { calculator.toggle_sign() }),
+        action_button("%", func() { calculator.percent() }),
+        operation_button("÷", func() { calculator.choose(Operation.divide) })
+    ]
+    let high_digits:UI.View[] = [
+        digit_button("7", func() { calculator.digit(7) }),
+        digit_button("8", func() { calculator.digit(8) }),
+        digit_button("9", func() { calculator.digit(9) }),
+        operation_button("×", func() { calculator.choose(Operation.multiply) })
+    ]
+    let middle_digits:UI.View[] = [
+        digit_button("4", func() { calculator.digit(4) }),
+        digit_button("5", func() { calculator.digit(5) }),
+        digit_button("6", func() { calculator.digit(6) }),
+        operation_button("−", func() { calculator.choose(Operation.subtract) })
+    ]
+    let low_digits:UI.View[] = [
+        digit_button("1", func() { calculator.digit(1) }),
+        digit_button("2", func() { calculator.digit(2) }),
+        digit_button("3", func() { calculator.digit(3) }),
+        operation_button("+", func() { calculator.choose(Operation.add) })
+    ]
+    let final_row:UI.View[] = [
+        zero_button(func() { calculator.digit(0) }),
+        digit_button(".", func() { calculator.decimal() }),
+        operation_button("=", func() { calculator.equals() })
+    ]
+
+    let children:UI.View[] = [
+        calculator_header(),
+        calculator_display(calculator),
+        key_row(actions),
+        key_row(high_digits),
+        key_row(middle_digits),
+        key_row(low_digits),
+        key_row(final_row)
+    ]
+    var root = UI.Column(children)
+    root.style.padding = UI.Insets(vertical:22.0, horizontal:24.0)
+    root.style.gap = 12.0
+    root.style.background = Color.bytes(2, 6, 23)
+
+    var session = CalculatorSession(calculator, root)
+    Viewer.show(session, Viewer.CanvasSettings(
+        width:420,
+        height:610,
+        title:"Silex Calculator",
+        background:Color.bytes(2, 6, 23)
+    ))
+}

@@ -8,10 +8,10 @@ owning package.
 
 ## Organization
 
-All demonstrations live under [`Sources/`](Sources/). They are neither grouped
-by package nor placed in subjective categories such as “showcase”,
-“application”, or “interactive”. Each name directly expresses what the
-demonstration shows.
+All demonstrations live under [`Sources/`](Sources/). Focused technical
+demonstrations are named directly after what they show. Complete programs are
+grouped under `Sources/Apps/` and, as the catalog grows, `Sources/Games/` so
+each product can keep its own sources and assets together.
 
 A compact, self-contained demonstration remains a direct file:
 
@@ -27,6 +27,15 @@ entry point:
 Sources/FallingBodies/Main.sx
 Sources/EmbeddedWebView/Main.sx
 Sources/EmbeddedWebView/Web/...
+```
+
+Applications follow the same multi-file convention under their stable group:
+
+```text
+Sources/Apps/Calculator/Main.sx
+Sources/Apps/Calculator/Calculator.sx
+Sources/Apps/Calculator/Interface.sx
+Sources/Apps/Calculator/Session.sx
 ```
 
 Closely related Bundle demonstrations share the stable `Sources/Bundle/`
@@ -78,7 +87,14 @@ Run multi-file demonstrations from the repository root as well:
 silex run Sources/FallingBodies
 silex run Sources/RotatingPhysicsContainer
 silex run Sources/ShapeGallery2D
+silex run Sources/Apps/Calculator
 ```
+
+The calculator accepts mouse input and keyboard calculations. The main number
+row follows the active keyboard layout; the numeric keypad is supported as
+text input. Use `+`, `-`, `*`, `/`, `%`, `.` or `,`, then `Enter` or `=`.
+`Backspace` removes the last digit and `Escape`, `Delete` or `C` clears the
+calculator.
 
 `silex run` discovers the only direct `.sx` file that declares `main` in each
 of these directories. `Main.sx` remains a repository convention rather than a
