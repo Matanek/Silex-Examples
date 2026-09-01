@@ -91,10 +91,9 @@ silex run Sources/Apps/Calculator
 ```
 
 The calculator accepts mouse input and keyboard calculations. The main number
-row follows the active keyboard layout; the numeric keypad is supported as
-text input. Use `+`, `-`, `*`, `/`, `%`, `.` or `,`, then `Enter` or `=`.
-`Backspace` removes the last digit and `Escape`, `Delete` or `C` clears the
-calculator.
+row and the numeric keypad are supported directly. Use `+`, `-`, `*`, `/`,
+`%`, `.` or `,`, then `Enter` or `=`. `Backspace` removes the last digit and
+`Escape`, `Delete` or `C` clears the calculator.
 
 `silex run` discovers the only direct `.sx` file that declares `main` in each
 of these directories. `Main.sx` remains a repository convention rather than a

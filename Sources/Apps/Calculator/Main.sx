@@ -6,7 +6,7 @@ use Module.Calculator.Operation
 use Module.Calculator.verify_calculator
 use Module.Interface.action_button
 use Module.Interface.calculator_display
-use Module.Interface.calculator_header
+use Module.Interface.calculator_title
 use Module.Interface.digit_button
 use Module.Interface.key_row
 use Module.Interface.operation_button
@@ -68,7 +68,7 @@ func main() {
     ]
 
     let children:UI.View[] = [
-        calculator_header(),
+        calculator_title(),
         calculator_display(calculator),
         key_row(actions),
         key_row(high_digits),

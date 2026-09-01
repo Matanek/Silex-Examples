@@ -117,17 +117,10 @@ public func key_row(children:UI.View[]) UI.Row {
     return result
 }
 
-public func calculator_header() UI.Row {
-    var title = UI.Text("Calculator")
-    title.style.grow = 1.0
-    title.style.foreground = Color.slate_100()
-    title.style.font_size = 24.0
-    title.style.font_weight = UI.FontWeight.bold
-
-    var caption = UI.Text("GFX.UI + Canvas")
-    caption.style.foreground = Color.slate_400()
-    caption.style.font_size = 12.0
-
-    let children:UI.View[] = [title, caption]
-    return UI.Row(children, alignment:UI.Alignment.center)
+public func calculator_title() UI.Text {
+    var result = UI.Text("Calculator")
+    result.style.foreground = Color.slate_100()
+    result.style.font_size = 24.0
+    result.style.font_weight = UI.FontWeight.bold
+    return result
 }

@@ -1,4 +1,5 @@
 use STD.Math
+use STD.Text
 
 public enum Operation {
     none
@@ -46,6 +47,9 @@ public class Calculator {
             shown = 0.0
         }
         var result = "$(shown)"
+        if Text.ends_with(result, ".0") {
+            result = Text.slice(result, 0, result.count() - 2)
+        }
         if self.decimal_mode && self.fractional_place == 0.1 {
             result += "."
         }
@@ -198,6 +202,17 @@ public class Calculator {
 
 public func verify_calculator() {
     var calculator = Calculator()
+    assert(calculator.display() == "0", "calculator zero display")
+    calculator.digit(5)
+    assert(calculator.display() == "5", "calculator integer display")
+    calculator.clear()
+    calculator.digit(6)
+    calculator.digit(6)
+    assert(calculator.display() == "66", "calculator multi-digit display")
+    calculator.decimal()
+    assert(calculator.display() == "66.", "calculator decimal separator")
+
+    calculator.clear()
     calculator.digit(1)
     calculator.digit(2)
     calculator.choose(Operation.add)
