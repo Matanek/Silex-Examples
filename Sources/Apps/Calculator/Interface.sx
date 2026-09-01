@@ -58,6 +58,7 @@ func styled_button(
     foreground:Color
 ) UI.Button {
     var result = UI.Button(label, action)
+    result.style.width = 1.0
     result.style.height = 62.0
     result.style.grow = 1.0
     result.style.background = background
@@ -87,12 +88,6 @@ public func digit_button(label:str, action:func()) UI.Button {
     )
 }
 
-public func zero_button(action:func()) UI.Button {
-    var result = digit_button("0", action)
-    result.style.grow = 2.0
-    return result
-}
-
 public func action_button(label:str, action:func()) UI.Button {
     return styled_button(
         label,
@@ -115,6 +110,26 @@ public func key_row(children:UI.View[]) UI.Row {
     var result = UI.Row(children)
     result.style.gap = 10.0
     return result
+}
+
+public func calculator_final_row(
+    zero_action:func(),
+    decimal_action:func(),
+    equals_action:func()
+) UI.Row {
+    let trailing_children:UI.View[] = [
+        digit_button(".", decimal_action),
+        operation_button("=", equals_action)
+    ]
+    var trailing = key_row(trailing_children)
+    trailing.style.width = 1.0
+    trailing.style.grow = 1.0
+
+    let children:UI.View[] = [
+        digit_button("0", zero_action),
+        trailing
+    ]
+    return key_row(children)
 }
 
 public func calculator_title() UI.Text {

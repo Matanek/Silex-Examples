@@ -6,11 +6,11 @@ use Module.Calculator.Operation
 use Module.Calculator.verify_calculator
 use Module.Interface.action_button
 use Module.Interface.calculator_display
+use Module.Interface.calculator_final_row
 use Module.Interface.calculator_title
 use Module.Interface.digit_button
 use Module.Interface.key_row
 use Module.Interface.operation_button
-use Module.Interface.zero_button
 use Module.Session.CalculatorSession
 use Module.Session.verify_calculator_shortcuts
 use STD.Process
@@ -61,12 +61,6 @@ func main() {
         digit_button("3", func() { calculator.digit(3) }),
         operation_button("+", func() { calculator.choose(Operation.add) })
     ]
-    let final_row:UI.View[] = [
-        zero_button(func() { calculator.digit(0) }),
-        digit_button(".", func() { calculator.decimal() }),
-        operation_button("=", func() { calculator.equals() })
-    ]
-
     let children:UI.View[] = [
         calculator_title(),
         calculator_display(calculator),
@@ -74,7 +68,11 @@ func main() {
         key_row(high_digits),
         key_row(middle_digits),
         key_row(low_digits),
-        key_row(final_row)
+        calculator_final_row(
+            func() { calculator.digit(0) },
+            func() { calculator.decimal() },
+            func() { calculator.equals() }
+        )
     ]
     var root = UI.Column(children)
     root.style.padding = UI.Insets(vertical:22.0, horizontal:24.0)
