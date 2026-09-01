@@ -75,18 +75,23 @@ silex run Sources/WebViewBridge.sx
 Run multi-file demonstrations from the repository root as well:
 
 ```sh
-silex run Sources/FallingBodies/Main.sx
-silex run Sources/RotatingPhysicsContainer/Main.sx
-silex run Sources/ShapeGallery2D/Main.sx
+silex run Sources/FallingBodies
+silex run Sources/RotatingPhysicsContainer
+silex run Sources/ShapeGallery2D
 ```
+
+`silex run` discovers the only direct `.sx` file that declares `main` in each
+of these directories. `Main.sx` remains a repository convention rather than a
+special compiler name. Discovery does not descend into subdirectories; if a
+directory contains several entry files, pass the intended `.sx` path
+explicitly.
 
 Their `Module.*` imports are explicitly relative to each source directory. The
 manifest declares `"sources": "Sources"`, so this physical directory does not
 appear in module names: `Sources/FallingBodies/Model.sx` becomes
 `FallingBodies.Model` and remains accessible as
 `Package.FallingBodies.Model`. You can also enter a demonstration directory
-and run `silex run Main.sx`; the parent manifest and its dependencies remain
-active.
+and run `silex run`; the parent manifest and its dependencies remain active.
 
 The Plot gallery presents several pages in sequence. Closing the current
 window opens the next page.
