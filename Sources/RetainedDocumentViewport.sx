@@ -4,7 +4,6 @@ use GFX.Font as VectorFont
 use GFX.Input.Keyboard
 use GFX.UI
 use GFX.Viewer
-use STD.Collections.Dictionary
 use STD.Math
 use STD.Process
 use STD.Text.UTF8
@@ -87,14 +86,17 @@ func has_argument(expected:str) bool {
 }
 
 func verification_mode() bool { return has_argument("--verify") }
+func depth_profile_mode() bool { return has_argument("--profile-depth") }
 
 func automatic_profile_mode() bool {
     return has_argument("--profile-vector") || has_argument("--profile-coverage") ||
-        has_argument("--profile-settle") || has_argument("--profile-wheel")
+        has_argument("--profile-settle") || has_argument("--profile-wheel") ||
+        has_argument("--profile-depth-wheel")
 }
 
 func settle_profile_mode() bool { return has_argument("--profile-settle") }
 func wheel_profile_mode() bool { return has_argument("--profile-wheel") }
+func depth_wheel_profile_mode() bool { return has_argument("--profile-depth-wheel") }
 
 func document_wheel_direction() UI.ScrollWheelDirection {
     if has_argument("--normal-wheel") {
@@ -240,16 +242,20 @@ func preload_document_blocks(lines:@str[]) str[] {
     return blocks
 }
 
+func empty_block_indices(count:int) int[] {
+    var result:int[] = []
+    while result.count() < count { result.append(-1) }
+    return result
+}
+
 class RetainedDocumentBlock {
     var index:int
     var block:Canvas.TextBlock
-    var last_used:int
     var gpu_ready:bool
 
-    init(index:int, block:Canvas.TextBlock, last_used:int, gpu_ready:bool = false) {
+    init(index:int, block:Canvas.TextBlock, gpu_ready:bool = false) {
         self.index = index
         self.block = block
-        self.last_used = last_used
         self.gpu_ready = gpu_ready
     }
 }
@@ -260,8 +266,14 @@ class DocumentContent:UI.Content {
     private var scroll:UI.ScrollState
     private var font:Canvas.Font
     private var blocks:RetainedDocumentBlock[]
-    private var block_indices:Dictionary<int, int>
-    private var block_generation:int = 0
+    // Document block identities are dense and bounded. A direct-address table
+    // keeps lookup cost independent from the amount of prior scrolling.
+    private var block_indices:int[]
+    private var next_block_eviction:int = 0
+    private var block_cache_hits:int = 0
+    private var block_cache_misses:int = 0
+    private var block_cache_evictions:int = 0
+    private var paint_count:int = 0
     private var focused:bool = false
     private var sample_elapsed:float = 0.0
     private var sample_frames:int = 0
@@ -275,6 +287,7 @@ class DocumentContent:UI.Content {
     private let automatic_profile:bool
     private let settle_profile:bool
     private let wheel_profile:bool
+    private let depth_wheel_profile:bool
     private let wheel_direction:UI.ScrollWheelDirection
     private var wheel_target_offset:float
     private var wheel_applied_offset:float
@@ -292,6 +305,7 @@ class DocumentContent:UI.Content {
         automatic_profile:bool = false,
         settle_profile:bool = false,
         wheel_profile:bool = false,
+        depth_wheel_profile:bool = false,
         wheel_direction:UI.ScrollWheelDirection = UI.ScrollWheelDirection.normal
     ) {
         self.lines = lines
@@ -299,12 +313,11 @@ class DocumentContent:UI.Content {
         self.scroll = scroll
         self.font = Canvas.Font.monospace()
         self.blocks = []
-        self.block_indices = Dictionary<int, int>(
-            minimum_capacity:Document.block_cache_capacity
-        )
+        self.block_indices = empty_block_indices(block_values.count())
         self.automatic_profile = automatic_profile
         self.settle_profile = settle_profile
         self.wheel_profile = wheel_profile
+        self.depth_wheel_profile = depth_wheel_profile
         self.wheel_direction = wheel_direction
         self.wheel_target_offset = scroll.offset()
         self.wheel_applied_offset = scroll.offset()
@@ -319,6 +332,7 @@ class DocumentContent:UI.Content {
         frame:Canvas.Rect,
         opacity:float
     ) {
+        self.paint_count++
         painter.fill(
             frame,
             Canvas.Fill.solid(Color.bytes(30, 33, 39).with_alpha(opacity))
@@ -380,13 +394,12 @@ class DocumentContent:UI.Content {
     }
 
     private func retained_block(index:int) RetainedDocumentBlock {
-        self.block_generation++
-        if self.block_indices.contains(index) {
-            let slot_index:int = self.block_indices.get(index) + 0
-            var slot = self.blocks[slot_index]
-            slot.last_used = self.block_generation
-            return slot
+        if self.block_indices[index] >= 0 {
+            self.block_cache_hits++
+            let slot_index = self.block_indices[index]
+            return self.blocks[slot_index]
         }
+        self.block_cache_misses++
         var style = Canvas.TextStyle(
             size:Document.font_size,
             color:Color.slate_200(),
@@ -397,34 +410,30 @@ class DocumentContent:UI.Content {
         if self.blocks.count() < Document.block_cache_capacity {
             var retained = RetainedDocumentBlock(
                 index,
-                block,
-                self.block_generation
+                block
             )
             self.blocks.append(retained)
-            self.block_indices.set(index, self.blocks.count() - 1)
+            self.block_indices[index] = self.blocks.count() - 1
             return retained
         }
-        var selected = 0
-        var candidate = 1
-        while candidate < self.blocks.count() {
-            if self.blocks[candidate].last_used < self.blocks[selected].last_used {
-                selected = candidate
-            }
-            candidate++
-        }
+        // A fixed ring makes eviction O(1); visible blocks are refreshed before
+        // prefetching, so the ring never grows with document traversal depth.
+        let selected = self.next_block_eviction
+        self.next_block_eviction =
+            (self.next_block_eviction + 1) % Document.block_cache_capacity
         let previous_index = self.blocks[selected].index
-        self.block_indices.remove(previous_index)
+        self.block_cache_evictions++
+        self.block_indices[previous_index] = -1
         self.blocks[selected].index = index
         self.blocks[selected].block = block
-        self.blocks[selected].last_used = self.block_generation
         self.blocks[selected].gpu_ready = false
-        self.block_indices.set(index, selected)
+        self.block_indices[index] = selected
         return self.blocks[selected]
     }
 
     private func block_is_ready(index:int) bool {
-        if self.block_indices.contains(index) {
-            let slot_index:int = self.block_indices.get(index) + 0
+        if self.block_indices[index] >= 0 {
+            let slot_index = self.block_indices[index]
             return self.blocks[slot_index].gpu_ready
         }
         return false
@@ -581,6 +590,35 @@ class DocumentContent:UI.Content {
             self.current_visible_rows as float * Document.maximum_target_viewports
         )
     }
+    func jump_to(value:int) bool { return self.move_to(value) }
+    func block_cache_count() int { return self.blocks.count() }
+    func block_cache_index_count() int { return self.blocks.count() }
+    func block_cache_index_is_consistent() bool {
+        var active = 0
+        var index = 0
+        while index < self.block_indices.count() {
+            let slot = self.block_indices[index]
+            if slot >= 0 {
+                if slot >= self.blocks.count() || self.blocks[slot].index != index {
+                    return false
+                }
+                active++
+            }
+            index++
+        }
+        return active == self.blocks.count()
+    }
+    func block_cache_hit_count() int { return self.block_cache_hits }
+    func block_cache_miss_count() int { return self.block_cache_misses }
+    func block_cache_eviction_count() int { return self.block_cache_evictions }
+    func repaint_count() int { return self.paint_count }
+    func ready_block_count() int {
+        var count = 0
+        for block in self.blocks {
+            if block.gpu_ready { count++ }
+        }
+        return count
+    }
 
     private func move_by(distance:int) bool {
         let current = Math.round(self.scroll.offset()) as int
@@ -640,6 +678,9 @@ class DocumentContent:UI.Content {
         if self.wheel_profile {
             return self.advance_wheel_profile(delta)
         }
+        if self.depth_wheel_profile {
+            return self.advance_depth_wheel_profile(delta)
+        }
         let warmup = 30
         let measured = 120
         if self.profile_frames >= warmup {
@@ -695,6 +736,49 @@ class DocumentContent:UI.Content {
         self.profile_elapsed = 0.0
         self.profile_maximum_frame_ms = 0.0
         if self.profile_phase > 3 { self.profile_done = true }
+        return true
+    }
+
+    private func advance_depth_wheel_profile(delta:float) bool {
+        // Revisit both ends after saturation so the profile catches state that
+        // accumulates with traversal history instead of document depth alone.
+        let offsets:int[] = [0, 1_000, 2_000, 3_000, 4_000, 0, 4_000]
+        let measured = 30
+        var changed = false
+        if self.profile_frames == 0 {
+            changed = self.move_to(offsets[self.profile_phase])
+        }
+        var wheel_delta = 1.0
+        if self.wheel_direction == UI.ScrollWheelDirection.normal {
+            wheel_delta = -1.0
+        }
+        changed = self.pointer_scrolled(Math.Vec2(0.0, wheel_delta)) || changed
+        self.profile_elapsed += delta
+        let frame_ms = delta * 1_000.0
+        if frame_ms > self.profile_maximum_frame_ms {
+            self.profile_maximum_frame_ms = frame_ms
+        }
+        self.profile_frames++
+        if self.profile_frames < measured { return changed }
+        let fps = measured as float / self.profile_elapsed
+        print(
+            "SILEX_GFX_DOCUMENT depth_wheel offset=$(self.scroll.offset()) " +
+            "events=$(measured) target_distance=$(self.wheel_target_distance()) " +
+            "fps=$(fps) max_frame_ms=$(self.profile_maximum_frame_ms) " +
+            "cache=$(self.block_cache_count()) index=$(self.block_cache_index_count()) " +
+            "hits=$(self.block_cache_hit_count()) misses=$(self.block_cache_miss_count()) " +
+            "evictions=$(self.block_cache_eviction_count()) repaints=$(self.repaint_count())"
+        )
+        self.profile_phase++
+        self.profile_frames = 0
+        self.profile_elapsed = 0.0
+        self.profile_maximum_frame_ms = 0.0
+        if self.profile_phase >= offsets.count() {
+            assert(self.block_cache_count() == Document.block_cache_capacity)
+            assert(self.block_cache_index_count() == self.block_cache_count())
+            assert(self.block_cache_index_is_consistent())
+            self.profile_done = true
+        }
         return true
     }
 
@@ -978,6 +1062,78 @@ func drawing_text_block_count(drawing:@Canvas) int {
     return count
 }
 
+func profile_document_depth(
+    lines:str[],
+    block_values:str[],
+    scroll:UI.ScrollState,
+    wheel_direction:UI.ScrollWheelDirection
+) {
+    var repeated_values:str[] = []
+    var block_index = 0
+    while block_index < block_values.count() {
+        repeated_values.append(block_values[block_index % 128])
+        block_index++
+    }
+    var content = DocumentContent(
+        lines,
+        repeated_values,
+        scroll,
+        wheel_direction:wheel_direction
+    )
+    var viewport = DocumentView(content)
+    var runtime = UI.Runtime(viewport)
+    var drawing = runtime.drawing(1100, 600)
+    assert(runtime.pointer_pressed(Math.Vec2(10.0, 10.0)))
+    let warm_offsets:int[] = [0, 1_024, 2_048, 3_072]
+    for warm_offset in warm_offsets {
+        content.jump_to(warm_offset)
+        drawing = runtime.drawing(1100, 600)
+        measured_scroll(
+            runtime,
+            Keyboard.Key.page_down,
+            8,
+            false
+        )
+    }
+    assert(content.block_cache_count() == Document.block_cache_capacity)
+    assert(content.block_cache_index_is_consistent())
+    let offsets:int[] = [0, 1_024, 2_048, 3_072, 4_096, 0, 4_096]
+    for requested in offsets {
+        content.jump_to(requested)
+        let hits_before = content.block_cache_hit_count()
+        let misses_before = content.block_cache_miss_count()
+        let evictions_before = content.block_cache_eviction_count()
+        let repaints_before = content.repaint_count()
+        drawing = runtime.drawing(1100, 600)
+        let profile = measured_scroll(
+            runtime,
+            Keyboard.Key.page_down,
+            8,
+            false
+        )
+        drawing = runtime.drawing(1100, 600)
+        var snapshot = drawing.snapshot(1100, 600)
+        var layers = snapshot.text_layers()
+        assert(content.block_cache_count() <= Document.block_cache_capacity)
+        assert(content.block_cache_index_count() == content.block_cache_count())
+        assert(content.block_cache_index_is_consistent())
+        print(
+            "SILEX_GFX_DOCUMENT depth_profile offset=$(scroll.offset()) " +
+            "navigation_steps=8 target_distance=$(content.wheel_target_distance()) " +
+            "repaints=$(content.repaint_count() - repaints_before) " +
+            "ui_ms=$(profile.drawing_ms) snapshot_ms=$(profile.snapshot_ms) " +
+            "prepare_ms=$(profile.preparation_ms) commands=$(drawing.command_count()) " +
+            "text_blocks=$(drawing_text_block_count(drawing)) layers=$(layers.count()) " +
+            "snapshot_id=$(snapshot.id()) text_revision=$(snapshot.text_revision()) " +
+            "cache=$(content.block_cache_count()) " +
+            "index=$(content.block_cache_index_count()) ready=$(content.ready_block_count()) " +
+            "hits=$(content.block_cache_hit_count() - hits_before) " +
+            "misses=$(content.block_cache_miss_count() - misses_before) " +
+            "evictions=$(content.block_cache_eviction_count() - evictions_before)"
+        )
+    }
+}
+
 func verify(
     lines:str[],
     block_values:str[],
@@ -1080,10 +1236,15 @@ func verify(
     )
     assert(runtime.key_pressed(Keyboard.Key.home))
     let page_vector = measured_scroll(runtime, Keyboard.Key.page_down, 20, true)
+    assert(content.block_cache_count() == Document.block_cache_capacity)
+    assert(content.block_cache_index_count() == content.block_cache_count())
+    assert(content.block_cache_index_is_consistent())
     print(
         "SILEX_GFX_DOCUMENT verification=passed commands=$(drawing.command_count()) " +
         "burst_target=$(burst_target_distance) " +
-        "burst_settle_frames=$(burst_settle_frames)"
+        "burst_settle_frames=$(burst_settle_frames) cache=" +
+        "$(content.block_cache_count()) index=$(content.block_cache_index_count()) " +
+        "evictions=$(content.block_cache_eviction_count())"
     )
     print(profile_text("coverage_line", line_coverage))
     print(profile_text("coverage_page", page_coverage))
@@ -1110,6 +1271,10 @@ func main() {
 
     var scroll = UI.ScrollState(Document.line_count as float)
     let wheel_direction = document_wheel_direction()
+    if depth_profile_mode() {
+        profile_document_depth(lines, block_values, scroll, wheel_direction)
+        return
+    }
     if verification_mode() {
         verify(lines, block_values, scroll, wheel_direction)
         return
@@ -1123,6 +1288,7 @@ func main() {
         profiling,
         settle_profile_mode(),
         wheel_profile_mode(),
+        depth_wheel_profile_mode(),
         wheel_direction
     )
     var root = interface(
