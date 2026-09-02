@@ -1,0 +1,49 @@
+use GFX.Assets.PNG
+use GFX.Scene2D
+use Module.BoardView.BoardTile
+use Module.BoardView.board_coordinate
+use Module.BoardView.visible_cell_bound
+use Module.Model.Settings
+use STD.Math
+
+test "map the complete 5 by 4 board atlas used by the presentation" {
+    let image = PNG.decode(embed_bytes("Assets/Board.png"))
+    assert(image.width() == 240 && image.height() == 192)
+    assert(BoardTile.empty == 0)
+    assert(BoardTile.ground == 10)
+    assert(BoardTile.cover == 11)
+    assert(BoardTile.flag == 12)
+    assert(BoardTile.wrong_flag == 13)
+    assert(BoardTile.focus == 14)
+    assert(BoardTile.border == 15)
+    assert(BoardTile.mine == 17)
+    assert(BoardTile.secured_mine == 18)
+}
+
+test "unproject viewport pointers into centered board coordinates" {
+    let viewport = Math.Vec2(800.0)
+    let camera = Scene2D.Camera()
+    let compact = Settings.compact()
+    let compact_transform = Scene2D.Transform(Math.Vec2(192.0))
+    let compact_center = board_coordinate(
+        Math.Vec2(424.0, 376.0), camera, compact_transform, viewport, compact
+    )!
+    assert(compact_center.x == 4 && compact_center.y == 4)
+    assert(board_coordinate(
+        Math.Vec2(207.0, 207.0), camera, compact_transform, viewport, compact
+    ) == null)
+
+    let wide = Settings.huge()
+    let wide_transform = Scene2D.Transform(Math.Vec2(1152.0, 288.0))
+    let wide_center = board_coordinate(
+        Math.Vec2(424.0, 376.0), camera, wide_transform, viewport, wide
+    )!
+    assert(wide_center.x == 24 && wide_center.y == 6)
+}
+
+test "bound renderer preparation to visible cells on the maximum board" {
+    let maximum = Settings(256, 256, 6)
+    assert(maximum.cell_count() == 65_536)
+    assert(visible_cell_bound(Math.Vec2(800.0), 1.0) == 361)
+    assert(visible_cell_bound(Math.Vec2(1600.0, 900.0), 0.5) < maximum.cell_count())
+}

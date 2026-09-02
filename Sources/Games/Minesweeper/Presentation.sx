@@ -1,4 +1,5 @@
 use GFX.Application
+use GFX.Audio as GFXAudio
 use GFX.Canvas
 use GFX.Color
 use GFX.Components
@@ -10,6 +11,22 @@ use GFX.Scene2D
 use GFX.UI
 use GFX.Window
 use Module.Menu.menu
+use Module.BoardView.GameView
+use Module.BoardView.apply_board_result
+use Module.BoardView.board_coordinate
+use Module.BoardView.board_size
+use Module.BoardView.create_board_view
+use Module.BoardView.rebuild_hud
+use Module.BoardView.reset_board_view
+use Module.BoardView.set_board_offset
+use Module.BoardView.update_focus
+use Module.BoardView.update_parallax
+use Module.BoardView.visible_cell_bound
+use Module.Model.ActionResult
+use Module.Model.Board
+use Module.Model.CellState
+use Module.Model.Coordinate
+use Module.Model.GameState
 use Module.Model.Settings
 use Module.Session.GameSession
 use Module.Session.Request
@@ -25,8 +42,21 @@ class MenuLocal {
 }
 
 class GameLocal {
-    var display:ECS.Entity? = null
     var frames:int = 0
+    var seed:int = 1
+    var click:GFXAudio.Sound = GFXAudio.Sound()
+    var flag:GFXAudio.Sound = GFXAudio.Sound()
+    var over:GFXAudio.Sound = GFXAudio.Sound()
+    var victory:GFXAudio.Sound = GFXAudio.Sound()
+    var explosion:GFXAudio.Sound = GFXAudio.Sound()
+    var sounds_loaded:bool = false
+    var terminal_sound:bool = false
+    var shake_remaining:float = 0.0
+    var click_events:int = 0
+    var flag_events:int = 0
+    var over_events:int = 0
+    var victory_events:int = 0
+    var explosion_events:int = 0
 }
 
 public func menu_bundle(bundle:Application.Bundle) Application.Bundle {
@@ -37,8 +67,13 @@ public func menu_bundle(bundle:Application.Bundle) Application.Bundle {
         ..add_system(Application.Schedule.finalize, finalize_menu)
 }
 
-public func game_bundle(bundle:Application.Bundle) Application.Bundle {
+public func game_bundle(
+    bundle:Application.Bundle,
+    settings:Settings
+) Application.Bundle {
     return bundle
+        ..add_resource(Board(settings, 1))
+        ..add_resource(GameView())
         ..add_resource(GameLocal())
         ..add_system(Application.Schedule.startup, start_game)
         ..add_system(Application.Schedule.update, update_game)
@@ -100,7 +135,7 @@ func update_menu(
 
     if session.request() == Request.play {
         session.clear_request()
-        manager.replace(game_bundle(manager.create()))
+        manager.replace(game_bundle(manager.create(), session.settings()))
     } elif session.request() == Request.quit {
         session.clear_request()
         controller.stop()
@@ -158,63 +193,98 @@ func replace_display(
 
 func finalize_menu(session:&GameSession) { session.menu_finalizations++ }
 
-func placeholder_drawing(settings:Settings, size:Math.Vec2) Canvas {
-    var drawing = Canvas()
-    drawing.paint(func(painter:&Canvas.Painter) {
-        painter.fill(
-            Canvas.Rect(Math.Vec2(), size),
-            Canvas.Fill.solid(Color.bytes(7, 12, 24))
-        )
-        painter.text(
-            "PLATEAU $(settings.width) × $(settings.height)",
-            Math.Vec2(size.x * 0.5, size.y * 0.5 - 20.0),
-            Canvas.TextStyle(
-                size:28.0,
-                color:Color.amber_300(),
-                alignment:Canvas.TextAlignment.center,
-                weight:Canvas.TextWeight.bold
-            )
-        )
-        painter.text(
-            "Partie jouable ajoutée à la prochaine tranche\nÉchap pour revenir au menu",
-            Math.Vec2(size.x * 0.5, size.y * 0.5 + 22.0),
-            Canvas.TextStyle(
-                size:14.0,
-                color:Color.slate_300(),
-                alignment:Canvas.TextAlignment.center
-            )
-        )
-    })
-    return drawing
-}
-
 func start_game(
     session:@GameSession,
+    board:@Board,
     window:@Window,
     world:&ECS.World,
+    images:&Resources.Images,
+    audio:&Resources.Audio,
+    camera:&Resources.ViewportCamera2D,
+    view:&GameView,
     presentation:&GameLocal
 ) {
-    let size = window.size()
-    presentation.display = world.spawn(ECS.EntityRecipe()
-        ..with(Components.Transform2D())
-        ..with(Components.Canvas(
-            placeholder_drawing(session.settings(), size),
-            size.x as int,
-            size.y as int
-        )..space = Components.CanvasSpace.viewport)
-    )
+    create_board_view(board.settings(), world, images, view)
+    let size = board_size(board.settings())
+    camera.set_limits(Math.Rect(0.0, 0.0, size.x, size.y))
+    camera.set_position(size.multiply(0.5))
+    presentation.click = audio.load("Assets/Sounds/Click.wav")
+    presentation.flag = audio.load("Assets/Sounds/Flag.wav")
+    presentation.over = audio.load("Assets/Sounds/Over.wav")
+    presentation.victory = audio.load("Assets/Sounds/Victory.wav")
+    presentation.explosion = audio.load("Assets/Sounds/explosion.wav")
+    presentation.sounds_loaded = true
+    rebuild_hud(board, window.size(), world, view)
+    assert(view.layer_count == 6)
+    assert(visible_cell_bound(window.size(), camera.zoom()) < board.settings().cell_count() ||
+        board.settings().cell_count() <= 256)
 }
 
 func update_game(
     session:&GameSession,
+    board:&Board,
     input:@Resources.InputState,
+    time:@Resources.FrameTime,
+    window:@Window,
+    world:&ECS.World,
+    audio:&Resources.Audio,
+    camera:&Resources.ViewportCamera2D,
+    view:&GameView,
     presentation:&GameLocal,
     manager:&Plugins.BundleManager
 ) {
     presentation.frames++
-    if input.is_pressed(Input.Key.escape) ||
-        (session.verification && presentation.frames == 2)
-    {
+    let coordinate = board_coordinate(
+        input.mouse_position(),
+        camera.camera(),
+        camera.transform(),
+        window.size(),
+        board.settings()
+    )
+    if update_focus(coordinate, board, world, view) {
+        play_feedback(audio, presentation.over, session.verification)
+        presentation.over_events++
+    }
+
+    if input.is_pressed(Input.Key.enter) { restart_game(board, world, view, presentation) }
+    if input.is_pressed(Input.Key.escape) { session.show_menu() }
+
+    if let point = coordinate {
+        if input.is_pressed(Input.MouseButton.right) ||
+            (input.is_pressed(Input.MouseButton.left) && input.modifiers().shift)
+        {
+            let result = board.toggle_flag(point.x, point.y)
+            if result.changed_anything() {
+                apply_board_result(board, result, world, view)
+                play_feedback(audio, presentation.flag, session.verification)
+                presentation.flag_events++
+            }
+        } elif input.is_pressed(Input.MouseButton.left) {
+            var result = ActionResult(
+                changed:[], state:board.state(), generated:false, triggered:null
+            )
+            if board.cell(point.x, point.y).state == CellState.revealed {
+                result = board.chord(point.x, point.y)
+            } else {
+                result = board.reveal(point.x, point.y)
+            }
+            if result.changed_anything() {
+                apply_board_result(board, result, world, view)
+                play_feedback(audio, presentation.click, session.verification)
+                presentation.click_events++
+            }
+        }
+    }
+
+    handle_terminal(board, audio, session.verification, presentation)
+    advance_shake(time.delta, world, view, presentation)
+    update_parallax(camera.position(), board.settings(), world, view)
+    rebuild_hud(board, window.size(), world, view)
+
+    if session.verification && presentation.frames == 1 {
+        verify_game_flow(board, world, audio, view, presentation)
+    }
+    if session.verification && presentation.frames == 3 {
         session.show_menu()
     }
     if session.request() == Request.menu {
@@ -223,4 +293,150 @@ func update_game(
     }
 }
 
-func finalize_game(session:&GameSession) { session.game_finalizations++ }
+func restart_game(
+    board:&Board,
+    world:&ECS.World,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    presentation.seed++
+    board.reset(presentation.seed)
+    reset_board_view(board.settings(), world, view)
+    presentation.terminal_sound = false
+    presentation.shake_remaining = 0.0
+    set_board_offset(Math.Vec2(), world, view)
+}
+
+func handle_terminal(
+    board:@Board,
+    audio:&Resources.Audio,
+    muted:bool,
+    presentation:&GameLocal
+) {
+    if presentation.terminal_sound { return }
+    if board.state() == GameState.won {
+        play_feedback(audio, presentation.victory, muted)
+        presentation.victory_events++
+        presentation.terminal_sound = true
+    } elif board.state() == GameState.lost {
+        play_feedback(audio, presentation.explosion, muted)
+        presentation.explosion_events++
+        presentation.shake_remaining = 0.32
+        presentation.terminal_sound = true
+    }
+}
+
+func advance_shake(
+    delta:float,
+    world:&ECS.World,
+    view:@GameView,
+    presentation:&GameLocal
+) {
+    if presentation.shake_remaining <= 0.0 { return }
+    presentation.shake_remaining = Math.max(0.0, presentation.shake_remaining - delta)
+    let intensity = presentation.shake_remaining / 0.32
+    let phase = presentation.frames as float * 2.37
+    set_board_offset(
+        Math.Vec2(Math.sin(phase), Math.cos(phase * 1.41)).multiply(12.0 * intensity),
+        world,
+        view
+    )
+    if presentation.shake_remaining == 0.0 { set_board_offset(Math.Vec2(), world, view) }
+}
+
+func play_feedback(audio:&Resources.Audio, sound:GFXAudio.Sound, muted:bool) {
+    var volume = 1.0
+    if muted { volume = 0.0 }
+    audio.play(sound, GFXAudio.Playback(volume:volume))
+}
+
+func verify_game_flow(
+    board:&Board,
+    world:&ECS.World,
+    audio:&Resources.Audio,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    let opening = board.reveal(0, 0)
+    assert(opening.generated && board.has_generated_mines())
+    apply_board_result(board, opening, world, view)
+    play_feedback(audio, presentation.click, true)
+    presentation.click_events++
+    assert(view.generated && view.changed_cells > 0)
+    if let mine = first_mine(board) {
+        let flagged = board.toggle_flag(mine.x, mine.y)
+        apply_board_result(board, flagged, world, view)
+        play_feedback(audio, presentation.flag, true)
+        presentation.flag_events++
+    }
+    restart_game(board, world, view, presentation)
+    assert(board.state() == GameState.ready && !view.generated)
+
+    let loss_opening = board.reveal(0, 0)
+    apply_board_result(board, loss_opening, world, view)
+    if let mine = first_mine(board) {
+        let loss = board.reveal(mine.x, mine.y)
+        apply_board_result(board, loss, world, view)
+    }
+    assert(board.state() == GameState.lost && board.triggered() != null)
+    handle_terminal(board, audio, true, presentation)
+
+    restart_game(board, world, view, presentation)
+    let victory_opening = board.reveal(0, 0)
+    apply_board_result(board, victory_opening, world, view)
+    let settings = board.settings()
+    var y = 0
+    while y < settings.height {
+        var x = 0
+        while x < settings.width {
+            if !board.cell(x, y).mine {
+                let progress = board.reveal(x, y)
+                apply_board_result(board, progress, world, view)
+            }
+            x++
+        }
+        y++
+    }
+    assert(board.state() == GameState.won)
+    handle_terminal(board, audio, true, presentation)
+    play_feedback(audio, presentation.over, true)
+    presentation.over_events++
+}
+
+func first_mine(board:@Board) Coordinate? {
+    let settings = board.settings()
+    var y = 0
+    while y < settings.height {
+        var x = 0
+        while x < settings.width {
+            if board.cell(x, y).mine { return Coordinate(x:x, y:y) }
+            x++
+        }
+        y++
+    }
+    return null
+}
+
+func finalize_game(
+    session:&GameSession,
+    audio:&Resources.Audio,
+    camera:&Resources.ViewportCamera2D,
+    presentation:&GameLocal
+) {
+    camera.clear_limits()
+    if presentation.sounds_loaded {
+        assert(audio.unload(presentation.click))
+        assert(audio.unload(presentation.flag))
+        assert(audio.unload(presentation.over))
+        assert(audio.unload(presentation.victory))
+        assert(audio.unload(presentation.explosion))
+    }
+    if session.verification {
+        assert(presentation.click_events == 1)
+        assert(presentation.flag_events == 1)
+        assert(presentation.over_events == 1)
+        assert(presentation.victory_events == 1)
+        assert(presentation.explosion_events == 1)
+    }
+    session.game_finalizations++
+}

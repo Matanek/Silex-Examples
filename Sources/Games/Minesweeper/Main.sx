@@ -1,5 +1,6 @@
 use GFX.Application
 use GFX.Color
+use GFX.Input
 use GFX.Plugins
 use GFX.Window
 use Module.Presentation.menu_bundle
@@ -37,6 +38,18 @@ func main() {
             ..clear = Color.bytes(7, 12, 24)
         ))
         ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.ViewportCamera2D(
+            Plugins.ViewportCamera2D.Settings()
+                ..position = Math.Vec2(192.0)
+                ..min_zoom = 0.25
+                ..max_zoom = 2.0
+                ..overscroll = Math.Vec2(100.0)
+                ..controls = Plugins.ViewportCamera2DControls(
+                    pan:Input.MouseButton.middle,
+                    scroll:Plugins.ViewportCamera2DScroll.pan
+                )
+        ))
+        ..add_plugin(Plugins.Audio())
         ..add_plugin(Plugins.Time())
         ..add_plugin(Plugins.BundleManager(initial))
         ..add_after_system(Application.Schedule.startup, configure_window)
