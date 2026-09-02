@@ -73,6 +73,7 @@ silex run Sources/ComposedSystemTerminal.sx
 silex run Sources/ApplicationCommandConsole.sx
 silex run Sources/GeneratedHTMLWebView.sx
 silex run Sources/BoidsSimulation.sx
+silex run Sources/CanvasProjection3D.sx
 silex run Sources/FPSStatsPanel.sx
 silex run Sources/PerformanceStatsPanel.sx
 silex run Sources/PlotGallery.sx

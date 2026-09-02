@@ -1,0 +1,118 @@
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+
+func panel_art() Canvas {
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Circle(Math.Vec2(64.0, 52.0), 36.0),
+            Canvas.Fill.with_brush(Canvas.Brush.linear(
+                Math.Vec2(28.0, 52.0),
+                Math.Vec2(100.0, 52.0),
+                Color.cyan_300(),
+                Color.blue_600()
+            ))
+        )
+        painter.text(
+            "3D",
+            Math.Vec2(46.0, 60.0),
+            Canvas.TextStyle(size:24.0, color:Color.white())
+        )
+    })
+    return drawing
+}
+
+func overlay_art() Canvas {
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.layer(
+            [Canvas.Effect.shadow(
+                Math.Vec2(8.0, 6.0),
+                7.0,
+                Color.black().with_alpha(0.55)
+            )],
+            func(layer:&Canvas.Painter) {
+                layer.fill(
+                    Canvas.Circle(Math.Vec2(46.0, 48.0), 24.0),
+                    Canvas.Fill.solid(Color.rose_400())
+                )
+            }
+        )
+        painter.text(
+            "2D graphical shadow",
+            Math.Vec2(82.0, 54.0),
+            Canvas.TextStyle(size:18.0, color:Color.white())
+        )
+    })
+    return drawing
+}
+
+func create_demo(world:&Resources.World, meshes:&Resources.Meshes3D) {
+    var overlay = overlay_art()
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:Math.Vec2(24.0, 24.0)))
+        ..with(Components.Canvas(overlay, 320, 96)
+            ..space = Components.CanvasSpace.viewport
+            ..pivot = Math.Vec2()
+            ..layer = 10
+        )
+    )
+
+    var panel = panel_art()
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.0, 0.8, 0.0)))
+        ..with(Scene3D.CanvasPanel(
+            panel,
+            Canvas.Rect(Math.Vec2(), Math.Vec2(128.0, 104.0)),
+            1.5,
+            Math.Vec2(2.46, 2.0)
+        ))
+        ..with(Scene3D.CanvasPanelMaterial(
+            roughness:0.68,
+            alpha:Scene3D.AlphaMode.mask,
+            alpha_cutoff:0.08
+        ))
+    )
+
+    let receiver = meshes.add(Scene3D.Geometry.Plane.make(Math.Vec2(5.5, 4.0)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.0, 0.0, -0.8)))
+        ..with(Components.Mesh3D(receiver, casts_shadows:false))
+        ..with(Components.Material3D(
+            albedo:Color.slate_500(),
+            roughness:0.92
+        ))
+        ..with(Components.MaterialSettings3D(double_sided:true))
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.SunLight3D(
+            direction:Math.Vec3(0.35, -0.45, -1.0).normalized(),
+            intensity:4.0
+        ))
+    )
+}
+
+func main() {
+    Application()
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Canvas — 2D graphical shadow vs 3D projected shadow"
+            ..width = 1100
+            ..height = 720
+        ))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(0.0, 0.5, 0.0)
+            ..distance = 6.0
+            ..pitch = Math.radians(-8.0)
+        ))
+        ..add_system(Application.Schedule.startup, create_demo)
+        ..run()
+}
