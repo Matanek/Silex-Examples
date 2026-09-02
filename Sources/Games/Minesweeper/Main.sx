@@ -2,7 +2,9 @@ use GFX.Application
 use GFX.Color
 use GFX.Input
 use GFX.Plugins
+use GFX.Resources
 use GFX.Window
+use Module.Assets.load_visual_assets
 use Module.Presentation.menu_bundle
 use Module.Session.GameSession
 use STD.Math
@@ -25,9 +27,8 @@ func configure_window(window:&Window) {
 func main() {
     let verification = verification_mode()
     var session = GameSession(verification)
-    var application = Application()..add_resource(session)
-    var initial = menu_bundle(Application.Bundle(application))
-    application
+    var application = Application()
+        ..add_resource(session)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
             ..title = "Minesweeper"
             ..width = 800
@@ -54,8 +55,20 @@ func main() {
         ))
         ..add_plugin(Plugins.Audio())
         ..add_plugin(Plugins.Time())
-        ..add_plugin(Plugins.BundleManager(initial))
+        ..add_plugin(Plugins.BundleManager())
         ..add_after_system(Application.Schedule.startup, configure_window)
+
+    application.prepare()
+    {
+        var resources = application.resources()
+        var images:&Resources.Images = resources.get_mut<Resources.Images>()
+        application.add_resource(load_visual_assets(images))
+    }
+    {
+        var resources = application.resources()
+        var manager:&Plugins.BundleManager = resources.get_mut<Plugins.BundleManager>()
+        manager.add(menu_bundle(manager.create()))
+    }
 
     assert(application.run() == 0)
     if verification {

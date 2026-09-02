@@ -1,6 +1,5 @@
 use GFX.Application
 use GFX.Audio as GFXAudio
-use GFX.Assets.PNG
 use GFX.Canvas
 use GFX.Color
 use GFX.Components
@@ -10,17 +9,21 @@ use GFX.Plugins
 use GFX.Resources
 use GFX.Scene2D
 use GFX.Window
+use Module.Assets.VisualAssets
 use Module.Menu.interact_menu
 use Module.Menu.menu_drawing
 use Module.Menu.menu_hit_test
 use Module.BoardView.GameView
+use Module.BoardView.apply_board_changes
 use Module.BoardView.apply_board_result
 use Module.BoardView.board_coordinate
 use Module.BoardView.board_size
 use Module.BoardView.create_board_view
+use Module.BoardView.finish_board_result
 use Module.BoardView.rebuild_hud
 use Module.BoardView.reset_board_view
 use Module.BoardView.set_board_offset
+use Module.BoardView.sync_generated_board
 use Module.BoardView.update_focus
 use Module.BoardView.update_parallax
 use Module.BoardView.visible_cell_bound
@@ -64,6 +67,12 @@ class GameLocal {
     var over_events:int = 0
     var victory_events:int = 0
     var explosion_events:int = 0
+    var reveal_queue:ActionResult[]
+    var reveal_cursor:int = 0
+    var reveal_batch:int = 0
+    var reveal_elapsed:float = 0.0
+
+    init() { self.reveal_queue = [] }
 }
 
 public func menu_bundle(bundle:Application.Bundle) Application.Bundle {
@@ -91,15 +100,15 @@ func start_menu(
     session:&GameSession,
     window:@Window,
     world:&ECS.World,
-    images:&Resources.Images,
+    assets:@VisualAssets,
     camera:&Resources.ViewportCamera2D,
     presentation:&MenuLocal
 ) {
     camera.clear_limits()
     camera.set_zoom(1.0)
     session.menu_visits++
-    create_menu_background(world, images, camera, presentation)
-    create_menu_decorations(world, images, camera, presentation)
+    create_menu_background(world, assets, camera, presentation)
+    create_menu_decorations(world, assets, camera, presentation)
     update_menu_background(window.size(), camera, world, presentation)
     assert(presentation.background != null)
     assert(presentation.decorations.count() == 12)
@@ -170,13 +179,12 @@ func update_menu(
 
 func create_menu_background(
     world:&ECS.World,
-    images:&Resources.Images,
+    assets:@VisualAssets,
     camera:@Resources.ViewportCamera2D,
     presentation:&MenuLocal
 ) {
-    let image = images.add(PNG.load("Assets/Background.png"))
     var sprite = Components.Sprite2D(
-        image,
+        assets.background,
         size:Math.Vec2(1600.0, 1200.0),
         color:Color.bytes(93, 222, 140, 118),
         layer:-20
@@ -206,16 +214,15 @@ func update_menu_background(
 
 func create_menu_decorations(
     world:&ECS.World,
-    images:&Resources.Images,
+    assets:@VisualAssets,
     camera:@Resources.ViewportCamera2D,
     presentation:&MenuLocal
 ) {
-    let mine = images.add(PNG.load("Assets/Mine.png"))
     var index = 0
     while index < 12 {
         let size = 112.0 + (index % 5) as float * 36.0
         var sprite = Components.Sprite2D(
-            mine,
+            assets.mine,
             size:Math.Vec2(size),
             color:Color.bytes(255, 255, 255, 112 + (index % 4) as uint8 * 18),
             layer:-5
@@ -323,17 +330,16 @@ func finalize_menu(session:&GameSession, presentation:@MenuLocal) {
 }
 
 func start_game(
-    session:@GameSession,
     board:@Board,
     window:@Window,
     world:&ECS.World,
-    images:&Resources.Images,
+    assets:@VisualAssets,
     audio:&Resources.Audio,
     camera:&Resources.ViewportCamera2D,
     view:&GameView,
     presentation:&GameLocal
 ) {
-    create_board_view(board.settings(), world, images, view)
+    create_board_view(board.settings(), world, assets, view)
     let size = board_size(board.settings())
     camera.set_limits(Math.Rect(0.0, 0.0, size.x, size.y))
     camera.set_position(size.multiply(0.5))
@@ -378,34 +384,39 @@ func update_game(
     if input.is_pressed(Input.Key.enter) { restart_game(board, world, view, presentation) }
     if input.is_pressed(Input.Key.escape) { session.show_menu() }
 
-    if let point = coordinate {
-        if input.is_pressed(Input.MouseButton.right) ||
-            (input.is_pressed(Input.MouseButton.left) && input.modifiers().shift)
-        {
-            let result = board.toggle_flag(point.x, point.y)
-            if result.changed_anything() {
-                apply_board_result(board, result, world, view)
-                play_feedback(audio, presentation.flag, session.verification)
-                presentation.flag_events++
-            }
-        } elif input.is_pressed(Input.MouseButton.left) {
-            var result = ActionResult(
-                changed:[], state:board.state(), generated:false, triggered:null
-            )
-            if board.cell(point.x, point.y).state == CellState.revealed {
-                result = board.chord(point.x, point.y)
-            } else {
-                result = board.reveal(point.x, point.y)
-            }
-            if result.changed_anything() {
-                apply_board_result(board, result, world, view)
-                play_feedback(audio, presentation.click, session.verification)
-                presentation.click_events++
+    if !is_revealing(presentation) {
+        if let point = coordinate {
+            if input.is_pressed(Input.MouseButton.right) ||
+                (input.is_pressed(Input.MouseButton.left) && input.modifiers().shift)
+            {
+                let result = board.toggle_flag(point.x, point.y)
+                if result.changed_anything() {
+                    apply_board_result(board, result, world, view)
+                    play_feedback(audio, presentation.flag, session.verification)
+                    presentation.flag_events++
+                }
+            } elif input.is_pressed(Input.MouseButton.left) {
+                var result = ActionResult(
+                    changed:[], state:board.state(), generated:false, triggered:null
+                )
+                if board.cell(point.x, point.y).state == CellState.revealed {
+                    result = board.chord(point.x, point.y)
+                } else {
+                    result = board.reveal(point.x, point.y)
+                }
+                if result.changed_anything() {
+                    present_board_result(board, move result, world, view, presentation)
+                    play_feedback(audio, presentation.click, session.verification)
+                    presentation.click_events++
+                }
             }
         }
     }
 
-    handle_terminal(board, audio, session.verification, presentation)
+    advance_reveal(time.delta, board, world, view, presentation)
+    if !is_revealing(presentation) {
+        handle_terminal(board, audio, session.verification, presentation)
+    }
     advance_shake(time.delta, world, view, presentation)
     update_parallax(camera.position(), board.settings(), world, view)
     rebuild_hud(board, window.size(), world, view)
@@ -433,7 +444,91 @@ func restart_game(
     reset_board_view(board.settings(), world, view)
     presentation.terminal_sound = false
     presentation.shake_remaining = 0.0
+    presentation.reveal_queue = []
+    presentation.reveal_cursor = 0
+    presentation.reveal_batch = 0
+    presentation.reveal_elapsed = 0.0
     set_board_offset(Math.Vec2(), world, view)
+}
+
+public func reveal_batch_size(changed:int) int {
+    if changed <= 0 { return 0 }
+    return (changed + 44) / 45
+}
+
+func is_revealing(presentation:@GameLocal) bool {
+    if presentation.reveal_queue.is_empty() { return false }
+    return presentation.reveal_cursor < presentation.reveal_queue[0].changed.count()
+}
+
+func present_board_result(
+    board:@Board,
+    result:ActionResult,
+    world:&ECS.World,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    if result.generated { sync_generated_board(board, world, view) }
+    let changed_count = result.changed.count()
+    if result.state == GameState.lost || changed_count <= 1 {
+        apply_board_changes(board, result.changed, 0, changed_count, world, view)
+        finish_board_result(board, result.state, world, view)
+        return
+    }
+    presentation.reveal_cursor = 0
+    presentation.reveal_batch = reveal_batch_size(changed_count)
+    presentation.reveal_elapsed = 0.0
+    presentation.reveal_queue.append(move result)
+    reveal_next_batch(board, world, view, presentation)
+}
+
+func advance_reveal(
+    delta:float,
+    board:@Board,
+    world:&ECS.World,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    if !is_revealing(presentation) { return }
+    presentation.reveal_elapsed += Math.max(0.0, delta)
+    while presentation.reveal_elapsed >= 0.01 && is_revealing(presentation) {
+        presentation.reveal_elapsed -= 0.01
+        reveal_next_batch(board, world, view, presentation)
+    }
+}
+
+func reveal_next_batch(
+    board:@Board,
+    world:&ECS.World,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    let remaining = presentation.reveal_queue[0].changed.count() - presentation.reveal_cursor
+    let count = bounded_reveal_count(presentation.reveal_batch, remaining)
+    {
+        let pending:@ActionResult = @presentation.reveal_queue[0]
+        apply_board_changes(
+            board,
+            pending.changed,
+            presentation.reveal_cursor,
+            count,
+            world,
+            view
+        )
+    }
+    presentation.reveal_cursor += count
+    if !is_revealing(presentation) {
+        finish_board_result(board, board.state(), world, view)
+        presentation.reveal_queue.take(0)
+        presentation.reveal_cursor = 0
+        presentation.reveal_batch = 0
+        presentation.reveal_elapsed = 0.0
+    }
+}
+
+func bounded_reveal_count(batch:int, remaining:int) int {
+    if batch > remaining { return remaining }
+    return batch
 }
 
 func handle_terminal(

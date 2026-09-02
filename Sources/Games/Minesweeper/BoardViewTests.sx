@@ -4,6 +4,7 @@ use Module.BoardView.BoardTile
 use Module.BoardView.board_coordinate
 use Module.BoardView.visible_cell_bound
 use Module.Model.Settings
+use Module.Presentation.reveal_batch_size
 use STD.Math
 
 test "map the complete 5 by 4 board atlas used by the presentation" {
@@ -46,4 +47,14 @@ test "bound renderer preparation to visible cells on the maximum board" {
     assert(maximum.cell_count() == 65_536)
     assert(visible_cell_bound(Math.Vec2(800.0), 1.0) == 361)
     assert(visible_cell_bound(Math.Vec2(1600.0, 900.0), 0.5) < maximum.cell_count())
+}
+
+test "bound progressive reveal waves for compact and maximum openings" {
+    assert(reveal_batch_size(0) == 0)
+    assert(reveal_batch_size(1) == 1)
+    assert(reveal_batch_size(45) == 1)
+    assert(reveal_batch_size(46) == 2)
+    let maximum = 256 * 256
+    let batch = reveal_batch_size(maximum)
+    assert((maximum + batch - 1) / batch <= 45)
 }
