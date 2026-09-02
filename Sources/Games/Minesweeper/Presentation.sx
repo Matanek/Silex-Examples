@@ -1,4 +1,5 @@
 use GFX.Application
+use GFX.Animation
 use GFX.Audio as GFXAudio
 use GFX.Canvas
 use GFX.Color
@@ -26,6 +27,10 @@ use Module.BoardView.set_board_offset
 use Module.BoardView.sync_generated_board
 use Module.BoardView.update_focus
 use Module.BoardView.update_parallax
+use Module.EndPopup.end_popup_drawing
+use Module.EndPopup.end_popup_hit_test
+use Module.EndPopup.end_popup_opacity_animation
+use Module.EndPopup.end_popup_scale_animation
 use Module.Model.ActionResult
 use Module.Model.Board
 use Module.Model.CellState
@@ -70,8 +75,19 @@ class GameLocal {
     var reveal_cursor:int = 0
     var reveal_batch:int = 0
     var reveal_elapsed:float = 0.0
+    var terminal_overlay:ECS.Entity? = null
+    var terminal_won:bool = false
+    var terminal_hovered:str = "background"
+    var terminal_width:int = 0
+    var terminal_height:int = 0
+    var terminal_scale:Animation.Tween<float>
+    var terminal_opacity:Animation.Tween<float>
 
-    init() { self.reveal_queue = [] }
+    init() {
+        self.reveal_queue = []
+        self.terminal_scale = end_popup_scale_animation()
+        self.terminal_opacity = end_popup_opacity_animation()
+    }
 }
 
 static struct CameraNavigation {
@@ -372,7 +388,10 @@ func update_game(
     manager:&Plugins.BundleManager
 ) {
     presentation.frames++
-    navigate_camera(input, time.delta, window.size(), camera)
+    let terminal_before_input = is_terminal(board.state())
+    if !terminal_before_input {
+        navigate_camera(input, time.delta, window.size(), camera)
+    }
     let coordinate = board_coordinate(
         input.mouse_position(),
         camera.camera(),
@@ -380,15 +399,22 @@ func update_game(
         window.size(),
         board.settings()
     )
-    if update_focus(coordinate, board, world, view) {
+    if !terminal_before_input && update_focus(coordinate, board, world, view) {
         play_feedback(audio, presentation.over, session.verification)
         presentation.over_events++
     }
 
-    if input.is_pressed(Input.Key.enter) { restart_game(board, world, view, presentation) }
+    if input.is_pressed(Input.Key.enter) {
+        restart_game(board, world, camera, view, presentation)
+    }
     if input.is_pressed(Input.Key.escape) { session.show_menu() }
 
-    if !is_revealing(presentation) {
+    if is_terminal(board.state()) {
+        ensure_terminal_popup(board, window.size(), world, presentation)
+        interact_terminal_popup(
+            session, board, input, window.size(), world, camera, view, presentation
+        )
+    } elif !is_revealing(presentation) {
         if let point = coordinate {
             if input.is_pressed(Input.MouseButton.right) ||
                 (input.is_pressed(Input.MouseButton.left) && input.modifiers().shift)
@@ -420,13 +446,24 @@ func update_game(
     advance_reveal(time.delta, board, world, view, presentation)
     if !is_revealing(presentation) {
         handle_terminal(board, audio, session.verification, presentation)
+        if is_terminal(board.state()) {
+            ensure_terminal_popup(board, window.size(), world, presentation)
+        }
     }
+    advance_terminal_popup(time.delta, window.size(), world, presentation)
     advance_shake(time.delta, world, view, presentation)
     update_parallax(camera.position(), board.settings(), world, view)
     rebuild_hud(board, window.size(), world, view)
 
     if session.verification && presentation.frames == 1 {
-        verify_game_flow(board, world, audio, view, presentation)
+        verify_game_flow(board, world, audio, camera, view, presentation)
+    }
+    if session.verification && presentation.frames == 2 {
+        assert(presentation.terminal_overlay != null)
+        assert(presentation.terminal_won)
+        if let entity = presentation.terminal_overlay {
+            assert(world.is_alive(entity))
+        }
     }
     if session.verification && presentation.frames == 3 {
         session.show_menu()
@@ -487,6 +524,7 @@ public func camera_navigation_direction(
 func restart_game(
     board:&Board,
     world:&ECS.World,
+    camera:&Resources.ViewportCamera2D,
     view:&GameView,
     presentation:&GameLocal
 ) {
@@ -499,7 +537,144 @@ func restart_game(
     presentation.reveal_cursor = 0
     presentation.reveal_batch = 0
     presentation.reveal_elapsed = 0.0
+    clear_terminal_popup(world, presentation)
     set_board_offset(Math.Vec2(), world, view)
+    camera.set_position(board_size(board.settings()).multiply(0.5))
+}
+
+func is_terminal(state:GameState) bool {
+    return state == GameState.won || state == GameState.lost
+}
+
+func ensure_terminal_popup(
+    board:@Board,
+    viewport:Math.Vec2,
+    world:&ECS.World,
+    presentation:&GameLocal
+) {
+    if let entity = presentation.terminal_overlay {
+        if world.is_alive(entity) { return }
+    }
+    presentation.terminal_won = board.state() == GameState.won
+    presentation.terminal_hovered = "background"
+    presentation.terminal_scale = end_popup_scale_animation()
+    presentation.terminal_opacity = end_popup_opacity_animation()
+    spawn_terminal_popup(viewport, world, presentation)
+}
+
+func spawn_terminal_popup(
+    viewport:Math.Vec2,
+    world:&ECS.World,
+    presentation:&GameLocal
+) {
+    let width = viewport.x as int
+    let height = viewport.y as int
+    if width <= 0 || height <= 0 { return }
+    let hovered = "$(presentation.terminal_hovered)"
+    var drawing = end_popup_drawing(
+        presentation.terminal_won,
+        viewport,
+        hovered
+    )
+    let scale = presentation.terminal_scale.value()
+    let opacity = presentation.terminal_opacity.value()
+    presentation.terminal_overlay = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(scale:Math.Vec2(scale)))
+        ..with(Components.Canvas(drawing, width, height)
+            ..size = viewport
+            ..space = Components.CanvasSpace.viewport
+            ..anchor = Math.Vec2(0.5)
+            ..pivot = Math.Vec2(0.5)
+            ..color = Color.white().with_alpha(opacity)
+            ..layer = 100
+            ..text_mode = Scene2D.CanvasTextMode.coverage
+        )
+    )
+    presentation.terminal_width = width
+    presentation.terminal_height = height
+}
+
+func advance_terminal_popup(
+    delta:float,
+    viewport:Math.Vec2,
+    world:&ECS.World,
+    presentation:&GameLocal
+) {
+    if presentation.terminal_overlay == null { return }
+    let width = viewport.x as int
+    let height = viewport.y as int
+    if width != presentation.terminal_width || height != presentation.terminal_height {
+        if let entity = presentation.terminal_overlay {
+            if world.is_alive(entity) { world.destroy(entity) }
+        }
+        presentation.terminal_overlay = null
+        spawn_terminal_popup(viewport, world, presentation)
+    }
+    if presentation.terminal_scale.finished() &&
+        presentation.terminal_opacity.finished()
+    {
+        return
+    }
+    let elapsed = Math.max(0.0, delta)
+    let scale = presentation.terminal_scale.advance(elapsed)
+    let opacity = presentation.terminal_opacity.advance(elapsed)
+    if let entity = presentation.terminal_overlay {
+        if world.is_alive(entity) {
+            world.update<Components.Transform2D>(entity, func(transform:&Components.Transform2D) {
+                transform.scale = Math.Vec2(scale)
+            })
+            world.update<Components.Canvas>(entity, func(canvas:&Components.Canvas) {
+                canvas.color = Color.white().with_alpha(opacity)
+            })
+        }
+    }
+}
+
+func interact_terminal_popup(
+    session:&GameSession,
+    board:&Board,
+    input:@Resources.InputState,
+    viewport:Math.Vec2,
+    world:&ECS.World,
+    camera:&Resources.ViewportCamera2D,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    if !presentation.terminal_scale.finished() ||
+        !presentation.terminal_opacity.finished()
+    {
+        return
+    }
+    let hovered = end_popup_hit_test(input.mouse_position(), viewport)
+    if hovered != presentation.terminal_hovered {
+        presentation.terminal_hovered = hovered
+        if let entity = presentation.terminal_overlay {
+            if world.is_alive(entity) {
+                var drawing = end_popup_drawing(
+                    presentation.terminal_won, viewport, hovered
+                )
+                world.update<Components.Canvas>(entity, func(canvas:&Components.Canvas) {
+                    canvas.replace(drawing)
+                })
+            }
+        }
+    }
+    if !input.is_pressed(Input.MouseButton.left) { return }
+    if hovered == "restart" {
+        restart_game(board, world, camera, view, presentation)
+    } elif hovered == "menu" {
+        session.show_menu()
+    }
+}
+
+func clear_terminal_popup(world:&ECS.World, presentation:&GameLocal) {
+    if let entity = presentation.terminal_overlay {
+        if world.is_alive(entity) { world.destroy(entity) }
+    }
+    presentation.terminal_overlay = null
+    presentation.terminal_hovered = "background"
+    presentation.terminal_width = 0
+    presentation.terminal_height = 0
 }
 
 public func reveal_batch_size(changed:int) int {
@@ -629,6 +804,7 @@ func verify_game_flow(
     board:&Board,
     world:&ECS.World,
     audio:&Resources.Audio,
+    camera:&Resources.ViewportCamera2D,
     view:&GameView,
     presentation:&GameLocal
 ) {
@@ -644,7 +820,7 @@ func verify_game_flow(
         play_feedback(audio, presentation.flag, true)
         presentation.flag_events++
     }
-    restart_game(board, world, view, presentation)
+    restart_game(board, world, camera, view, presentation)
     assert(board.state() == GameState.ready && !view.generated)
 
     let loss_opening = board.reveal(0, 0)
@@ -656,7 +832,7 @@ func verify_game_flow(
     assert(board.state() == GameState.lost && board.triggered() != null)
     handle_terminal(board, audio, true, presentation)
 
-    restart_game(board, world, view, presentation)
+    restart_game(board, world, camera, view, presentation)
     let victory_opening = board.reveal(0, 0)
     apply_board_result(board, victory_opening, world, view)
     let settings = board.settings()

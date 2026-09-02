@@ -1,0 +1,35 @@
+use Package.Games.Minesweeper.EndPopup.EndPopupLayout
+use Package.Games.Minesweeper.EndPopup.end_popup_hit_test
+use Package.Games.Minesweeper.EndPopup.end_popup_opacity_animation
+use Package.Games.Minesweeper.EndPopup.end_popup_scale_animation
+use Package.Games.Minesweeper.EndPopup.end_popup_symbol
+use STD.Math
+
+test "center the terminal popup and expose both actions" {
+    let viewport = Math.Vec2(1_280.0, 800.0)
+    let layout = EndPopupLayout.calculate(viewport)
+    assert(layout.card.center() == viewport.multiply(0.5))
+    assert(layout.card.x >= 0.0 && layout.card.y >= 0.0)
+    assert(layout.card.maximum().x <= viewport.x)
+    assert(layout.card.maximum().y <= viewport.y)
+    assert(end_popup_hit_test(layout.restart.center(), viewport) == "restart")
+    assert(end_popup_hit_test(layout.menu.center(), viewport) == "menu")
+    assert(end_popup_hit_test(Math.Vec2(), viewport) == "background")
+}
+
+test "bounce the popup scale while fading it in" {
+    var scale = end_popup_scale_animation()
+    var opacity = end_popup_opacity_animation()
+    assert(scale.value() == 0.55)
+    assert(opacity.value() == 0.0)
+    assert(scale.advance(0.20) > 0.55)
+    assert(opacity.advance(0.20) == 1.0)
+    assert(opacity.finished())
+    assert(scale.advance(1.0) == 1.0)
+    assert(scale.finished())
+}
+
+test "provide a readable terminal symbol with or without emoji coverage" {
+    assert(end_popup_symbol(true) != "")
+    assert(end_popup_symbol(false) != "")
+}

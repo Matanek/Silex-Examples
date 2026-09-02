@@ -102,8 +102,11 @@ Choose a grid from 4×4 through 256×256, a difficulty from 1 through 6, a
 preset, or one of the Fit actions, then press **JOUER**. Left-click reveals or
 chords, right-click and Shift-left-click toggle a flag, middle drag and
 two-axis scroll move large boards, `Page Up`/`Page Down` zoom, `Enter` restarts
-with the same settings, and `Escape` returns to the menu. From the parent
-Silex workspace, the equivalent explicit command is:
+with the same settings, and `Escape` returns to the menu. A centered terminal
+popup keeps the finished board visible after a victory or defeat, enters with
+a scale-and-opacity bounce, and offers **RECOMMENCER** or **MENU**. It uses the
+pixel face's celebration or crying emoji when covered and a crisp ASCII face
+otherwise. From the parent Silex workspace, the equivalent explicit command is:
 
 ```sh
 silex run Silex-Examples/Sources/Games/Minesweeper
