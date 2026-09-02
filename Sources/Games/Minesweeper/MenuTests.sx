@@ -1,5 +1,7 @@
 use Module.Menu.MenuLayout
+use Module.Menu.interact_menu
 use Module.Session.GameSession
+use Module.Session.Request
 use STD.Math
 
 test "round every menu setting into the canonical model" {
@@ -32,14 +34,36 @@ test "preserve one dimension across the three fit actions" {
     assert(session.settings().height == 12)
 }
 
-test "stack compact controls and keep actions inside the centered card" {
+test "center the Godot-sized menu card and keep every action inside it" {
     let compact = MenuLayout.calculate(Math.Vec2(600.0, 700.0))
     let wide = MenuLayout.calculate(Math.Vec2(1_280.0, 800.0))
     assert(compact.compact)
     assert(!wide.compact)
     assert(compact.card.x >= 0.0 && compact.card.maximum().x <= 600.0)
+    assert(wide.card.w == 416.0 && wide.card.h == 616.0)
     assert(wide.card.center().x == 640.0)
+    assert(wide.card.center().y == 400.0)
     assert(compact.hit_test(compact.play.center()) == "play")
     assert(wide.hit_test(wide.quit.center()) == "quit")
     assert(wide.hit_test(Math.Vec2()) == "background")
+}
+
+test "drive dimensions, difficulty and play from canvas hit regions" {
+    var session = GameSession()
+    let viewport = Math.Vec2(1_280.0, 800.0)
+    let layout = MenuLayout.calculate(viewport)
+    let initial_width = session.settings().width
+    assert(interact_menu(session, layout.width_plus.center(), viewport, false))
+    assert(session.settings().width == initial_width + 4)
+    assert(interact_menu(session, layout.preset_3.center(), viewport, false))
+    assert(session.settings().width == 48 && session.settings().height == 12)
+    assert(interact_menu(
+        session,
+        Math.Vec2(layout.difficulty.maximum().x - 1.0, layout.difficulty.center().y),
+        viewport,
+        true
+    ))
+    assert(session.settings().difficulty == 6)
+    assert(interact_menu(session, layout.play.center(), viewport, false))
+    assert(session.request() == Request.play)
 }

@@ -9,9 +9,10 @@ use GFX.Input
 use GFX.Plugins
 use GFX.Resources
 use GFX.Scene2D
-use GFX.UI
 use GFX.Window
-use Module.Menu.menu
+use Module.Menu.interact_menu
+use Module.Menu.menu_drawing
+use Module.Menu.menu_hit_test
 use Module.BoardView.GameView
 use Module.BoardView.apply_board_result
 use Module.BoardView.board_coordinate
@@ -34,13 +35,14 @@ use Module.Session.Request
 use STD.Math
 
 class MenuLocal {
-    var interface:UI.Session? = null
     var display:ECS.Entity? = null
+    var background:ECS.Entity? = null
     var width:int = 0
     var height:int = 0
     var revision:int = 0
     var frames:int = 0
     var decoration_time:float = 0.0
+    var hovered:str = "background"
     var decorations:ECS.Entity[]
 
     init() { self.decorations = [] }
@@ -96,8 +98,11 @@ func start_menu(
     camera.clear_limits()
     camera.set_zoom(1.0)
     session.menu_visits++
+    create_menu_background(world, images, camera, presentation)
     create_menu_decorations(world, images, camera, presentation)
-    assert(presentation.decorations.count() == 5)
+    update_menu_background(window.size(), camera, world, presentation)
+    assert(presentation.background != null)
+    assert(presentation.decorations.count() == 12)
     rebuild_menu(session, window, world, presentation)
 }
 
@@ -117,11 +122,20 @@ func update_menu(
     animate_menu_decorations(window.size(), camera, world, presentation)
     if input.is_pressed(Input.Key.escape) { session.quit() }
     var changed = false
-    if var interface = presentation.interface {
-        changed = interface.update(time.delta)
-        for event in input.events() {
-            changed = interface.handle(event) || changed
-        }
+
+    let size = window.size()
+    let resized = size.x as int != presentation.width ||
+        size.y as int != presentation.height
+    if resized { update_menu_background(size, camera, world, presentation) }
+    let hovered = menu_hit_test(input.mouse_position(), size)
+    if hovered != presentation.hovered {
+        presentation.hovered = hovered
+        changed = true
+    }
+    if input.is_pressed(Input.MouseButton.left) {
+        changed = interact_menu(session, input.mouse_position(), size, false) || changed
+    } elif input.is_down(Input.MouseButton.left) && hovered == "difficulty" {
+        changed = interact_menu(session, input.mouse_position(), size, true) || changed
     }
 
     if session.verification && presentation.frames == 1 &&
@@ -140,9 +154,7 @@ func update_menu(
         else { session.quit() }
     }
 
-    let size = window.size()
-    if changed || session.revision() != presentation.revision ||
-        size.x as int != presentation.width || size.y as int != presentation.height
+    if changed || session.revision() != presentation.revision || resized
     {
         rebuild_menu(session, window, world, presentation)
     }
@@ -156,6 +168,42 @@ func update_menu(
     }
 }
 
+func create_menu_background(
+    world:&ECS.World,
+    images:&Resources.Images,
+    camera:@Resources.ViewportCamera2D,
+    presentation:&MenuLocal
+) {
+    let image = images.add(PNG.load("Assets/Background.png"))
+    var sprite = Components.Sprite2D(
+        image,
+        size:Math.Vec2(1600.0, 1200.0),
+        color:Color.bytes(93, 222, 140, 118),
+        layer:-20
+    )
+    presentation.background = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:camera.position()))
+        ..with(sprite)
+    )
+}
+
+func update_menu_background(
+    viewport:Math.Vec2,
+    camera:@Resources.ViewportCamera2D,
+    world:&ECS.World,
+    presentation:@MenuLocal
+) {
+    if let entity = presentation.background {
+        let scale = Math.max(viewport.x / 1600.0, viewport.y / 1200.0) * 1.25
+        world.update<Components.Transform2D>(entity, func(transform:&Components.Transform2D) {
+            transform.position = camera.position()
+        })
+        world.update<Components.Sprite2D>(entity, func(sprite:&Components.Sprite2D) {
+            sprite.size = Math.Vec2(1600.0 * scale, 1200.0 * scale)
+        })
+    }
+}
+
 func create_menu_decorations(
     world:&ECS.World,
     images:&Resources.Images,
@@ -164,11 +212,12 @@ func create_menu_decorations(
 ) {
     let mine = images.add(PNG.load("Assets/Mine.png"))
     var index = 0
-    while index < 5 {
+    while index < 12 {
+        let size = 112.0 + (index % 5) as float * 36.0
         var sprite = Components.Sprite2D(
             mine,
-            size:Math.Vec2(58.0 + index as float * 5.0),
-            color:Color.bytes(255, 255, 255, 132),
+            size:Math.Vec2(size),
+            color:Color.bytes(255, 255, 255, 112 + (index % 4) as uint8 * 18),
             layer:-5
         )
         sprite.sampling(Scene2D.Sampling.pixelated)
@@ -189,15 +238,30 @@ func animate_menu_decorations(
     let time = presentation.decoration_time
     var index = 0
     for entity in presentation.decorations {
-        var side = 1.0
-        if index % 2 == 0 { side = -1.0 }
-        let x = side * (viewport.x * 0.37 + index as float * 14.0)
-        let y = (index - 2) as float * 118.0 + Math.sin(time * 0.8 + index as float) * 24.0
-        let position = camera.position().add(Math.Vec2(x, y))
-        let rotation = time * (0.12 + index as float * 0.025) * side
+        let staggered = time / 5.0 + index as float / 12.0
+        let cycle = Math.floor(staggered)
+        let progress = staggered - cycle
+        let angle = index as float * 2.399 + cycle * 1.137
+        let radius = Math.max(viewport.x, viewport.y) * (0.72 + (index % 3) as float * 0.08)
+        let origin = camera.position().add(Math.Vec2(
+            Math.cos(angle) * radius,
+            Math.sin(angle) * radius
+        ))
+        let position = origin.mix(camera.position(), progress)
+        let rotation = angle + progress * 1.8
+        let screen_scale = viewport.y / 800.0
+        let base_size = (112.0 + (index % 5) as float * 36.0) * screen_scale
+        var scale = progress / 0.14
+        if progress >= 0.14 { scale = (1.0 - progress) / 0.86 }
+        scale = Math.clamp(scale, 0.0, 1.0)
+        let opacity = scale * 0.68
         world.update<Components.Transform2D>(entity, func(transform:&Components.Transform2D) {
             transform.position = position
             transform.rotation = rotation
+        })
+        world.update<Components.Sprite2D>(entity, func(sprite:&Components.Sprite2D) {
+            sprite.size = Math.Vec2(base_size * scale)
+            sprite.color = Color.white().with_alpha(opacity)
         })
         index++
     }
@@ -213,9 +277,8 @@ func rebuild_menu(
     let width = size.x as int
     let height = size.y as int
     if width <= 0 || height <= 0 { return }
-    var interface = UI.Session(menu(session, size))
-    var drawing = interface.drawing(width, height)
-    presentation.interface = interface
+    let hovered = "$(presentation.hovered)"
+    var drawing = menu_drawing(session, size, hovered)
     replace_display(world, presentation, drawing, width, height, size)
     presentation.revision = session.revision()
 }
@@ -245,6 +308,7 @@ func replace_display(
         ..with(Components.Canvas(drawing, width, height)
             ..size = size
             ..space = Components.CanvasSpace.viewport
+            ..pivot = Math.Vec2()
             ..text_mode = Scene2D.CanvasTextMode.coverage
         )
     )
@@ -253,7 +317,8 @@ func replace_display(
 }
 
 func finalize_menu(session:&GameSession, presentation:@MenuLocal) {
-    assert(presentation.decorations.count() == 5)
+    assert(presentation.background != null)
+    assert(presentation.decorations.count() == 12)
     session.menu_finalizations++
 }
 
@@ -279,7 +344,7 @@ func start_game(
     presentation.explosion = audio.load("Assets/Sounds/explosion.wav")
     presentation.sounds_loaded = true
     rebuild_hud(board, window.size(), world, view)
-    assert(view.layer_count == 6)
+    assert(view.layer_count == 7)
     assert(visible_cell_bound(window.size(), camera.zoom()) < board.settings().cell_count() ||
         board.settings().cell_count() <= 256)
 }
@@ -393,7 +458,7 @@ func handle_terminal(
 func advance_shake(
     delta:float,
     world:&ECS.World,
-    view:@GameView,
+    view:&GameView,
     presentation:&GameLocal
 ) {
     if presentation.shake_remaining <= 0.0 { return }

@@ -43,6 +43,7 @@ public class GameView {
     var hud_height:int = 0
     var layer_count:int = 0
     var changed_cells:int = 0
+    var background_camera_position:Math.Vec2 = Math.Vec2()
 }
 
 public func board_size(settings:Settings) Math.Vec2 {
@@ -84,6 +85,7 @@ public func create_board_view(
     let background_image = images.add(PNG.load("Assets/Background.png"))
     let atlas = Scene2D.TileAtlas(board_image, 48, 48)
     let size = board_size(settings)
+    view.background_camera_position = size.multiply(0.5)
 
     var background = Components.Sprite2D(
         background_image,
@@ -122,12 +124,27 @@ public func create_board_view(
     focus.layer = 5
     view.focus = spawn_layer(world, focus)
 
-    view.border = world.spawn(ECS.EntityRecipe()
-        ..with(Components.Transform2D())
-        ..with(Components.Canvas(border_drawing(size), size.x as int, size.y as int)
-            ..layer = 6)
+    var border = Components.TileMap2D(
+        atlas,
+        settings.width + 2,
+        settings.height + 2
     )
-    view.layer_count = 6
+    border.layer = 6
+    var border_y = 0
+    while border_y < border.rows() {
+        var border_x = 0
+        while border_x < border.columns() {
+            if border_x == 0 || border_y == 0 ||
+                border_x == border.columns() - 1 || border_y == border.rows() - 1
+            {
+                border.set(border_x, border_y, BoardTile.border)
+            }
+            border_x++
+        }
+        border_y++
+    }
+    view.border = spawn_layer_at(world, border, Math.Vec2(-48.0))
+    view.layer_count = 7
 }
 
 public func sync_generated_board(
@@ -284,7 +301,7 @@ public func reset_board_view(
 public func set_board_offset(
     offset:Math.Vec2,
     world:&ECS.World,
-    view:@GameView
+    view:&GameView
 ) {
     set_entity_offset(world, view.ground, offset)
     set_entity_offset(world, view.mines, offset)
@@ -292,15 +309,19 @@ public func set_board_offset(
     set_entity_offset(world, view.covers, offset)
     set_entity_offset(world, view.flags, offset)
     set_entity_offset(world, view.focus, offset)
-    set_entity_offset(world, view.border, offset)
+    set_entity_offset(world, view.border, offset.add(Math.Vec2(-48.0)))
 }
 
 public func update_parallax(
     camera_position:Math.Vec2,
     settings:Settings,
     world:&ECS.World,
-    view:@GameView
+    view:&GameView
 ) {
+    if camera_position.x == view.background_camera_position.x &&
+        camera_position.y == view.background_camera_position.y
+    { return }
+    view.background_camera_position = camera_position
     if let entity = view.background {
         let center = board_size(settings).multiply(0.5)
         let position = center.add(camera_position.subtract(center).multiply(0.05))
@@ -311,8 +332,16 @@ public func update_parallax(
 }
 
 func spawn_layer(world:&ECS.World, layer:Components.TileMap2D) ECS.Entity {
+    return spawn_layer_at(world, layer, Math.Vec2())
+}
+
+func spawn_layer_at(
+    world:&ECS.World,
+    layer:Components.TileMap2D,
+    position:Math.Vec2
+) ECS.Entity {
     return world.spawn(ECS.EntityRecipe()
-        ..with(Components.Transform2D())
+        ..with(Components.Transform2D(position:position))
         ..with(layer)
     )
 }
@@ -385,17 +414,6 @@ func sync_terminal_board(
 func coordinate_is_different(value:Coordinate?, expected:Coordinate) bool {
     if let point = value { return point.x != expected.x || point.y != expected.y }
     return true
-}
-
-func border_drawing(size:Math.Vec2) Canvas {
-    var drawing = Canvas()
-    drawing.paint(func(painter:&Canvas.Painter) {
-        painter.stroke(
-            Canvas.Rect(Math.Vec2(), size),
-            Canvas.Stroke(Color.amber_500(), 8.0)
-        )
-    })
-    return drawing
 }
 
 func hud_text(board:@Board) str {

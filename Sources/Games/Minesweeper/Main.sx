@@ -32,10 +32,13 @@ func main() {
             ..title = "Minesweeper"
             ..width = 800
             ..height = 800
+            ..fullscreen = !verification
             ..hidden = verification
         ))
+        ..add_plugin(Plugins.FramePacing(60))
         ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
             ..clear = Color.bytes(7, 12, 24)
+            ..antialiasing = Plugins.RenderingAntialiasing.none
         ))
         ..add_plugin(Plugins.Scene2D())
         ..add_plugin(Plugins.ViewportCamera2D(
