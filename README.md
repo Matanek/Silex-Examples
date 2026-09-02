@@ -113,10 +113,11 @@ The source tree includes `--verify` for a hidden deterministic menu, loss,
 victory, audio-event, renderer-budget, bundle-finalization, and clean-exit
 smoke run.
 
-The game consumes `Board.png`, `Mine.png`, `m3x6.ttf`, and all five WAV files
-directly. `Background.jpg` is the retained source artwork; its checked-in
-`Background.png` conversion is the runtime texture because the current public
-asset decoder is PNG-specific.
+The game consumes `Board.png`, `Mine.png`, and all five WAV files directly.
+The menu and HUD share the bundled `GFX.Font` pixel face exposed by
+`Font.Face.pixel()` (Departure Mono, including French accents). `Background.jpg`
+is the retained source artwork; its checked-in `Background.png` conversion is
+the runtime texture because the current public asset decoder is PNG-specific.
 
 `silex run` discovers the only direct `.sx` file that declares `main` in each
 of these directories. `Main.sx` remains a repository convention rather than a

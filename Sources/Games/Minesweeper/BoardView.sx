@@ -10,6 +10,7 @@ use Module.Model.CellState
 use Module.Model.Coordinate
 use Module.Model.GameState
 use Module.Model.Settings
+use Module.Typography.Typography
 use STD.Math
 
 public static struct BoardTile {
@@ -456,7 +457,7 @@ func hud_text(board:@Board) str {
 
 func hud_drawing(board:@Board, viewport:Math.Vec2) Canvas {
     let label = hud_text(board)
-    var font = Canvas.Font("Assets/Fonts/m3x6.ttf")
+    var font = Typography.pixel()
     var drawing = Canvas()
     drawing.paint(func(painter:&Canvas.Painter) {
         painter.fill(

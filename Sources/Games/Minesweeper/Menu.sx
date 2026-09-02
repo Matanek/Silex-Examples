@@ -1,6 +1,7 @@
 use GFX.Canvas
 use GFX.Color
 use Module.Session.GameSession
+use Module.Typography.Typography
 use STD.Math
 
 public struct MenuLayout {
@@ -187,8 +188,7 @@ public func interact_menu(
 public func menu_drawing(session:@GameSession, viewport:Math.Vec2, hovered:str) Canvas {
     let layout = MenuLayout.calculate(viewport)
     let settings = session.settings()
-    var font = Canvas.Font("Assets/Fonts/m3x6.ttf")
-    var control_font = Canvas.Font.default()
+    var font = Typography.pixel()
     var drawing = Canvas()
     drawing.paint(func(painter:&Canvas.Painter) {
         painter.fill(canvas_rect(layout.card, 0.0), Canvas.Fill.solid(Color.bytes(43, 73, 62)))
@@ -200,23 +200,23 @@ public func menu_drawing(session:@GameSession, viewport:Math.Vec2, hovered:str) 
         centered_text(
             painter, font,
             "$(settings.mine_count()) mines for $(settings.cell_count()) cases",
-            layout.recap, 48.0 * layout.scale, Color.white()
+            layout.recap, 24.0 * layout.scale, Color.white()
         )
 
         centered_label(
             painter, font, "Dimensions", layout.card.center().x,
             layout.card.y + 145.0 * layout.scale, layout.scale
         )
-        value_box(painter, control_font, layout.width_value, settings.width, hovered, "width")
-        value_box(painter, control_font, layout.height_value, settings.height, hovered, "height")
+        value_box(painter, font, layout.width_value, settings.width, hovered, "width")
+        value_box(painter, font, layout.height_value, settings.height, hovered, "height")
 
-        small_button(painter, control_font, layout.fit_width, "FIT WIDTH", hovered == "fit_width")
-        small_button(painter, control_font, layout.fit_screen, "FIT SCREEN", hovered == "fit_screen")
-        small_button(painter, control_font, layout.fit_height, "FIT HEIGHT", hovered == "fit_height")
-        small_button(painter, control_font, layout.preset_0, "8x8", hovered == "preset_0")
-        small_button(painter, control_font, layout.preset_1, "16x8", hovered == "preset_1")
-        small_button(painter, control_font, layout.preset_2, "32x8", hovered == "preset_2")
-        small_button(painter, control_font, layout.preset_3, "48x12", hovered == "preset_3")
+        small_button(painter, font, layout.fit_width, "FIT WIDTH", hovered == "fit_width")
+        small_button(painter, font, layout.fit_screen, "FIT SCREEN", hovered == "fit_screen")
+        small_button(painter, font, layout.fit_height, "FIT HEIGHT", hovered == "fit_height")
+        small_button(painter, font, layout.preset_0, "8x8", hovered == "preset_0")
+        small_button(painter, font, layout.preset_1, "16x8", hovered == "preset_1")
+        small_button(painter, font, layout.preset_2, "32x8", hovered == "preset_2")
+        small_button(painter, font, layout.preset_3, "48x12", hovered == "preset_3")
 
         centered_label(
             painter, font, "Difficulty", layout.card.center().x,
@@ -224,7 +224,7 @@ public func menu_drawing(session:@GameSession, viewport:Math.Vec2, hovered:str) 
         )
         draw_slider(painter, layout.difficulty, settings.difficulty)
         centered_text(
-            painter, control_font,
+            painter, font,
             "Demean : [Left click]\nFlag : [Right click] or [Left click + Shift]",
             Math.Rect(
                 layout.card.x + 20.0 * layout.scale,
@@ -238,12 +238,12 @@ public func menu_drawing(session:@GameSession, viewport:Math.Vec2, hovered:str) 
         large_button(
             painter, font, layout.play, "PLAY",
             Color.bytes(77, 170, 132), Color.bytes(135, 199, 173),
-            hovered == "play", 48.0 * layout.scale, layout.scale
+            hovered == "play", 24.0 * layout.scale, layout.scale
         )
         large_button(
             painter, font, layout.quit, "QUIT",
             Color.bytes(248, 170, 96), Color.bytes(255, 228, 120),
-            hovered == "quit", 48.0 * layout.scale, layout.scale
+            hovered == "quit", 24.0 * layout.scale, layout.scale
         )
     })
     return drawing
@@ -344,7 +344,7 @@ func centered_label(
         label,
         Math.Vec2(x, y),
         Canvas.TextStyle(
-            size:48.0 * scale,
+            size:24.0 * scale,
             color:Color.bytes(60, 163, 112),
             alignment:Canvas.TextAlignment.center,
             font:font

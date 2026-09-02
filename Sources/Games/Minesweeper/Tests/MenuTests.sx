@@ -5,7 +5,23 @@ use Package.Games.Minesweeper.Main.prepare_window
 use Package.Games.Minesweeper.Main.window_settings
 use Package.Games.Minesweeper.Session.GameSession
 use Package.Games.Minesweeper.Session.Request
+use Package.Games.Minesweeper.Typography.Typography
 use STD.Math
+
+test "use the bundled accented pixel face throughout Minesweeper" {
+    var font = Typography.pixel()
+    var reused = Typography.pixel()
+    var face = font.face()
+    var reused_face = reused.face()
+    assert(font == reused)
+    if family = face.family_name() {
+        assert(family == "Departure Mono")
+    } else { panic("missing pixel font family") }
+    assert(face.identity() == reused_face.identity())
+    assert(face.supports(0x00e9 as uint32))
+    assert(face.supports(0x00e7 as uint32))
+    assert(face.supports(0x0153 as uint32))
+}
 
 test "enter native fullscreen only after the hidden render surface is ready" {
     let normal = window_settings(false)
