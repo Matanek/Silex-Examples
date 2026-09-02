@@ -73,12 +73,27 @@ test "round every menu setting into the canonical model" {
     assert(session.settings().width == 20)
     assert(session.settings().height == 16)
     assert(session.settings().difficulty == 6)
-    assert(session.summary() == "120 mines pour 20 × 16 cases")
+    assert(session.case_summary() == "320 cases")
+    assert(session.mine_summary() == "120 mines")
 
     session.adjust_width(-20)
     session.adjust_height(100)
     assert(session.settings().width == 4)
     assert(session.settings().height == 256)
+}
+
+test "fit maximum case and mine summaries on separate recap lines" {
+    var font = Typography.pixel()
+    var drawing = Canvas()
+    var style = Canvas.TextStyle(size:24.0, font:font)
+    var session = GameSession()
+    session.set_width(256.0)
+    session.set_height(256.0)
+    session.set_difficulty(6.0)
+    assert(session.case_summary() == "65536 cases")
+    assert(session.mine_summary() == "24576 mines")
+    assert(drawing.measure_text(session.case_summary(), style).width <= 350.0)
+    assert(drawing.measure_text(session.mine_summary(), style).width <= 350.0)
 }
 
 test "preserve one dimension across the three fit actions" {

@@ -35,10 +35,8 @@ public class GameSession {
     func show_menu() { self.pending = Request.menu }
     func quit() { self.pending = Request.quit }
 
-    func summary() str {
-        let settings = self.current_settings
-        return "$(settings.mine_count()) mines pour $(settings.width) × $(settings.height) cases"
-    }
+    func case_summary() str { return "$(self.current_settings.cell_count()) cases" }
+    func mine_summary() str { return "$(self.current_settings.mine_count()) mines" }
 
     func set_width(value:float) {
         self.replace(Settings(

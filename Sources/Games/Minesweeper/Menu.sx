@@ -198,9 +198,20 @@ public func menu_drawing(session:@GameSession, viewport:Math.Vec2, hovered:str) 
         )
         painter.fill(canvas_rect(layout.recap, 0.0), Canvas.Fill.solid(Color.bytes(60, 163, 112, 46)))
         centered_text(
-            painter, font,
-            "$(settings.mine_count()) mines for $(settings.cell_count()) cases",
-            layout.recap, 24.0 * layout.scale, Color.white()
+            painter, font, session.case_summary(),
+            Math.Rect(
+                layout.recap.x, layout.recap.y + 11.0 * layout.scale,
+                layout.recap.w, 32.0 * layout.scale
+            ),
+            24.0 * layout.scale, Color.white()
+        )
+        centered_text(
+            painter, font, session.mine_summary(),
+            Math.Rect(
+                layout.recap.x, layout.recap.y + 55.0 * layout.scale,
+                layout.recap.w, 32.0 * layout.scale
+            ),
+            24.0 * layout.scale, Color.white()
         )
 
         centered_label(
