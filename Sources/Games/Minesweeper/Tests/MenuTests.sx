@@ -1,5 +1,4 @@
 use GFX.Window
-use GFX.Window.Display
 use Package.Games.Minesweeper.Menu.MenuLayout
 use Package.Games.Minesweeper.Menu.interact_menu
 use Package.Games.Minesweeper.Main.prepare_window
@@ -8,9 +7,9 @@ use Package.Games.Minesweeper.Session.GameSession
 use Package.Games.Minesweeper.Session.Request
 use STD.Math
 
-test "start borderless at the final display geometry without native fullscreen" {
+test "enter native fullscreen only after the hidden render surface is ready" {
     let normal = window_settings(false)
-    assert(normal.borderless)
+    assert(!normal.borderless)
     assert(!normal.fullscreen)
     assert(!normal.resizable)
     assert(!normal.hidden)
@@ -26,14 +25,13 @@ test "start borderless at the final display geometry without native fullscreen" 
         width:800,
         height:800,
         resizable:false,
-        borderless:true,
+        borderless:false,
         hidden:true
     ))
     prepare_window(false, window)
-    var displays = Display.Displays()
-    let bounds = displays.info(window.display()).bounds
-    assert(window.position() == Math.Vec2(bounds.x, bounds.y))
-    assert(window.size() == Math.Vec2(bounds.w, bounds.h))
+    assert(window.is_fullscreen())
+    assert(window.state().fullscreen)
+    assert(!window.state().visible)
 }
 
 test "round every menu setting into the canonical model" {
