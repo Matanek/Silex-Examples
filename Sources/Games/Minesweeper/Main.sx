@@ -77,6 +77,7 @@ func main() {
                 ..min_zoom = 0.25
                 ..max_zoom = 2.0
                 ..overscroll = Math.Vec2(100.0)
+                ..scroll_pan_sensitivity = 20.0
                 ..controls = Plugins.ViewportCamera2DControls(
                     pan:Input.MouseButton.middle,
                     scroll:Plugins.ViewportCamera2DScroll.pan
