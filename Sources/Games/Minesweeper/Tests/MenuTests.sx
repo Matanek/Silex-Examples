@@ -1,8 +1,40 @@
+use GFX.Window
+use GFX.Window.Display
 use Package.Games.Minesweeper.Menu.MenuLayout
 use Package.Games.Minesweeper.Menu.interact_menu
+use Package.Games.Minesweeper.Main.prepare_window
+use Package.Games.Minesweeper.Main.window_settings
 use Package.Games.Minesweeper.Session.GameSession
 use Package.Games.Minesweeper.Session.Request
 use STD.Math
+
+test "start borderless at the final display geometry without native fullscreen" {
+    let normal = window_settings(false)
+    assert(normal.borderless)
+    assert(!normal.fullscreen)
+    assert(!normal.resizable)
+    assert(!normal.hidden)
+
+    let verification = window_settings(true)
+    assert(!verification.borderless)
+    assert(!verification.fullscreen)
+    assert(verification.resizable)
+    assert(verification.hidden)
+
+    var window = Window(Window.Settings(
+        title:"Minesweeper startup test",
+        width:800,
+        height:800,
+        resizable:false,
+        borderless:true,
+        hidden:true
+    ))
+    prepare_window(false, window)
+    var displays = Display.Displays()
+    let bounds = displays.info(window.display()).bounds
+    assert(window.position() == Math.Vec2(bounds.x, bounds.y))
+    assert(window.size() == Math.Vec2(bounds.w, bounds.h))
+}
 
 test "round every menu setting into the canonical model" {
     var session = GameSession()

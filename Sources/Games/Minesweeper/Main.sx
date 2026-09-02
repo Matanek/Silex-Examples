@@ -4,6 +4,7 @@ use GFX.Input
 use GFX.Plugins
 use GFX.Resources
 use GFX.Window
+use GFX.Window.Display
 use Module.Assets.load_visual_assets
 use Module.Presentation.menu_bundle
 use Module.Session.GameSession
@@ -20,8 +21,32 @@ func verification_mode() bool {
     return false
 }
 
-func configure_window(window:&Window) {
-    window.set_minimum_size(Math.Vec2(560.0, 620.0))
+package func window_settings(verification:bool) Plugins.Window.Settings {
+    return Plugins.Window.Settings()
+        ..title = "Minesweeper"
+        ..width = 800
+        ..height = 800
+        ..resizable = verification
+        ..fullscreen = false
+        ..borderless = !verification
+        ..hidden = verification
+}
+
+package func prepare_window(verification:bool, window:&Window) {
+    assert(!window.state().visible)
+    if verification {
+        window.set_minimum_size(Math.Vec2(560.0, 620.0))
+        return
+    }
+    var displays = Display.Displays()
+    let bounds = displays.info(window.display()).bounds
+    window.set_position(Math.Vec2(bounds.x, bounds.y))
+    window.resize(Math.Vec2(bounds.w, bounds.h))
+    window.sync()
+}
+
+func configure_window(session:@GameSession, window:&Window) {
+    prepare_window(session.verification, window)
 }
 
 func main() {
@@ -29,13 +54,7 @@ func main() {
     var session = GameSession(verification)
     var application = Application()
         ..add_resource(session)
-        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
-            ..title = "Minesweeper"
-            ..width = 800
-            ..height = 800
-            ..fullscreen = !verification
-            ..hidden = verification
-        ))
+        ..add_plugin(Plugins.Window(window_settings(verification)))
         ..add_plugin(Plugins.FramePacing(60))
         ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
             ..clear = Color.bytes(7, 12, 24)
@@ -56,7 +75,7 @@ func main() {
         ..add_plugin(Plugins.Audio())
         ..add_plugin(Plugins.Time())
         ..add_plugin(Plugins.BundleManager())
-        ..add_after_system(Application.Schedule.startup, configure_window)
+        ..add_system(Application.Schedule.startup, configure_window)
 
     application.prepare()
     {
