@@ -74,6 +74,11 @@ class GameLocal {
     init() { self.reveal_queue = [] }
 }
 
+static struct CameraNavigation {
+    let edge_margin:float = 32.0
+    let speed:float = 900.0
+}
+
 public func menu_bundle(bundle:Application.Bundle) Application.Bundle {
     return bundle
         ..add_resource(MenuLocal())
@@ -367,6 +372,7 @@ func update_game(
     manager:&Plugins.BundleManager
 ) {
     presentation.frames++
+    navigate_camera(input, time.delta, window.size(), camera)
     let coordinate = board_coordinate(
         input.mouse_position(),
         camera.camera(),
@@ -429,6 +435,53 @@ func update_game(
         session.clear_request()
         manager.replace(menu_bundle(manager.create()))
     }
+}
+
+func navigate_camera(
+    input:@Resources.InputState,
+    delta:float,
+    viewport:Math.Vec2,
+    camera:&Resources.ViewportCamera2D
+) {
+    let direction = camera_navigation_direction(
+        input.mouse_position(),
+        viewport,
+        input.is_down(Input.Key.left),
+        input.is_down(Input.Key.right),
+        input.is_down(Input.Key.up),
+        input.is_down(Input.Key.down)
+    )
+    if direction == Math.Vec2() { return }
+    camera.pan(Math.Vec2(-direction.x, direction.y).multiply(
+        CameraNavigation.speed * Math.max(0.0, delta)
+    ))
+}
+
+public func camera_navigation_direction(
+    pointer:Math.Vec2,
+    viewport:Math.Vec2,
+    left:bool,
+    right:bool,
+    up:bool,
+    down:bool
+) Math.Vec2 {
+    var direction = Math.Vec2()
+    if left != right {
+        if left { direction.x = -1.0 } else { direction.x = 1.0 }
+    } elif pointer.x <= CameraNavigation.edge_margin {
+        direction.x = -1.0
+    } elif pointer.x >= viewport.x - CameraNavigation.edge_margin {
+        direction.x = 1.0
+    }
+    if up != down {
+        if up { direction.y = 1.0 } else { direction.y = -1.0 }
+    } elif pointer.y <= CameraNavigation.edge_margin {
+        direction.y = 1.0
+    } elif pointer.y >= viewport.y - CameraNavigation.edge_margin {
+        direction.y = -1.0
+    }
+    if direction == Math.Vec2() { return direction }
+    return direction.normalized()
 }
 
 func restart_game(

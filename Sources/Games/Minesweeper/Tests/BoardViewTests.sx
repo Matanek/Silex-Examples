@@ -4,6 +4,7 @@ use Package.Games.Minesweeper.BoardView.BoardTile
 use Package.Games.Minesweeper.BoardView.board_coordinate
 use Package.Games.Minesweeper.BoardView.visible_cell_bound
 use Package.Games.Minesweeper.Model.Settings
+use Package.Games.Minesweeper.Presentation.camera_navigation_direction
 use Package.Games.Minesweeper.Presentation.reveal_batch_size
 use STD.Math
 
@@ -57,4 +58,26 @@ test "bound progressive reveal waves for compact and maximum openings" {
     let maximum = 256 * 256
     let batch = reveal_batch_size(maximum)
     assert((maximum + batch - 1) / batch <= 45)
+}
+
+test "navigate a bounded board from screen edges and arrow keys" {
+    let viewport = Math.Vec2(1_280.0, 800.0)
+    assert(camera_navigation_direction(
+        viewport.multiply(0.5), viewport, false, false, false, false
+    ) == Math.Vec2())
+    assert(camera_navigation_direction(
+        Math.Vec2(0.0, 400.0), viewport, false, false, false, false
+    ) == Math.Vec2(-1.0, 0.0))
+    assert(camera_navigation_direction(
+        Math.Vec2(1_279.0, 400.0), viewport, false, false, false, false
+    ) == Math.Vec2(1.0, 0.0))
+    assert(camera_navigation_direction(
+        Math.Vec2(640.0, 0.0), viewport, false, false, false, false
+    ) == Math.Vec2(0.0, 1.0))
+    assert(camera_navigation_direction(
+        viewport.multiply(0.5), viewport, true, false, true, false
+    ).nearly_equal(Math.Vec2(-1.0, 1.0).normalized()))
+    assert(camera_navigation_direction(
+        Math.Vec2(1_279.0, 400.0), viewport, true, false, false, false
+    ) == Math.Vec2(-1.0, 0.0))
 }
