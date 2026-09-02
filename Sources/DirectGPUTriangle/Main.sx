@@ -1,5 +1,6 @@
 use GFX.Color
 use GFX.GPU
+use GFX.GPU.Commands
 use GFX.Input
 use GFX.Window
 
