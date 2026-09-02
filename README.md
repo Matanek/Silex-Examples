@@ -36,6 +36,7 @@ Sources/Apps/Calculator/Main.sx
 Sources/Apps/Calculator/Calculator.sx
 Sources/Apps/Calculator/Interface.sx
 Sources/Apps/Calculator/Session.sx
+Sources/Games/Minesweeper/Main.sx
 ```
 
 Closely related Bundle demonstrations share the stable `Sources/Bundle/`
@@ -88,12 +89,34 @@ silex run Sources/FallingBodies
 silex run Sources/RotatingPhysicsContainer
 silex run Sources/ShapeGallery2D
 silex run Sources/Apps/Calculator
+silex run Sources/Games/Minesweeper
 ```
 
 The calculator accepts mouse input and keyboard calculations. The main number
 row and the numeric keypad are supported directly. Use `+`, `-`, `*`, `/`,
 `%`, `.` or `,`, then `Enter` or `=`. `Backspace` removes the last digit and
 `Escape`, `Delete` or `C` clears the calculator.
+
+Minesweeper is a complete game reconstructed from an earlier Godot project.
+Choose a grid from 4×4 through 256×256, a difficulty from 1 through 6, a
+preset, or one of the Fit actions, then press **JOUER**. Left-click reveals or
+chords, right-click and Shift-left-click toggle a flag, middle drag and
+two-axis scroll move large boards, `Page Up`/`Page Down` zoom, `Enter` restarts
+with the same settings, and `Escape` returns to the menu. From the parent
+Silex workspace, the equivalent explicit command is:
+
+```sh
+silex run Silex-Examples/Sources/Games/Minesweeper
+```
+
+The source tree includes `--verify` for a hidden deterministic menu, loss,
+victory, audio-event, renderer-budget, bundle-finalization, and clean-exit
+smoke run.
+
+The game consumes `Board.png`, `Mine.png`, `m3x6.ttf`, and all five WAV files
+directly. `Background.jpg` is the retained source artwork; its checked-in
+`Background.png` conversion is the runtime texture because the current public
+asset decoder is PNG-specific.
 
 `silex run` discovers the only direct `.sx` file that declares `main` in each
 of these directories. `Main.sx` remains a repository convention rather than a

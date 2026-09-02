@@ -163,7 +163,8 @@ public func menu(session:@GameSession, viewport:Math.Vec2) UI.Column {
         fit_row,
         text(
             "Clic gauche : ouvrir  •  clic droit ou Maj+clic : drapeau\n" +
-            "Drag milieu / scroll : déplacer  •  Entrée : recommencer  •  Échap : retour",
+            "Drag milieu / scroll : déplacer  •  Pg↑/Pg↓ : zoom\n" +
+            "Entrée : recommencer  •  Échap : retour",
             11.0,
             Color.slate_400()
         ),

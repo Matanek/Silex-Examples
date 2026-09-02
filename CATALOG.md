@@ -27,6 +27,7 @@ synchronisation automatique.
 | FPS statistics panel | `Sources/FPSStatsPanel.sx` | `GFX.Stats/Examples/FPSPanel.sx` |
 | Generated HTML WebView | `Sources/GeneratedHTMLWebView.sx` | composition de la recette `HTML/Docs/Recipes.md#buildandparse` et de `GFX.WebView` |
 | 3D lighting | `Sources/Lighting3D.sx` | `GFX.Scene3D/Examples/Lighting.sx` |
+| Minesweeper | `Sources/Games/Minesweeper/Main.sx` | reconstruction libre du projet Godot archivé, avec ses assets d’origine |
 | PBR materials | `Sources/PBRMaterials/Main.sx` | `GFX.Scene3D/Examples/TestPBR.sx` |
 | Rendering performance panel | `Sources/PerformanceStatsPanel.sx` | `GFX.Stats/Examples/PerformancePanel.sx` |
 | Plot gallery | `Sources/PlotGallery.sx` | composition des exemples de `Plot/Examples/` |
