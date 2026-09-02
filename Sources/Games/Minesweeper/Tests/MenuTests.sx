@@ -1,7 +1,7 @@
-use Module.Menu.MenuLayout
-use Module.Menu.interact_menu
-use Module.Session.GameSession
-use Module.Session.Request
+use Package.Games.Minesweeper.Menu.MenuLayout
+use Package.Games.Minesweeper.Menu.interact_menu
+use Package.Games.Minesweeper.Session.GameSession
+use Package.Games.Minesweeper.Session.Request
 use STD.Math
 
 test "round every menu setting into the canonical model" {

@@ -1,7 +1,8 @@
-use Module.Model.Board
-use Module.Model.CellState
-use Module.Model.GameState
-use Module.Model.Settings
+use Package.Games.Minesweeper.Model.Board
+use Package.Games.Minesweeper.Model.CellState
+use Package.Games.Minesweeper.Model.Coordinate
+use Package.Games.Minesweeper.Model.GameState
+use Package.Games.Minesweeper.Model.Settings
 use STD.Math
 
 test "provide validated presets, fit and exact mine totals" {
@@ -173,12 +174,14 @@ func same_layout(first:@Board, second:@Board) bool {
     return true
 }
 
-func first_mine(board:@Board) Module.Model.Coordinate {
+func first_mine(board:@Board) Coordinate {
     var y = 0
     while y < board.settings().height {
         var x = 0
         while x < board.settings().width {
-            if board.cell(x, y).mine { return Module.Model.Coordinate(x:x, y:y) }
+            if board.cell(x, y).mine {
+                return Coordinate(x:x, y:y)
+            }
             x++
         }
         y++
@@ -186,14 +189,14 @@ func first_mine(board:@Board) Module.Model.Coordinate {
     panic("test board has no mine")
 }
 
-func first_covered_safe(board:@Board) Module.Model.Coordinate {
+func first_covered_safe(board:@Board) Coordinate {
     var y = 0
     while y < board.settings().height {
         var x = 0
         while x < board.settings().width {
             let cell = board.cell(x, y)
             if !cell.mine && cell.state == CellState.covered {
-                return Module.Model.Coordinate(x:x, y:y)
+                return Coordinate(x:x, y:y)
             }
             x++
         }
@@ -202,14 +205,14 @@ func first_covered_safe(board:@Board) Module.Model.Coordinate {
     panic("test board has no covered safe cell")
 }
 
-func first_revealed_number(board:@Board) Module.Model.Coordinate {
+func first_revealed_number(board:@Board) Coordinate {
     var y = 0
     while y < board.settings().height {
         var x = 0
         while x < board.settings().width {
             let cell = board.cell(x, y)
             if cell.state == CellState.revealed && cell.neighboring_mines > 0 {
-                return Module.Model.Coordinate(x:x, y:y)
+                return Coordinate(x:x, y:y)
             }
             x++
         }
@@ -235,7 +238,7 @@ func flag_adjacent_mines(board:&Board, x:int, y:int) {
     }
 }
 
-func wrong_chord_center(board:@Board) Module.Model.Coordinate {
+func wrong_chord_center(board:@Board) Coordinate {
     var y = 0
     while y < board.settings().height {
         var x = 0
@@ -260,7 +263,7 @@ func wrong_chord_center(board:@Board) Module.Model.Coordinate {
                     oy++
                 }
                 if covered_mines > 0 && covered_safe >= cell.neighboring_mines {
-                    return Module.Model.Coordinate(x:x, y:y)
+                    return Coordinate(x:x, y:y)
                 }
             }
             x++

@@ -1,14 +1,14 @@
 use GFX.Assets.PNG
 use GFX.Scene2D
-use Module.BoardView.BoardTile
-use Module.BoardView.board_coordinate
-use Module.BoardView.visible_cell_bound
-use Module.Model.Settings
-use Module.Presentation.reveal_batch_size
+use Package.Games.Minesweeper.BoardView.BoardTile
+use Package.Games.Minesweeper.BoardView.board_coordinate
+use Package.Games.Minesweeper.BoardView.visible_cell_bound
+use Package.Games.Minesweeper.Model.Settings
+use Package.Games.Minesweeper.Presentation.reveal_batch_size
 use STD.Math
 
 test "map the complete 5 by 4 board atlas used by the presentation" {
-    let image = PNG.decode(embed_bytes("Assets/Board.png"))
+    let image = PNG.decode(embed_bytes("../Assets/Board.png"))
     assert(image.width() == 240 && image.height() == 192)
     assert(BoardTile.empty == 0)
     assert(BoardTile.ground == 10)
