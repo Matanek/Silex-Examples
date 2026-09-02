@@ -1,0 +1,20 @@
+use GFX.UI
+
+// One shared model drives both the controls and the custom Canvas preview.
+public class ShadowControls {
+    var strength:UI.State<float>
+    var softness:UI.State<float>
+    var offset_x:UI.State<float>
+    var offset_y:UI.State<float>
+    var tint:UI.State<float>
+    var elevation:UI.State<float>
+
+    init() {
+        self.strength = UI.State<float>(0.34)
+        self.softness = UI.State<float>(20.0)
+        self.offset_x = UI.State<float>(10.0)
+        self.offset_y = UI.State<float>(16.0)
+        self.tint = UI.State<float>(0.42)
+        self.elevation = UI.State<float>(1.0)
+    }
+}

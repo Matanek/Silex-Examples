@@ -1,0 +1,266 @@
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Plugins
+use GFX.Rendering
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+
+static struct Layout {
+    let art_width:int = 430
+    let art_height:int = 190
+}
+
+class DemoState {
+    let verification:bool
+    var frames:int = 0
+    var elapsed:float = 0.0
+    var light:ECS.Entity? = null
+
+    init(verification:bool) { self.verification = verification }
+}
+
+func verification_mode() bool {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments {
+                if argument == "--verify" { return true }
+            }
+        }
+    }
+    return false
+}
+
+func required_canvas_geometry(
+    result:Result<Scene3D.MeshHandle, Scene3D.CanvasGeometryError>
+) Scene3D.MeshHandle {
+    match result {
+        failure(error) => { panic(error.detail) }
+        success(handle) => { return handle }
+    }
+}
+
+func frame_art() Canvas {
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.stroke(
+            Canvas.Rect(Math.Vec2(8.0), Math.Vec2(410.0, 174.0), 30.0),
+            Canvas.Stroke(Color.cyan_300(), 7.0)
+        )
+    })
+    return drawing
+}
+
+func circle_art() Canvas {
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Circle(Math.Vec2(48.0, 98.0), 26.0),
+            Canvas.Fill.with_brush(Canvas.Brush.linear(
+                Math.Vec2(22.0, 98.0),
+                Math.Vec2(74.0, 98.0),
+                Color.amber_300(),
+                Color.rose_500()
+            ))
+        )
+    })
+    return drawing
+}
+
+func text_art(font:Canvas.Font) Canvas {
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.text(
+            "VECTOR",
+            Math.Vec2(150.0, 35.0),
+            Canvas.TextStyle(
+                size:50.0,
+                color:Color.white(),
+                weight:Canvas.TextWeight.bold,
+                font:font
+            )
+        )
+        painter.text(
+            "CANVAS + GFX.FONT",
+            Math.Vec2(153.0, 108.0),
+            Canvas.TextStyle(size:17.0, color:Color.amber_300(), font:font)
+        )
+    })
+    return drawing
+}
+
+func art_mapping(depth:float) Scene3D.PlaneMapping {
+    // Canvas coordinates grow downward. Start at the physical top-left so
+    // shapes and GFX.Font outlines stay upright together.
+    return Scene3D.PlaneMapping(
+        origin:Math.Vec3(-3.65, 1.65, depth),
+        x_axis:Math.Vec3(0.014, 0.0, 0.0),
+        y_axis:Math.Vec3(0.0, -0.014, 0.0)
+    )
+}
+
+func convert_art(
+    drawing:Canvas,
+    meshes:&Resources.Meshes3D,
+    depth:float
+) Scene3D.MeshHandle {
+    var snapshot = drawing.snapshot(Layout.art_width, Layout.art_height)
+    return required_canvas_geometry(meshes.add_canvas_geometry(
+        snapshot,
+        Canvas.Rect(
+            Math.Vec2(),
+            Math.Vec2(Layout.art_width as float, Layout.art_height as float)
+        ),
+        art_mapping(depth),
+        tolerance:0.003
+    ))
+}
+
+func spawn_caster(world:&Resources.World, mesh:Scene3D.MeshHandle) {
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D())
+        ..with(Components.Mesh3D(mesh, casts_shadows:true))
+        ..with(Components.Material3D(
+            albedo:Color.white(),
+            metallic:0.08,
+            roughness:0.42
+        ))
+        ..with(Components.MaterialSettings3D(double_sided:true))
+    )
+}
+
+func overlay_art(font:Canvas.Font) Canvas {
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.text(
+            "Vector Canvas — real projected shadow",
+            Math.Vec2(30.0, 34.0),
+            Canvas.TextStyle(size:25.0, color:Color.white(), font:font)
+        )
+        painter.text(
+            "physical triangles • GFX.Font outlines • moving sun • no texture",
+            Math.Vec2(31.0, 62.0),
+            Canvas.TextStyle(size:15.0, color:Color.slate_300(), font:font)
+        )
+    })
+    return drawing
+}
+
+func create_demo(
+    world:&Resources.World,
+    meshes:&Resources.Meshes3D,
+    state:&DemoState
+) {
+    var font = Canvas.Font.default()
+    var overlay = overlay_art(font)
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:Math.Vec2(20.0, 18.0)))
+        ..with(Components.Canvas(overlay, 760, 82)
+            ..space = Components.CanvasSpace.viewport
+            ..pivot = Math.Vec2()
+            ..layer = 10
+        )
+    )
+
+    var frame = frame_art()
+    var circle = circle_art()
+    var text = text_art(font)
+    spawn_caster(world, convert_art(frame, meshes, 0.35))
+    spawn_caster(world, convert_art(circle, meshes, 0.55))
+    spawn_caster(world, convert_art(text, meshes, 0.75))
+
+    let receiver = meshes.add(Scene3D.Geometry.Plane.make(Math.Vec2(9.8, 5.8)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.35, 0.2, -1.25)))
+        ..with(Components.Mesh3D(receiver, casts_shadows:false))
+        ..with(Components.Material3D(
+            albedo:Color.slate_700(),
+            roughness:0.94
+        ))
+        ..with(Components.MaterialSettings3D(double_sided:true))
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.AmbientLight3D(intensity:0.12))
+    )
+    var sun = Components.SunLight3D(
+        direction:Math.Vec3(0.5, -0.12, -1.0).normalized(),
+        intensity:4.5,
+        shadow:Scene3D.Shadow(softness:0.22)
+    )
+    sun.shadow_size = Math.Vec2(14.0)
+    sun.shadow_depth = 24.0
+    sun.shadow_distance = 24.0
+    state.light = world.spawn(ECS.EntityRecipe()..with(sun))
+}
+
+func animate_light(
+    time:@Resources.FrameTime,
+    world:&Resources.World,
+    state:&DemoState
+) {
+    state.elapsed += time.delta
+    if let light = state.light {
+        let horizontal = 0.5 + Math.sin(state.elapsed * 0.55) * 0.1
+        world.update<Scene3D.SunLight>(light, func(sun:&Scene3D.SunLight) {
+            sun.direction = Math.Vec3(horizontal, -0.12, -1.0).normalized()
+        })
+    }
+}
+
+func finish_verification(
+    state:&DemoState,
+    meshes:@Resources.Meshes3D,
+    renderer:@Rendering.Renderer,
+    controller:&Application.Controller
+) {
+    if !state.verification { return }
+    state.frames++
+    if state.frames < 3 { return }
+    let text = meshes.text_cache_stats()
+    let rendering = renderer.stats()
+    assert(text.tessellations > 0)
+    assert(rendering.shadow_draw_calls() >= 9)
+    assert(rendering.shadow_triangles() > 0)
+    print(
+        "CANVAS_PROJECTION_3D verify=ok vector_text_tessellations=",
+        text.tessellations,
+        " shadow_draws=", rendering.shadow_draw_calls(),
+        " shadow_triangles=", rendering.shadow_triangles()
+    )
+    controller.stop()
+}
+
+func main() {
+    let verification = verification_mode()
+    var state = DemoState(verification)
+    var application = Application()
+    application
+        ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Canvas — vector geometry casting a real 3D shadow"
+            ..width = 1100
+            ..height = 720
+            ..hidden = verification
+        ))
+        ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
+            ..clear = Color.slate_950()
+        ))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.Time())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(0.0, 0.35, 0.0)
+            ..distance = 8.4
+            ..pitch = Math.radians(-4.0)
+        ))
+        ..add_system(Application.Schedule.startup, create_demo)
+        ..add_system(Application.Schedule.update, animate_light)
+        ..add_after_system(Application.Schedule.render, finish_verification)
+    assert(application.run() == 0)
+    if verification { assert(state.frames == 3) }
+}

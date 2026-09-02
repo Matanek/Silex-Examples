@@ -1,0 +1,10 @@
+use GFX.GPU
+use GFX.Scene2D
+
+test "keep the post-process example compatible with CanvasFilter.v1" {
+    let program = GPU.ShaderProgram.hlsl(
+        file:"../Sources/CanvasFilterPostProcess/Shaders/WarmTint.hlsl"
+    )
+    let compatibility = Scene2D.CanvasFilter.compatibility(program)
+    assert(compatibility.accepted, compatibility.detail)
+}

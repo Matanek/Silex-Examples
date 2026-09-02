@@ -1,0 +1,154 @@
+use GFX.Color
+use GFX.UI
+use STD.Math
+use Module.Model.ShadowControls
+use Module.Preview.shadow_preview
+
+func ignore_change(value:float) {}
+
+func format_percent(value:float) str {
+    return "$(Math.round(value * 100.0) as int)%"
+}
+
+func format_pixels(value:float) str {
+    return "$(Math.round(value) as int) px"
+}
+
+func format_scale(value:float) str {
+    return "$(Math.round(value * 100.0) as int)%"
+}
+
+func label(value:str, size:float, color:Color) UI.Text {
+    var result = UI.Text(value)
+    result.style.font_size = size
+    result.style.foreground = color
+    return result
+}
+
+func heading(value:str, size:float) UI.Text {
+    var result = label(value, size, Color.slate_100())
+    result.style.font_weight = UI.FontWeight.bold
+    return result
+}
+
+func slider(
+    state:UI.State<float>,
+    minimum:float,
+    maximum:float,
+    accent:Color
+) UI.Slider {
+    var result = UI.Slider(state, minimum, maximum, ignore_change)
+    result.style.height = 22.0
+    result.style.background = Color.slate_700()
+    result.style.accent = accent
+    return result
+}
+
+func slider_header(
+    caption:str,
+    state:UI.State<float>,
+    format:func(float) str
+) UI.Row {
+    var name = label(caption, 12.0, Color.slate_300())
+    name.style.grow = 1.0
+    var current = UI.Text(state, format:format)
+    current.style.font_size = 12.0
+    current.style.foreground = Color.slate_400()
+    let children:UI.View[] = [name, current]
+    return UI.Row(children, alignment:UI.Alignment.center)
+}
+
+func slider_group(
+    caption:str,
+    state:UI.State<float>,
+    minimum:float,
+    maximum:float,
+    format:func(float) str,
+    accent:Color
+) UI.Column {
+    let children:UI.View[] = [
+        slider_header(caption, state, format),
+        slider(state, minimum, maximum, accent)
+    ]
+    var result = UI.Column(children)
+    result.style.gap = 5.0
+    return result
+}
+
+func controls_panel(controls:ShadowControls) UI.Column {
+    var badge = label("CANVAS.EFFECT.SHADOW", 10.0, Color.cyan_300())
+    badge.style.padding = UI.Insets(vertical:7.0, horizontal:10.0)
+    badge.style.background = Color.cyan_950()
+    badge.style.border = UI.Border(1.0, Color.cyan_700())
+    badge.style.radius = 8.0
+
+    var title = heading("Shadow Palette", 29.0)
+    var subtitle = label(
+        "Tune native vector shadows in real time.",
+        13.0,
+        Color.slate_400()
+    )
+
+    let children:UI.View[] = [
+        badge,
+        title,
+        subtitle,
+        slider_group(
+            "Strength", controls.strength, 0.08, 0.70,
+            format_percent, Color.rose_500()
+        ),
+        slider_group(
+            "Softness", controls.softness, 2.0, 38.0,
+            format_pixels, Color.violet_500()
+        ),
+        slider_group(
+            "Horizontal offset", controls.offset_x, -28.0, 28.0,
+            format_pixels, Color.cyan_500()
+        ),
+        slider_group(
+            "Vertical offset", controls.offset_y, -36.0, 36.0,
+            format_pixels, Color.amber_400()
+        ),
+        slider_group(
+            "Violet tint", controls.tint, 0.0, 1.0,
+            format_percent, Color.violet_500()
+        ),
+        slider_group(
+            "Elevation range", controls.elevation, 0.55, 1.45,
+            format_scale, Color.cyan_500()
+        ),
+        label(
+            "Each surface, symbol and heading remains a retained Canvas layer.",
+            11.0,
+            Color.slate_500()
+        )
+    ]
+    var panel = UI.Column(children, alignment:UI.Alignment.start)
+    panel.style.width = 390.0
+    panel.style.minimum_height = 760.0
+    panel.style.padding = UI.Insets(28.0)
+    panel.style.gap = 19.0
+    panel.style.background = Color.bytes(14, 22, 35)
+    panel.style.border = UI.Border(1.0, Color.slate_700())
+    panel.style.radius = 24.0
+    panel.style.shadow = UI.BoxShadow(
+        Math.Vec2(0.0, 18.0),
+        32.0,
+        Color.black().with_alpha(0.34)
+    )
+    return panel
+}
+
+public func shadow_gallery() UI.Row {
+    var controls = ShadowControls()
+    let children:UI.View[] = [
+        shadow_preview(controls),
+        controls_panel(controls)
+    ]
+    var root = UI.Row(children, alignment:UI.Alignment.start)
+    root.style.padding = UI.Insets(30.0)
+    root.style.gap = 28.0
+    root.style.background = Color.bytes(8, 14, 24)
+    root.style.foreground = Color.slate_100()
+    return root
+}

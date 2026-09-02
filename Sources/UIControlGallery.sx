@@ -183,6 +183,11 @@ func card(children:UI.View[]) UI.Column {
     result.style.background = Color.bytes(20, 31, 50)
     result.style.border = UI.Border(1.0, Color.slate_700())
     result.style.radius = 16.0
+    result.style.shadow = UI.BoxShadow(
+        Math.Vec2(0.0, 8.0),
+        18.0,
+        Color.black().with_alpha(0.32)
+    )
     return result
 }
 

@@ -1,0 +1,20 @@
+use GFX.Color
+use GFX.UI
+use GFX.Viewer
+use Module.Interface.shadow_gallery
+
+static struct Showcase {
+    let width:int = 1360
+    let height:int = 820
+}
+
+func main() {
+    var session = UI.Session(shadow_gallery())
+    Viewer.show(session, Viewer.CanvasSettings(
+        width:Showcase.width,
+        height:Showcase.height,
+        title:"GFX.Canvas — Live shadow palette",
+        background:Color.bytes(8, 14, 24),
+        text_mode:Viewer.CanvasTextMode.vector
+    ))
+}
