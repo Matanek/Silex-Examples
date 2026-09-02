@@ -1,3 +1,4 @@
+use GFX.Canvas
 use GFX.Window
 use Package.Games.Minesweeper.Menu.MenuLayout
 use Package.Games.Minesweeper.Menu.interact_menu
@@ -21,6 +22,17 @@ test "use the bundled accented pixel face throughout Minesweeper" {
     assert(face.supports(0x00e9 as uint32))
     assert(face.supports(0x00e7 as uint32))
     assert(face.supports(0x0153 as uint32))
+}
+
+test "fit each centered instruction line inside the menu card" {
+    var font = Typography.pixel()
+    var drawing = Canvas()
+    var style = Canvas.TextStyle(size:12.0, font:font)
+    assert(drawing.measure_text("Demean : [Left click]", style).width <= 350.0)
+    assert(drawing.measure_text(
+        "Flag : [Right click] or [Left click + Shift]",
+        style
+    ).width <= 350.0)
 }
 
 test "enter native fullscreen only after the hidden render surface is ready" {

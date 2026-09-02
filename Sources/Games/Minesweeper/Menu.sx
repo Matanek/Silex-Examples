@@ -223,16 +223,24 @@ public func menu_drawing(session:@GameSession, viewport:Math.Vec2, hovered:str) 
             layout.card.y + 286.0 * layout.scale, layout.scale
         )
         draw_slider(painter, layout.difficulty, settings.difficulty)
+        let instructions_x = layout.card.x + 20.0 * layout.scale
+        let instructions_width = layout.card.w - 40.0 * layout.scale
+        let instructions_color = Color.bytes(229, 238, 233)
         centered_text(
-            painter, font,
-            "Demean : [Left click]\nFlag : [Right click] or [Left click + Shift]",
+            painter, font, "Demean : [Left click]",
             Math.Rect(
-                layout.card.x + 20.0 * layout.scale,
-                layout.card.y + 365.0 * layout.scale,
-                layout.card.w - 40.0 * layout.scale,
-                52.0 * layout.scale
+                instructions_x, layout.card.y + 373.0 * layout.scale,
+                instructions_width, 20.0 * layout.scale
             ),
-            14.0 * layout.scale, Color.bytes(229, 238, 233)
+            12.0 * layout.scale, instructions_color
+        )
+        centered_text(
+            painter, font, "Flag : [Right click] or [Left click + Shift]",
+            Math.Rect(
+                instructions_x, layout.card.y + 394.0 * layout.scale,
+                instructions_width, 20.0 * layout.scale
+            ),
+            12.0 * layout.scale, instructions_color
         )
 
         large_button(
