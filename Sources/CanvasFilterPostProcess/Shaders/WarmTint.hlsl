@@ -30,6 +30,6 @@ float4 fragment_main(VertexOutput input) : SV_Target0 {
     const float2 pixel = min(floor(input.uv * pixelSize), pixelSize - 1.0);
     const float2 center = (pixel + 0.5) * inversePixelSize;
     const float4 source = sourceTexture.SampleLevel(sourceSampler, center, 0.0);
-    const float3 tint = float3(1.0, 0.82, 0.72);
-    return float4(source.rgb * tint, source.a);
+    const float3 warmTint = float3(1.0, 0.82, 0.72);
+    return float4(source.rgb * warmTint, source.a);
 }

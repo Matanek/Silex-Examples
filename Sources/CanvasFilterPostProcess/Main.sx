@@ -1,0 +1,96 @@
+use GFX.Application
+use GFX.Assets.Image
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.GPU
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use STD.Math
+
+func sample(label:str) Canvas {
+    var image = Canvas.ImagePaint(Image.rgba8(2, 2, [
+        45, 212, 191, 255, 59, 130, 246, 255,
+        139, 92, 246, 255, 244, 114, 182, 255
+    ]))
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Rect(Math.Vec2(8.0), Math.Vec2(284.0, 164.0), 18.0),
+            Canvas.Fill.solid(Color.slate_800())
+        )
+        let image_frame = Canvas.Rect(
+            Math.Vec2(24.0, 24.0),
+            Math.Vec2(92.0, 74.0),
+            13.0
+        )
+        painter.fill(
+            image_frame,
+            Canvas.Fill.image(
+                image,
+                Canvas.ImageMapping.fit(
+                    frame:image_frame,
+                    mode:Canvas.ImageFit.cover
+                )
+            )
+        )
+        var mark = Canvas.Path()
+            ..move_to(Math.Vec2(190.0, 20.0))
+            ..line_to(Math.Vec2(244.0, 94.0))
+            ..line_to(Math.Vec2(136.0, 94.0))
+            ..close()
+        painter.fill(mark, Canvas.Fill.solid(Color.violet_400()))
+        painter.text(
+            label,
+            Math.Vec2(24.0, 123.0),
+            Canvas.TextStyle(
+                size:18.0,
+                color:Color.white(),
+                weight:Canvas.TextWeight.bold
+            )
+        )
+    })
+    return drawing
+}
+
+func place(
+    world:&Resources.World,
+    drawing:Canvas,
+    x:float,
+    filter:Scene2D.CanvasFilter? = null
+) {
+    var canvas = Components.Canvas(drawing, 300, 180)
+    canvas.space = Components.CanvasSpace.viewport
+    canvas.pivot = Math.Vec2()
+    canvas.filter = filter
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:Math.Vec2(x, 62.0)))
+        ..with(canvas)
+    )
+}
+
+func create_comparison(world:&Resources.World) {
+    place(world, sample("ORIGINAL"), 48.0)
+    place(
+        world,
+        sample("POST-PROCESSED"),
+        398.0,
+        Scene2D.CanvasFilter(
+            GPU.ShaderProgram.hlsl(file:"Shaders/WarmTint.hlsl")
+        )
+    )
+}
+
+func main() {
+    Application()
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Scene2D CanvasFilter — post-process comparison"
+            ..width = 746
+            ..height = 304
+        ))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_system(Application.Schedule.startup, create_comparison)
+        ..run()
+}

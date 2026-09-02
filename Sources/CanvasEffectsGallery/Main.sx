@@ -1,146 +1,20 @@
-use GFX.Application
-use GFX.Assets.Image
-use GFX.Canvas
 use GFX.Color
-use GFX.Components
-use GFX.ECS
-use GFX.GPU
-use GFX.Plugins
-use GFX.Resources
-use GFX.Scene2D
-use STD.Math
+use GFX.UI
+use GFX.Viewer
+use Module.Interface.shadow_gallery
 
-func retained_gallery() Canvas {
-    var image = Canvas.ImagePaint(Image.rgba8(2, 2, [
-        45, 212, 191, 255, 59, 130, 246, 255,
-        139, 92, 246, 255, 244, 114, 182, 255
-    ]))
-    var drawing = Canvas()
-    drawing.paint(func(painter:&Canvas.Painter) {
-        painter.layer(
-            [Canvas.Effect.shadow(
-                Math.Vec2(0.0, 8.0),
-                14.0,
-                Color.black().with_alpha(0.42)
-            )],
-            func(layer:&Canvas.Painter) {
-                layer.fill(
-                    Canvas.Rect(
-                        Math.Vec2(18.0, 16.0),
-                        Math.Vec2(244.0, 136.0),
-                        18.0
-                    ),
-                    Canvas.Fill.solid(Color.slate_800())
-                )
-            }
-        )
-
-        let image_frame = Canvas.Rect(
-            Math.Vec2(34.0, 34.0),
-            Math.Vec2(74.0, 54.0),
-            12.0
-        )
-        painter.fill(
-            image_frame,
-            Canvas.Fill.image(
-                image,
-                Canvas.ImageMapping.fit(
-                    frame:image_frame,
-                    mode:Canvas.ImageFit.cover
-                )
-            )
-        )
-
-        var mark = Canvas.Path()
-            ..move_to(Math.Vec2(126.0, 76.0))
-            ..line_to(Math.Vec2(142.0, 38.0))
-            ..line_to(Math.Vec2(160.0, 76.0))
-            ..line_to(Math.Vec2(198.0, 78.0))
-            ..line_to(Math.Vec2(168.0, 102.0))
-            ..line_to(Math.Vec2(178.0, 136.0))
-            ..line_to(Math.Vec2(144.0, 116.0))
-            ..line_to(Math.Vec2(114.0, 136.0))
-            ..close()
-        painter.layer(
-            [
-                Canvas.Effect.blur(2.0),
-                Canvas.Effect.shadow(
-                    Math.Vec2(3.0, 5.0),
-                    7.0,
-                    Color.cyan_400().with_alpha(0.5)
-                )
-            ],
-            func(layer:&Canvas.Painter) {
-                layer.fill(mark, Canvas.Fill.solid(Color.violet_400()))
-                layer.text(
-                    "GFX.Font",
-                    Math.Vec2(42.0, 126.0),
-                    Canvas.TextStyle(size:20.0, color:Color.white())
-                )
-            }
-        )
-    })
-    return drawing
-}
-
-func placement(
-    world:&Resources.World,
-    drawing:Canvas,
-    position:Math.Vec2,
-    mode:Scene2D.CanvasTextMode,
-    layer:int,
-    filter:Scene2D.CanvasFilter? = null
-) {
-    var canvas = Components.Canvas(drawing, 280, 180)
-    canvas.space = Components.CanvasSpace.viewport
-    canvas.pivot = Math.Vec2()
-    canvas.text_mode = mode
-    canvas.coverage_density = 2.0
-    canvas.layer = layer
-    canvas.filter = filter
-    world.spawn(ECS.EntityRecipe()
-        ..with(Components.Transform2D(position:position))
-        ..with(canvas)
-    )
-}
-
-func create_gallery(world:&Resources.World) {
-    var drawing = retained_gallery()
-    placement(
-        world,
-        drawing,
-        Math.Vec2(54.0, 82.0),
-        Scene2D.CanvasTextMode.vector,
-        1
-    )
-    placement(
-        world,
-        drawing,
-        Math.Vec2(374.0, 82.0),
-        Scene2D.CanvasTextMode.coverage,
-        2
-    )
-    var filter = Scene2D.CanvasFilter(
-        GPU.ShaderProgram.hlsl(file:"Shaders/Tint.hlsl")
-    )
-    placement(
-        world,
-        drawing,
-        Math.Vec2(694.0, 82.0),
-        Scene2D.CanvasTextMode.vector,
-        3,
-        filter
-    )
+static struct Showcase {
+    let width:int = 1360
+    let height:int = 820
 }
 
 func main() {
-    Application()
-        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
-            ..title = "Canvas effects — vector, coverage, and Scene2D shader"
-            ..width = 1040
-            ..height = 360
-        ))
-        ..add_plugin(Plugins.Scene2D())
-        ..add_system(Application.Schedule.startup, create_gallery)
-        ..run()
+    var session = UI.Session(shadow_gallery())
+    Viewer.show(session, Viewer.CanvasSettings(
+        width:Showcase.width,
+        height:Showcase.height,
+        title:"GFX.Canvas — Live shadow palette",
+        background:Color.bytes(8, 14, 24),
+        text_mode:Viewer.CanvasTextMode.vector
+    ))
 }

@@ -1,0 +1,280 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Keyboard
+use GFX.UI
+use STD.Math
+use Module.Model.ShadowControls
+
+class ShadowPreviewContent:UI.Content {
+    var controls:ShadowControls
+    var font:Canvas.Font
+
+    init(controls:ShadowControls) {
+        self.controls = controls
+        self.font = Canvas.Font.default()
+    }
+
+    func measure(maximum:Math.Vec2) Math.Vec2 {
+        return Math.Vec2(
+            Math.min(820.0, maximum.x),
+            Math.min(760.0, maximum.y)
+        )
+    }
+
+    func paint(
+        painter:&Canvas.Painter,
+        frame:Canvas.Rect,
+        opacity:float
+    ) {
+        if opacity == 1.0 {
+            self.paint_stage(painter, frame)
+            return
+        }
+        painter.layer([Canvas.Effect.opacity(opacity)], func(stage:&Canvas.Painter) {
+            self.paint_stage(stage, frame)
+        })
+    }
+
+    func paint_stage(painter:&Canvas.Painter, frame:Canvas.Rect) {
+        painter.fill(
+            Canvas.Rect(frame.position, frame.size, 30.0),
+            Canvas.Fill.solid(Color.bytes(239, 216, 249))
+        )
+
+        painter.text(
+            "NATIVE SHADOW LAB",
+            Math.Vec2(frame.position.x + 36.0, frame.position.y + 32.0),
+            Canvas.TextStyle(
+                size:12.0,
+                color:Color.violet_700(),
+                weight:Canvas.TextWeight.bold,
+                font:self.font,
+                fixed_advance:7.8
+            )
+        )
+        painter.text(
+            "Depth, drawn live",
+            Math.Vec2(frame.position.x + 36.0, frame.position.y + 54.0),
+            Canvas.TextStyle(
+                size:27.0,
+                color:Color.slate_900(),
+                weight:Canvas.TextWeight.bold,
+                font:self.font
+            )
+        )
+        painter.text(
+            "Rounded surfaces, symbols and GFX.Font outlines",
+            Math.Vec2(frame.position.x + 36.0, frame.position.y + 88.0),
+            Canvas.TextStyle(
+                size:13.0,
+                color:Color.slate_600(),
+                font:self.font
+            )
+        )
+
+        let card_width = Math.min(390.0, frame.size.x - 170.0)
+        let card_x = frame.position.x + (frame.size.x - card_width) * 0.5
+        self.paint_card(
+            painter,
+            Math.Vec2(card_x, frame.position.y + 150.0),
+            Math.Vec2(card_width, 116.0),
+            0.36,
+            "FIG. 1  /  LOW",
+            "Focus",
+            "Small details stay close",
+            0
+        )
+        self.paint_card(
+            painter,
+            Math.Vec2(card_x, frame.position.y + 340.0),
+            Math.Vec2(card_width, 116.0),
+            0.68,
+            "FIG. 2  /  MEDIUM",
+            "Compose",
+            "Vector layers share depth",
+            1
+        )
+        self.paint_card(
+            painter,
+            Math.Vec2(card_x, frame.position.y + 530.0),
+            Math.Vec2(card_width, 116.0),
+            1.0,
+            "FIG. 3  /  HIGH",
+            "Elevate",
+            "Text casts a soft shadow too",
+            2
+        )
+    }
+
+    func paint_card(
+        painter:&Canvas.Painter,
+        position:Math.Vec2,
+        size:Math.Vec2,
+        depth:float,
+        caption:str,
+        title:str,
+        subtitle:str,
+        symbol:int
+    ) {
+        let effective_depth = depth * self.controls.elevation.value()
+        painter.text(
+            caption,
+            Math.Vec2(position.x, position.y - 25.0),
+            Canvas.TextStyle(
+                size:11.0,
+                color:Color.violet_700(),
+                weight:Canvas.TextWeight.bold,
+                font:self.font,
+                fixed_advance:7.2
+            )
+        )
+
+        painter.layer(
+            [self.shadow(effective_depth)],
+            func(card:&Canvas.Painter) {
+                card.fill(
+                    Canvas.Rect(position, size, 18.0),
+                    Canvas.Fill.solid(Color.bytes(255, 252, 255))
+                )
+            }
+        )
+
+        painter.layer(
+            [self.foreground_shadow(effective_depth)],
+            func(foreground:&Canvas.Painter) {
+                foreground.text(
+                    title,
+                    Math.Vec2(position.x + 27.0, position.y + 25.0),
+                    Canvas.TextStyle(
+                        size:24.0,
+                        color:Color.slate_900(),
+                        weight:Canvas.TextWeight.bold,
+                        font:self.font
+                    )
+                )
+                self.paint_symbol(
+                    foreground,
+                    Math.Vec2(
+                        position.x + size.x - 28.0,
+                        position.y + size.y * 0.5
+                    ),
+                    symbol
+                )
+            }
+        )
+        painter.text(
+            subtitle,
+            Math.Vec2(position.x + 27.0, position.y + 64.0),
+            Canvas.TextStyle(
+                size:13.0,
+                color:Color.slate_500(),
+                font:self.font
+            )
+        )
+    }
+
+    func paint_symbol(
+        painter:&Canvas.Painter,
+        center:Math.Vec2,
+        symbol:int
+    ) {
+        if symbol == 0 {
+            painter.fill(
+                Canvas.Rect(
+                    Math.Vec2(center.x - 29.0, center.y - 29.0),
+                    Math.Vec2(58.0, 58.0),
+                    17.0
+                ),
+                Canvas.Fill.solid(Color.cyan_500())
+            )
+            painter.text(
+                "+",
+                Math.Vec2(center.x, center.y - 18.0),
+                Canvas.TextStyle(
+                    size:35.0,
+                    color:Color.white(),
+                    alignment:Canvas.TextAlignment.center,
+                    weight:Canvas.TextWeight.bold,
+                    font:self.font
+                )
+            )
+        } else if symbol == 1 {
+            var diamond = Canvas.Path()
+                ..move_to(Math.Vec2(center.x, center.y - 36.0))
+                ..line_to(Math.Vec2(center.x + 36.0, center.y))
+                ..line_to(Math.Vec2(center.x, center.y + 36.0))
+                ..line_to(Math.Vec2(center.x - 36.0, center.y))
+                ..close()
+            painter.fill(
+                diamond,
+                Canvas.Fill.solid(Color.violet_500())
+            )
+            painter.fill(
+                Canvas.Circle(center, 10.0),
+                Canvas.Fill.solid(Color.white())
+            )
+        } else {
+            painter.fill(
+                Canvas.Circle(center, 40.0),
+                Canvas.Fill.solid(Color.rose_500())
+            )
+            painter.fill(
+                Canvas.Circle(center, 13.0),
+                Canvas.Fill.solid(Color.amber_400())
+            )
+        }
+    }
+
+    func shadow(depth:float) Canvas.Effect {
+        let color = Color.black()
+            .lerp(Color.violet_900(), self.controls.tint.value())
+            .with_alpha(self.controls.strength.value())
+        return Canvas.Effect.shadow(
+            Math.Vec2(
+                self.controls.offset_x.value() * depth,
+                self.controls.offset_y.value() * depth
+            ),
+            Math.max(1.0, self.controls.softness.value() * depth),
+            color
+        )
+    }
+
+    func foreground_shadow(depth:float) Canvas.Effect {
+        let scale = Math.max(0.38, depth * 0.76)
+        let color = Color.black()
+            .lerp(Color.violet_900(), self.controls.tint.value())
+            .with_alpha(self.controls.strength.value() * 0.72)
+        return Canvas.Effect.shadow(
+            Math.Vec2(
+                self.controls.offset_x.value() * scale,
+                self.controls.offset_y.value() * scale
+            ),
+            Math.max(1.0, self.controls.softness.value() * scale),
+            color
+        )
+    }
+
+    func focusable() bool { return false }
+    func accepts_text_input() bool { return false }
+    func focus_changed(focused:bool) bool { return false }
+    func update(delta:float) bool { return false }
+    func pointer_scrolled(delta:Math.Vec2) bool { return false }
+    func insert_text(value:str) bool { return false }
+    func key_pressed(
+        key:Keyboard.Key,
+        modifiers:Keyboard.Modifiers
+    ) bool { return false }
+}
+
+public func shadow_preview(controls:ShadowControls) UI.CustomView {
+    var result = UI.CustomView(ShadowPreviewContent(controls))
+    result.style.grow = 1.0
+    result.style.minimum_width = 720.0
+    result.style.minimum_height = 760.0
+    result.style.shadow = UI.BoxShadow(
+        Math.Vec2(0.0, 18.0),
+        32.0,
+        Color.black().with_alpha(0.34)
+    )
+    return result
+}

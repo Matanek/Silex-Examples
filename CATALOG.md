@@ -16,6 +16,7 @@ synchronisation automatique.
 | Boids simulation | `Sources/BoidsSimulation.sx` | `GFX.Scene2D/Examples/Boids.sx` |
 | Vector Canvas projected shadow | `Sources/CanvasProjection3D.sx` | création propre au catalogue |
 | Canvas effects gallery | `Sources/CanvasEffectsGallery/Main.sx` | création propre au catalogue |
+| Canvas filter post-process | `Sources/CanvasFilterPostProcess/Main.sx` | création propre au catalogue |
 | Calculator app | `Sources/Apps/Calculator/Main.sx` | création propre au catalogue |
 | Composed system terminal | `Sources/ComposedSystemTerminal.sx` | `GFX.UI.Terminal/Examples/SystemTerminal.sx` |
 | Cornell box | `Sources/CornellBox.sx` | `GFX.Scene3D/Examples/CornellBox.sx` |
