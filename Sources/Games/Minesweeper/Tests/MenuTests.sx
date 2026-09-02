@@ -31,7 +31,9 @@ test "enter native fullscreen only after the hidden render surface is ready" {
     prepare_window(false, window)
     assert(window.is_fullscreen())
     assert(window.state().fullscreen)
-    assert(!window.state().visible)
+    assert(window.state().visible)
+    assert(window.opacity() == 0.0)
+    window.set_opacity(1.0)
 }
 
 test "round every menu setting into the canonical model" {

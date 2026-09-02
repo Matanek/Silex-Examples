@@ -37,13 +37,26 @@ package func prepare_window(verification:bool, window:&Window) {
         window.set_minimum_size(Math.Vec2(560.0, 620.0))
         return
     }
+    window.set_opacity(0.0)
+    window.show()
     window.set_fullscreen(true)
     window.sync()
     assert(window.is_fullscreen())
 }
 
-func configure_window(session:@GameSession, window:&Window) {
+func configure_window(
+    session:@GameSession,
+    window:&Window,
+    device:@Resources.Device,
+    surface:@Resources.GPUSurface
+) {
     prepare_window(session.verification, window)
+    if session.verification { return }
+    surface.wait_until_ready()
+    var commands = device.commands()
+    commands.clear(surface, Color.bytes(7, 12, 24))
+    commands.submit()
+    window.set_opacity(1.0)
 }
 
 func main() {
