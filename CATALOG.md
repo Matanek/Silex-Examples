@@ -14,7 +14,7 @@ synchronisation automatique.
 | Application GPU triangle | `Sources/ApplicationGPUTriangle/Main.sx` | `GFX.GPU/Examples/TriangleApplication.sx` |
 | Application window | `Sources/ApplicationWindow.sx` | `GFX/Examples/ApplicationWindow.sx` |
 | Boids simulation | `Sources/BoidsSimulation.sx` | `GFX.Scene2D/Examples/Boids.sx` |
-| Canvas 2D/3D shadow comparison | `Sources/CanvasProjection3D.sx` | création propre au catalogue |
+| Vector Canvas projected shadow | `Sources/CanvasProjection3D.sx` | création propre au catalogue |
 | Canvas effects gallery | `Sources/CanvasEffectsGallery/Main.sx` | création propre au catalogue |
 | Calculator app | `Sources/Apps/Calculator/Main.sx` | création propre au catalogue |
 | Composed system terminal | `Sources/ComposedSystemTerminal.sx` | `GFX.UI.Terminal/Examples/SystemTerminal.sx` |
