@@ -6,7 +6,7 @@ use Module.Drawing.dashed_line
 use Module.Drawing.label
 
 public func paint_lines(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
-    card(painter, font, "Lignes, épaisseurs et extrémités", origin, Math.Vec2(275.0, 195.0))
+    card(painter, font, "Lines, widths, and caps", origin, Math.Vec2(275.0, 195.0))
     let x = origin.x + 20.0
     let y = origin.y + 55.0
     painter.stroke(Canvas.Line(Math.Vec2(x, y), Math.Vec2(x + 92.0, y)), Canvas.Stroke(Color.sky_400(), 2.0))
@@ -32,17 +32,17 @@ public func paint_lines(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.V
 }
 
 public func paint_dashes(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
-    card(painter, font, "Pointillés et tirets", origin, Math.Vec2(275.0, 195.0))
+    card(painter, font, "Dots and dashes", origin, Math.Vec2(275.0, 195.0))
     let start = origin.add(Math.Vec2(22.0, 62.0))
     let end_x = origin.x + 252.0
     dashed_line(painter, start, Math.Vec2(end_x, start.y), 2.0, 7.0, Canvas.Stroke(Color.sky_400(), 3.0))
     dashed_line(painter, start.add(Math.Vec2(0.0, 38.0)), Math.Vec2(end_x, start.y + 38.0), 16.0, 9.0, Canvas.Stroke(Color.emerald_400(), 4.0))
     dashed_line(painter, start.add(Math.Vec2(0.0, 78.0)), Math.Vec2(end_x, start.y + 78.0), 22.0, 7.0, Canvas.Stroke(Color.violet_400(), 5.0)..cap = Canvas.StrokeCap.round)
-    label(painter, font, "point · tiret · tiret arrondi", origin.add(Math.Vec2(22.0, 160.0)), 11.0)
+    label(painter, font, "dot · dash · rounded dash", origin.add(Math.Vec2(22.0, 160.0)), 11.0)
 }
 
 public func paint_paths(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
-    card(painter, font, "Polylignes et jonctions", origin, Math.Vec2(275.0, 195.0))
+    card(painter, font, "Polylines and joins", origin, Math.Vec2(275.0, 195.0))
     var angular = Canvas.Path()
         ..move_to(origin.add(Math.Vec2(24.0, 82.0)))
         ..line_to(origin.add(Math.Vec2(62.0, 52.0)))
@@ -67,7 +67,7 @@ public func paint_paths(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.V
 }
 
 public func paint_curves(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
-    card(painter, font, "Courbes quadratiques et cubiques", origin, Math.Vec2(275.0, 195.0))
+    card(painter, font, "Quadratic and cubic curves", origin, Math.Vec2(275.0, 195.0))
     var quadratic = Canvas.Path()
         ..move_to(origin.add(Math.Vec2(24.0, 105.0)))
         ..quadratic_to(origin.add(Math.Vec2(78.0, 35.0)), origin.add(Math.Vec2(132.0, 105.0)))
@@ -81,6 +81,6 @@ public func paint_curves(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.
             origin.add(Math.Vec2(252.0, 88.0))
         )
     painter.stroke(cubic, Canvas.Stroke(Color.fuchsia_400(), 5.0)..cap = Canvas.StrokeCap.round)
-    label(painter, font, "quadratique", origin.add(Math.Vec2(42.0, 145.0)), 11.0)
-    label(painter, font, "Bézier cubique", origin.add(Math.Vec2(165.0, 145.0)), 11.0)
+    label(painter, font, "quadratic", origin.add(Math.Vec2(42.0, 145.0)), 11.0)
+    label(painter, font, "cubic Bézier", origin.add(Math.Vec2(165.0, 145.0)), 11.0)
 }

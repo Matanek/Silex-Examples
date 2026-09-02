@@ -8,17 +8,17 @@ use Module.Drawing.polygon
 use Module.Drawing.star
 
 public func paint_round_shapes(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
-    card(painter, font, "Cercles et ellipses", origin, Math.Vec2(275.0, 195.0))
+    card(painter, font, "Circles and ellipses", origin, Math.Vec2(275.0, 195.0))
     painter.stroke(Canvas.Circle(origin.add(Math.Vec2(55.0, 105.0)), 30.0), Canvas.Stroke(Color.sky_400(), 4.0))
     painter.fill(Canvas.Ellipse(origin.add(Math.Vec2(138.0, 105.0)), Math.Vec2(42.0, 27.0)), Canvas.Fill.solid(Color.emerald_400()))
     painter.stroke(Canvas.Circle(origin.add(Math.Vec2(225.0, 105.0)), 30.0), Canvas.Stroke(Color.violet_400(), 13.0))
-    label(painter, font, "contour fin", origin.add(Math.Vec2(24.0, 150.0)), 11.0)
-    label(painter, font, "plein", origin.add(Math.Vec2(124.0, 150.0)), 11.0)
-    label(painter, font, "contour épais", origin.add(Math.Vec2(188.0, 150.0)), 11.0)
+    label(painter, font, "thin outline", origin.add(Math.Vec2(24.0, 150.0)), 11.0)
+    label(painter, font, "filled", origin.add(Math.Vec2(124.0, 150.0)), 11.0)
+    label(painter, font, "thick outline", origin.add(Math.Vec2(188.0, 150.0)), 11.0)
 }
 
 public func paint_arcs(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
-    card(painter, font, "Arcs, secteurs et segments", origin, Math.Vec2(275.0, 195.0))
+    card(painter, font, "Arcs, sectors, and segments", origin, Math.Vec2(275.0, 195.0))
     painter.stroke(
         Canvas.Arc(origin.add(Math.Vec2(52.0, 113.0)), 35.0, Math.pi(), Math.pi()),
         Canvas.Stroke(Color.sky_400(), 5.0)..cap = Canvas.StrokeCap.round
@@ -32,12 +32,12 @@ public func paint_arcs(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Ve
         Canvas.Stroke(Color.purple_400(), 14.0)..cap = Canvas.StrokeCap.butt
     )
     label(painter, font, "arc", origin.add(Math.Vec2(42.0, 158.0)), 11.0)
-    label(painter, font, "secteur", origin.add(Math.Vec2(116.0, 158.0)), 11.0)
-    label(painter, font, "secteur d’anneau", origin.add(Math.Vec2(184.0, 158.0)), 11.0)
+    label(painter, font, "sector", origin.add(Math.Vec2(116.0, 158.0)), 11.0)
+    label(painter, font, "ring sector", origin.add(Math.Vec2(184.0, 158.0)), 11.0)
 }
 
 public func paint_rectangles(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
-    card(painter, font, "Rectangles, carrés et arrondis", origin, Math.Vec2(275.0, 195.0))
+    card(painter, font, "Rectangles, squares, rounding", origin, Math.Vec2(275.0, 195.0))
     painter.stroke(Canvas.Rect(origin.add(Math.Vec2(24.0, 72.0)), Math.Vec2(70.0, 55.0)), Canvas.Stroke(Color.blue_400(), 4.0))
     painter.fill(Canvas.Rect(origin.add(Math.Vec2(112.0, 68.0)), Math.Vec2(58.0)), Canvas.Fill.solid(Color.green_400()))
     painter.fill(
@@ -49,23 +49,23 @@ public func paint_rectangles(painter:&Canvas.Painter, font:Canvas.Font, origin:M
             end_color:Color.pink_400()
         ))
     )
-    label(painter, font, "contour", origin.add(Math.Vec2(35.0, 148.0)), 11.0)
-    label(painter, font, "plein", origin.add(Math.Vec2(127.0, 148.0)), 11.0)
-    label(painter, font, "dégradé", origin.add(Math.Vec2(198.0, 148.0)), 11.0)
+    label(painter, font, "outline", origin.add(Math.Vec2(35.0, 148.0)), 11.0)
+    label(painter, font, "filled", origin.add(Math.Vec2(127.0, 148.0)), 11.0)
+    label(painter, font, "gradient", origin.add(Math.Vec2(198.0, 148.0)), 11.0)
 }
 
 public func paint_polygons(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
-    card(painter, font, "Polygones réguliers", origin, Math.Vec2(275.0, 195.0))
+    card(painter, font, "Regular polygons", origin, Math.Vec2(275.0, 195.0))
     painter.stroke(polygon(origin.add(Math.Vec2(54.0, 108.0)), 36.0, 3, -Math.pi() * 0.5), Canvas.Stroke(Color.amber_400(), 4.0))
     painter.stroke(polygon(origin.add(Math.Vec2(137.0, 108.0)), 36.0, 5, -Math.pi() * 0.5), Canvas.Stroke(Color.teal_400(), 4.0))
     painter.stroke(polygon(origin.add(Math.Vec2(222.0, 108.0)), 36.0, 8, Math.pi() * 0.125), Canvas.Stroke(Color.violet_400(), 4.0))
     label(painter, font, "triangle", origin.add(Math.Vec2(32.0, 158.0)), 11.0)
-    label(painter, font, "pentagone", origin.add(Math.Vec2(108.0, 158.0)), 11.0)
-    label(painter, font, "octogone", origin.add(Math.Vec2(198.0, 158.0)), 11.0)
+    label(painter, font, "pentagon", origin.add(Math.Vec2(108.0, 158.0)), 11.0)
+    label(painter, font, "octagon", origin.add(Math.Vec2(198.0, 158.0)), 11.0)
 }
 
 public func paint_special_polygons(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
-    card(painter, font, "Étoile, losange et forme concave", origin, Math.Vec2(275.0, 195.0))
+    card(painter, font, "Star, diamond, and concave shape", origin, Math.Vec2(275.0, 195.0))
     painter.stroke(
         star(origin.add(Math.Vec2(54.0, 108.0)), 39.0, 17.0, 5),
         Canvas.Stroke(Color.yellow_400(), 4.0)..join = Canvas.StrokeJoin.miter
@@ -84,7 +84,7 @@ public func paint_special_polygons(painter:&Canvas.Painter, font:Canvas.Font, or
 }
 
 public func paint_freeform(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
-    card(painter, font, "Forme libre fermée", origin, Math.Vec2(275.0, 195.0))
+    card(painter, font, "Closed freeform shape", origin, Math.Vec2(275.0, 195.0))
     var blob = Canvas.Path()
         ..move_to(origin.add(Math.Vec2(36.0, 112.0)))
         ..cubic_to(origin.add(Math.Vec2(18.0, 57.0)), origin.add(Math.Vec2(80.0, 48.0)), origin.add(Math.Vec2(112.0, 72.0)))
@@ -104,14 +104,14 @@ public func paint_freeform(painter:&Canvas.Painter, font:Canvas.Font, origin:Mat
 }
 
 public func paint_arrows(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
-    card(painter, font, "Flèches composées", origin, Math.Vec2(275.0, 195.0))
+    card(painter, font, "Composite arrows", origin, Math.Vec2(275.0, 195.0))
     arrow(painter, origin.add(Math.Vec2(24.0, 78.0)), origin.add(Math.Vec2(245.0, 78.0)), Color.sky_400(), 4.0)
     arrow(painter, origin.add(Math.Vec2(24.0, 128.0)), origin.add(Math.Vec2(245.0, 128.0)), Color.rose_500(), 12.0)
-    label(painter, font, "même intention, deux poids", origin.add(Math.Vec2(55.0, 155.0)), 11.0)
+    label(painter, font, "same intent, two weights", origin.add(Math.Vec2(55.0, 155.0)), 11.0)
 }
 
 public func paint_layering(painter:&Canvas.Painter, font:Canvas.Font, origin:Math.Vec2) {
-    card(painter, font, "Transparence et superposition", origin, Math.Vec2(275.0, 195.0))
+    card(painter, font, "Transparency and layering", origin, Math.Vec2(275.0, 195.0))
     painter.fill(Canvas.Circle(origin.add(Math.Vec2(102.0, 108.0)), 49.0), Canvas.Fill.solid(Color.green_400().with_alpha(0.48)))
     painter.fill(Canvas.Rect(origin.add(Math.Vec2(106.0, 72.0)), Math.Vec2(92.0, 72.0)), Canvas.Fill.solid(Color.rose_400().with_alpha(0.5)))
     painter.fill(polygon(origin.add(Math.Vec2(176.0, 119.0)), 53.0, 3, -Math.pi() * 0.5), Canvas.Fill.solid(Color.blue_400().with_alpha(0.5)))

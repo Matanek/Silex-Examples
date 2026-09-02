@@ -17,11 +17,11 @@ use Module.Strokes.paint_lines
 use Module.Strokes.paint_paths
 
 public func paint_gallery(painter:&Canvas.Painter, font:Canvas.Font) {
-    label(painter, font, "GFX.Canvas — galerie de formes 2D", Math.Vec2(28.0, 20.0), 26.0, Color.white())
+    label(painter, font, "GFX.Canvas — 2D shape gallery", Math.Vec2(28.0, 20.0), 26.0, Color.white())
     label(
         painter,
         font,
-        "Primitives simples, chemins libres, styles, dégradés et composition",
+        "Simple primitives, freeform paths, styles, gradients, and compositing",
         Math.Vec2(30.0, 51.0),
         13.0,
         Color.slate_400()

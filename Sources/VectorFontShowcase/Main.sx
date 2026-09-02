@@ -116,7 +116,7 @@ func chrome(painter:&Canvas.Painter, font:Canvas.Font, selected:int) {
         Math.Vec2(28.0, 18.0),
         Canvas.TextStyle(size:30.0, color:ink(), font:font)
     )
-    let labels:str[] = ["1  Typographie", "2  Scene2D vector", "3  Scene3D shadow"]
+    let labels:str[] = ["1  Typography", "2  Scene2D vector", "3  Scene3D shadow"]
     var index = 0
     while index < labels.count() {
         let x = 590.0 + index as float * 210.0
@@ -173,25 +173,25 @@ func typography_board(font:Canvas.Font, terminal_font:Canvas.Font) Canvas {
             Canvas.Rect(Math.Vec2(830.0, 92.0), Math.Vec2(426.0, 550.0), 16.0),
             Canvas.Fill.solid(Color.bytes(20, 27, 40))
         )
-        painter.text("Shaping Unicode — même face, mêmes GlyphRuns", Math.Vec2(52.0, 120.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
+        painter.text("Unicode shaping — same face, same GlyphRuns", Math.Vec2(52.0, 120.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
         painter.text("office", Math.Vec2(52.0, 164.0), Canvas.TextStyle(size:56.0, color:ink(), font:font))
         painter.text("ligature ffi · kerning AVATAR", Math.Vec2(52.0, 244.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
         painter.text("a\u{0323}\u{0301}   Ελληνικά   Кириллица", Math.Vec2(52.0, 278.0), Canvas.TextStyle(size:36.0, color:ink(), font:font))
         painter.text("देवनागरी   العربية", Math.Vec2(52.0, 348.0), Canvas.TextStyle(size:38.0, color:ink(), font:font))
-        painter.text("La face distribuée reste volontairement bornée : le notdef est visible.", Math.Vec2(52.0, 402.0), Canvas.TextStyle(size:15.0, color:amber(), font:font))
-        painter.text("Terminal — couverture hintée à petite taille", Math.Vec2(52.0, 462.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
+        painter.text("The bundled face is intentionally bounded; the .notdef glyph is visible.", Math.Vec2(52.0, 402.0), Canvas.TextStyle(size:15.0, color:amber(), font:font))
+        painter.text("Terminal — hinted coverage at small sizes", Math.Vec2(52.0, 462.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
         painter.text("silex> build --release   80×24   status: ready", Math.Vec2(52.0, 504.0), Canvas.TextStyle(size:14.0, color:ink(), font:terminal_font))
         painter.text("marks: a\u{0323}\u{0301}  glyph cache stable  frame 0167", Math.Vec2(52.0, 532.0), Canvas.TextStyle(size:16.0, color:ink(), font:terminal_font))
-        painter.text("Métriques", Math.Vec2(858.0, 120.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
-        painter.text("glyphes façonnés  $(glyphs)", Math.Vec2(858.0, 170.0), Canvas.TextStyle(size:18.0, color:ink(), font:font))
+        painter.text("Metrics", Math.Vec2(858.0, 120.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
+        painter.text("shaped glyphs  $(glyphs)", Math.Vec2(858.0, 170.0), Canvas.TextStyle(size:18.0, color:ink(), font:font))
         var notdef_color = ink()
         if notdef > 0 { notdef_color = amber() }
         painter.text("notdef  $(notdef)", Math.Vec2(858.0, 204.0), Canvas.TextStyle(size:18.0, color:notdef_color, font:font))
-        painter.text("direction RTL explicite", Math.Vec2(858.0, 260.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
-        painter.text("clusters UTF-8 conservés", Math.Vec2(858.0, 292.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
+        painter.text("explicit RTL direction", Math.Vec2(858.0, 260.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
+        painter.text("UTF-8 clusters preserved", Math.Vec2(858.0, 292.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
         painter.text("Y-up Font / Y-down Canvas", Math.Vec2(858.0, 324.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
-        painter.text("O : géométrie réelle du run office", Math.Vec2(858.0, 398.0), Canvas.TextStyle(size:15.0, color:amber(), font:font))
-        footer(painter, font, "1/2/3 vues · O géométrie · Espace lumière 3D · Échap quitter")
+        painter.text("O: actual geometry of the office run", Math.Vec2(858.0, 398.0), Canvas.TextStyle(size:15.0, color:amber(), font:font))
+        footer(painter, font, "1/2/3: views · O: geometry · Space: 3D light · Escape: quit")
     })
 }
 
@@ -227,8 +227,8 @@ func paint_typography_geometry(
         painter.fill(Canvas.Circle(Math.Vec2(x, baseline), 2.5), Canvas.Fill.solid(cyan()))
     }
     painter.text("baseline", Math.Vec2(375.0, baseline - 9.0), Canvas.TextStyle(size:12.0, color:cyan(), font:font))
-    painter.text("boîtes d'encre + origines de clusters", Math.Vec2(858.0, 432.0), Canvas.TextStyle(size:14.0, color:cyan(), font:font))
-    painter.text("ambre : bounds logiques", Math.Vec2(858.0, 458.0), Canvas.TextStyle(size:14.0, color:amber(), font:font))
+    painter.text("ink boxes + cluster origins", Math.Vec2(858.0, 432.0), Canvas.TextStyle(size:14.0, color:cyan(), font:font))
+    painter.text("amber: logical bounds", Math.Vec2(858.0, 458.0), Canvas.TextStyle(size:14.0, color:amber(), font:font))
 }
 
 func typography_geometry(font:Canvas.Font) Canvas {
@@ -297,15 +297,15 @@ func vector_board(font:Canvas.Font) Canvas {
     return Canvas()..paint(func(painter:&Canvas.Painter) {
         chrome(painter, font, 2)
         painter.fill(Canvas.Rect(Math.Vec2(24.0, 92.0), Math.Vec2(1232.0, 550.0), 16.0), Canvas.Fill.solid(panel()))
-        painter.text("Scene2D — GlyphRun retenu, tessellation partagée", Math.Vec2(52.0, 120.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
-        painter.text("Couverture hintée", Math.Vec2(52.0, 172.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
+        painter.text("Scene2D — retained GlyphRun, shared tessellation", Math.Vec2(52.0, 120.0), Canvas.TextStyle(size:18.0, color:cyan(), font:font))
+        painter.text("Hinted coverage", Math.Vec2(52.0, 172.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
         painter.text("Terminal 14 px — office a\u{0323}\u{0301}", Math.Vec2(52.0, 208.0), Canvas.TextStyle(size:14.0, color:ink(), font:font))
         painter.text("Interface 18 px — AVATAR Ελληνικά", Math.Vec2(52.0, 244.0), Canvas.TextStyle(size:18.0, color:ink(), font:font))
-        painter.text("Contours ×8 — courbes indépendantes de la résolution", Math.Vec2(468.0, 172.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
+        painter.text("Outlines ×8 — resolution-independent curves", Math.Vec2(468.0, 172.0), Canvas.TextStyle(size:16.0, color:muted(), font:font))
         for outline in outlines { stroke_outline(painter, outline, Math.Vec2(500.0, 470.0), 190.0, amber()) }
         painter.stroke(Canvas.Line(Math.Vec2(468.0, 470.0), Math.Vec2(1190.0, 470.0)), Canvas.Stroke(Color.bytes(76, 92, 119), 1.0))
-        painter.text("Le trou de O reste vide ; taille, couleur et transform ne retessellent pas.", Math.Vec2(468.0, 590.0), Canvas.TextStyle(size:15.0, color:ink(), font:font))
-        footer(painter, font, "O : bounds/origines/clusters · Espace : suspend la lumière 3D")
+        painter.text("The O counter stays open; size, color, and transform do not retessellate.", Math.Vec2(468.0, 590.0), Canvas.TextStyle(size:15.0, color:ink(), font:font))
+        footer(painter, font, "O: bounds/origins/clusters · Space: pause the 3D light")
     })
 }
 
@@ -334,7 +334,7 @@ func vector_geometry(font:Canvas.Font) Canvas {
             painter.text("gid $(glyph.id) · bytes [$(glyph.cluster_start),$(glyph.cluster_end))", Math.Vec2(label_x, 540.0), Canvas.TextStyle(size:13.0, color:cyan(), font:font))
             label_x += 230.0
         }
-        painter.text("baseline y=470 · origine cyan · ink bounds", Math.Vec2(880.0, 488.0), Canvas.TextStyle(size:13.0, color:amber(), font:font))
+        painter.text("baseline y=470 · cyan origin · ink bounds", Math.Vec2(880.0, 488.0), Canvas.TextStyle(size:13.0, color:amber(), font:font))
     })
 }
 
@@ -348,13 +348,13 @@ func scene_board(font:Canvas.Font) Canvas {
     return Canvas()..paint(func(painter:&Canvas.Painter) {
         painter.fill(Canvas.Rect(Math.Vec2(), Math.Vec2(Layout.width as float, Layout.header)), Canvas.Fill.solid(Color.bytes(18, 24, 38)))
         painter.text("Vector Font Showcase", Math.Vec2(28.0, 18.0), Canvas.TextStyle(size:30.0, color:ink(), font:font))
-        painter.text("3  Scene3D — mesh planaire éclairé + vraie shadow map", Math.Vec2(620.0, 26.0), Canvas.TextStyle(size:16.0, color:cyan(), font:font))
+        painter.text("3  Scene3D — lit planar mesh + real shadow map", Math.Vec2(620.0, 26.0), Canvas.TextStyle(size:16.0, color:cyan(), font:font))
         painter.fill(Canvas.Rect(Math.Vec2(24.0, 92.0), Math.Vec2(390.0, 118.0), 12.0), Canvas.Fill.solid(Color.bytes(18, 24, 38)))
-        painter.text("Même GlyphRun", Math.Vec2(48.0, 114.0), Canvas.TextStyle(size:18.0, color:amber(), font:font))
-        painter.text("normales physiques · PBR · holes", Math.Vec2(48.0, 154.0), Canvas.TextStyle(size:15.0, color:ink(), font:font))
-        painter.text("caster et receiver séparés", Math.Vec2(48.0, 180.0), Canvas.TextStyle(size:15.0, color:muted(), font:font))
-        painter.text("O affiche les axes X/Y du vrai plan", Math.Vec2(48.0, 206.0), Canvas.TextStyle(size:14.0, color:cyan(), font:font))
-        footer(painter, font, "O : axes X/Y du plan 3D · Espace : suspend la lumière")
+        painter.text("Same GlyphRun", Math.Vec2(48.0, 114.0), Canvas.TextStyle(size:18.0, color:amber(), font:font))
+        painter.text("physical normals · PBR · holes", Math.Vec2(48.0, 154.0), Canvas.TextStyle(size:15.0, color:ink(), font:font))
+        painter.text("separate caster and receiver", Math.Vec2(48.0, 180.0), Canvas.TextStyle(size:15.0, color:muted(), font:font))
+        painter.text("O shows the true plane's X/Y axes", Math.Vec2(48.0, 206.0), Canvas.TextStyle(size:14.0, color:cyan(), font:font))
+        footer(painter, font, "O: 3D plane X/Y axes · Space: pause the light")
     })
 }
 
@@ -368,8 +368,8 @@ func capture_board(font:Canvas.Font, terminal_font:Canvas.Font) Canvas {
         painter.fill(Canvas.Rect(Math.Vec2(824.0, 356.0), Math.Vec2(408.0, 242.0), 12.0), Canvas.Fill.solid(Color.bytes(30, 35, 49)))
         painter.text("Scene2D outline", Math.Vec2(848.0, 378.0), Canvas.TextStyle(size:16.0, color:cyan(), font:font))
         painter.text("O  Bé", Math.Vec2(848.0, 420.0), Canvas.TextStyle(size:72.0, color:amber(), font:font))
-        painter.text("Scene3D : voir la vue 3 interactive", Math.Vec2(848.0, 520.0), Canvas.TextStyle(size:15.0, color:ink(), font:font))
-        painter.text("PNG = Canvas déterministe, pas capture GPU", Math.Vec2(848.0, 552.0), Canvas.TextStyle(size:13.0, color:muted(), font:font))
+        painter.text("Scene3D: see interactive view 3", Math.Vec2(848.0, 520.0), Canvas.TextStyle(size:15.0, color:ink(), font:font))
+        painter.text("PNG = deterministic Canvas, not a GPU capture", Math.Vec2(848.0, 552.0), Canvas.TextStyle(size:13.0, color:muted(), font:font))
     })
     return drawing
 }
