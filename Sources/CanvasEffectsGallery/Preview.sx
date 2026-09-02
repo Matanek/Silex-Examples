@@ -48,8 +48,7 @@ class ShadowPreviewContent:UI.Content {
                 size:12.0,
                 color:Color.violet_700(),
                 weight:Canvas.TextWeight.bold,
-                font:self.font,
-                fixed_advance:7.8
+                font:self.font
             )
         )
         painter.text(
@@ -79,7 +78,7 @@ class ShadowPreviewContent:UI.Content {
             Math.Vec2(card_x, frame.position.y + 150.0),
             Math.Vec2(card_width, 116.0),
             0.36,
-            "FIG. 1  /  LOW",
+            "FIG. 1 / LOW",
             "Focus",
             "Small details stay close",
             0
@@ -89,7 +88,7 @@ class ShadowPreviewContent:UI.Content {
             Math.Vec2(card_x, frame.position.y + 340.0),
             Math.Vec2(card_width, 116.0),
             0.68,
-            "FIG. 2  /  MEDIUM",
+            "FIG. 2 / MEDIUM",
             "Compose",
             "Vector layers share depth",
             1
@@ -99,7 +98,7 @@ class ShadowPreviewContent:UI.Content {
             Math.Vec2(card_x, frame.position.y + 530.0),
             Math.Vec2(card_width, 116.0),
             1.0,
-            "FIG. 3  /  HIGH",
+            "FIG. 3 / HIGH",
             "Elevate",
             "Text casts a soft shadow too",
             2
@@ -119,13 +118,13 @@ class ShadowPreviewContent:UI.Content {
         let effective_depth = depth * self.controls.elevation.value()
         painter.text(
             caption,
-            Math.Vec2(position.x, position.y - 25.0),
+            Math.Vec2(position.x + size.x * 0.5, position.y - 25.0),
             Canvas.TextStyle(
                 size:11.0,
                 color:Color.violet_700(),
+                alignment:Canvas.TextAlignment.center,
                 weight:Canvas.TextWeight.bold,
-                font:self.font,
-                fixed_advance:7.2
+                font:self.font
             )
         )
 
@@ -187,16 +186,21 @@ class ShadowPreviewContent:UI.Content {
                 ),
                 Canvas.Fill.solid(Color.cyan_500())
             )
-            painter.text(
-                "+",
-                Math.Vec2(center.x, center.y - 18.0),
-                Canvas.TextStyle(
-                    size:35.0,
-                    color:Color.white(),
-                    alignment:Canvas.TextAlignment.center,
-                    weight:Canvas.TextWeight.bold,
-                    font:self.font
-                )
+            painter.fill(
+                Canvas.Rect(
+                    Math.Vec2(center.x - 18.0, center.y - 4.0),
+                    Math.Vec2(36.0, 8.0),
+                    4.0
+                ),
+                Canvas.Fill.solid(Color.white())
+            )
+            painter.fill(
+                Canvas.Rect(
+                    Math.Vec2(center.x - 4.0, center.y - 18.0),
+                    Math.Vec2(8.0, 36.0),
+                    4.0
+                ),
+                Canvas.Fill.solid(Color.white())
             )
         } else if symbol == 1 {
             var diamond = Canvas.Path()
