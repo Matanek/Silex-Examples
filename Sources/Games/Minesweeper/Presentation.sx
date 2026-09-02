@@ -340,6 +340,7 @@ func start_game(
 ) {
     create_board_view(board.settings(), world, assets, view)
     let size = board_size(board.settings())
+    camera.set_zoom(Settings.viewport_scale(window.size()))
     camera.set_limits(Math.Rect(0.0, 0.0, size.x, size.y))
     camera.set_position(size.multiply(0.5))
     presentation.click = audio.load("Assets/Sounds/Click.wav")

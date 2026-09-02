@@ -79,15 +79,27 @@ public struct Settings {
         if tile_size <= 0.0 {
             panic("Minesweeper fit requires a positive tile size")
         }
+        let scale = Settings.viewport_scale(viewport)
+        let design_viewport = viewport.multiply(1.0 / scale)
         let available = Math.Vec2(
-            Math.max(0.0, viewport.x - reserved.x),
-            Math.max(0.0, viewport.y - reserved.y)
+            Math.max(0.0, design_viewport.x - reserved.x),
+            Math.max(0.0, design_viewport.y - reserved.y)
         )
         return Settings(
             fitted_dimension(available.x, tile_size),
             fitted_dimension(available.y, tile_size),
             difficulty
         )
+    }
+
+    static func viewport_scale(
+        viewport:Math.Vec2,
+        design_extent:float = 800.0
+    ) float {
+        if viewport.x <= 0.0 || viewport.y <= 0.0 || design_extent <= 0.0 {
+            panic("Minesweeper viewport scale requires positive dimensions")
+        }
+        return Math.min(viewport.x / design_extent, viewport.y / design_extent)
     }
 }
 
@@ -396,8 +408,7 @@ func validate_dimension(name:str, value:int) {
 }
 
 func fitted_dimension(available:float, tile_size:float) int {
-    var cells = Math.floor(available / tile_size) as int
-    cells = cells / 4 * 4
+    var cells = Math.round(available / tile_size / 4.0) as int * 4
     if cells < 4 { return 4 }
     if cells > 256 { return 256 }
     return cells

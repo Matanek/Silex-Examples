@@ -14,7 +14,7 @@ test "provide validated presets, fit and exact mine totals" {
     assert(Settings(256, 256, 6).mine_count() == 24_576)
 
     let fitted = Settings.fit(Math.Vec2(1_260.0, 876.0), 3)
-    assert(fitted.width == 20)
+    assert(fitted.width == 16)
     assert(fitted.height == 12)
     assert(fitted.difficulty == 3)
 }

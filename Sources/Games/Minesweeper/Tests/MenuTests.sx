@@ -4,6 +4,7 @@ use Package.Games.Minesweeper.Menu.MenuLayout
 use Package.Games.Minesweeper.Menu.interact_menu
 use Package.Games.Minesweeper.Main.prepare_window
 use Package.Games.Minesweeper.Main.window_settings
+use Package.Games.Minesweeper.Model.Settings
 use Package.Games.Minesweeper.Session.GameSession
 use Package.Games.Minesweeper.Session.Request
 use Package.Games.Minesweeper.Typography.Typography
@@ -84,26 +85,32 @@ test "preserve one dimension across the three fit actions" {
     var session = GameSession()
     session.preset(3)
     session.fit_width(Math.Vec2(1_260.0, 876.0))
-    assert(session.settings().width == 20)
+    assert(session.settings().width == 16)
     assert(session.settings().height == 12)
     session.fit_height(Math.Vec2(1_260.0, 1_068.0))
-    assert(session.settings().width == 20)
-    assert(session.settings().height == 16)
+    assert(session.settings().width == 16)
+    assert(session.settings().height == 12)
     session.fit_screen(Math.Vec2(1_260.0, 876.0))
-    assert(session.settings().width == 20)
+    assert(session.settings().width == 16)
     assert(session.settings().height == 12)
 }
 
-test "fit a 28 by 16 board and its border inside a Retina fullscreen viewport" {
+test "restore Godot fit dimensions and display scale on a Retina fullscreen viewport" {
     let viewport = Math.Vec2(1_728.0, 1_117.0)
     var session = GameSession()
+    session.fit_width(viewport)
+    assert(session.settings().width == 20)
+    assert(session.settings().height == 8)
+    assert(session.settings().cell_count() == 160)
     session.fit_screen(viewport)
     let settings = session.settings()
-    assert(settings.width == 28)
-    assert(settings.height == 16)
-    assert(settings.cell_count() == 448)
-    assert((settings.width + 2) as float * 48.0 <= viewport.x)
-    assert((settings.height + 2) as float * 48.0 <= viewport.y)
+    assert(settings.width == 20)
+    assert(settings.height == 12)
+    assert(settings.cell_count() == 240)
+    let scale = Settings.viewport_scale(viewport)
+    assert(Math.nearly_equal(scale, viewport.y / 800.0))
+    assert((settings.width + 2) as float * 48.0 * scale <= viewport.x)
+    assert((settings.height + 2) as float * 48.0 * scale <= viewport.y)
 }
 
 test "center the Godot-sized menu card and keep every action inside it" {
