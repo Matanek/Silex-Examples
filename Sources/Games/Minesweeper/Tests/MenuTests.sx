@@ -1,0 +1,163 @@
+use GFX.Canvas
+use GFX.Window
+use Package.Games.Minesweeper.Menu.MenuLayout
+use Package.Games.Minesweeper.Menu.interact_menu
+use Package.Games.Minesweeper.Main.prepare_window
+use Package.Games.Minesweeper.Main.window_settings
+use Package.Games.Minesweeper.Model.Settings
+use Package.Games.Minesweeper.Session.GameSession
+use Package.Games.Minesweeper.Session.Request
+use Package.Games.Minesweeper.Typography.Typography
+use STD.Math
+
+test "use the bundled accented pixel face throughout Minesweeper" {
+    var font = Typography.pixel()
+    var reused = Typography.pixel()
+    var face = font.face()
+    var reused_face = reused.face()
+    assert(font == reused)
+    if family = face.family_name() {
+        assert(family == "Departure Mono")
+    } else { panic("missing pixel font family") }
+    assert(face.identity() == reused_face.identity())
+    assert(face.supports(0x00e9 as uint32))
+    assert(face.supports(0x00e7 as uint32))
+    assert(face.supports(0x0153 as uint32))
+}
+
+test "fit each centered instruction line inside the menu card" {
+    var font = Typography.pixel()
+    var drawing = Canvas()
+    var style = Canvas.TextStyle(size:12.0, font:font)
+    assert(drawing.measure_text("Demean : [Left click]", style).width <= 350.0)
+    assert(drawing.measure_text(
+        "Flag : [Right click] or [Left click + Shift]",
+        style
+    ).width <= 350.0)
+}
+
+test "enter native fullscreen only after the hidden render surface is ready" {
+    let normal = window_settings(false)
+    assert(!normal.borderless)
+    assert(!normal.fullscreen)
+    assert(!normal.resizable)
+    assert(!normal.hidden)
+
+    let verification = window_settings(true)
+    assert(!verification.borderless)
+    assert(!verification.fullscreen)
+    assert(verification.resizable)
+    assert(verification.hidden)
+
+    var window = Window(Window.Settings(
+        title:"Minesweeper startup test",
+        width:800,
+        height:800,
+        resizable:false,
+        borderless:false,
+        hidden:true
+    ))
+    prepare_window(false, window)
+    assert(window.is_fullscreen())
+    assert(window.state().fullscreen)
+    assert(window.state().visible)
+    assert(window.opacity() == 0.0)
+    window.set_opacity(1.0)
+}
+
+test "round every menu setting into the canonical model" {
+    var session = GameSession()
+    session.set_width(21.0)
+    session.set_height(14.0)
+    session.set_difficulty(5.7)
+    assert(session.settings().width == 20)
+    assert(session.settings().height == 16)
+    assert(session.settings().difficulty == 6)
+    assert(session.case_summary() == "320 cases")
+    assert(session.mine_summary() == "120 mines")
+
+    session.adjust_width(-20)
+    session.adjust_height(100)
+    assert(session.settings().width == 4)
+    assert(session.settings().height == 256)
+}
+
+test "fit maximum case and mine summaries on separate recap lines" {
+    var font = Typography.pixel()
+    var drawing = Canvas()
+    var style = Canvas.TextStyle(size:24.0, font:font)
+    var session = GameSession()
+    session.set_width(256.0)
+    session.set_height(256.0)
+    session.set_difficulty(6.0)
+    assert(session.case_summary() == "65536 cases")
+    assert(session.mine_summary() == "24576 mines")
+    assert(drawing.measure_text(session.case_summary(), style).width <= 350.0)
+    assert(drawing.measure_text(session.mine_summary(), style).width <= 350.0)
+}
+
+test "preserve one dimension across the three fit actions" {
+    var session = GameSession()
+    session.preset(3)
+    session.fit_width(Math.Vec2(1_260.0, 876.0))
+    assert(session.settings().width == 16)
+    assert(session.settings().height == 12)
+    session.fit_height(Math.Vec2(1_260.0, 1_068.0))
+    assert(session.settings().width == 16)
+    assert(session.settings().height == 12)
+    session.fit_screen(Math.Vec2(1_260.0, 876.0))
+    assert(session.settings().width == 16)
+    assert(session.settings().height == 12)
+}
+
+test "restore Godot fit dimensions and display scale on a Retina fullscreen viewport" {
+    let viewport = Math.Vec2(1_728.0, 1_117.0)
+    var session = GameSession()
+    session.fit_width(viewport)
+    assert(session.settings().width == 20)
+    assert(session.settings().height == 8)
+    assert(session.settings().cell_count() == 160)
+    session.fit_screen(viewport)
+    let settings = session.settings()
+    assert(settings.width == 20)
+    assert(settings.height == 12)
+    assert(settings.cell_count() == 240)
+    let scale = Settings.viewport_scale(viewport)
+    assert(Math.nearly_equal(scale, viewport.y / 800.0))
+    assert((settings.width + 2) as float * 48.0 * scale <= viewport.x)
+    assert((settings.height + 2) as float * 48.0 * scale <= viewport.y)
+}
+
+test "center the Godot-sized menu card and keep every action inside it" {
+    let compact = MenuLayout.calculate(Math.Vec2(600.0, 700.0))
+    let wide = MenuLayout.calculate(Math.Vec2(1_280.0, 800.0))
+    assert(compact.compact)
+    assert(!wide.compact)
+    assert(compact.card.x >= 0.0 && compact.card.maximum().x <= 600.0)
+    assert(wide.card.w == 416.0 && wide.card.h == 616.0)
+    assert(wide.card.center().x == 640.0)
+    assert(wide.card.center().y == 400.0)
+    assert(compact.hit_test(compact.play.center()) == "play")
+    assert(wide.hit_test(wide.quit.center()) == "quit")
+    assert(wide.hit_test(Math.Vec2()) == "background")
+}
+
+test "drive dimensions, difficulty and play from canvas hit regions" {
+    var session = GameSession()
+    let viewport = Math.Vec2(1_280.0, 800.0)
+    let layout = MenuLayout.calculate(viewport)
+    let initial_width = session.settings().width
+    assert(interact_menu(session, layout.width_plus.center(), viewport, false))
+    assert(session.settings().width == initial_width + 4)
+    assert(interact_menu(session, layout.preset_3.center(), viewport, false))
+    assert(session.settings().width == 48 && session.settings().height == 12)
+    assert(interact_menu(
+        session,
+        Math.Vec2(layout.difficulty.maximum().x - 1.0, layout.difficulty.center().y),
+        viewport,
+        true
+    ))
+    assert(session.settings().difficulty == 6)
+    assert(interact_menu(session, layout.play.center(), viewport, false))
+    assert(session.request() == Request.play)
+}

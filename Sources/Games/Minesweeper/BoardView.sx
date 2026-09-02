@@ -1,0 +1,479 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Scene2D
+use Module.Assets.VisualAssets
+use Module.Model.ActionResult
+use Module.Model.Board
+use Module.Model.CellState
+use Module.Model.Coordinate
+use Module.Model.GameState
+use Module.Model.Settings
+use Module.Typography.Typography
+use STD.Math
+
+public static struct BoardTile {
+    let empty:int = 0
+    let ground:int = 10
+    let cover:int = 11
+    let flag:int = 12
+    let wrong_flag:int = 13
+    let focus:int = 14
+    let border:int = 15
+    let mine:int = 17
+    let secured_mine:int = 18
+}
+
+public class GameView {
+    var background:ECS.Entity? = null
+    var ground:ECS.Entity? = null
+    var mines:ECS.Entity? = null
+    var numbers:ECS.Entity? = null
+    var covers:ECS.Entity? = null
+    var flags:ECS.Entity? = null
+    var focus:ECS.Entity? = null
+    var border:ECS.Entity? = null
+    var hud:ECS.Entity? = null
+    var hovered:Coordinate? = null
+    var generated:bool = false
+    var hud_signature:str = ""
+    var hud_width:int = 0
+    var hud_height:int = 0
+    var layer_count:int = 0
+    var changed_cells:int = 0
+    var background_camera_position:Math.Vec2 = Math.Vec2()
+}
+
+public func board_size(settings:Settings) Math.Vec2 {
+    return Math.Vec2(settings.width * 48.0, settings.height * 48.0)
+}
+
+public func board_coordinate(
+    pointer:Math.Vec2,
+    camera:Scene2D.Camera,
+    transform:Scene2D.Transform,
+    viewport:Math.Vec2,
+    settings:Settings
+) Coordinate? {
+    if let world = camera.unproject(pointer, transform, viewport) {
+        if world.x < 0.0 || world.y < 0.0 { return null }
+        let x = Math.floor(world.x / 48.0) as int
+        let y = Math.floor(world.y / 48.0) as int
+        if x >= 0 && y >= 0 && x < settings.width && y < settings.height {
+            return Coordinate(x:x, y:y)
+        }
+    }
+    return null
+}
+
+public func visible_cell_bound(viewport:Math.Vec2, zoom:float) int {
+    let safe_zoom = Math.max(0.05, zoom)
+    let columns = Math.ceil(viewport.x / safe_zoom / 48.0) as int + 2
+    let rows = Math.ceil(viewport.y / safe_zoom / 48.0) as int + 2
+    return columns * rows
+}
+
+public func create_board_view(
+    settings:Settings,
+    world:&ECS.World,
+    assets:@VisualAssets,
+    view:&GameView
+) {
+    let atlas = Scene2D.TileAtlas(assets.board, 48, 48)
+    let size = board_size(settings)
+    view.background_camera_position = size.multiply(0.5)
+
+    var background = Components.Sprite2D(
+        assets.background,
+        size:size.add(Math.Vec2(1600.0, 1200.0)),
+        color:Color.bytes(93, 222, 140, 118),
+        layer:-20
+    )
+    view.background = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:size.multiply(0.5)))
+        ..with(background)
+    )
+
+    var ground = Components.TileMap2D(atlas, settings.width, settings.height)
+    ground.fill(BoardTile.ground)
+    ground.layer = 0
+    view.ground = spawn_layer(world, ground)
+
+    var mines = Components.TileMap2D(atlas, settings.width, settings.height)
+    mines.layer = 1
+    view.mines = spawn_layer(world, mines)
+
+    var numbers = Components.TileMap2D(atlas, settings.width, settings.height)
+    numbers.layer = 2
+    view.numbers = spawn_layer(world, numbers)
+
+    var covers = Components.TileMap2D(atlas, settings.width, settings.height)
+    covers.fill(BoardTile.cover)
+    covers.layer = 3
+    view.covers = spawn_layer(world, covers)
+
+    var flags = Components.TileMap2D(atlas, settings.width, settings.height)
+    flags.layer = 4
+    view.flags = spawn_layer(world, flags)
+
+    var focus = Components.TileMap2D(atlas, settings.width, settings.height)
+    focus.layer = 5
+    view.focus = spawn_layer(world, focus)
+
+    var border = Components.TileMap2D(
+        atlas,
+        settings.width + 2,
+        settings.height + 2
+    )
+    border.layer = 6
+    var border_y = 0
+    while border_y < border.rows() {
+        var border_x = 0
+        while border_x < border.columns() {
+            if border_x == 0 || border_y == 0 ||
+                border_x == border.columns() - 1 || border_y == border.rows() - 1
+            {
+                border.set(border_x, border_y, BoardTile.border)
+            }
+            border_x++
+        }
+        border_y++
+    }
+    view.border = spawn_layer_at(world, border, Math.Vec2(-48.0))
+    view.layer_count = 7
+}
+
+public func sync_generated_board(
+    board:@Board,
+    world:&ECS.World,
+    view:&GameView
+) {
+    if view.generated { return }
+    let settings = board.settings()
+    if let entity = view.mines {
+        world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) {
+            var y = 0
+            while y < settings.height {
+                var x = 0
+                while x < settings.width {
+                    if board.cell(x, y).mine { layer.set(x, y, BoardTile.mine) }
+                    x++
+                }
+                y++
+            }
+        })
+    }
+    view.generated = true
+}
+
+public func apply_board_result(
+    board:@Board,
+    result:ActionResult,
+    world:&ECS.World,
+    view:&GameView
+) {
+    if result.generated { sync_generated_board(board, world, view) }
+    apply_board_changes(board, result.changed, 0, result.changed.count(), world, view)
+    finish_board_result(board, result.state, world, view)
+}
+
+public func apply_board_changes(
+    board:@Board,
+    changed:@Coordinate[],
+    first:int,
+    count:int,
+    world:&ECS.World,
+    view:&GameView
+) {
+    if count <= 0 { return }
+    var last = first + count
+    if last > changed.count() { last = changed.count() }
+    if first < 0 || first >= last { return }
+    if let entity = view.numbers {
+        world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) {
+            var index = first
+            while index < last {
+                let point = changed[index]
+                let cell = board.cell(point.x, point.y)
+                if cell.state == CellState.revealed && !cell.mine &&
+                    cell.neighboring_mines > 0
+                { layer.set(point.x, point.y, cell.neighboring_mines) }
+                index++
+            }
+        })
+    }
+    if let entity = view.covers {
+        world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) {
+            var index = first
+            while index < last {
+                let point = changed[index]
+                let cell = board.cell(point.x, point.y)
+                if cell.state == CellState.revealed { layer.clear(point.x, point.y) }
+                else { layer.set(point.x, point.y, BoardTile.cover) }
+                index++
+            }
+        })
+    }
+    if let entity = view.flags {
+        world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) {
+            var index = first
+            while index < last {
+                let point = changed[index]
+                let cell = board.cell(point.x, point.y)
+                if cell.state == CellState.flagged { layer.set(point.x, point.y, BoardTile.flag) }
+                else { layer.clear(point.x, point.y) }
+                index++
+            }
+        })
+    }
+    view.changed_cells += last - first
+}
+
+public func finish_board_result(
+    board:@Board,
+    state:GameState,
+    world:&ECS.World,
+    view:&GameView
+) {
+    if state == GameState.won || state == GameState.lost {
+        sync_terminal_board(board, state, world, view)
+    }
+}
+
+public func update_focus(
+    coordinate:Coordinate?,
+    board:@Board,
+    world:&ECS.World,
+    view:&GameView
+) bool {
+    var changed = false
+    if let previous = view.hovered {
+        if coordinate_is_different(coordinate, previous) {
+            if let entity = view.focus {
+                world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) {
+                    layer.clear(previous.x, previous.y)
+                })
+            }
+            view.hovered = null
+            changed = true
+        }
+    }
+    if let point = coordinate {
+        let cell = board.cell(point.x, point.y)
+        let actionable = board.state() != GameState.won &&
+            board.state() != GameState.lost && cell.state != CellState.revealed
+        if actionable && coordinate_is_different(view.hovered, point) {
+            if let entity = view.focus {
+                world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) {
+                    layer.set(point.x, point.y, BoardTile.focus)
+                })
+            }
+            view.hovered = point
+            changed = true
+        }
+    }
+    return changed
+}
+
+public func rebuild_hud(
+    board:@Board,
+    viewport:Math.Vec2,
+    world:&ECS.World,
+    view:&GameView
+) {
+    let signature = hud_text(board)
+    let width = viewport.x as int
+    let height = viewport.y as int
+    if signature == view.hud_signature && width == view.hud_width &&
+        height == view.hud_height
+    { return }
+    var drawing = hud_drawing(board, viewport)
+    if let entity = view.hud {
+        if world.is_alive(entity) {
+            world.update<Components.Canvas>(entity, func(canvas:&Components.Canvas) {
+                canvas.replace(drawing)
+                canvas.size = viewport
+            })
+        }
+    } else {
+        view.hud = world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform2D())
+            ..with(Components.Canvas(drawing, width, height)
+                ..size = viewport
+                ..space = Components.CanvasSpace.viewport
+                ..layer = 100
+                ..text_mode = Scene2D.CanvasTextMode.coverage)
+        )
+    }
+    view.hud_signature = signature
+    view.hud_width = width
+    view.hud_height = height
+}
+
+public func reset_board_view(
+    settings:Settings,
+    world:&ECS.World,
+    view:&GameView
+) {
+    if let entity = view.mines { world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) { layer.clear() }) }
+    if let entity = view.numbers { world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) { layer.clear() }) }
+    if let entity = view.covers { world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) { layer.fill(BoardTile.cover) }) }
+    if let entity = view.flags { world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) { layer.clear() }) }
+    if let entity = view.focus { world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) { layer.clear() }) }
+    view.hovered = null
+    view.generated = false
+    view.changed_cells = 0
+    view.hud_signature = ""
+}
+
+public func set_board_offset(
+    offset:Math.Vec2,
+    world:&ECS.World,
+    view:&GameView
+) {
+    set_entity_offset(world, view.ground, offset)
+    set_entity_offset(world, view.mines, offset)
+    set_entity_offset(world, view.numbers, offset)
+    set_entity_offset(world, view.covers, offset)
+    set_entity_offset(world, view.flags, offset)
+    set_entity_offset(world, view.focus, offset)
+    set_entity_offset(world, view.border, offset.add(Math.Vec2(-48.0)))
+}
+
+public func update_parallax(
+    camera_position:Math.Vec2,
+    settings:Settings,
+    world:&ECS.World,
+    view:&GameView
+) {
+    if camera_position.x == view.background_camera_position.x &&
+        camera_position.y == view.background_camera_position.y
+    { return }
+    view.background_camera_position = camera_position
+    if let entity = view.background {
+        let center = board_size(settings).multiply(0.5)
+        let position = center.add(camera_position.subtract(center).multiply(0.05))
+        world.update<Components.Transform2D>(entity, func(transform:&Components.Transform2D) {
+            transform.position = position
+        })
+    }
+}
+
+func spawn_layer(world:&ECS.World, layer:Components.TileMap2D) ECS.Entity {
+    return spawn_layer_at(world, layer, Math.Vec2())
+}
+
+func spawn_layer_at(
+    world:&ECS.World,
+    layer:Components.TileMap2D,
+    position:Math.Vec2
+) ECS.Entity {
+    return world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:position))
+        ..with(layer)
+    )
+}
+
+func set_entity_offset(world:&ECS.World, entity:ECS.Entity?, offset:Math.Vec2) {
+    if let selected = entity {
+        if world.is_alive(selected) {
+            world.update<Components.Transform2D>(selected, func(transform:&Components.Transform2D) {
+                transform.position = offset
+            })
+        }
+    }
+}
+
+func sync_terminal_board(
+    board:@Board,
+    state:GameState,
+    world:&ECS.World,
+    view:@GameView
+) {
+    let settings = board.settings()
+    if let entity = view.mines {
+        world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) {
+            var y = 0
+            while y < settings.height {
+                var x = 0
+                while x < settings.width {
+                    let cell = board.cell(x, y)
+                    if cell.mine {
+                        var tile = BoardTile.mine
+                        if state == GameState.won { tile = BoardTile.secured_mine }
+                        layer.set(x, y, tile)
+                    }
+                    x++
+                }
+                y++
+            }
+        })
+    }
+    if let entity = view.covers {
+        world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) {
+            var y = 0
+            while y < settings.height {
+                var x = 0
+                while x < settings.width {
+                    if board.cell(x, y).mine { layer.clear(x, y) }
+                    x++
+                }
+                y++
+            }
+        })
+    }
+    if state == GameState.lost {
+        if let entity = view.flags {
+            world.update<Components.TileMap2D>(entity, func(layer:&Components.TileMap2D) {
+                var y = 0
+                while y < settings.height {
+                    var x = 0
+                    while x < settings.width {
+                        if board.is_wrong_flag(x, y) { layer.set(x, y, BoardTile.wrong_flag) }
+                        x++
+                    }
+                    y++
+                }
+            })
+        }
+    }
+}
+
+func coordinate_is_different(value:Coordinate?, expected:Coordinate) bool {
+    if let point = value { return point.x != expected.x || point.y != expected.y }
+    return true
+}
+
+func hud_text(board:@Board) str {
+    let remaining = board.target_mines() - board.flags()
+    var state = "PRÊT"
+    if board.state() == GameState.playing { state = "EN COURS" }
+    elif board.state() == GameState.won { state = "VICTOIRE" }
+    elif board.state() == GameState.lost { state = "EXPLOSION" }
+    let settings = board.settings()
+    return "$(state)   $(remaining) MINES   $(settings.width) × $(settings.height)"
+}
+
+func hud_drawing(board:@Board, viewport:Math.Vec2) Canvas {
+    let label = hud_text(board)
+    var font = Typography.pixel()
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Rect(Math.Vec2(12.0), Math.Vec2(viewport.x - 24.0, 54.0)),
+            Canvas.Fill.solid(Color.bytes(7, 12, 24, 224))
+        )
+        painter.text(
+            label,
+            Math.Vec2(viewport.x * 0.5, 28.0),
+            Canvas.TextStyle(
+                size:22.0,
+                color:Color.amber_300(),
+                alignment:Canvas.TextAlignment.center,
+                font:font
+            )
+        )
+    })
+    return drawing
+}

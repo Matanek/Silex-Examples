@@ -1,0 +1,17 @@
+use GFX.Assets.Image
+use GFX.Assets.PNG
+use GFX.Resources
+
+public struct VisualAssets {
+    let board:Image.Handle
+    let background:Image.Handle
+    let mine:Image.Handle
+}
+
+public func load_visual_assets(images:&Resources.Images) VisualAssets {
+    return VisualAssets(
+        board:images.add(PNG.load("Assets/Board.png")),
+        background:images.add(PNG.load("Assets/Background.png")),
+        mine:images.add(PNG.load("Assets/Mine.png"))
+    )
+}

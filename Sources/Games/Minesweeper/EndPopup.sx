@@ -1,0 +1,283 @@
+use GFX.Animation
+use GFX.Canvas
+use GFX.Color
+use Module.Typography.Typography
+use STD.Math
+
+public struct EndPopupLayout {
+    let scale:float
+    let card:Math.Rect
+    let face:Math.Rect
+    let restart:Math.Rect
+    let menu:Math.Rect
+
+    static func calculate(viewport:Math.Vec2) EndPopupLayout {
+        let scale = Math.max(0.5, Math.min(
+            viewport.y / 800.0,
+            Math.min(
+                (viewport.x - 48.0) / 400.0,
+                (viewport.y - 48.0) / 310.0
+            )
+        ))
+        let card = Math.Rect(
+            (viewport.x - 400.0 * scale) * 0.5,
+            (viewport.y - 310.0 * scale) * 0.5,
+            400.0 * scale,
+            310.0 * scale
+        )
+        return EndPopupLayout(
+            scale:scale,
+            card:card,
+            face:Math.Rect(
+                card.center().x - 32.0 * scale,
+                card.y + 18.0 * scale,
+                64.0 * scale,
+                64.0 * scale
+            ),
+            restart:Math.Rect(
+                card.x + 33.0 * scale,
+                card.y + 180.0 * scale,
+                334.0 * scale,
+                54.0 * scale
+            ),
+            menu:Math.Rect(
+                card.x + 33.0 * scale,
+                card.y + 242.0 * scale,
+                334.0 * scale,
+                46.0 * scale
+            )
+        )
+    }
+
+    func hit_test(point:Math.Vec2) str {
+        if self.restart.contains(point) { return "restart" }
+        if self.menu.contains(point) { return "menu" }
+        if self.card.contains(point) { return "card" }
+        return "background"
+    }
+}
+
+public func end_popup_hit_test(point:Math.Vec2, viewport:Math.Vec2) str {
+    return EndPopupLayout.calculate(viewport).hit_test(point)
+}
+
+public func end_popup_scale_animation() Animation.Tween<float> {
+    return Animation.tween(
+        0.55, 1.0, 0.62,
+        easing:Animation.Easing.bounce_out
+    )
+}
+
+public func end_popup_opacity_animation() Animation.Tween<float> {
+    return Animation.tween(
+        0.0, 1.0, 0.20,
+        easing:Animation.Easing.cubic_out
+    )
+}
+
+public func end_popup_drawing(
+    won:bool,
+    viewport:Math.Vec2,
+    hovered:str
+) Canvas {
+    let layout = EndPopupLayout.calculate(viewport)
+    let scale = layout.scale
+    var font = Typography.pixel()
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            canvas_rect(layout.card, 12.0 * scale),
+            Canvas.Fill.solid(Color.bytes(43, 73, 62, 246))
+        )
+        painter.stroke(
+            canvas_rect(layout.card, 12.0 * scale),
+            Canvas.Stroke(Color.bytes(55, 148, 110), 4.0 * scale)
+        )
+
+        var title = "VICTOIRE !"
+        var message = "Toutes les mines sont sécurisées."
+        if !won {
+            title = "GAME OVER"
+            message = "Une mine a explosé."
+        }
+        draw_terminal_face(painter, layout.face, won)
+        centered_text(
+            painter, font, title,
+            Math.Rect(
+                layout.card.x, layout.card.y + 88.0 * scale,
+                layout.card.w, 38.0 * scale
+            ),
+            28.0 * scale, Color.white()
+        )
+        centered_text(
+            painter, font, message,
+            Math.Rect(
+                layout.card.x + 24.0 * scale,
+                layout.card.y + 132.0 * scale,
+                layout.card.w - 48.0 * scale,
+                28.0 * scale
+            ),
+            14.0 * scale, Color.bytes(224, 236, 230)
+        )
+
+        popup_button(
+            painter, font, layout.restart, "RECOMMENCER",
+            Color.bytes(77, 170, 132), Color.bytes(135, 199, 173),
+            hovered == "restart"
+        )
+        popup_button(
+            painter, font, layout.menu, "MENU",
+            Color.bytes(248, 170, 96), Color.bytes(255, 228, 120),
+            hovered == "menu"
+        )
+    })
+    return drawing
+}
+
+func draw_terminal_face(
+    painter:&Canvas.Painter,
+    frame:Math.Rect,
+    won:bool
+) {
+    let scale = frame.w / 64.0
+    let ink = Color.bytes(74, 54, 52)
+    painter.fill(
+        canvas_rect(frame, 13.0 * scale),
+        Canvas.Fill.solid(Color.bytes(255, 211, 67))
+    )
+    painter.stroke(
+        canvas_rect(frame, 13.0 * scale),
+        Canvas.Stroke(Color.bytes(226, 148, 45), 3.0 * scale)
+    )
+
+    if won {
+        painter.fill(
+            face_rect(frame, 15.0, 15.0, 8.0, 9.0, 2.0),
+            Canvas.Fill.solid(ink)
+        )
+        painter.fill(
+            face_rect(frame, 41.0, 15.0, 8.0, 9.0, 2.0),
+            Canvas.Fill.solid(ink)
+        )
+        painter.fill(
+            face_rect(frame, 12.0, 32.0, 40.0, 22.0, 7.0),
+            Canvas.Fill.solid(ink)
+        )
+        painter.fill(
+            face_rect(frame, 16.0, 35.0, 32.0, 8.0, 2.0),
+            Canvas.Fill.solid(Color.bytes(255, 248, 218))
+        )
+        painter.fill(
+            face_rect(frame, 20.0, 48.0, 24.0, 4.0, 2.0),
+            Canvas.Fill.solid(Color.bytes(219, 82, 91))
+        )
+        return
+    }
+
+    painter.fill(
+        face_rect(frame, 9.0, 14.0, 16.0, 4.0, 2.0),
+        Canvas.Fill.solid(ink)
+    )
+    painter.fill(
+        face_rect(frame, 15.0, 17.0, 4.0, 12.0, 2.0),
+        Canvas.Fill.solid(ink)
+    )
+    painter.fill(
+        face_rect(frame, 39.0, 14.0, 16.0, 4.0, 2.0),
+        Canvas.Fill.solid(ink)
+    )
+    painter.fill(
+        face_rect(frame, 45.0, 17.0, 4.0, 12.0, 2.0),
+        Canvas.Fill.solid(ink)
+    )
+    painter.fill(
+        face_rect(frame, 14.0, 27.0, 6.0, 20.0, 3.0),
+        Canvas.Fill.solid(Color.bytes(77, 181, 224))
+    )
+    painter.fill(
+        face_rect(frame, 44.0, 27.0, 6.0, 20.0, 3.0),
+        Canvas.Fill.solid(Color.bytes(77, 181, 224))
+    )
+    painter.stroke(
+        Canvas.Line(
+            face_point(frame, 20.0, 52.0),
+            face_point(frame, 32.0, 45.0)
+        ),
+        Canvas.Stroke(ink, 4.0 * scale)..cap = Canvas.StrokeCap.round
+    )
+    painter.stroke(
+        Canvas.Line(
+            face_point(frame, 32.0, 45.0),
+            face_point(frame, 44.0, 52.0)
+        ),
+        Canvas.Stroke(ink, 4.0 * scale)..cap = Canvas.StrokeCap.round
+    )
+}
+
+func face_rect(
+    frame:Math.Rect,
+    x:float,
+    y:float,
+    width:float,
+    height:float,
+    radius:float
+) Canvas.Rect {
+    let scale = frame.w / 64.0
+    return Canvas.Rect(
+        Math.Vec2(frame.x + x * scale, frame.y + y * scale),
+        Math.Vec2(width * scale, height * scale),
+        radius * scale
+    )
+}
+
+func face_point(frame:Math.Rect, x:float, y:float) Math.Vec2 {
+    let scale = frame.w / 64.0
+    return Math.Vec2(frame.x + x * scale, frame.y + y * scale)
+}
+
+func popup_button(
+    painter:&Canvas.Painter,
+    font:Canvas.Font,
+    frame:Math.Rect,
+    label:str,
+    background:Color,
+    border:Color,
+    hovered:bool
+) {
+    let scale = frame.w / 334.0
+    var fill = background
+    if hovered { fill = background.mix(Color.white(), 0.12) }
+    painter.fill(canvas_rect(frame, 9.0 * scale), Canvas.Fill.solid(fill))
+    painter.stroke(
+        canvas_rect(frame, 9.0 * scale),
+        Canvas.Stroke(border, 4.0 * scale)
+    )
+    centered_text(painter, font, label, frame, 20.0 * scale, Color.white())
+}
+
+func centered_text(
+    painter:&Canvas.Painter,
+    font:Canvas.Font,
+    value:str,
+    frame:Math.Rect,
+    size:float,
+    color:Color
+) {
+    painter.text(
+        value,
+        Math.Vec2(frame.center().x, frame.y + (frame.h - size) * 0.45),
+        Canvas.TextStyle(
+            size:size,
+            color:color,
+            alignment:Canvas.TextAlignment.center,
+            font:font
+        ),
+        clip:canvas_rect(frame, 0.0)
+    )
+}
+
+func canvas_rect(frame:Math.Rect, radius:float) Canvas.Rect {
+    return Canvas.Rect(
+        Math.Vec2(frame.x, frame.y), Math.Vec2(frame.w, frame.h), radius
+    )
+}

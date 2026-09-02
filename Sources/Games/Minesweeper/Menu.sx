@@ -1,0 +1,397 @@
+use GFX.Canvas
+use GFX.Color
+use Module.Session.GameSession
+use Module.Typography.Typography
+use STD.Math
+
+public struct MenuLayout {
+    let compact:bool
+    let scale:float
+    let card:Math.Rect
+    let recap:Math.Rect
+    let width_value:Math.Rect
+    let width_minus:Math.Rect
+    let width_plus:Math.Rect
+    let height_value:Math.Rect
+    let height_minus:Math.Rect
+    let height_plus:Math.Rect
+    let fit_width:Math.Rect
+    let fit_screen:Math.Rect
+    let fit_height:Math.Rect
+    let preset_0:Math.Rect
+    let preset_1:Math.Rect
+    let preset_2:Math.Rect
+    let preset_3:Math.Rect
+    let difficulty:Math.Rect
+    let play:Math.Rect
+    let quit:Math.Rect
+
+    static func calculate(viewport:Math.Vec2) MenuLayout {
+        let scale = Math.max(0.5, Math.min(
+            viewport.y / 800.0,
+            (viewport.x - 32.0) / 416.0
+        ))
+        let card_width = 416.0 * scale
+        let card_height = 616.0 * scale
+        let card = Math.Rect(
+            (viewport.x - card_width) * 0.5,
+            (viewport.y - card_height) * 0.5,
+            card_width,
+            card_height
+        )
+        let content_x = card.x + 33.0 * scale
+        let first_value = Math.Rect(
+            content_x, card.y + 180.0 * scale, 173.0 * scale, 24.0 * scale
+        )
+        let second_value = Math.Rect(
+            content_x + 177.0 * scale,
+            card.y + 180.0 * scale,
+            173.0 * scale,
+            24.0 * scale
+        )
+        let fit_width = 114.0 * scale
+        let preset_width = 84.5 * scale
+        return MenuLayout(
+            compact:viewport.x < 700.0,
+            scale:scale,
+            card:card,
+            recap:Math.Rect(
+                content_x, card.y + 33.0 * scale, 350.0 * scale, 98.0 * scale
+            ),
+            width_value:first_value,
+            width_minus:Math.Rect(
+                first_value.x, first_value.y, 26.0 * scale, first_value.h
+            ),
+            width_plus:Math.Rect(
+                first_value.maximum().x - 26.0 * scale,
+                first_value.y,
+                26.0 * scale,
+                first_value.h
+            ),
+            height_value:second_value,
+            height_minus:Math.Rect(
+                second_value.x, second_value.y, 26.0 * scale, second_value.h
+            ),
+            height_plus:Math.Rect(
+                second_value.maximum().x - 26.0 * scale,
+                second_value.y,
+                26.0 * scale,
+                second_value.h
+            ),
+            fit_width:Math.Rect(
+                content_x, card.y + 208.0 * scale, fit_width, 22.0 * scale
+            ),
+            fit_screen:Math.Rect(
+                content_x + 118.0 * scale,
+                card.y + 208.0 * scale,
+                fit_width,
+                22.0 * scale
+            ),
+            fit_height:Math.Rect(
+                content_x + 236.0 * scale,
+                card.y + 208.0 * scale,
+                fit_width,
+                22.0 * scale
+            ),
+            preset_0:Math.Rect(
+                content_x, card.y + 234.0 * scale, preset_width, 22.0 * scale
+            ),
+            preset_1:Math.Rect(
+                content_x + 88.5 * scale,
+                card.y + 234.0 * scale,
+                preset_width,
+                22.0 * scale
+            ),
+            preset_2:Math.Rect(
+                content_x + 177.0 * scale,
+                card.y + 234.0 * scale,
+                preset_width,
+                22.0 * scale
+            ),
+            preset_3:Math.Rect(
+                content_x + 265.5 * scale,
+                card.y + 234.0 * scale,
+                preset_width,
+                22.0 * scale
+            ),
+            difficulty:Math.Rect(
+                content_x, card.y + 326.0 * scale, 350.0 * scale, 20.0 * scale
+            ),
+            play:Math.Rect(
+                content_x, card.y + 430.0 * scale, 350.0 * scale, 98.0 * scale
+            ),
+            quit:Math.Rect(
+                content_x, card.y + 534.0 * scale, 350.0 * scale, 51.0 * scale
+            )
+        )
+    }
+
+    func hit_test(point:Math.Vec2) str {
+        if self.play.contains(point) { return "play" }
+        if self.quit.contains(point) { return "quit" }
+        if self.width_minus.contains(point) { return "width_minus" }
+        if self.width_plus.contains(point) { return "width_plus" }
+        if self.height_minus.contains(point) { return "height_minus" }
+        if self.height_plus.contains(point) { return "height_plus" }
+        if self.fit_width.contains(point) { return "fit_width" }
+        if self.fit_screen.contains(point) { return "fit_screen" }
+        if self.fit_height.contains(point) { return "fit_height" }
+        if self.preset_0.contains(point) { return "preset_0" }
+        if self.preset_1.contains(point) { return "preset_1" }
+        if self.preset_2.contains(point) { return "preset_2" }
+        if self.preset_3.contains(point) { return "preset_3" }
+        if self.difficulty.contains(point) { return "difficulty" }
+        if self.card.contains(point) { return "card" }
+        return "background"
+    }
+
+    func difficulty_at(point:Math.Vec2) float {
+        let ratio = Math.clamp((point.x - self.difficulty.x) / self.difficulty.w, 0.0, 1.0)
+        return 1.0 + ratio * 5.0
+    }
+}
+
+public func menu_hit_test(point:Math.Vec2, viewport:Math.Vec2) str {
+    return MenuLayout.calculate(viewport).hit_test(point)
+}
+
+public func interact_menu(
+    session:&GameSession,
+    point:Math.Vec2,
+    viewport:Math.Vec2,
+    dragging:bool
+) bool {
+    let layout = MenuLayout.calculate(viewport)
+    let action = layout.hit_test(point)
+    if action == "difficulty" {
+        session.set_difficulty(layout.difficulty_at(point))
+        return true
+    }
+    if dragging { return false }
+    if action == "width_minus" { session.adjust_width(-1) }
+    elif action == "width_plus" { session.adjust_width(1) }
+    elif action == "height_minus" { session.adjust_height(-1) }
+    elif action == "height_plus" { session.adjust_height(1) }
+    elif action == "fit_width" { session.fit_width(viewport) }
+    elif action == "fit_screen" { session.fit_screen(viewport) }
+    elif action == "fit_height" { session.fit_height(viewport) }
+    elif action == "preset_0" { session.preset(0) }
+    elif action == "preset_1" { session.preset(1) }
+    elif action == "preset_2" { session.preset(2) }
+    elif action == "preset_3" { session.preset(3) }
+    elif action == "play" { session.play() }
+    elif action == "quit" { session.quit() }
+    else { return false }
+    return true
+}
+
+public func menu_drawing(session:@GameSession, viewport:Math.Vec2, hovered:str) Canvas {
+    let layout = MenuLayout.calculate(viewport)
+    let settings = session.settings()
+    var font = Typography.pixel()
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(canvas_rect(layout.card, 0.0), Canvas.Fill.solid(Color.bytes(43, 73, 62)))
+        painter.stroke(
+            canvas_rect(layout.card, 0.0),
+            Canvas.Stroke(Color.bytes(55, 148, 110), 3.0 * layout.scale)
+        )
+        painter.fill(canvas_rect(layout.recap, 0.0), Canvas.Fill.solid(Color.bytes(60, 163, 112, 46)))
+        centered_text(
+            painter, font, session.case_summary(),
+            Math.Rect(
+                layout.recap.x, layout.recap.y + 11.0 * layout.scale,
+                layout.recap.w, 32.0 * layout.scale
+            ),
+            24.0 * layout.scale, Color.white()
+        )
+        centered_text(
+            painter, font, session.mine_summary(),
+            Math.Rect(
+                layout.recap.x, layout.recap.y + 55.0 * layout.scale,
+                layout.recap.w, 32.0 * layout.scale
+            ),
+            24.0 * layout.scale, Color.white()
+        )
+
+        centered_label(
+            painter, font, "Dimensions", layout.card.center().x,
+            layout.card.y + 145.0 * layout.scale, layout.scale
+        )
+        value_box(painter, font, layout.width_value, settings.width, hovered, "width")
+        value_box(painter, font, layout.height_value, settings.height, hovered, "height")
+
+        small_button(painter, font, layout.fit_width, "FIT WIDTH", hovered == "fit_width")
+        small_button(painter, font, layout.fit_screen, "FIT SCREEN", hovered == "fit_screen")
+        small_button(painter, font, layout.fit_height, "FIT HEIGHT", hovered == "fit_height")
+        small_button(painter, font, layout.preset_0, "8x8", hovered == "preset_0")
+        small_button(painter, font, layout.preset_1, "16x8", hovered == "preset_1")
+        small_button(painter, font, layout.preset_2, "32x8", hovered == "preset_2")
+        small_button(painter, font, layout.preset_3, "48x12", hovered == "preset_3")
+
+        centered_label(
+            painter, font, "Difficulty", layout.card.center().x,
+            layout.card.y + 286.0 * layout.scale, layout.scale
+        )
+        draw_slider(painter, layout.difficulty, settings.difficulty)
+        let instructions_x = layout.card.x + 20.0 * layout.scale
+        let instructions_width = layout.card.w - 40.0 * layout.scale
+        let instructions_color = Color.bytes(229, 238, 233)
+        centered_text(
+            painter, font, "Demean : [Left click]",
+            Math.Rect(
+                instructions_x, layout.card.y + 373.0 * layout.scale,
+                instructions_width, 20.0 * layout.scale
+            ),
+            12.0 * layout.scale, instructions_color
+        )
+        centered_text(
+            painter, font, "Flag : [Right click] or [Left click + Shift]",
+            Math.Rect(
+                instructions_x, layout.card.y + 394.0 * layout.scale,
+                instructions_width, 20.0 * layout.scale
+            ),
+            12.0 * layout.scale, instructions_color
+        )
+
+        large_button(
+            painter, font, layout.play, "PLAY",
+            Color.bytes(77, 170, 132), Color.bytes(135, 199, 173),
+            hovered == "play", 24.0 * layout.scale, layout.scale
+        )
+        large_button(
+            painter, font, layout.quit, "QUIT",
+            Color.bytes(248, 170, 96), Color.bytes(255, 228, 120),
+            hovered == "quit", 24.0 * layout.scale, layout.scale
+        )
+    })
+    return drawing
+}
+
+func value_box(
+    painter:&Canvas.Painter,
+    font:Canvas.Font,
+    frame:Math.Rect,
+    value:int,
+    hovered:str,
+    prefix:str
+) {
+    let scale = frame.h / 24.0
+    painter.fill(canvas_rect(frame, 0.0), Canvas.Fill.solid(Color.bytes(48, 43, 56)))
+    painter.stroke(
+        canvas_rect(frame, 0.0), Canvas.Stroke(Color.bytes(33, 35, 42), 2.0 * scale)
+    )
+    centered_text(
+        painter, font, "$(value)", frame, 14.0 * scale, Color.bytes(220, 220, 216)
+    )
+    let minus = Math.Rect(frame.x, frame.y, 26.0 * scale, frame.h)
+    let plus = Math.Rect(
+        frame.maximum().x - 26.0 * scale, frame.y, 26.0 * scale, frame.h
+    )
+    var minus_color = Color.bytes(160, 176, 168)
+    var plus_color = minus_color
+    if hovered == "$(prefix)_minus" { minus_color = Color.white() }
+    if hovered == "$(prefix)_plus" { plus_color = Color.white() }
+    centered_text(painter, font, "−", minus, 14.0 * scale, minus_color)
+    centered_text(painter, font, "+", plus, 14.0 * scale, plus_color)
+}
+
+func small_button(
+    painter:&Canvas.Painter,
+    font:Canvas.Font,
+    frame:Math.Rect,
+    label:str,
+    hovered:bool
+) {
+    let scale = frame.h / 22.0
+    var background = Color.bytes(65, 60, 72)
+    if hovered { background = Color.bytes(87, 79, 96) }
+    painter.fill(canvas_rect(frame, 2.0 * scale), Canvas.Fill.solid(background))
+    painter.stroke(
+        canvas_rect(frame, 2.0 * scale),
+        Canvas.Stroke(Color.bytes(42, 39, 48), 1.0 * scale)
+    )
+    centered_text(
+        painter, font, label, frame, 14.0 * scale, Color.bytes(225, 225, 220)
+    )
+}
+
+func large_button(
+    painter:&Canvas.Painter,
+    font:Canvas.Font,
+    frame:Math.Rect,
+    label:str,
+    background:Color,
+    border:Color,
+    hovered:bool,
+    size:float,
+    scale:float
+) {
+    var fill = background
+    if hovered { fill = background.mix(Color.white(), 0.12) }
+    painter.fill(canvas_rect(frame, 10.0 * scale), Canvas.Fill.solid(fill))
+    painter.stroke(
+        canvas_rect(frame, 10.0 * scale), Canvas.Stroke(border, 4.0 * scale)
+    )
+    centered_text(painter, font, label, frame, size, Color.white())
+}
+
+func draw_slider(painter:&Canvas.Painter, frame:Math.Rect, difficulty:int) {
+    let scale = frame.h / 20.0
+    let y = frame.center().y
+    painter.stroke(
+        Canvas.Line(Math.Vec2(frame.x + 6.0, y), Math.Vec2(frame.maximum().x - 6.0, y)),
+        Canvas.Stroke(Color.bytes(55, 49, 61), 8.0 * scale)
+    )
+    let ratio = (difficulty - 1) as float / 5.0
+    let thumb_x = frame.x + 6.0 + ratio * (frame.w - 12.0)
+    painter.fill(
+        Canvas.Circle(Math.Vec2(thumb_x, y), 8.0 * scale),
+        Canvas.Fill.solid(Color.bytes(174, 185, 178))
+    )
+}
+
+func centered_label(
+    painter:&Canvas.Painter,
+    font:Canvas.Font,
+    label:str,
+    x:float,
+    y:float,
+    scale:float
+) {
+    painter.text(
+        label,
+        Math.Vec2(x, y),
+        Canvas.TextStyle(
+            size:24.0 * scale,
+            color:Color.bytes(60, 163, 112),
+            alignment:Canvas.TextAlignment.center,
+            font:font
+        )
+    )
+}
+
+func centered_text(
+    painter:&Canvas.Painter,
+    font:Canvas.Font,
+    value:str,
+    frame:Math.Rect,
+    size:float,
+    color:Color
+) {
+    painter.text(
+        value,
+        Math.Vec2(frame.center().x, frame.y + (frame.h - size) * 0.45),
+        Canvas.TextStyle(
+            size:size,
+            color:color,
+            alignment:Canvas.TextAlignment.center,
+            font:font
+        ),
+        clip:canvas_rect(frame, 0.0)
+    )
+}
+
+func canvas_rect(frame:Math.Rect, radius:float) Canvas.Rect {
+    return Canvas.Rect(Math.Vec2(frame.x, frame.y), Math.Vec2(frame.w, frame.h), radius)
+}

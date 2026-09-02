@@ -1,0 +1,893 @@
+use GFX.Application
+use GFX.Animation
+use GFX.Audio as GFXAudio
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Window
+use Module.Assets.VisualAssets
+use Module.Menu.interact_menu
+use Module.Menu.menu_drawing
+use Module.Menu.menu_hit_test
+use Module.BoardView.GameView
+use Module.BoardView.apply_board_changes
+use Module.BoardView.apply_board_result
+use Module.BoardView.board_coordinate
+use Module.BoardView.board_size
+use Module.BoardView.create_board_view
+use Module.BoardView.finish_board_result
+use Module.BoardView.rebuild_hud
+use Module.BoardView.reset_board_view
+use Module.BoardView.set_board_offset
+use Module.BoardView.sync_generated_board
+use Module.BoardView.update_focus
+use Module.BoardView.update_parallax
+use Module.EndPopup.end_popup_drawing
+use Module.EndPopup.end_popup_hit_test
+use Module.EndPopup.end_popup_opacity_animation
+use Module.EndPopup.end_popup_scale_animation
+use Module.Model.ActionResult
+use Module.Model.Board
+use Module.Model.CellState
+use Module.Model.Coordinate
+use Module.Model.GameState
+use Module.Model.Settings
+use Module.Session.GameSession
+use Module.Session.Request
+use STD.Math
+
+class MenuLocal {
+    var display:ECS.Entity? = null
+    var background:ECS.Entity? = null
+    var width:int = 0
+    var height:int = 0
+    var revision:int = 0
+    var frames:int = 0
+    var decoration_time:float = 0.0
+    var hovered:str = "background"
+    var decorations:ECS.Entity[]
+
+    init() { self.decorations = [] }
+}
+
+class GameLocal {
+    var frames:int = 0
+    var seed:int = 1
+    var click:GFXAudio.Sound = GFXAudio.Sound()
+    var flag:GFXAudio.Sound = GFXAudio.Sound()
+    var over:GFXAudio.Sound = GFXAudio.Sound()
+    var victory:GFXAudio.Sound = GFXAudio.Sound()
+    var explosion:GFXAudio.Sound = GFXAudio.Sound()
+    var sounds_loaded:bool = false
+    var terminal_sound:bool = false
+    var shake_remaining:float = 0.0
+    var click_events:int = 0
+    var flag_events:int = 0
+    var over_events:int = 0
+    var victory_events:int = 0
+    var explosion_events:int = 0
+    var reveal_queue:ActionResult[]
+    var reveal_cursor:int = 0
+    var reveal_batch:int = 0
+    var reveal_elapsed:float = 0.0
+    var terminal_overlay:ECS.Entity? = null
+    var terminal_won:bool = false
+    var terminal_hovered:str = "background"
+    var terminal_width:int = 0
+    var terminal_height:int = 0
+    var terminal_scale:Animation.Tween<float>
+    var terminal_opacity:Animation.Tween<float>
+
+    init() {
+        self.reveal_queue = []
+        self.terminal_scale = end_popup_scale_animation()
+        self.terminal_opacity = end_popup_opacity_animation()
+    }
+}
+
+static struct CameraNavigation {
+    let edge_margin:float = 32.0
+    let speed:float = 900.0
+}
+
+public func menu_bundle(bundle:Application.Bundle) Application.Bundle {
+    return bundle
+        ..add_resource(MenuLocal())
+        ..add_system(Application.Schedule.startup, start_menu)
+        ..add_system(Application.Schedule.update, update_menu)
+        ..add_system(Application.Schedule.finalize, finalize_menu)
+}
+
+public func game_bundle(
+    bundle:Application.Bundle,
+    settings:Settings
+) Application.Bundle {
+    return bundle
+        ..add_resource(Board(settings, 1))
+        ..add_resource(GameView())
+        ..add_resource(GameLocal())
+        ..add_system(Application.Schedule.startup, start_game)
+        ..add_system(Application.Schedule.update, update_game)
+        ..add_system(Application.Schedule.finalize, finalize_game)
+}
+
+func start_menu(
+    session:&GameSession,
+    window:@Window,
+    world:&ECS.World,
+    assets:@VisualAssets,
+    camera:&Resources.ViewportCamera2D,
+    presentation:&MenuLocal
+) {
+    camera.clear_limits()
+    camera.set_zoom(1.0)
+    session.menu_visits++
+    create_menu_background(world, assets, camera, presentation)
+    create_menu_decorations(world, assets, camera, presentation)
+    update_menu_background(window.size(), camera, world, presentation)
+    assert(presentation.background != null)
+    assert(presentation.decorations.count() == 12)
+    rebuild_menu(session, window, world, presentation)
+}
+
+func update_menu(
+    session:&GameSession,
+    input:@Resources.InputState,
+    time:@Resources.FrameTime,
+    window:@Window,
+    world:&ECS.World,
+    camera:&Resources.ViewportCamera2D,
+    presentation:&MenuLocal,
+    manager:&Plugins.BundleManager,
+    controller:&Application.Controller
+) {
+    presentation.frames++
+    presentation.decoration_time += time.delta
+    animate_menu_decorations(window.size(), camera, world, presentation)
+    if input.is_pressed(Input.Key.escape) { session.quit() }
+    var changed = false
+
+    let size = window.size()
+    let resized = size.x as int != presentation.width ||
+        size.y as int != presentation.height
+    if resized { update_menu_background(size, camera, world, presentation) }
+    let hovered = menu_hit_test(input.mouse_position(), size)
+    if hovered != presentation.hovered {
+        presentation.hovered = hovered
+        changed = true
+    }
+    if input.is_pressed(Input.MouseButton.left) {
+        changed = interact_menu(session, input.mouse_position(), size, false) || changed
+    } elif input.is_down(Input.MouseButton.left) && hovered == "difficulty" {
+        changed = interact_menu(session, input.mouse_position(), size, true) || changed
+    }
+
+    if session.verification && presentation.frames == 1 &&
+        session.menu_visits == 1
+    {
+        session.set_width(21.0)
+        session.set_height(13.0)
+        session.set_difficulty(3.2)
+        assert(session.settings().width == 20)
+        assert(session.settings().height == 12)
+        assert(session.settings().difficulty == 3)
+        session.preset(3)
+    }
+    if session.verification && presentation.frames == 2 {
+        if session.menu_visits == 1 { session.play() }
+        else { session.quit() }
+    }
+
+    if changed || session.revision() != presentation.revision || resized
+    {
+        rebuild_menu(session, window, world, presentation)
+    }
+
+    if session.request() == Request.play {
+        session.clear_request()
+        manager.replace(game_bundle(manager.create(), session.settings()))
+    } elif session.request() == Request.quit {
+        session.clear_request()
+        controller.stop()
+    }
+}
+
+func create_menu_background(
+    world:&ECS.World,
+    assets:@VisualAssets,
+    camera:@Resources.ViewportCamera2D,
+    presentation:&MenuLocal
+) {
+    var sprite = Components.Sprite2D(
+        assets.background,
+        size:Math.Vec2(1600.0, 1200.0),
+        color:Color.bytes(93, 222, 140, 118),
+        layer:-20
+    )
+    presentation.background = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:camera.position()))
+        ..with(sprite)
+    )
+}
+
+func update_menu_background(
+    viewport:Math.Vec2,
+    camera:@Resources.ViewportCamera2D,
+    world:&ECS.World,
+    presentation:@MenuLocal
+) {
+    if let entity = presentation.background {
+        let scale = Math.max(viewport.x / 1600.0, viewport.y / 1200.0) * 1.25
+        world.update<Components.Transform2D>(entity, func(transform:&Components.Transform2D) {
+            transform.position = camera.position()
+        })
+        world.update<Components.Sprite2D>(entity, func(sprite:&Components.Sprite2D) {
+            sprite.size = Math.Vec2(1600.0 * scale, 1200.0 * scale)
+        })
+    }
+}
+
+func create_menu_decorations(
+    world:&ECS.World,
+    assets:@VisualAssets,
+    camera:@Resources.ViewportCamera2D,
+    presentation:&MenuLocal
+) {
+    var index = 0
+    while index < 12 {
+        let size = 112.0 + (index % 5) as float * 36.0
+        var sprite = Components.Sprite2D(
+            assets.mine,
+            size:Math.Vec2(size),
+            color:Color.bytes(255, 255, 255, 112 + (index % 4) as uint8 * 18),
+            layer:-5
+        )
+        sprite.sampling(Scene2D.Sampling.pixelated)
+        presentation.decorations.append(world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform2D(position:camera.position()))
+            ..with(sprite)
+        ))
+        index++
+    }
+}
+
+func animate_menu_decorations(
+    viewport:Math.Vec2,
+    camera:@Resources.ViewportCamera2D,
+    world:&ECS.World,
+    presentation:@MenuLocal
+) {
+    let time = presentation.decoration_time
+    var index = 0
+    for entity in presentation.decorations {
+        let staggered = time / 5.0 + index as float / 12.0
+        let cycle = Math.floor(staggered)
+        let progress = staggered - cycle
+        let angle = index as float * 2.399 + cycle * 1.137
+        let radius = Math.max(viewport.x, viewport.y) * (0.72 + (index % 3) as float * 0.08)
+        let origin = camera.position().add(Math.Vec2(
+            Math.cos(angle) * radius,
+            Math.sin(angle) * radius
+        ))
+        let position = origin.mix(camera.position(), progress)
+        let rotation = angle + progress * 1.8
+        let screen_scale = viewport.y / 800.0
+        let base_size = (112.0 + (index % 5) as float * 36.0) * screen_scale
+        var scale = progress / 0.14
+        if progress >= 0.14 { scale = (1.0 - progress) / 0.86 }
+        scale = Math.clamp(scale, 0.0, 1.0)
+        let opacity = scale * 0.68
+        world.update<Components.Transform2D>(entity, func(transform:&Components.Transform2D) {
+            transform.position = position
+            transform.rotation = rotation
+        })
+        world.update<Components.Sprite2D>(entity, func(sprite:&Components.Sprite2D) {
+            sprite.size = Math.Vec2(base_size * scale)
+            sprite.color = Color.white().with_alpha(opacity)
+        })
+        index++
+    }
+}
+
+func rebuild_menu(
+    session:@GameSession,
+    window:@Window,
+    world:&ECS.World,
+    presentation:&MenuLocal
+) {
+    let size = window.size()
+    let width = size.x as int
+    let height = size.y as int
+    if width <= 0 || height <= 0 { return }
+    let hovered = "$(presentation.hovered)"
+    var drawing = menu_drawing(session, size, hovered)
+    replace_display(world, presentation, drawing, width, height, size)
+    presentation.revision = session.revision()
+}
+
+func replace_display(
+    world:&ECS.World,
+    presentation:&MenuLocal,
+    drawing:Canvas,
+    width:int,
+    height:int,
+    size:Math.Vec2
+) {
+    if width == presentation.width && height == presentation.height {
+        if let entity = presentation.display {
+            if world.is_alive(entity) {
+                world.update<Components.Canvas>(entity, func(canvas:&Components.Canvas) {
+                    canvas.replace(drawing)
+                    canvas.size = size
+                })
+                return
+            }
+        }
+    }
+    if let entity = presentation.display { if world.is_alive(entity) { world.destroy(entity) } }
+    presentation.display = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(drawing, width, height)
+            ..size = size
+            ..space = Components.CanvasSpace.viewport
+            ..pivot = Math.Vec2()
+            ..text_mode = Scene2D.CanvasTextMode.coverage
+        )
+    )
+    presentation.width = width
+    presentation.height = height
+}
+
+func finalize_menu(session:&GameSession, presentation:@MenuLocal) {
+    assert(presentation.background != null)
+    assert(presentation.decorations.count() == 12)
+    session.menu_finalizations++
+}
+
+func start_game(
+    board:@Board,
+    window:@Window,
+    world:&ECS.World,
+    assets:@VisualAssets,
+    audio:&Resources.Audio,
+    camera:&Resources.ViewportCamera2D,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    create_board_view(board.settings(), world, assets, view)
+    let size = board_size(board.settings())
+    camera.set_zoom(Settings.viewport_scale(window.size()))
+    camera.set_limits(Math.Rect(0.0, 0.0, size.x, size.y))
+    camera.set_position(size.multiply(0.5))
+    presentation.click = audio.load("Assets/Sounds/Click.wav")
+    presentation.flag = audio.load("Assets/Sounds/Flag.wav")
+    presentation.over = audio.load("Assets/Sounds/Over.wav")
+    presentation.victory = audio.load("Assets/Sounds/Victory.wav")
+    presentation.explosion = audio.load("Assets/Sounds/explosion.wav")
+    presentation.sounds_loaded = true
+    rebuild_hud(board, window.size(), world, view)
+    assert(view.layer_count == 7)
+}
+
+func update_game(
+    session:&GameSession,
+    board:&Board,
+    input:@Resources.InputState,
+    time:@Resources.FrameTime,
+    window:@Window,
+    world:&ECS.World,
+    audio:&Resources.Audio,
+    camera:&Resources.ViewportCamera2D,
+    view:&GameView,
+    presentation:&GameLocal,
+    manager:&Plugins.BundleManager
+) {
+    presentation.frames++
+    let terminal_before_input = is_terminal(board.state())
+    if !terminal_before_input {
+        navigate_camera(input, time.delta, window.size(), camera)
+    }
+    let coordinate = board_coordinate(
+        input.mouse_position(),
+        camera.camera(),
+        camera.transform(),
+        window.size(),
+        board.settings()
+    )
+    if !terminal_before_input && update_focus(coordinate, board, world, view) {
+        play_feedback(audio, presentation.over, session.verification)
+        presentation.over_events++
+    }
+
+    if input.is_pressed(Input.Key.enter) {
+        restart_game(board, world, camera, view, presentation)
+    }
+    if input.is_pressed(Input.Key.escape) { session.show_menu() }
+
+    if is_terminal(board.state()) {
+        ensure_terminal_popup(board, window.size(), world, presentation)
+        interact_terminal_popup(
+            session, board, input, window.size(), world, camera, view, presentation
+        )
+    } elif !is_revealing(presentation) {
+        if let point = coordinate {
+            if input.is_pressed(Input.MouseButton.right) ||
+                (input.is_pressed(Input.MouseButton.left) && input.modifiers().shift)
+            {
+                let result = board.toggle_flag(point.x, point.y)
+                if result.changed_anything() {
+                    apply_board_result(board, result, world, view)
+                    play_feedback(audio, presentation.flag, session.verification)
+                    presentation.flag_events++
+                }
+            } elif input.is_pressed(Input.MouseButton.left) {
+                var result = ActionResult(
+                    changed:[], state:board.state(), generated:false, triggered:null
+                )
+                if board.cell(point.x, point.y).state == CellState.revealed {
+                    result = board.chord(point.x, point.y)
+                } else {
+                    result = board.reveal(point.x, point.y)
+                }
+                if result.changed_anything() {
+                    present_board_result(board, move result, world, view, presentation)
+                    play_feedback(audio, presentation.click, session.verification)
+                    presentation.click_events++
+                }
+            }
+        }
+    }
+
+    advance_reveal(time.delta, board, world, view, presentation)
+    if !is_revealing(presentation) {
+        handle_terminal(board, audio, session.verification, presentation)
+        if is_terminal(board.state()) {
+            ensure_terminal_popup(board, window.size(), world, presentation)
+        }
+    }
+    advance_terminal_popup(time.delta, window.size(), world, presentation)
+    advance_shake(time.delta, world, view, presentation)
+    update_parallax(camera.position(), board.settings(), world, view)
+    rebuild_hud(board, window.size(), world, view)
+
+    if session.verification && presentation.frames == 1 {
+        verify_game_flow(board, world, audio, camera, view, presentation)
+    }
+    if session.verification && presentation.frames == 2 {
+        assert(presentation.terminal_overlay != null)
+        assert(presentation.terminal_won)
+        if let entity = presentation.terminal_overlay {
+            assert(world.is_alive(entity))
+        }
+    }
+    if session.verification && presentation.frames == 3 {
+        session.show_menu()
+    }
+    if session.request() == Request.menu {
+        session.clear_request()
+        manager.replace(menu_bundle(manager.create()))
+    }
+}
+
+func navigate_camera(
+    input:@Resources.InputState,
+    delta:float,
+    viewport:Math.Vec2,
+    camera:&Resources.ViewportCamera2D
+) {
+    let direction = camera_navigation_direction(
+        input.mouse_position(),
+        viewport,
+        input.is_down(Input.Key.left),
+        input.is_down(Input.Key.right),
+        input.is_down(Input.Key.up),
+        input.is_down(Input.Key.down)
+    )
+    if direction == Math.Vec2() { return }
+    camera.pan(Math.Vec2(-direction.x, direction.y).multiply(
+        CameraNavigation.speed * Math.max(0.0, delta)
+    ))
+}
+
+public func camera_navigation_direction(
+    pointer:Math.Vec2,
+    viewport:Math.Vec2,
+    left:bool,
+    right:bool,
+    up:bool,
+    down:bool
+) Math.Vec2 {
+    var direction = Math.Vec2()
+    if left != right {
+        if left { direction.x = -1.0 } else { direction.x = 1.0 }
+    } elif pointer.x <= CameraNavigation.edge_margin {
+        direction.x = -1.0
+    } elif pointer.x >= viewport.x - CameraNavigation.edge_margin {
+        direction.x = 1.0
+    }
+    if up != down {
+        if up { direction.y = 1.0 } else { direction.y = -1.0 }
+    } elif pointer.y <= CameraNavigation.edge_margin {
+        direction.y = 1.0
+    } elif pointer.y >= viewport.y - CameraNavigation.edge_margin {
+        direction.y = -1.0
+    }
+    if direction == Math.Vec2() { return direction }
+    return direction.normalized()
+}
+
+func restart_game(
+    board:&Board,
+    world:&ECS.World,
+    camera:&Resources.ViewportCamera2D,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    presentation.seed++
+    board.reset(presentation.seed)
+    reset_board_view(board.settings(), world, view)
+    presentation.terminal_sound = false
+    presentation.shake_remaining = 0.0
+    presentation.reveal_queue = []
+    presentation.reveal_cursor = 0
+    presentation.reveal_batch = 0
+    presentation.reveal_elapsed = 0.0
+    clear_terminal_popup(world, presentation)
+    set_board_offset(Math.Vec2(), world, view)
+    camera.set_position(board_size(board.settings()).multiply(0.5))
+}
+
+func is_terminal(state:GameState) bool {
+    return state == GameState.won || state == GameState.lost
+}
+
+func ensure_terminal_popup(
+    board:@Board,
+    viewport:Math.Vec2,
+    world:&ECS.World,
+    presentation:&GameLocal
+) {
+    if let entity = presentation.terminal_overlay {
+        if world.is_alive(entity) { return }
+    }
+    presentation.terminal_won = board.state() == GameState.won
+    presentation.terminal_hovered = "background"
+    presentation.terminal_scale = end_popup_scale_animation()
+    presentation.terminal_opacity = end_popup_opacity_animation()
+    spawn_terminal_popup(viewport, world, presentation)
+}
+
+func spawn_terminal_popup(
+    viewport:Math.Vec2,
+    world:&ECS.World,
+    presentation:&GameLocal
+) {
+    let width = viewport.x as int
+    let height = viewport.y as int
+    if width <= 0 || height <= 0 { return }
+    let hovered = "$(presentation.terminal_hovered)"
+    var drawing = end_popup_drawing(
+        presentation.terminal_won,
+        viewport,
+        hovered
+    )
+    let scale = presentation.terminal_scale.value()
+    let opacity = presentation.terminal_opacity.value()
+    presentation.terminal_overlay = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(scale:Math.Vec2(scale)))
+        ..with(Components.Canvas(drawing, width, height)
+            ..size = viewport
+            ..space = Components.CanvasSpace.viewport
+            ..anchor = Math.Vec2(0.5)
+            ..pivot = Math.Vec2(0.5)
+            ..color = Color.white().with_alpha(opacity)
+            ..layer = 100
+            ..text_mode = Scene2D.CanvasTextMode.coverage
+        )
+    )
+    presentation.terminal_width = width
+    presentation.terminal_height = height
+}
+
+func advance_terminal_popup(
+    delta:float,
+    viewport:Math.Vec2,
+    world:&ECS.World,
+    presentation:&GameLocal
+) {
+    if presentation.terminal_overlay == null { return }
+    let width = viewport.x as int
+    let height = viewport.y as int
+    if width != presentation.terminal_width || height != presentation.terminal_height {
+        if let entity = presentation.terminal_overlay {
+            if world.is_alive(entity) { world.destroy(entity) }
+        }
+        presentation.terminal_overlay = null
+        spawn_terminal_popup(viewport, world, presentation)
+    }
+    if presentation.terminal_scale.finished() &&
+        presentation.terminal_opacity.finished()
+    {
+        return
+    }
+    let elapsed = Math.max(0.0, delta)
+    let scale = presentation.terminal_scale.advance(elapsed)
+    let opacity = presentation.terminal_opacity.advance(elapsed)
+    if let entity = presentation.terminal_overlay {
+        if world.is_alive(entity) {
+            world.update<Components.Transform2D>(entity, func(transform:&Components.Transform2D) {
+                transform.scale = Math.Vec2(scale)
+            })
+            world.update<Components.Canvas>(entity, func(canvas:&Components.Canvas) {
+                canvas.color = Color.white().with_alpha(opacity)
+            })
+        }
+    }
+}
+
+func interact_terminal_popup(
+    session:&GameSession,
+    board:&Board,
+    input:@Resources.InputState,
+    viewport:Math.Vec2,
+    world:&ECS.World,
+    camera:&Resources.ViewportCamera2D,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    if !presentation.terminal_scale.finished() ||
+        !presentation.terminal_opacity.finished()
+    {
+        return
+    }
+    let hovered = end_popup_hit_test(input.mouse_position(), viewport)
+    if hovered != presentation.terminal_hovered {
+        presentation.terminal_hovered = hovered
+        if let entity = presentation.terminal_overlay {
+            if world.is_alive(entity) {
+                var drawing = end_popup_drawing(
+                    presentation.terminal_won, viewport, hovered
+                )
+                world.update<Components.Canvas>(entity, func(canvas:&Components.Canvas) {
+                    canvas.replace(drawing)
+                })
+            }
+        }
+    }
+    if !input.is_pressed(Input.MouseButton.left) { return }
+    if hovered == "restart" {
+        restart_game(board, world, camera, view, presentation)
+    } elif hovered == "menu" {
+        session.show_menu()
+    }
+}
+
+func clear_terminal_popup(world:&ECS.World, presentation:&GameLocal) {
+    if let entity = presentation.terminal_overlay {
+        if world.is_alive(entity) { world.destroy(entity) }
+    }
+    presentation.terminal_overlay = null
+    presentation.terminal_hovered = "background"
+    presentation.terminal_width = 0
+    presentation.terminal_height = 0
+}
+
+public func reveal_batch_size(changed:int) int {
+    if changed <= 0 { return 0 }
+    return (changed + 44) / 45
+}
+
+func is_revealing(presentation:@GameLocal) bool {
+    if presentation.reveal_queue.is_empty() { return false }
+    return presentation.reveal_cursor < presentation.reveal_queue[0].changed.count()
+}
+
+func present_board_result(
+    board:@Board,
+    result:ActionResult,
+    world:&ECS.World,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    if result.generated { sync_generated_board(board, world, view) }
+    let changed_count = result.changed.count()
+    if result.state == GameState.lost || changed_count <= 1 {
+        apply_board_changes(board, result.changed, 0, changed_count, world, view)
+        finish_board_result(board, result.state, world, view)
+        return
+    }
+    presentation.reveal_cursor = 0
+    presentation.reveal_batch = reveal_batch_size(changed_count)
+    presentation.reveal_elapsed = 0.0
+    presentation.reveal_queue.append(move result)
+    reveal_next_batch(board, world, view, presentation)
+}
+
+func advance_reveal(
+    delta:float,
+    board:@Board,
+    world:&ECS.World,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    if !is_revealing(presentation) { return }
+    presentation.reveal_elapsed += Math.max(0.0, delta)
+    while presentation.reveal_elapsed >= 0.01 && is_revealing(presentation) {
+        presentation.reveal_elapsed -= 0.01
+        reveal_next_batch(board, world, view, presentation)
+    }
+}
+
+func reveal_next_batch(
+    board:@Board,
+    world:&ECS.World,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    let remaining = presentation.reveal_queue[0].changed.count() - presentation.reveal_cursor
+    let count = bounded_reveal_count(presentation.reveal_batch, remaining)
+    {
+        let pending:@ActionResult = @presentation.reveal_queue[0]
+        apply_board_changes(
+            board,
+            pending.changed,
+            presentation.reveal_cursor,
+            count,
+            world,
+            view
+        )
+    }
+    presentation.reveal_cursor += count
+    if !is_revealing(presentation) {
+        finish_board_result(board, board.state(), world, view)
+        presentation.reveal_queue.take(0)
+        presentation.reveal_cursor = 0
+        presentation.reveal_batch = 0
+        presentation.reveal_elapsed = 0.0
+    }
+}
+
+func bounded_reveal_count(batch:int, remaining:int) int {
+    if batch > remaining { return remaining }
+    return batch
+}
+
+func handle_terminal(
+    board:@Board,
+    audio:&Resources.Audio,
+    muted:bool,
+    presentation:&GameLocal
+) {
+    if presentation.terminal_sound { return }
+    if board.state() == GameState.won {
+        play_feedback(audio, presentation.victory, muted)
+        presentation.victory_events++
+        presentation.terminal_sound = true
+    } elif board.state() == GameState.lost {
+        play_feedback(audio, presentation.explosion, muted)
+        presentation.explosion_events++
+        presentation.shake_remaining = 0.32
+        presentation.terminal_sound = true
+    }
+}
+
+func advance_shake(
+    delta:float,
+    world:&ECS.World,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    if presentation.shake_remaining <= 0.0 { return }
+    presentation.shake_remaining = Math.max(0.0, presentation.shake_remaining - delta)
+    let intensity = presentation.shake_remaining / 0.32
+    let phase = presentation.frames as float * 2.37
+    set_board_offset(
+        Math.Vec2(Math.sin(phase), Math.cos(phase * 1.41)).multiply(12.0 * intensity),
+        world,
+        view
+    )
+    if presentation.shake_remaining == 0.0 { set_board_offset(Math.Vec2(), world, view) }
+}
+
+func play_feedback(audio:&Resources.Audio, sound:GFXAudio.Sound, muted:bool) {
+    var volume = 1.0
+    if muted { volume = 0.0 }
+    audio.play(sound, GFXAudio.Playback(volume:volume))
+}
+
+func verify_game_flow(
+    board:&Board,
+    world:&ECS.World,
+    audio:&Resources.Audio,
+    camera:&Resources.ViewportCamera2D,
+    view:&GameView,
+    presentation:&GameLocal
+) {
+    let opening = board.reveal(0, 0)
+    assert(opening.generated && board.has_generated_mines())
+    apply_board_result(board, opening, world, view)
+    play_feedback(audio, presentation.click, true)
+    presentation.click_events++
+    assert(view.generated && view.changed_cells > 0)
+    if let mine = first_mine(board) {
+        let flagged = board.toggle_flag(mine.x, mine.y)
+        apply_board_result(board, flagged, world, view)
+        play_feedback(audio, presentation.flag, true)
+        presentation.flag_events++
+    }
+    restart_game(board, world, camera, view, presentation)
+    assert(board.state() == GameState.ready && !view.generated)
+
+    let loss_opening = board.reveal(0, 0)
+    apply_board_result(board, loss_opening, world, view)
+    if let mine = first_mine(board) {
+        let loss = board.reveal(mine.x, mine.y)
+        apply_board_result(board, loss, world, view)
+    }
+    assert(board.state() == GameState.lost && board.triggered() != null)
+    handle_terminal(board, audio, true, presentation)
+
+    restart_game(board, world, camera, view, presentation)
+    let victory_opening = board.reveal(0, 0)
+    apply_board_result(board, victory_opening, world, view)
+    let settings = board.settings()
+    var y = 0
+    while y < settings.height {
+        var x = 0
+        while x < settings.width {
+            if !board.cell(x, y).mine {
+                let progress = board.reveal(x, y)
+                apply_board_result(board, progress, world, view)
+            }
+            x++
+        }
+        y++
+    }
+    assert(board.state() == GameState.won)
+    handle_terminal(board, audio, true, presentation)
+    play_feedback(audio, presentation.over, true)
+    presentation.over_events++
+}
+
+func first_mine(board:@Board) Coordinate? {
+    let settings = board.settings()
+    var y = 0
+    while y < settings.height {
+        var x = 0
+        while x < settings.width {
+            if board.cell(x, y).mine { return Coordinate(x:x, y:y) }
+            x++
+        }
+        y++
+    }
+    return null
+}
+
+func finalize_game(
+    session:&GameSession,
+    audio:&Resources.Audio,
+    camera:&Resources.ViewportCamera2D,
+    presentation:&GameLocal
+) {
+    camera.clear_limits()
+    if presentation.sounds_loaded {
+        assert(audio.unload(presentation.click))
+        assert(audio.unload(presentation.flag))
+        assert(audio.unload(presentation.over))
+        assert(audio.unload(presentation.victory))
+        assert(audio.unload(presentation.explosion))
+    }
+    if session.verification {
+        assert(presentation.click_events == 1)
+        assert(presentation.flag_events == 1)
+        assert(presentation.over_events == 1)
+        assert(presentation.victory_events == 1)
+        assert(presentation.explosion_events == 1)
+    }
+    session.game_finalizations++
+}

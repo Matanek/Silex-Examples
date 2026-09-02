@@ -1,0 +1,56 @@
+use Package.Games.Minesweeper.EndPopup.EndPopupLayout
+use Package.Games.Minesweeper.EndPopup.end_popup_drawing
+use Package.Games.Minesweeper.EndPopup.end_popup_hit_test
+use Package.Games.Minesweeper.EndPopup.end_popup_opacity_animation
+use Package.Games.Minesweeper.EndPopup.end_popup_scale_animation
+use STD.Math
+
+test "center the terminal popup and expose both actions" {
+    let viewport = Math.Vec2(1_280.0, 800.0)
+    let layout = EndPopupLayout.calculate(viewport)
+    assert(layout.card.center() == viewport.multiply(0.5))
+    assert(layout.card.x >= 0.0 && layout.card.y >= 0.0)
+    assert(layout.card.maximum().x <= viewport.x)
+    assert(layout.card.maximum().y <= viewport.y)
+    assert(layout.face.w == layout.face.h)
+    assert(layout.card.contains(layout.face.minimum()))
+    assert(layout.card.contains(layout.face.maximum()))
+    assert(end_popup_hit_test(layout.restart.center(), viewport) == "restart")
+    assert(end_popup_hit_test(layout.menu.center(), viewport) == "menu")
+    assert(end_popup_hit_test(Math.Vec2(), viewport) == "background")
+}
+
+test "bounce the popup scale while fading it in" {
+    var scale = end_popup_scale_animation()
+    var opacity = end_popup_opacity_animation()
+    assert(scale.value() == 0.55)
+    assert(opacity.value() == 0.0)
+    assert(scale.advance(0.20) > 0.55)
+    assert(opacity.advance(0.20) == 1.0)
+    assert(opacity.finished())
+    assert(scale.advance(1.0) == 1.0)
+    assert(scale.finished())
+}
+
+test "draw both terminal faces from retained Canvas primitives" {
+    let viewport = Math.Vec2(1_280.0, 800.0)
+    var victory = end_popup_drawing(true, viewport, "background")
+    var defeat = end_popup_drawing(false, viewport, "background")
+    var victory_texts = 0
+    var defeat_texts = 0
+    for command in victory.commands() {
+        match command {
+            text(value) => { victory_texts++ }
+            else => {}
+        }
+    }
+    for command in defeat.commands() {
+        match command {
+            text(value) => { defeat_texts++ }
+            else => {}
+        }
+    }
+    assert(victory_texts == 4)
+    assert(defeat_texts == 4)
+    assert(defeat.commands().count() > victory.commands().count())
+}

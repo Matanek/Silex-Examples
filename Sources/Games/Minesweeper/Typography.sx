@@ -1,0 +1,22 @@
+use GFX.Canvas
+use GFX.Font as VectorFont
+
+public class Typography {
+    private static var pixel_value:Canvas.Font? = null
+
+    static func pixel() Canvas.Font {
+        if let cached = Typography.pixel_value { return cached }
+        var created = Canvas.Font(required_face(VectorFont.Face.pixel()))
+        Typography.pixel_value = created
+        return created
+    }
+}
+
+func required_face(
+    result:Result<VectorFont.Face, VectorFont.Error>
+) VectorFont.Face {
+    match result {
+        failure(error) => { panic(error.detail) }
+        success(face) => { return face }
+    }
+}

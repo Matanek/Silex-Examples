@@ -1,0 +1,294 @@
+use Package.Games.Minesweeper.Model.Board
+use Package.Games.Minesweeper.Model.CellState
+use Package.Games.Minesweeper.Model.Coordinate
+use Package.Games.Minesweeper.Model.GameState
+use Package.Games.Minesweeper.Model.Settings
+use STD.Math
+
+test "provide validated presets, fit and exact mine totals" {
+    assert(Settings.compact().width == 8)
+    assert(Settings.wide().width == 16)
+    assert(Settings.large().width == 32)
+    assert(Settings.huge().width == 48)
+    assert(Settings.huge().height == 12)
+    assert(Settings(256, 256, 6).mine_count() == 24_576)
+
+    let fitted = Settings.fit(Math.Vec2(1_260.0, 876.0), 3)
+    assert(fitted.width == 16)
+    assert(fitted.height == 12)
+    assert(fitted.difficulty == 3)
+}
+
+test "generate exact deterministic sector quotas around a safe opening" {
+    let configurations:Settings[] = [
+        Settings(8, 8, 1),
+        Settings(16, 8, 3),
+        Settings(32, 12, 6)
+    ]
+    var seed = 1
+    for settings in configurations {
+        var board = Board(settings, seed)
+        let opening_x = settings.width / 2
+        let opening_y = settings.height / 2
+        let opened = board.reveal(opening_x, opening_y)
+        assert(opened.generated)
+        assert(board.actual_mine_count() == settings.mine_count())
+        var y = 0
+        while y < settings.height {
+            var x = 0
+            while x < settings.width {
+                let cell = board.cell(x, y)
+                if Math.abs(x - opening_x) <= 1 && Math.abs(y - opening_y) <= 1 {
+                    assert(!cell.mine)
+                }
+                if !cell.mine {
+                    assert(cell.neighboring_mines == neighboring_mines(board, x, y))
+                }
+                x++
+            }
+            y++
+        }
+        var sector_y = 0
+        while sector_y < settings.sector_rows() {
+            var sector_x = 0
+            while sector_x < settings.sector_columns() {
+                assert(sector_mines(board, sector_x, sector_y) == settings.difficulty)
+                sector_x++
+            }
+            sector_y++
+        }
+
+        var same = Board(settings, seed)
+        same.reveal(opening_x, opening_y)
+        assert(same_layout(board, same))
+        seed += 73
+    }
+}
+
+test "apply flags, defeat, wrong-flag feedback and deterministic reset" {
+    var board = Board(Settings.compact(2), 42)
+    assert(!board.toggle_flag(0, 0).changed_anything())
+    board.reveal(0, 0)
+    let mine = first_mine(board)
+    let safe = first_covered_safe(board)
+    assert(board.toggle_flag(safe.x, safe.y).changed_anything())
+    assert(board.is_wrong_flag(safe.x, safe.y))
+    assert(!board.reveal(safe.x, safe.y).changed_anything())
+    let lost = board.reveal(mine.x, mine.y)
+    assert(lost.state == GameState.lost)
+    assert(lost.triggered! == mine)
+    assert(board.is_wrong_flag(safe.x, safe.y))
+
+    board.reset(42)
+    assert(board.state() == GameState.ready)
+    assert(!board.has_generated_mines())
+    board.reveal(0, 0)
+    assert(first_mine(board) == mine)
+}
+
+test "win by revealing every safe cell without recursive expansion" {
+    var board = Board(Settings(256, 256, 6), 9_001)
+    board.reveal(128, 128)
+    var y = 0
+    while y < board.settings().height && board.state() == GameState.playing {
+        var x = 0
+        while x < board.settings().width && board.state() == GameState.playing {
+            let cell = board.cell(x, y)
+            if !cell.mine && cell.state == CellState.covered { board.reveal(x, y) }
+            x++
+        }
+        y++
+    }
+    assert(board.state() == GameState.won)
+    assert(board.safe_cells_revealed() ==
+        board.settings().cell_count() - board.target_mines())
+}
+
+test "chord revealed numbered cells only when adjacent flags match" {
+    var board = Board(Settings.compact(1), 811)
+    board.reveal(0, 0)
+    let center = first_revealed_number(board)
+    let before = board.safe_cells_revealed()
+    assert(!board.chord(center.x, center.y).changed_anything())
+    flag_adjacent_mines(board, center.x, center.y)
+    let chorded = board.chord(center.x, center.y)
+    assert(chorded.changed_anything() || board.state() == GameState.won)
+    assert(board.safe_cells_revealed() >= before)
+}
+
+test "lose when a matching chord count is made from wrong flags" {
+    var board = Board(Settings.compact(2), 77)
+    board.reveal(0, 0)
+    let center = wrong_chord_center(board)
+    let required = board.cell(center.x, center.y).neighboring_mines
+    flag_adjacent_safe_cells(board, center.x, center.y, required)
+    let chorded = board.chord(center.x, center.y)
+    assert(chorded.state == GameState.lost)
+    assert(chorded.triggered != null)
+}
+
+func neighboring_mines(board:@Board, x:int, y:int) int {
+    var count = 0
+    var oy = -1
+    while oy <= 1 {
+        var ox = -1
+        while ox <= 1 {
+            if (ox != 0 || oy != 0) && board.contains(x + ox, y + oy) &&
+                board.cell(x + ox, y + oy).mine
+            { count++ }
+            ox++
+        }
+        oy++
+    }
+    return count
+}
+
+func sector_mines(board:@Board, sector_x:int, sector_y:int) int {
+    var count = 0
+    var y = sector_y * 4
+    while y < sector_y * 4 + 4 {
+        var x = sector_x * 4
+        while x < sector_x * 4 + 4 {
+            if board.cell(x, y).mine { count++ }
+            x++
+        }
+        y++
+    }
+    return count
+}
+
+func same_layout(first:@Board, second:@Board) bool {
+    var y = 0
+    while y < first.settings().height {
+        var x = 0
+        while x < first.settings().width {
+            let a = first.cell(x, y)
+            let b = second.cell(x, y)
+            if a.mine != b.mine || a.neighboring_mines != b.neighboring_mines {
+                return false
+            }
+            x++
+        }
+        y++
+    }
+    return true
+}
+
+func first_mine(board:@Board) Coordinate {
+    var y = 0
+    while y < board.settings().height {
+        var x = 0
+        while x < board.settings().width {
+            if board.cell(x, y).mine {
+                return Coordinate(x:x, y:y)
+            }
+            x++
+        }
+        y++
+    }
+    panic("test board has no mine")
+}
+
+func first_covered_safe(board:@Board) Coordinate {
+    var y = 0
+    while y < board.settings().height {
+        var x = 0
+        while x < board.settings().width {
+            let cell = board.cell(x, y)
+            if !cell.mine && cell.state == CellState.covered {
+                return Coordinate(x:x, y:y)
+            }
+            x++
+        }
+        y++
+    }
+    panic("test board has no covered safe cell")
+}
+
+func first_revealed_number(board:@Board) Coordinate {
+    var y = 0
+    while y < board.settings().height {
+        var x = 0
+        while x < board.settings().width {
+            let cell = board.cell(x, y)
+            if cell.state == CellState.revealed && cell.neighboring_mines > 0 {
+                return Coordinate(x:x, y:y)
+            }
+            x++
+        }
+        y++
+    }
+    panic("test board has no revealed numbered cell")
+}
+
+func flag_adjacent_mines(board:&Board, x:int, y:int) {
+    var oy = -1
+    while oy <= 1 {
+        var ox = -1
+        while ox <= 1 {
+            if board.contains(x + ox, y + oy) {
+                let cell = board.cell(x + ox, y + oy)
+                if cell.mine && cell.state == CellState.covered {
+                    board.toggle_flag(x + ox, y + oy)
+                }
+            }
+            ox++
+        }
+        oy++
+    }
+}
+
+func wrong_chord_center(board:@Board) Coordinate {
+    var y = 0
+    while y < board.settings().height {
+        var x = 0
+        while x < board.settings().width {
+            let cell = board.cell(x, y)
+            if cell.state == CellState.revealed && cell.neighboring_mines > 0 {
+                var covered_mines = 0
+                var covered_safe = 0
+                var oy = -1
+                while oy <= 1 {
+                    var ox = -1
+                    while ox <= 1 {
+                        if board.contains(x + ox, y + oy) {
+                            let neighbor = board.cell(x + ox, y + oy)
+                            if neighbor.state == CellState.covered {
+                                if neighbor.mine { covered_mines++ }
+                                else { covered_safe++ }
+                            }
+                        }
+                        ox++
+                    }
+                    oy++
+                }
+                if covered_mines > 0 && covered_safe >= cell.neighboring_mines {
+                    return Coordinate(x:x, y:y)
+                }
+            }
+            x++
+        }
+        y++
+    }
+    panic("test board has no wrong-chord candidate")
+}
+
+func flag_adjacent_safe_cells(board:&Board, x:int, y:int, count:int) {
+    var remaining = count
+    var oy = -1
+    while oy <= 1 && remaining > 0 {
+        var ox = -1
+        while ox <= 1 && remaining > 0 {
+            if board.contains(x + ox, y + oy) {
+                let cell = board.cell(x + ox, y + oy)
+                if !cell.mine && cell.state == CellState.covered {
+                    board.toggle_flag(x + ox, y + oy)
+                    remaining--
+                }
+            }
+            ox++
+        }
+        oy++
+    }
+    assert(remaining == 0)
+}

@@ -1,0 +1,83 @@
+use GFX.Assets.PNG
+use GFX.Scene2D
+use Package.Games.Minesweeper.BoardView.BoardTile
+use Package.Games.Minesweeper.BoardView.board_coordinate
+use Package.Games.Minesweeper.BoardView.visible_cell_bound
+use Package.Games.Minesweeper.Model.Settings
+use Package.Games.Minesweeper.Presentation.camera_navigation_direction
+use Package.Games.Minesweeper.Presentation.reveal_batch_size
+use STD.Math
+
+test "map the complete 5 by 4 board atlas used by the presentation" {
+    let image = PNG.decode(embed_bytes("../Assets/Board.png"))
+    assert(image.width() == 240 && image.height() == 192)
+    assert(BoardTile.empty == 0)
+    assert(BoardTile.ground == 10)
+    assert(BoardTile.cover == 11)
+    assert(BoardTile.flag == 12)
+    assert(BoardTile.wrong_flag == 13)
+    assert(BoardTile.focus == 14)
+    assert(BoardTile.border == 15)
+    assert(BoardTile.mine == 17)
+    assert(BoardTile.secured_mine == 18)
+}
+
+test "unproject viewport pointers into centered board coordinates" {
+    let viewport = Math.Vec2(800.0)
+    let camera = Scene2D.Camera()
+    let compact = Settings.compact()
+    let compact_transform = Scene2D.Transform(Math.Vec2(192.0))
+    let compact_center = board_coordinate(
+        Math.Vec2(424.0, 376.0), camera, compact_transform, viewport, compact
+    )!
+    assert(compact_center.x == 4 && compact_center.y == 4)
+    assert(board_coordinate(
+        Math.Vec2(207.0, 207.0), camera, compact_transform, viewport, compact
+    ) == null)
+
+    let wide = Settings.huge()
+    let wide_transform = Scene2D.Transform(Math.Vec2(1152.0, 288.0))
+    let wide_center = board_coordinate(
+        Math.Vec2(424.0, 376.0), camera, wide_transform, viewport, wide
+    )!
+    assert(wide_center.x == 24 && wide_center.y == 6)
+}
+
+test "bound renderer preparation to visible cells on the maximum board" {
+    let maximum = Settings(256, 256, 6)
+    assert(maximum.cell_count() == 65_536)
+    assert(visible_cell_bound(Math.Vec2(800.0), 1.0) == 361)
+    assert(visible_cell_bound(Math.Vec2(1600.0, 900.0), 0.5) < maximum.cell_count())
+}
+
+test "bound progressive reveal waves for compact and maximum openings" {
+    assert(reveal_batch_size(0) == 0)
+    assert(reveal_batch_size(1) == 1)
+    assert(reveal_batch_size(45) == 1)
+    assert(reveal_batch_size(46) == 2)
+    let maximum = 256 * 256
+    let batch = reveal_batch_size(maximum)
+    assert((maximum + batch - 1) / batch <= 45)
+}
+
+test "navigate a bounded board from screen edges and arrow keys" {
+    let viewport = Math.Vec2(1_280.0, 800.0)
+    assert(camera_navigation_direction(
+        viewport.multiply(0.5), viewport, false, false, false, false
+    ) == Math.Vec2())
+    assert(camera_navigation_direction(
+        Math.Vec2(0.0, 400.0), viewport, false, false, false, false
+    ) == Math.Vec2(-1.0, 0.0))
+    assert(camera_navigation_direction(
+        Math.Vec2(1_279.0, 400.0), viewport, false, false, false, false
+    ) == Math.Vec2(1.0, 0.0))
+    assert(camera_navigation_direction(
+        Math.Vec2(640.0, 0.0), viewport, false, false, false, false
+    ) == Math.Vec2(0.0, 1.0))
+    assert(camera_navigation_direction(
+        viewport.multiply(0.5), viewport, true, false, true, false
+    ).nearly_equal(Math.Vec2(-1.0, 1.0).normalized()))
+    assert(camera_navigation_direction(
+        Math.Vec2(1_279.0, 400.0), viewport, true, false, false, false
+    ) == Math.Vec2(-1.0, 0.0))
+}
