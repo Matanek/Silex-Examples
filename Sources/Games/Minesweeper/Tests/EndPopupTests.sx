@@ -1,8 +1,8 @@
 use Package.Games.Minesweeper.EndPopup.EndPopupLayout
+use Package.Games.Minesweeper.EndPopup.end_popup_drawing
 use Package.Games.Minesweeper.EndPopup.end_popup_hit_test
 use Package.Games.Minesweeper.EndPopup.end_popup_opacity_animation
 use Package.Games.Minesweeper.EndPopup.end_popup_scale_animation
-use Package.Games.Minesweeper.EndPopup.end_popup_symbol
 use STD.Math
 
 test "center the terminal popup and expose both actions" {
@@ -12,6 +12,9 @@ test "center the terminal popup and expose both actions" {
     assert(layout.card.x >= 0.0 && layout.card.y >= 0.0)
     assert(layout.card.maximum().x <= viewport.x)
     assert(layout.card.maximum().y <= viewport.y)
+    assert(layout.face.w == layout.face.h)
+    assert(layout.card.contains(layout.face.minimum()))
+    assert(layout.card.contains(layout.face.maximum()))
     assert(end_popup_hit_test(layout.restart.center(), viewport) == "restart")
     assert(end_popup_hit_test(layout.menu.center(), viewport) == "menu")
     assert(end_popup_hit_test(Math.Vec2(), viewport) == "background")
@@ -29,7 +32,25 @@ test "bounce the popup scale while fading it in" {
     assert(scale.finished())
 }
 
-test "provide a readable terminal symbol with or without emoji coverage" {
-    assert(end_popup_symbol(true) != "")
-    assert(end_popup_symbol(false) != "")
+test "draw both terminal faces from retained Canvas primitives" {
+    let viewport = Math.Vec2(1_280.0, 800.0)
+    var victory = end_popup_drawing(true, viewport, "background")
+    var defeat = end_popup_drawing(false, viewport, "background")
+    var victory_texts = 0
+    var defeat_texts = 0
+    for command in victory.commands() {
+        match command {
+            text(value) => { victory_texts++ }
+            else => {}
+        }
+    }
+    for command in defeat.commands() {
+        match command {
+            text(value) => { defeat_texts++ }
+            else => {}
+        }
+    }
+    assert(victory_texts == 4)
+    assert(defeat_texts == 4)
+    assert(defeat.commands().count() > victory.commands().count())
 }

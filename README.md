@@ -104,9 +104,10 @@ chords, right-click and Shift-left-click toggle a flag, middle drag and
 two-axis scroll move large boards, `Page Up`/`Page Down` zoom, `Enter` restarts
 with the same settings, and `Escape` returns to the menu. A centered terminal
 popup keeps the finished board visible after a victory or defeat, enters with
-a scale-and-opacity bounce, and offers **RECOMMENCER** or **MENU**. It uses the
-pixel face's celebration or crying emoji when covered and a crisp ASCII face
-otherwise. From the parent Silex workspace, the equivalent explicit command is:
+a scale-and-opacity bounce, and offers **RECOMMENCER** or **MENU**. Its yellow
+rounded Canvas pictogram draws a simplified `:D` for victory or tearful `TT`
+for defeat without depending on an emoji font. From the parent Silex workspace,
+the equivalent explicit command is:
 
 ```sh
 silex run Silex-Examples/Sources/Games/Minesweeper
