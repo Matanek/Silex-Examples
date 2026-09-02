@@ -94,6 +94,18 @@ test "preserve one dimension across the three fit actions" {
     assert(session.settings().height == 12)
 }
 
+test "fit a 28 by 16 board and its border inside a Retina fullscreen viewport" {
+    let viewport = Math.Vec2(1_728.0, 1_117.0)
+    var session = GameSession()
+    session.fit_screen(viewport)
+    let settings = session.settings()
+    assert(settings.width == 28)
+    assert(settings.height == 16)
+    assert(settings.cell_count() == 448)
+    assert((settings.width + 2) as float * 48.0 <= viewport.x)
+    assert((settings.height + 2) as float * 48.0 <= viewport.y)
+}
+
 test "center the Godot-sized menu card and keep every action inside it" {
     let compact = MenuLayout.calculate(Math.Vec2(600.0, 700.0))
     let wide = MenuLayout.calculate(Math.Vec2(1_280.0, 800.0))

@@ -26,7 +26,6 @@ use Module.BoardView.set_board_offset
 use Module.BoardView.sync_generated_board
 use Module.BoardView.update_focus
 use Module.BoardView.update_parallax
-use Module.BoardView.visible_cell_bound
 use Module.Model.ActionResult
 use Module.Model.Board
 use Module.Model.CellState
@@ -351,8 +350,6 @@ func start_game(
     presentation.sounds_loaded = true
     rebuild_hud(board, window.size(), world, view)
     assert(view.layer_count == 7)
-    assert(visible_cell_bound(window.size(), camera.zoom()) < board.settings().cell_count() ||
-        board.settings().cell_count() <= 256)
 }
 
 func update_game(
