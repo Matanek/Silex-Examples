@@ -1,37 +1,25 @@
 use GFX.Components
 use GFX.ECS
-use GFX.Physics
 use GFX.Resources
 use STD.Math
+use Module.Model.BodyVisual
 use Module.Model.Demo
 use Module.Model.Simulation
 use Module.Model.SpawnSlots
+use Module.PhysicsAsync.PhysicsAsync
 use Module.PhysicsBodies.create_container
 use Module.Spawning.emit_body
 use Module.Visuals.Visuals
-use Module.Visuals.stats_drawing
 
 public func create_scene(
     world:&Resources.World,
-    simulation:&Simulation,
-    physics:&Resources.World2D
+    simulation:&Simulation
 ) {
-    physics.set_profiling_enabled(true)
     world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform2D())
         ..with(Components.Camera2D())
     )
-    create_container(world)
-    var stats = stats_drawing(simulation, physics)
-    simulation.stats_display = world.spawn(ECS.EntityRecipe()
-        ..with(Components.Transform2D(position:Math.Vec2(16.0)))
-        ..with(Components.Canvas(stats, 220, 122)
-            ..anchor = Math.Vec2()
-            ..pivot = Math.Vec2()
-            ..space = Components.CanvasSpace.viewport
-            ..layer = 100
-        )
-    )
+    create_container(world, simulation)
 }
 
 public func update_simulation(
@@ -40,13 +28,15 @@ public func update_simulation(
     simulation:&Simulation,
     spawn_slots:&SpawnSlots,
     visuals:@Visuals,
-    physics:@Resources.World2D
+    physics_async:&PhysicsAsync
 ) {
+    physics_async.collect_completed()
     simulation.emission_elapsed += time.delta
-    if simulation.emission_elapsed >= Demo.emission_interval &&
+    if physics_async.is_idle() &&
+        simulation.emission_elapsed >= Demo.emission_interval &&
         simulation.bodies.count() < Demo.maximum_bodies
     {
-        spawn_slots.rebuild(simulation.bodies, world)
+        spawn_slots.rebuild(simulation.bodies)
         while simulation.emission_elapsed >= Demo.emission_interval &&
             simulation.bodies.count() < Demo.maximum_bodies
         {
@@ -65,15 +55,41 @@ public func update_simulation(
         }
     }
 
-    simulation.stats_elapsed += time.delta
-    if simulation.stats_elapsed >= 0.25 {
-        world.update<Components.Canvas>(
-            simulation.stats_display,
-            func(display:&Components.Canvas) {
-                var drawing = stats_drawing(simulation, physics)
-                display.replace(drawing)
-            }
-        )
-        simulation.stats_elapsed = 0.0
+    simulation.accumulator = Math.min(
+        simulation.accumulator + time.delta,
+        Demo.fixed_delta * Demo.maximum_substeps as float
+    )
+    if physics_async.is_idle() &&
+        simulation.accumulator >= Demo.fixed_delta
+    {
+        var step_count = Math.floor(
+            simulation.accumulator / Demo.fixed_delta
+        ) as int
+        if step_count > Demo.maximum_substeps {
+            step_count = Demo.maximum_substeps
+        }
+        simulation.accumulator -= Demo.fixed_delta * step_count as float
+        var physics = simulation.physics_world()
+        physics_async.submit(physics, step_count)
     }
+
+}
+
+public func synchronize_visuals(
+    simulation:&Simulation,
+    physics_async:@PhysicsAsync,
+    bodies:ECS.Query<(@BodyVisual, &Components.Transform2D)>
+) {
+    let revision = physics_async.current_revision()
+    if revision == simulation.snapshot_revision { return }
+    if var snapshots = physics_async.published_buffer() {
+        for (visual, transform) in bodies {
+            if visual.index >= snapshots.transforms.count() { continue }
+            transform.position = snapshots.transforms.position(
+                visual.index
+            ).multiply(Demo.pixels_per_meter)
+            transform.rotation = snapshots.transforms.rotation(visual.index)
+        }
+    }
+    simulation.snapshot_revision = revision
 }

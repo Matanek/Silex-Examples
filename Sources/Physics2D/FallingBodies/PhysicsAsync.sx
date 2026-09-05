@@ -1,0 +1,115 @@
+use GFX.Physics
+use STD.Threading
+use Module.Model.Demo
+
+public class PhysicsTransformBuffer {
+    var transforms:Physics.BodyTransformBuffer2D
+
+    init() {
+        self.transforms = Physics.BodyTransformBuffer2D()
+    }
+}
+
+struct PhysicsStepJob:Threading.Job {
+    var physics:Physics.World2D
+    var output:PhysicsTransformBuffer
+
+    func execute() {
+        self.physics.step(Demo.fixed_delta)
+        self.physics.write_dynamic_body_transforms(self.output.transforms)
+    }
+}
+
+public class PhysicsAsync {
+    var executor:Threading.Executor
+    var buffers:PhysicsTransformBuffer[]
+    var fences:Threading.Fence[]
+    var output_indices:int[]
+    var next_completion:int
+    var next_output_index:int
+    var published_index:int
+    var revision:int
+    var pending_steps:int
+
+    init() {
+        self.executor = Threading.Executor(worker_count:1)
+        self.buffers = [
+            PhysicsTransformBuffer(),
+            PhysicsTransformBuffer(),
+            PhysicsTransformBuffer(),
+            PhysicsTransformBuffer(),
+            PhysicsTransformBuffer(),
+            PhysicsTransformBuffer(),
+            PhysicsTransformBuffer(),
+            PhysicsTransformBuffer()
+        ]
+        self.fences = []
+        self.output_indices = []
+        self.next_completion = 0
+        self.next_output_index = 0
+        self.published_index = -1
+        self.revision = 0
+        self.pending_steps = 0
+    }
+
+    func submit(physics:Physics.World2D, step_count:int) {
+        if !self.is_idle() {
+            panic("FallingBodies cannot replace an active physics batch")
+        }
+        if step_count < 1 || step_count > self.buffers.count() {
+            panic("FallingBodies physics batch exceeds its snapshot capacity")
+        }
+        self.fences.clear()
+        self.output_indices.clear()
+        self.next_completion = 0
+        let first_output_index = self.next_output_index
+        var first = self.executor.submit(PhysicsStepJob(
+            physics:physics,
+            output:self.buffers[first_output_index]
+        ))
+        self.fences.append(first.fence())
+        self.output_indices.append(first_output_index)
+        var step = 1
+        while step < step_count {
+            let output_index = (self.next_output_index + step) %
+                self.buffers.count()
+            var submitted = self.executor.submit(PhysicsStepJob(
+                physics:physics,
+                output:self.buffers[output_index]
+            ), after:self.fences[step - 1])
+            self.fences.append(submitted.fence())
+            self.output_indices.append(output_index)
+            step++
+        }
+        self.pending_steps = step_count
+    }
+
+    func collect_completed() {
+        while self.next_completion < self.fences.count() &&
+            self.fences[self.next_completion].is_complete()
+        {
+            self.fences[self.next_completion].complete()
+            self.published_index = self.output_indices[self.next_completion]
+            self.next_completion++
+            self.revision++
+        }
+        if self.next_completion == self.fences.count() &&
+            self.fences.count() > 0
+        {
+            self.fences.clear()
+            self.output_indices.clear()
+            self.next_completion = 0
+            self.next_output_index = (self.next_output_index +
+                self.pending_steps) % self.buffers.count()
+            self.pending_steps = 0
+        }
+    }
+
+    func is_idle() bool { return self.fences.count() == 0 }
+    func current_revision() int { return self.revision }
+
+    func published_buffer() PhysicsTransformBuffer? {
+        if self.published_index < 0 { return null }
+        return self.buffers[self.published_index]
+    }
+}

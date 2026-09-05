@@ -2,6 +2,7 @@ use GFX.Components
 use GFX.ECS
 use GFX.Resources
 use STD.Math
+use Module.Model.BodyVisual
 use Module.Model.Demo
 use Module.Model.SimulatedBody
 use Module.Model.Simulation
@@ -24,14 +25,13 @@ public func emit_body(
     let angular_velocity =
         (simulation.randomizer.get_float() * 2.0 - 1.0) * 0.9
     let is_circle = index % 2 == 0
-    let body_scale = Demo.minimum_body_scale +
-        simulation.randomizer.get_float() *
-            (Demo.maximum_body_scale - Demo.minimum_body_scale)
     if !is_circle { rotation = 0.0 }
-    let settings = create_dynamic_body(
+    var body = create_dynamic_body(
+        simulation,
         is_circle,
-        body_scale,
+        position,
         velocity,
+        rotation,
         angular_velocity
     )
     var drawing = Components.Canvas(
@@ -42,17 +42,16 @@ public func emit_body(
     drawing.color = body_color(index)
     drawing.layer = 1
     if !is_circle { drawing.layer = 2 }
-    let entity = world.spawn(ECS.EntityRecipe()
+    world.spawn(ECS.EntityRecipe()
+        ..with(BodyVisual(index:index))
         ..with(Components.Transform2D(
-            position:position.multiply(Demo.pixels_per_meter),
-            rotation:rotation,
-            scale:Math.Vec2(body_scale)
+            position:body.position().multiply(Demo.pixels_per_meter),
+            rotation:body.rotation()
         ))
-        ..with(Components.PhysicsBody2D(settings))
         ..with(drawing)
     )
     simulation.bodies.append(SimulatedBody(
-        entity:entity,
+        body:body,
         is_circle:is_circle
     ))
 }

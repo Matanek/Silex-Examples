@@ -1,9 +1,7 @@
 use GFX.Canvas
 use GFX.Color
-use GFX.Physics
 use STD.Math
 use Module.Model.Demo
-use Module.Model.Simulation
 
 public class Visuals {
     var circle:Canvas
@@ -59,63 +57,4 @@ public func body_color(index:int) Color {
     if index % 4 == 1 { return Color.cyan_400() }
     if index % 4 == 2 { return Color.violet_400() }
     return Color.fuchsia_400()
-}
-
-func metric(value:float, suffix:str = " ms") str {
-    let tenths = Math.round(value * 10.0) as int
-    return "$(tenths / 10).$(tenths % 10)$(suffix)"
-}
-
-public func stats_drawing(
-    simulation:@Simulation,
-    physics:@Physics.World2D
-) Canvas {
-    let profile = physics.step_profile()
-    let labels:str[] = ["BODIES", "AWAKE", "CONTACTS", "STEP"]
-    let values:str[] = [
-        "$(simulation.bodies.count())",
-        "$(physics.awake_body_count())",
-        "$(physics.contact_count())",
-        metric(profile.total_ms)
-    ]
-    var canvas = Canvas()
-    canvas.paint(func(painter:&Canvas.Painter) {
-        painter.fill(
-            Canvas.Rect(Math.Vec2(), Math.Vec2(220.0, 122.0), 9.0),
-            Canvas.Fill.solid(Color.black().with_alpha(0.82))
-        )
-        painter.stroke(
-            Canvas.Rect(Math.Vec2(0.5), Math.Vec2(219.0, 121.0), 9.0),
-            Canvas.Stroke(Color.cyan_400().with_alpha(0.48), 1.0)
-        )
-        painter.text(
-            "PHYSICS 2D",
-            Math.Vec2(14.0, 10.0),
-            Canvas.TextStyle(
-                size:14.0,
-                color:Color.cyan_300(),
-                weight:Canvas.TextWeight.bold
-            )
-        )
-        var index = 0
-        while index < labels.count() {
-            let y = 38.0 + index as float * 19.0
-            painter.text(
-                labels[index],
-                Math.Vec2(14.0, y),
-                Canvas.TextStyle(size:13.0, color:Color.slate_300())
-            )
-            painter.text(
-                values[index],
-                Math.Vec2(206.0, y),
-                Canvas.TextStyle(
-                    size:13.0,
-                    color:Color.white(),
-                    alignment:Canvas.TextAlignment.end
-                )
-            )
-            index++
-        }
-    })
-    return canvas
 }

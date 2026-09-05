@@ -1,4 +1,3 @@
-use GFX.ECS
 use GFX.Physics
 use STD.Math
 use STD.Randomizer
@@ -12,10 +11,6 @@ public struct Demo {
     static let boundary_depth:float = 4.0
     static let body_radius:float = 0.05
     static let body_size:float = 0.1
-    // Keeping the current size as the maximum preserves spawn-slot clearance;
-    // Transform2D scaling also keeps both Canvas drawings shared by every body.
-    static let minimum_body_scale:float = 0.75
-    static let maximum_body_scale:float = 1.0
     static let body_pixels:int = 14
     static let spawn_slot_count:int = 87
     static let spawn_slot_spacing:float = 0.105
@@ -26,24 +21,33 @@ public struct Demo {
 }
 
 public struct SimulatedBody {
-    let entity:ECS.Entity
+    var body:Physics.RigidBody2D
     let is_circle:bool
 }
 
+public struct BodyVisual {
+    let index:int
+}
+
 public class Simulation {
+    var physics:Physics.World2D
     var bodies:SimulatedBody[]
     var randomizer:Randomizer
+    var accumulator:float
     var emission_elapsed:float
-    var stats_elapsed:float
-    var stats_display:ECS.Entity
+    var snapshot_revision:int
 
     init() {
+        self.physics = Physics.World2D()
+        self.physics.set_profiling_enabled(true)
         self.bodies = []
         self.randomizer = Randomizer(0x51_1E_20_2D)
+        self.accumulator = 0.0
         self.emission_elapsed = Demo.emission_interval
-        self.stats_elapsed = 0.0
-        self.stats_display = ECS.Entity()
+        self.snapshot_revision = 0
     }
+
+    func physics_world() Physics.World2D { return self.physics }
 }
 
 public class SpawnSlots {
@@ -61,7 +65,7 @@ public class SpawnSlots {
             Demo.spawn_slot_spacing
     }
 
-    func rebuild(bodies:@SimulatedBody[], world:@ECS.World) {
+    func rebuild(bodies:@SimulatedBody[]) {
         while self.available.count() < Demo.spawn_slot_count {
             self.available.append(true)
         }
@@ -75,10 +79,7 @@ public class SpawnSlots {
         let minimum_distance = Demo.spawn_slot_spacing
         let minimum_distance_squared = minimum_distance * minimum_distance
         for simulated in bodies {
-            if !world.is_alive(simulated.entity) { continue }
-            let body_position = world.get<GFX.Components.Transform2D>(
-                simulated.entity
-            ).position.divide(Demo.pixels_per_meter)
+            let body_position = simulated.body.position()
             let offset_y = body_position.y - spawn_y
             if Math.abs(offset_y) < minimum_distance {
                 slot = 0

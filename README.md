@@ -86,10 +86,12 @@ silex run Sources/PhysicsJointDebugDraw2D/Main.sx --release
 silex run Sources/ShapeGallery2D/Main.sx
 ```
 
-`FallingBodies` and `RotatingPhysicsContainer` exercise the application-level
-`Plugins.Physics2D` integration: ECS entities own their physics components,
-the plugin advances a fixed-step world, and dynamic poses flow back to
-Scene2D transforms without a demonstration-specific simulation loop.
+`FallingBodies` is the visual counterpart of the `FallingBodies2D` benchmark.
+It uses the same fixed body sizes, fixed-step world and background physics
+worker, then publishes completed transform snapshots to Scene2D without
+blocking rendered frames. Benchmark options, diagnostics and metric panels are
+deliberately omitted. `RotatingPhysicsContainer` remains the focused example
+of the application-level `Plugins.Physics2D` integration.
 
 `PhysicsDebugDraw2D` is a live metric diagnostic scene. It applies the
 `(0, -9.81) m/s²` world gravity at a fixed 60 Hz and continuously recycles

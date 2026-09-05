@@ -25,7 +25,7 @@ synchronisation automatique.
 | Embedded WebView | `Sources/EmbeddedWebView/Main.sx` | `GFX.WebView/Examples/EmbeddedFiles.sx` |
 | Physics 2D body control | `Sources/Physics2D/BodyControl.sx` | création propre au catalogue pour les contrôles publics de `GFX.Physics` |
 | Physics 2D shape response | `Sources/Physics2D/ShapeResponse.sx` | création propre au catalogue pour la réponse dynamique et les matériaux de `GFX.Physics` |
-| Falling bodies | `Sources/Physics2D/FallingBodies/Main.sx` | adaptation de `GFX.Physics/Examples/World2D/FallingBody.sx`, migrée vers `Plugins.Physics2D` |
+| Falling bodies | `Sources/Physics2D/FallingBodies/Main.sx` | contrepartie visuelle allégée du benchmark `FallingBodies2D`, avec physique asynchrone et snapshots de transforms |
 | FPS statistics panel | `Sources/FPSStatsPanel.sx` | `GFX.Stats/Examples/FPSPanel.sx` |
 | Generated HTML WebView | `Sources/GeneratedHTMLWebView.sx` | composition de la recette `HTML/Docs/Recipes.md#buildandparse` et de `GFX.WebView` |
 | 3D lighting | `Sources/Lighting3D.sx` | `GFX.Scene3D/Examples/Lighting.sx` |
