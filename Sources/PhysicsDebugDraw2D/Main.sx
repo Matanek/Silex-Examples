@@ -1,0 +1,484 @@
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Physics
+use GFX.Plugins
+use GFX.Rendering
+use GFX.Resources
+use GFX.Scene2D
+use STD.Math
+use STD.Process
+
+static struct Demo {
+    let window_width:int = 620
+    let window_height:int = 650
+    let pixels_per_meter:float = 56.0
+    let fixed_delta:float = 1.0 / 60.0
+    let maximum_frame_delta:float = 0.05
+    let respawn_interval:float = 0.85
+    let physics_origin_y:float = -240.0
+}
+
+func option_requested(expected:str) bool {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments {
+                if argument == expected { return true }
+            }
+        }
+    }
+    return false
+}
+
+struct FallingBody {
+    var body:Physics.RigidBody2D
+    let origin:Math.Vec2
+    let velocity:Math.Vec2
+    let rotation:float
+    let angular_velocity:float
+
+    init(
+        body:Physics.RigidBody2D,
+        origin:Math.Vec2,
+        velocity:Math.Vec2,
+        rotation:float,
+        angular_velocity:float
+    ) {
+        self.body = body
+        self.origin = origin
+        self.velocity = velocity
+        self.rotation = rotation
+        self.angular_velocity = angular_velocity
+    }
+
+    func restart() {
+        self.body.set_position(self.origin)
+        self.body.set_velocity(self.velocity)
+        self.body.set_rotation(self.rotation)
+        self.body.set_angular_velocity(self.angular_velocity)
+    }
+}
+
+func bowl_shape() Physics.Shape2D {
+    return Physics.Shape2D.chain(Physics.Chain2D([
+        Math.Vec2(2.5, 1.2),
+        Math.Vec2(1.8, 0.65), Math.Vec2(1.1, 0.1),
+        Math.Vec2(0.2, -0.15), Math.Vec2(-0.7, 0.1),
+        Math.Vec2(-1.4, 0.65),
+        Math.Vec2(-2.1, 1.2)
+    ]))
+}
+
+class VerificationRun {
+    let enabled:bool
+    var frames:int
+
+    init(enabled:bool) {
+        self.enabled = enabled
+        self.frames = 0
+    }
+}
+
+func add_gravity_scene(world:Physics.World2D) FallingBody[] {
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.box(Physics.Box2D(Math.Vec2(9.4, 0.35), 0.08))
+        ..position = Math.Vec2(0.0, 0.0)
+        ..friction = 0.9
+        ..debug_label = "gravity floor"
+    )
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.box(Physics.Box2D(Math.Vec2(0.25, 8.5)))
+        ..position = Math.Vec2(-4.7, 4.1)
+    )
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.box(Physics.Box2D(Math.Vec2(0.25, 8.5)))
+        ..position = Math.Vec2(4.7, 4.1)
+    )
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.segment(Physics.Segment2D(
+            Math.Vec2(-1.2, 0.45),
+            Math.Vec2(1.2, -0.45)
+        ))
+        ..position = Math.Vec2(-2.2, 2.25)
+        ..friction = 0.75
+        ..debug_label = "ramp"
+    )
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = bowl_shape()
+        ..position = Math.Vec2(2.0, 1.35)
+        ..friction = 0.65
+        ..debug_label = "chain"
+    )
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.circle(Physics.Circle2D(0.55))
+        ..position = Math.Vec2(2.75, 4.4)
+        ..is_sensor = true
+        ..debug_label = "sensor"
+    )
+
+    var falling:FallingBody[] = []
+    let circle_origin = Math.Vec2(-3.4, 7.6)
+    var body = world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..shape = Physics.Shape2D.circle(Physics.Circle2D(0.45))
+        ..position = circle_origin
+        ..velocity = Math.Vec2(0.75, 0.0)
+        ..mass = 1.0
+        ..restitution = 0.72
+        ..friction = 0.45
+        ..allow_sleep = false
+    )
+    falling.append(FallingBody(
+        body, circle_origin, Math.Vec2(0.75, 0.0), 0.0, 0.0
+    ))
+
+    let capsule_origin = Math.Vec2(-1.6, 6.5)
+    body = world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..shape = Physics.Shape2D.capsule(Physics.Capsule2D(
+            Math.Vec2(-0.48, 0.0), Math.Vec2(0.48, 0.0), 0.25
+        ))
+        ..position = capsule_origin
+        ..velocity = Math.Vec2(0.25, 0.0)
+        ..rotation = 0.18
+        ..angular_velocity = 0.55
+        ..mass = 1.0
+        ..restitution = 0.4
+        ..friction = 0.8
+        ..allow_sleep = false
+    )
+    falling.append(FallingBody(
+        body, capsule_origin, Math.Vec2(0.25, 0.0), 0.18, 0.55
+    ))
+
+    let polygon_origin = Math.Vec2(0.2, 8.1)
+    body = world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..shape = Physics.Shape2D.polygon(Physics.Polygon2D([
+            Math.Vec2(-0.5, -0.38), Math.Vec2(0.5, -0.38),
+            Math.Vec2(0.42, 0.45), Math.Vec2(-0.42, 0.45)
+        ], 0.1))
+        ..position = polygon_origin
+        ..velocity = Math.Vec2(-0.2, 0.0)
+        ..rotation = 0.22
+        ..angular_velocity = -0.42
+        ..mass = 1.0
+        ..restitution = 0.45
+        ..friction = 1.0
+        ..allow_sleep = false
+    )
+    falling.append(FallingBody(
+        body, polygon_origin, Math.Vec2(-0.2, 0.0), 0.22, -0.42
+    ))
+
+    let box_origin = Math.Vec2(1.8, 6.9)
+    body = world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..shape = Physics.Shape2D.box(Physics.Box2D(Math.Vec2(0.75), 0.1))
+        ..position = box_origin
+        ..velocity = Math.Vec2(-0.45, 0.0)
+        ..rotation = -0.12
+        ..angular_velocity = 0.35
+        ..mass = 1.0
+        ..restitution = 0.58
+        ..friction = 0.7
+        ..allow_sleep = false
+    )
+    falling.append(FallingBody(
+        body, box_origin, Math.Vec2(-0.45, 0.0), -0.12, 0.35
+    ))
+    return falling
+}
+
+func verify_bowl_segment(first:Math.Vec2, second:Math.Vec2) {
+    let edge = second.subtract(first)
+    let normal = Math.Vec2(edge.y, -edge.x).normalized()
+    let midpoint = first.add(second).multiply(0.5)
+    var world = Physics.World2D(gravity:Math.Vec2())
+    world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = bowl_shape()
+    )
+    var probe = world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..shape = Physics.Shape2D.circle(Physics.Circle2D(0.12))
+        ..position = midpoint.add(normal.multiply(0.8))
+        ..velocity = normal.multiply(-6.0)
+        ..gravity_scale = 0.0
+        ..friction = 0.0
+        ..allow_sleep = false
+        ..is_bullet = true
+    )
+    var step = 0
+    while step < 20 {
+        world.step(Demo.fixed_delta)
+        step++
+    }
+    let side = probe.position().subtract(midpoint).dot(normal)
+    assert(side > 0.05, "bowl segment crossed: side=$(side)")
+}
+
+func verify_bowl_collision() {
+    verify_bowl_segment(Math.Vec2(1.8, 0.65), Math.Vec2(1.1, 0.1))
+    verify_bowl_segment(Math.Vec2(1.1, 0.1), Math.Vec2(0.2, -0.15))
+    verify_bowl_segment(Math.Vec2(0.2, -0.15), Math.Vec2(-0.7, 0.1))
+    verify_bowl_segment(Math.Vec2(-0.7, 0.1), Math.Vec2(-1.4, 0.65))
+}
+
+func live_debug_settings() Physics.World2DDebugSettings {
+    return Physics.World2DDebugSettings()
+        ..shapes = true
+        ..joints = false
+        ..bounds = true
+        ..centers_of_mass = true
+        ..labels = false
+        ..contacts = true
+        ..contact_normals = true
+        ..contact_impulses = true
+        ..islands = true
+        ..constraint_graph = true
+        ..line_width = 0.025
+        ..contact_radius = 0.065
+        ..normal_length = 0.3
+        ..impulse_scale = 0.04
+}
+
+func static_label_settings() Physics.World2DDebugSettings {
+    return Physics.World2DDebugSettings()
+        ..shapes = false
+        ..joints = false
+        ..labels = true
+        ..label_size = 0.2
+}
+
+func label_screen_position(position:Math.Vec2) Math.Vec2 {
+    return Math.Vec2(
+        Demo.window_width as float * 0.5 + position.x * Demo.pixels_per_meter,
+        Demo.window_height as float * 0.5 - Demo.physics_origin_y -
+            position.y * Demo.pixels_per_meter
+    )
+}
+
+func label_drawing(snapshot:Physics.World2DDebugSnapshot) Canvas.Canvas {
+    return Canvas.Canvas()
+        ..paint(func(painter:&Canvas.Painter) {
+            var index = 0
+            while index < snapshot.label_count() {
+                let label = snapshot.label(index)
+                painter.text(
+                    label.text,
+                    label_screen_position(label.position),
+                    Canvas.TextStyle(
+                        size:label.size * Demo.pixels_per_meter,
+                        color:label.color
+                    )
+                )
+                index++
+            }
+        })
+}
+
+func header_drawing() Canvas.Canvas {
+    return Canvas.Canvas()
+        ..paint(func(painter:&Canvas.Painter) {
+            painter.fill(
+                Canvas.Rect(Math.Vec2(), Math.Vec2(588.0, 54.0), 8.0),
+                Canvas.Fill.solid(Color.black().with_alpha(0.78))
+            )
+            painter.text(
+                "PHYSICS DEBUG DRAW  |  GRAVITY (0, -9.81) m/s²",
+                Math.Vec2(14.0, 9.0),
+                Canvas.TextStyle(size:14.0, color:Color.cyan_300())
+            )
+            painter.text(
+                "fixed 60 Hz · falling bodies · contacts · normals · impulses",
+                Math.Vec2(14.0, 31.0),
+                Canvas.TextStyle(size:12.0, color:Color.slate_300())
+            )
+        })
+}
+
+class Showcase {
+    private var world:Physics.World2D
+    private var settings:Physics.World2DDebugSettings
+    private var snapshot:Physics.World2DDebugSnapshot
+    private var label_snapshot:Physics.World2DDebugSnapshot
+    private var canvas:Canvas.Canvas
+    private var label_canvas:Canvas.Canvas
+    private var falling:FallingBody[]
+    private var accumulator:float
+    private var respawn_elapsed:float
+    private var next_respawn:int
+
+    init() {
+        self.world = Physics.World2D(gravity:Math.Vec2(0.0, -9.81))
+        self.falling = add_gravity_scene(self.world)
+        self.settings = live_debug_settings()
+        self.snapshot = Physics.World2DDebugSnapshot()
+        self.label_snapshot = Physics.World2DDebugSnapshot()
+        self.canvas = Canvas.Canvas()
+        self.label_canvas = Canvas.Canvas()
+        self.accumulator = 0.0
+        self.respawn_elapsed = 0.0
+        self.next_respawn = 0
+        self.advance_fixed_step()
+        self.redraw()
+        self.world.write_debug_snapshot(
+            static_label_settings(),
+            self.label_snapshot
+        )
+        self.label_canvas = label_drawing(self.label_snapshot)
+        assert(self.world.gravity() == Math.Vec2(0.0, -9.81))
+        assert(self.snapshot.line_count() > 40)
+        assert(self.snapshot.circle_count() > 8)
+        assert(self.label_snapshot.label_count() == 4)
+        assert(label_screen_position(Math.Vec2(0.0, 1.0)).y <
+            label_screen_position(Math.Vec2()).y)
+    }
+
+    private func advance_fixed_step() {
+        self.world.step(Demo.fixed_delta)
+    }
+
+    private func redraw() {
+        self.world.write_debug_snapshot(self.settings, self.snapshot)
+        Physics.World2DDebug.draw(self.snapshot, self.canvas)
+    }
+
+    private func restart_next_body() {
+        var falling = self.falling[self.next_respawn]
+        falling.restart()
+        self.next_respawn = (self.next_respawn + 1) % self.falling.count()
+    }
+
+    func drawing() Canvas.Canvas { return self.canvas }
+    func labels() Canvas.Canvas { return self.label_canvas }
+
+    func update(delta:float) {
+        let frame_delta = Math.min(delta, Demo.maximum_frame_delta)
+        self.accumulator += frame_delta
+        self.respawn_elapsed += frame_delta
+        while self.respawn_elapsed >= Demo.respawn_interval {
+            self.restart_next_body()
+            self.respawn_elapsed -= Demo.respawn_interval
+        }
+        var advanced = false
+        while self.accumulator >= Demo.fixed_delta {
+            self.advance_fixed_step()
+            self.accumulator -= Demo.fixed_delta
+            advanced = true
+        }
+        if advanced { self.redraw() }
+    }
+
+    func verify_motion() {
+        verify_bowl_collision()
+        var falling = self.falling[0]
+        let initial = falling.body.position()
+        var frame = 0
+        while frame < 30 {
+            self.update(Demo.fixed_delta)
+            frame++
+        }
+        let final_position = falling.body.position()
+        assert(final_position.y < initial.y - 0.5)
+        while frame < 120 {
+            self.update(Demo.fixed_delta)
+            frame++
+        }
+        assert(self.snapshot.line_count() > 40)
+        assert(self.snapshot.circle_count() > 8)
+        assert(self.label_snapshot.label_count() == 4)
+    }
+}
+
+func create_scene(
+    world:&Resources.World,
+    showcase:&Showcase
+) {
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Camera2D())
+    )
+    var debug_canvas = Components.Canvas(showcase.drawing())
+    debug_canvas.layer = 1
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(
+            position:Math.Vec2(0.0, Demo.physics_origin_y),
+            scale:Math.Vec2(Demo.pixels_per_meter, -Demo.pixels_per_meter)
+        ))
+        ..with(debug_canvas)
+    )
+    var label_canvas = Components.Canvas(showcase.labels())
+    label_canvas.layer = 2
+    label_canvas.space = Components.CanvasSpace.viewport
+    label_canvas.text_mode = Scene2D.CanvasTextMode.vector
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(label_canvas)
+    )
+    var header = header_drawing()
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:Math.Vec2(16.0)))
+        ..with(Components.Canvas(header, 588, 54)
+            ..anchor = Math.Vec2()
+            ..pivot = Math.Vec2()
+            ..space = Components.CanvasSpace.viewport
+            ..layer = 100
+        )
+    )
+}
+
+func update_scene(
+    time:@Resources.FrameTime,
+    showcase:&Showcase
+) {
+    showcase.update(time.delta)
+}
+
+func finish_verification(
+    run:&VerificationRun,
+    controller:&Application.Controller
+) {
+    if !run.enabled { return }
+    run.frames++
+    if run.frames == 3 { controller.stop() }
+}
+
+func main() {
+    let verification = option_requested("--verify")
+    var present_mode = Rendering.PresentMode.synchronized
+    if option_requested("--immediate") {
+        present_mode = Rendering.PresentMode.immediate
+    }
+    var showcase = Showcase()
+    if verification { showcase.verify_motion() }
+    var run = VerificationRun(verification)
+    var application = Application()
+        ..add_resource(showcase)
+        ..add_resource(run)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "GFX.Physics — live SI gravity debug draw"
+            ..width = Demo.window_width
+            ..height = Demo.window_height
+            ..resizable = false
+            ..hidden = verification
+        ))
+        ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
+            ..clear = Color.slate_950()
+            ..antialiasing = Plugins.RenderingAntialiasing.none
+            ..present_mode = present_mode
+        ))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.FPSPanel())
+        ..add_plugin(Plugins.Time())
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, update_scene)
+        ..add_after_system(Application.Schedule.render, finish_verification)
+    assert(application.run() == 0)
+    if verification { assert(run.frames == 3) }
+}

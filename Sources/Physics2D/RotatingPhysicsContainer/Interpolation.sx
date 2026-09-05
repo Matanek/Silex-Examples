@@ -1,0 +1,23 @@
+use GFX.Components
+use GFX.ECS
+use STD.Math
+use Module.Container.rotate_offset
+use Module.Model.PendingBody
+use Module.Model.Showcase
+use Module.Model.Simulation
+
+public func interpolate_pending_visuals(
+    simulation:@Simulation,
+    pending_visuals:ECS.Query<(
+        @PendingBody,
+        &Components.Transform2D
+    )>
+) {
+    for (pending, transform) in pending_visuals {
+        transform.position = simulation.container_center.add(rotate_offset(
+            pending.local_position,
+            simulation.container_angle
+        )).multiply(Showcase.pixels_per_meter)
+        transform.rotation = simulation.container_angle + pending.local_rotation
+    }
+}

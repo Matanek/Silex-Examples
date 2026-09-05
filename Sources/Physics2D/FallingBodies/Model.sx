@@ -1,4 +1,3 @@
-use GFX.ECS
 use GFX.Physics
 use STD.Math
 use STD.Randomizer
@@ -21,13 +20,13 @@ public struct Demo {
     static let maximum_bodies:int = 3_000
 }
 
-public struct BodyVisual {
-    let index:int
-}
-
 public struct SimulatedBody {
     var body:Physics.RigidBody2D
     let is_circle:bool
+}
+
+public struct BodyVisual {
+    let index:int
 }
 
 public class Simulation {
@@ -36,8 +35,7 @@ public class Simulation {
     var randomizer:Randomizer
     var accumulator:float
     var emission_elapsed:float
-    var stats_elapsed:float
-    var stats_display:ECS.Entity
+    var snapshot_revision:int
 
     init() {
         self.physics = Physics.World2D()
@@ -46,9 +44,10 @@ public class Simulation {
         self.randomizer = Randomizer(0x51_1E_20_2D)
         self.accumulator = 0.0
         self.emission_elapsed = Demo.emission_interval
-        self.stats_elapsed = 0.0
-        self.stats_display = ECS.Entity()
+        self.snapshot_revision = 0
     }
+
+    func physics_world() Physics.World2D { return self.physics }
 }
 
 public class SpawnSlots {

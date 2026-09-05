@@ -4,6 +4,7 @@ use GFX.Plugins
 use Module.Model.Demo
 use Module.Model.Simulation
 use Module.Model.SpawnSlots
+use Module.PhysicsAsync.PhysicsAsync
 use Module.Systems.create_scene
 use Module.Systems.synchronize_visuals
 use Module.Systems.update_simulation
@@ -14,6 +15,7 @@ func main() {
         ..add_resource(Simulation())
         ..add_resource(SpawnSlots())
         ..add_resource(Visuals())
+        ..add_resource(PhysicsAsync())
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
             ..title = "Falling bodies"
             ..width = Demo.window_width
@@ -24,7 +26,6 @@ func main() {
             ..clear = Color.slate_950()
         ))
         ..add_plugin(Plugins.Scene2D())
-        ..add_plugin(Plugins.FPSPanel())
         ..add_plugin(Plugins.Time())
         ..add_system(Application.Schedule.startup, create_scene)
         ..add_system(Application.Schedule.update, update_simulation)

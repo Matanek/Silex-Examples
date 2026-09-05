@@ -1,0 +1,782 @@
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Physics
+use GFX.Plugins
+use GFX.Rendering
+use GFX.Resources
+use GFX.Scene2D
+use STD.Math
+use STD.Process
+use STD.Time.Clock
+
+static struct Demo {
+    let window_width:int = 980
+    let window_height:int = 720
+    let pixels_per_meter:float = 58.0
+    let fixed_delta:float = 1.0 / 60.0
+    let maximum_frame_delta:float = 0.05
+    let physics_origin_y:float = -105.0
+    let top_anchor_y:float = 4.4
+    let bottom_anchor_y:float = 0.5
+}
+
+class VerificationRun {
+    let enabled:bool
+    var frames:int
+
+    init(enabled:bool) {
+        self.enabled = enabled
+        self.frames = 0
+    }
+}
+
+class BenchmarkRun {
+    let enabled:bool
+    let present_mode:str
+    var warmup_frames:int
+    var measured_frames:int
+    var elapsed:float
+    var clock:Clock
+
+    init(enabled:bool, present_mode:str) {
+        self.enabled = enabled
+        self.present_mode = present_mode
+        self.warmup_frames = 0
+        self.measured_frames = 0
+        self.elapsed = 0.0
+        self.clock = Clock()
+    }
+}
+
+func option_requested(expected:str) bool {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments {
+                if argument == expected { return true }
+            }
+        }
+    }
+    return false
+}
+
+func make_anchor(
+    world:Physics.World2D,
+    position:Math.Vec2,
+    label:str
+) Physics.RigidBody2D {
+    return world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.circle(Physics.Circle2D(0.16))
+        ..position = position
+        ..debug_label = label
+    )
+}
+
+func make_rail(
+    world:Physics.World2D,
+    position:Math.Vec2,
+    label:str
+) Physics.RigidBody2D {
+    return world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..body_type = Physics.BodyType2D.fixed
+        ..shape = Physics.Shape2D.box(Physics.Box2D(Math.Vec2(0.16, 1.8)))
+        ..position = position
+        ..debug_label = label
+    )
+}
+
+func make_body(
+    world:Physics.World2D,
+    position:Math.Vec2,
+    shape:Physics.Shape2D,
+    rotation:float = 0.0
+) Physics.RigidBody2D {
+    return world.create_rigid_body(Physics.RigidBody2DSettings()
+        ..shape = shape
+        ..position = position
+        ..rotation = rotation
+        ..mass = 1.0
+        ..linear_damping = 0.08
+        ..angular_damping = 0.06
+        ..allow_sleep = false
+    )
+}
+
+class JointMechanisms {
+    private var distance:Physics.DistanceJoint2D
+    private var motor:Physics.MotorJoint2D
+    private var mouse:Physics.MouseJoint2D
+    private var prismatic:Physics.PrismaticJoint2D
+    private var revolute:Physics.RevoluteJoint2D
+    private var wheel:Physics.WheelJoint2D
+    private var filter_first:Physics.RigidBody2D
+    private var filter_second:Physics.RigidBody2D
+    private var distance_body:Physics.RigidBody2D
+    private var mouse_body:Physics.RigidBody2D
+    private var pendulum_body:Physics.RigidBody2D
+    private var wheel_body:Physics.RigidBody2D
+    private var next_filter_restart:float
+
+    init(
+        distance:Physics.DistanceJoint2D,
+        motor:Physics.MotorJoint2D,
+        mouse:Physics.MouseJoint2D,
+        prismatic:Physics.PrismaticJoint2D,
+        revolute:Physics.RevoluteJoint2D,
+        wheel:Physics.WheelJoint2D,
+        filter_first:Physics.RigidBody2D,
+        filter_second:Physics.RigidBody2D,
+        distance_body:Physics.RigidBody2D,
+        mouse_body:Physics.RigidBody2D,
+        pendulum_body:Physics.RigidBody2D,
+        wheel_body:Physics.RigidBody2D
+    ) {
+        self.distance = distance
+        self.motor = motor
+        self.mouse = mouse
+        self.prismatic = prismatic
+        self.revolute = revolute
+        self.wheel = wheel
+        self.filter_first = filter_first
+        self.filter_second = filter_second
+        self.distance_body = distance_body
+        self.mouse_body = mouse_body
+        self.pendulum_body = pendulum_body
+        self.wheel_body = wheel_body
+        self.next_filter_restart = 4.0
+    }
+
+    private func restart_filter_pendulums() {
+        self.filter_first.set_position(Math.Vec2(-2.45, 2.95))
+        self.filter_first.set_velocity(Math.Vec2(1.8, 0.0))
+        self.filter_first.set_rotation(0.0)
+        self.filter_first.set_angular_velocity(0.0)
+        self.filter_second.set_position(Math.Vec2(-1.55, 2.95))
+        self.filter_second.set_velocity(Math.Vec2(-1.8, 0.0))
+        self.filter_second.set_rotation(0.0)
+        self.filter_second.set_angular_velocity(0.0)
+    }
+
+    func retarget(elapsed:float) {
+        self.distance.set_length(1.55 + Math.sin(elapsed * 1.4) * 0.20)
+        self.motor.set_offsets(
+            Math.Vec2(
+                Math.sin(elapsed * 1.1) * 0.48,
+                -1.45 + Math.sin(elapsed * 1.7) * 0.10
+            ),
+            Math.sin(elapsed * 1.2) * 0.30
+        )
+        self.mouse.set_target(Math.Vec2(
+            6.0 + Math.sin(elapsed * 1.0) * 0.65,
+            Demo.top_anchor_y + Math.cos(elapsed * 1.6) * 0.18
+        ))
+        self.prismatic.set_target_translation(Math.sin(elapsed * 1.8) * 0.36)
+        self.revolute.set_target_angle(Math.sin(elapsed * 1.2) * 0.55)
+        self.wheel.set_motor(4.0 + Math.sin(elapsed * 1.4) * 1.5, 24.0)
+        if elapsed >= self.next_filter_restart {
+            self.restart_filter_pendulums()
+            self.next_filter_restart += 4.0
+        }
+    }
+
+    func distance_probe() Physics.RigidBody2D { return self.distance_body }
+    func filter_first_probe() Physics.RigidBody2D { return self.filter_first }
+    func filter_second_probe() Physics.RigidBody2D { return self.filter_second }
+    func mouse_probe() Physics.RigidBody2D { return self.mouse_body }
+    func pendulum_probe() Physics.RigidBody2D { return self.pendulum_body }
+    func wheel_probe() Physics.RigidBody2D { return self.wheel_body }
+}
+
+func add_distance_mechanism(world:Physics.World2D) Physics.DistanceJoint2D {
+    let anchor_position = Math.Vec2(-6.0, Demo.top_anchor_y)
+    var anchor = make_anchor(world, anchor_position, "distance · spring")
+    var body = make_body(
+        world,
+        Math.Vec2(-5.45, 2.95),
+        Physics.Shape2D.circle(Physics.Circle2D(0.34))
+    )
+    body.set_velocity(Math.Vec2(-1.2, 0.0))
+    return world.create_distance_joint(anchor, body,
+        Physics.DistanceJoint2DSettings()
+            ..first_anchor = anchor_position
+            ..second_anchor = body.position()
+            ..length = 1.55
+            ..spring_enabled = true
+            ..spring_hertz = 2.0
+            ..spring_damping_ratio = 0.18)
+}
+
+struct FilterMechanism {
+    var first:Physics.RigidBody2D
+    var second:Physics.RigidBody2D
+
+    init(first:Physics.RigidBody2D, second:Physics.RigidBody2D) {
+        self.first = first
+        self.second = second
+    }
+}
+
+func add_filter_mechanism(world:Physics.World2D) FilterMechanism {
+    let anchor_position = Math.Vec2(-2.0, Demo.top_anchor_y)
+    var anchor = make_anchor(world, anchor_position, "filter · pass-through")
+    var first = make_body(
+        world,
+        Math.Vec2(-2.45, 2.95),
+        Physics.Shape2D.circle(Physics.Circle2D(0.32))
+    )
+    var second = make_body(
+        world,
+        Math.Vec2(-1.55, 2.95),
+        Physics.Shape2D.circle(Physics.Circle2D(0.32))
+    )
+    world.create_distance_joint(anchor, first,
+        Physics.DistanceJoint2DSettings()
+            ..first_anchor = anchor_position
+            ..second_anchor = first.position()
+            ..length = 1.52
+            ..spring_enabled = true
+            ..spring_hertz = 3.0
+            ..spring_damping_ratio = 0.25)
+    world.create_distance_joint(anchor, second,
+        Physics.DistanceJoint2DSettings()
+            ..first_anchor = anchor_position
+            ..second_anchor = second.position()
+            ..length = 1.52
+            ..spring_enabled = true
+            ..spring_hertz = 3.0
+            ..spring_damping_ratio = 0.25)
+    world.create_filter_joint(first, second)
+    first.set_velocity(Math.Vec2(1.8, 0.0))
+    second.set_velocity(Math.Vec2(-1.8, 0.0))
+    return FilterMechanism(first, second)
+}
+
+func add_motor_mechanism(world:Physics.World2D) Physics.MotorJoint2D {
+    let anchor_position = Math.Vec2(2.0, Demo.top_anchor_y)
+    var anchor = make_anchor(world, anchor_position, "motor · servo")
+    var body = make_body(
+        world,
+        Math.Vec2(2.0, 2.95),
+        Physics.Shape2D.box(Physics.Box2D(Math.Vec2(0.70, 0.48))),
+        0.25
+    )
+    return world.create_motor_joint(anchor, body,
+        Physics.MotorJoint2DSettings()
+            ..linear_offset = Math.Vec2(0.0, -1.45)
+            ..maximum_force = 36.0
+            ..maximum_torque = 18.0
+            ..correction_factor = 0.18)
+}
+
+struct MouseMechanism {
+    var joint:Physics.MouseJoint2D
+    var body:Physics.RigidBody2D
+
+    init(joint:Physics.MouseJoint2D, body:Physics.RigidBody2D) {
+        self.joint = joint
+        self.body = body
+    }
+}
+
+func add_mouse_mechanism(world:Physics.World2D) MouseMechanism {
+    let target = Math.Vec2(6.0, Demo.top_anchor_y)
+    make_anchor(world, target, "mouse · soft target")
+    var body = make_body(
+        world,
+        Math.Vec2(6.0, 2.95),
+        Physics.Shape2D.circle(Physics.Circle2D(0.35))
+    )
+    var joint = world.create_mouse_joint(body, Physics.MouseJoint2DSettings()
+        ..target = body.position()
+        ..spring_hertz = 2.0
+        ..spring_damping_ratio = 0.22
+        ..maximum_force = 42.0)
+    joint.set_target(target)
+    return MouseMechanism(joint, body)
+}
+
+func add_prismatic_mechanism(world:Physics.World2D) Physics.PrismaticJoint2D {
+    var rail = make_rail(
+        world,
+        Math.Vec2(-6.0, Demo.bottom_anchor_y - 0.65),
+        "prismatic · slider"
+    )
+    var body = make_body(
+        world,
+        Math.Vec2(-6.0, -0.85),
+        Physics.Shape2D.box(Physics.Box2D(Math.Vec2(0.78, 0.46)))
+    )
+    return world.create_prismatic_joint(rail, body,
+        Physics.PrismaticJoint2DSettings()
+            ..anchor = body.position()
+            ..axis = Math.Vec2(0.0, 1.0)
+            ..spring_enabled = true
+            ..spring_hertz = 2.3
+            ..spring_damping_ratio = 0.22
+            ..lower_translation = -0.48
+            ..upper_translation = 0.48
+            ..limit_enabled = true)
+}
+
+struct RevoluteMechanism {
+    var joint:Physics.RevoluteJoint2D
+    var body:Physics.RigidBody2D
+
+    init(joint:Physics.RevoluteJoint2D, body:Physics.RigidBody2D) {
+        self.joint = joint
+        self.body = body
+    }
+}
+
+func add_revolute_mechanism(world:Physics.World2D) RevoluteMechanism {
+    let anchor_position = Math.Vec2(-2.0, Demo.bottom_anchor_y)
+    var anchor = make_anchor(world, anchor_position, "revolute · pendulum")
+    var body = make_body(
+        world,
+        Math.Vec2(-1.55, -0.30),
+        Physics.Shape2D.box(Physics.Box2D(Math.Vec2(0.30, 1.55))),
+        -0.48
+    )
+    body.set_angular_velocity(0.8)
+    var joint = world.create_revolute_joint(anchor, body,
+        Physics.RevoluteJoint2DSettings()
+            ..anchor = anchor_position
+            ..spring_enabled = true
+            ..spring_hertz = 0.65
+            ..spring_damping_ratio = 0.06
+            ..lower_angle = -1.2
+            ..upper_angle = 1.2
+            ..limit_enabled = true)
+    return RevoluteMechanism(joint, body)
+}
+
+func add_weld_mechanism(world:Physics.World2D) {
+    let anchor_position = Math.Vec2(2.0, Demo.bottom_anchor_y)
+    var anchor = make_anchor(world, anchor_position, "weld · rigid pair")
+    var carrier = make_body(
+        world,
+        Math.Vec2(2.0, -0.70),
+        Physics.Shape2D.circle(Physics.Circle2D(0.28))
+    )
+    var child = make_body(
+        world,
+        Math.Vec2(2.65, -0.70),
+        Physics.Shape2D.box(Physics.Box2D(Math.Vec2(0.72, 0.38)))
+    )
+    world.create_distance_joint(anchor, carrier,
+        Physics.DistanceJoint2DSettings()
+            ..first_anchor = anchor_position
+            ..second_anchor = carrier.position()
+            ..length = 1.20
+            ..spring_enabled = true
+            ..spring_hertz = 1.6
+            ..spring_damping_ratio = 0.16)
+    world.create_weld_joint(carrier, child,
+        Physics.WeldJoint2DSettings()
+            ..anchor = Math.Vec2(2.32, -0.70)
+            ..linear_hertz = 4.0
+            ..linear_damping_ratio = 0.35
+            ..angular_hertz = 4.0
+            ..angular_damping_ratio = 0.35)
+    carrier.set_velocity(Math.Vec2(1.1, 0.0))
+}
+
+struct WheelMechanism {
+    var joint:Physics.WheelJoint2D
+    var body:Physics.RigidBody2D
+
+    init(joint:Physics.WheelJoint2D, body:Physics.RigidBody2D) {
+        self.joint = joint
+        self.body = body
+    }
+}
+
+func add_wheel_mechanism(world:Physics.World2D) WheelMechanism {
+    var rail = make_rail(
+        world,
+        Math.Vec2(6.0, Demo.bottom_anchor_y - 0.65),
+        "wheel · suspension"
+    )
+    var body = make_body(
+        world,
+        Math.Vec2(6.0, -0.85),
+        Physics.Shape2D.circle(Physics.Circle2D(0.40))
+    )
+    var joint = world.create_wheel_joint(rail, body,
+        Physics.WheelJoint2DSettings()
+            ..anchor = body.position()
+            ..axis = Math.Vec2(0.0, 1.0)
+            ..spring_enabled = true
+            ..spring_hertz = 1.8
+            ..spring_damping_ratio = 0.20
+            ..lower_translation = -0.48
+            ..upper_translation = 0.48
+            ..limit_enabled = true
+            ..motor_speed = 4.0
+            ..maximum_motor_torque = 24.0
+            ..motor_enabled = true)
+    return WheelMechanism(joint, body)
+}
+
+func add_joint_mechanisms(world:Physics.World2D) JointMechanisms {
+    var distance = add_distance_mechanism(world)
+    var filter = add_filter_mechanism(world)
+    var motor = add_motor_mechanism(world)
+    var mouse = add_mouse_mechanism(world)
+    var prismatic = add_prismatic_mechanism(world)
+    var revolute = add_revolute_mechanism(world)
+    add_weld_mechanism(world)
+    var wheel = add_wheel_mechanism(world)
+    return JointMechanisms(
+        distance,
+        motor,
+        mouse.joint,
+        prismatic,
+        revolute.joint,
+        wheel.joint,
+        filter.first,
+        filter.second,
+        distance.second_body(),
+        mouse.body,
+        revolute.body,
+        wheel.body
+    )
+}
+
+func live_debug_settings() Physics.World2DDebugSettings {
+    return Physics.World2DDebugSettings()
+        ..shapes = true
+        ..joints = true
+        ..bounds = true
+        ..centers_of_mass = true
+        ..labels = false
+        ..contacts = false
+        ..contact_normals = false
+        ..contact_impulses = false
+        ..islands = true
+        ..constraint_graph = true
+        ..line_width = 0.025
+        ..contact_radius = 0.065
+}
+
+func static_label_settings() Physics.World2DDebugSettings {
+    return Physics.World2DDebugSettings()
+        ..shapes = false
+        ..joints = false
+        ..labels = true
+        ..label_size = 0.22
+}
+
+func label_screen_position(position:Math.Vec2) Math.Vec2 {
+    return Math.Vec2(
+        Demo.window_width as float * 0.5 + position.x * Demo.pixels_per_meter,
+        Demo.window_height as float * 0.5 - Demo.physics_origin_y -
+            position.y * Demo.pixels_per_meter
+    )
+}
+
+func label_drawing(snapshot:Physics.World2DDebugSnapshot) Canvas.Canvas {
+    return Canvas.Canvas()
+        ..paint(func(painter:&Canvas.Painter) {
+            var index = 0
+            while index < snapshot.label_count() {
+                let label = snapshot.label(index)
+                painter.text(
+                    label.text,
+                    label_screen_position(label.position),
+                    Canvas.TextStyle(
+                        size:label.size * Demo.pixels_per_meter,
+                        color:label.color
+                    )
+                )
+                index++
+            }
+        })
+}
+
+func header_drawing() Canvas.Canvas {
+    return Canvas.Canvas()
+        ..paint(func(painter:&Canvas.Painter) {
+            painter.fill(
+                Canvas.Rect(Math.Vec2(), Math.Vec2(948.0, 54.0), 8.0),
+                Canvas.Fill.solid(Color.black().with_alpha(0.78))
+            )
+            painter.text(
+                "PHYSICS JOINTS UNDER GRAVITY  |  8 MECHANISMS",
+                Math.Vec2(14.0, 9.0),
+                Canvas.TextStyle(size:14.0, color:Color.amber_300())
+            )
+            painter.text(
+                "springs · suspended masses · pendulum · slider · suspension",
+                Math.Vec2(14.0, 31.0),
+                Canvas.TextStyle(size:12.0, color:Color.slate_300())
+            )
+        })
+}
+
+class Showcase {
+    private var world:Physics.World2D
+    private var settings:Physics.World2DDebugSettings
+    private var snapshot:Physics.World2DDebugSnapshot
+    private var label_snapshot:Physics.World2DDebugSnapshot
+    private var canvas:Canvas.Canvas
+    private var label_canvas:Canvas.Canvas
+    private var joints:JointMechanisms
+    private var accumulator:float
+    private var elapsed:float
+
+    init() {
+        self.world = Physics.World2D(gravity:Math.Vec2(0.0, -9.81))
+        self.joints = add_joint_mechanisms(self.world)
+        self.settings = live_debug_settings()
+        self.snapshot = Physics.World2DDebugSnapshot()
+        self.label_snapshot = Physics.World2DDebugSnapshot()
+        self.canvas = Canvas.Canvas()
+        self.label_canvas = Canvas.Canvas()
+        self.accumulator = 0.0
+        self.elapsed = 0.0
+        self.advance_fixed_step()
+        self.redraw()
+        self.world.write_debug_snapshot(
+            static_label_settings(),
+            self.label_snapshot
+        )
+        self.label_canvas = label_drawing(self.label_snapshot)
+        assert(self.world.gravity() == Math.Vec2(0.0, -9.81))
+        assert(self.world.joint_count() == 11)
+        assert(self.snapshot.line_count() > 55)
+        assert(self.snapshot.circle_count() > 20)
+        assert(self.label_snapshot.label_count() == 8)
+        assert(label_screen_position(Math.Vec2(0.0, 1.0)).y <
+            label_screen_position(Math.Vec2()).y)
+    }
+
+    private func advance_fixed_step() {
+        self.elapsed += Demo.fixed_delta
+        self.joints.retarget(self.elapsed)
+        self.world.step(Demo.fixed_delta)
+    }
+
+    private func redraw() {
+        self.world.write_debug_snapshot(self.settings, self.snapshot)
+        Physics.World2DDebug.draw(self.snapshot, self.canvas)
+    }
+
+    func drawing() Canvas.Canvas { return self.canvas }
+    func labels() Canvas.Canvas { return self.label_canvas }
+
+    func update(delta:float) {
+        let frame_delta = Math.min(delta, Demo.maximum_frame_delta)
+        self.accumulator += frame_delta
+        var advanced = false
+        while self.accumulator >= Demo.fixed_delta {
+            self.advance_fixed_step()
+            self.accumulator -= Demo.fixed_delta
+            advanced = true
+        }
+        if advanced { self.redraw() }
+    }
+
+    func verify_motion() {
+        var distance = self.joints.distance_probe()
+        var filter_first = self.joints.filter_first_probe()
+        var filter_second = self.joints.filter_second_probe()
+        var mouse = self.joints.mouse_probe()
+        var pendulum = self.joints.pendulum_probe()
+        var wheel = self.joints.wheel_probe()
+        let distance_initial = distance.position()
+        let mouse_initial = mouse.position()
+        let pendulum_initial = pendulum.rotation()
+        let wheel_initial = wheel.rotation()
+        var filter_minimum_distance = filter_first.position().subtract(
+            filter_second.position()
+        ).length()
+        var frame = 0
+        while frame < 180 {
+            self.update(Demo.fixed_delta)
+            filter_minimum_distance = Math.min(
+                filter_minimum_distance,
+                filter_first.position().subtract(filter_second.position()).length()
+            )
+            frame++
+        }
+        assert(!distance.position().nearly_equal(distance_initial, 0.05))
+        assert(!mouse.position().nearly_equal(mouse_initial, 0.05))
+        assert(Math.abs(pendulum.rotation() - pendulum_initial) > 0.05)
+        assert(Math.abs(wheel.rotation() - wheel_initial) > 0.5)
+        assert(filter_minimum_distance < 0.55)
+        assert(self.snapshot.line_count() > 55)
+        assert(self.snapshot.circle_count() > 20)
+        assert(self.label_snapshot.label_count() == 8)
+    }
+
+    func benchmark_cpu(steps:int) {
+        var warmup = 0
+        while warmup < 60 {
+            self.advance_fixed_step()
+            self.redraw()
+            warmup++
+        }
+
+        var physics_seconds = 0.0
+        var snapshot_seconds = 0.0
+        var canvas_seconds = 0.0
+        var prepare_seconds = 0.0
+        var clock = Clock()
+        var step = 0
+        while step < steps {
+            clock.tick()
+            self.advance_fixed_step()
+            physics_seconds += clock.tick()
+
+            clock.tick()
+            self.world.write_debug_snapshot(self.settings, self.snapshot)
+            snapshot_seconds += clock.tick()
+
+            clock.tick()
+            Physics.World2DDebug.draw(self.snapshot, self.canvas)
+            canvas_seconds += clock.tick()
+
+            clock.tick()
+            var prepared = self.canvas.prepared()
+            prepare_seconds += clock.tick()
+            step++
+        }
+        print(
+            "PHYSICS_JOINT_DEBUG_CPU steps=$(steps) " +
+            "physics_ms=$(physics_seconds * 1000.0 / steps as float) " +
+            "snapshot_ms=$(snapshot_seconds * 1000.0 / steps as float) " +
+            "canvas_ms=$(canvas_seconds * 1000.0 / steps as float) " +
+            "prepare_ms=$(prepare_seconds * 1000.0 / steps as float)"
+        )
+    }
+}
+
+func create_scene(
+    world:&Resources.World,
+    showcase:&Showcase
+) {
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Camera2D())
+    )
+    var debug_canvas = Components.Canvas(showcase.drawing())
+    debug_canvas.layer = 1
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(
+            position:Math.Vec2(0.0, Demo.physics_origin_y),
+            scale:Math.Vec2(Demo.pixels_per_meter, -Demo.pixels_per_meter)
+        ))
+        ..with(debug_canvas)
+    )
+    var label_canvas = Components.Canvas(showcase.labels())
+    label_canvas.layer = 2
+    label_canvas.space = Components.CanvasSpace.viewport
+    label_canvas.text_mode = Scene2D.CanvasTextMode.vector
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(label_canvas)
+    )
+    var header = header_drawing()
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:Math.Vec2(16.0)))
+        ..with(Components.Canvas(header, 948, 54)
+            ..anchor = Math.Vec2()
+            ..pivot = Math.Vec2()
+            ..space = Components.CanvasSpace.viewport
+            ..layer = 100
+        )
+    )
+}
+
+func update_scene(
+    time:@Resources.FrameTime,
+    showcase:&Showcase
+) {
+    showcase.update(time.delta)
+}
+
+func finish_verification(
+    run:&VerificationRun,
+    controller:&Application.Controller
+) {
+    if !run.enabled { return }
+    run.frames++
+    if run.frames == 3 { controller.stop() }
+}
+
+func benchmark_render(
+    run:&BenchmarkRun,
+    renderer:@Resources.Renderer,
+    controller:&Application.Controller
+) {
+    if !run.enabled { return }
+    let delta = run.clock.tick()
+    if run.warmup_frames < 60 {
+        run.warmup_frames++
+        if run.warmup_frames == 60 { run.clock.tick() }
+        return
+    }
+    run.elapsed += delta
+    run.measured_frames++
+    if run.elapsed < 2.0 { return }
+
+    let stats = renderer.stats()
+    print(
+        "PHYSICS_JOINT_DEBUG_RENDER present=$(run.present_mode) " +
+        "frames=$(run.measured_frames) seconds=$(run.elapsed) " +
+        "fps=$(run.measured_frames as float / run.elapsed) " +
+        "color_draws=$(stats.color_draw_calls()) " +
+        "color_triangles=$(stats.color_triangles())"
+    )
+    controller.stop()
+}
+
+func main() {
+    let verification = option_requested("--verify")
+    let benchmark = option_requested("--benchmark") ||
+        option_requested("--benchmark-synchronized")
+    let immediate = option_requested("--immediate") ||
+        (option_requested("--benchmark") &&
+            !option_requested("--benchmark-synchronized"))
+    var present_mode = Rendering.PresentMode.synchronized
+    var present_mode_name = "synchronized"
+    if immediate {
+        present_mode = Rendering.PresentMode.immediate
+        present_mode_name = "immediate"
+    }
+    var showcase = Showcase()
+    if verification { showcase.verify_motion() }
+    if benchmark { showcase.benchmark_cpu(600) }
+    var run = VerificationRun(verification)
+    var benchmark_run = BenchmarkRun(benchmark, present_mode_name)
+    var application = Application()
+        ..add_resource(showcase)
+        ..add_resource(run)
+        ..add_resource(benchmark_run)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "GFX.Physics — joint mechanisms under gravity"
+            ..width = Demo.window_width
+            ..height = Demo.window_height
+            ..resizable = false
+            ..hidden = verification
+        ))
+        ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
+            ..clear = Color.slate_950()
+            ..antialiasing = Plugins.RenderingAntialiasing.none
+            ..present_mode = present_mode
+        ))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.FPSPanel())
+        ..add_plugin(Plugins.Time())
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, update_scene)
+        ..add_after_system(Application.Schedule.render, finish_verification)
+        ..add_after_system(Application.Schedule.render, benchmark_render)
+    assert(application.run() == 0)
+    if verification { assert(run.frames == 3) }
+}

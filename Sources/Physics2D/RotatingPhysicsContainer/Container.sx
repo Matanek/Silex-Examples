@@ -1,8 +1,11 @@
 use GFX.Animation
+use GFX.Components
+use GFX.ECS
 use GFX.Physics
+use GFX.Resources
 use STD.Math
 use Module.Model.Showcase
-use Module.Model.Simulation
+use Module.Model.ContainerWall
 
 public func rotate_offset(offset:Math.Vec2, angle:float) Math.Vec2 {
     let cosine = Math.cos(angle)
@@ -14,87 +17,49 @@ public func rotate_offset(offset:Math.Vec2, angle:float) Math.Vec2 {
 }
 
 func create_container_wall(
-    simulation:&Simulation,
+    scene:&Resources.World,
     offset:Math.Vec2,
     size:Math.Vec2
-) Physics.RigidBody2D {
-    return simulation.world.create_rigid_body(
-        Physics.RigidBody2DSettings()
-        ..body_type = Physics.BodyType2D.kinematic
-        ..shape = Physics.Shape2D.box(Physics.Box2D(size))
-        ..position = offset
-        ..friction = 0.85
-        ..restitution = 0.1
+) {
+    scene.spawn(ECS.EntityRecipe()
+        ..with(ContainerWall(offset:offset))
+        ..with(Components.Transform2D(
+            position:offset.multiply(Showcase.pixels_per_meter)
+        ))
+        ..with(Components.PhysicsBody2D(Physics.RigidBody2DSettings()
+            ..body_type = Physics.BodyType2D.kinematic
+            ..shape = Physics.Shape2D.box(Physics.Box2D(size))
+            ..friction = 0.85
+            ..restitution = 0.1
+        ))
     )
 }
 
-public func create_container_walls(simulation:&Simulation) {
+public func create_container_walls(scene:&Resources.World) {
     let half = Showcase.container_half_extent
     let thickness = Showcase.container_wall_thickness
     let offset = half + thickness * 0.5
     let span = half * 2.0 + thickness * 2.0
-    simulation.container_left = create_container_wall(
-        simulation,
+    create_container_wall(
+        scene,
         Math.Vec2(-offset, 0.0),
         Math.Vec2(thickness, span)
     )
-    simulation.container_right = create_container_wall(
-        simulation,
+    create_container_wall(
+        scene,
         Math.Vec2(offset, 0.0),
         Math.Vec2(thickness, span)
     )
-    simulation.container_bottom = create_container_wall(
-        simulation,
+    create_container_wall(
+        scene,
         Math.Vec2(0.0, -offset),
         Math.Vec2(span, thickness)
     )
-    simulation.container_top = create_container_wall(
-        simulation,
+    create_container_wall(
+        scene,
         Math.Vec2(0.0, offset),
         Math.Vec2(span, thickness)
     )
-}
-
-public func update_container_walls(simulation:&Simulation, angle:float) {
-    let half = Showcase.container_half_extent
-    let thickness = Showcase.container_wall_thickness
-    let offset = half + thickness * 0.5
-    if var wall = simulation.container_left {
-        let target = rotate_offset(Math.Vec2(-offset, 0.0), angle)
-        wall.set_velocity(target.subtract(wall.position()).multiply(
-            1.0 / Showcase.fixed_delta
-        ))
-        wall.set_angular_velocity(
-            (angle - wall.rotation()) / Showcase.fixed_delta
-        )
-    }
-    if var wall = simulation.container_right {
-        let target = rotate_offset(Math.Vec2(offset, 0.0), angle)
-        wall.set_velocity(target.subtract(wall.position()).multiply(
-            1.0 / Showcase.fixed_delta
-        ))
-        wall.set_angular_velocity(
-            (angle - wall.rotation()) / Showcase.fixed_delta
-        )
-    }
-    if var wall = simulation.container_bottom {
-        let target = rotate_offset(Math.Vec2(0.0, -offset), angle)
-        wall.set_velocity(target.subtract(wall.position()).multiply(
-            1.0 / Showcase.fixed_delta
-        ))
-        wall.set_angular_velocity(
-            (angle - wall.rotation()) / Showcase.fixed_delta
-        )
-    }
-    if var wall = simulation.container_top {
-        let target = rotate_offset(Math.Vec2(0.0, offset), angle)
-        wall.set_velocity(target.subtract(wall.position()).multiply(
-            1.0 / Showcase.fixed_delta
-        ))
-        wall.set_angular_velocity(
-            (angle - wall.rotation()) / Showcase.fixed_delta
-        )
-    }
 }
 
 public func container_rotation() Animation.Timeline {

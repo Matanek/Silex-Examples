@@ -34,6 +34,7 @@ public func body_radius(size:Math.Vec2, is_box:bool) float {
 
 func spawn_clearance(
     simulation:@Simulation,
+    scene:@Resources.World,
     local_position:Math.Vec2,
     radius:float
 ) float {
@@ -45,8 +46,12 @@ func spawn_clearance(
         Math.max(Math.abs(local_position.x), Math.abs(local_position.y)) -
         radius
     for simulated in simulation.bodies {
+        if !scene.is_alive(simulated.entity) { continue }
+        let simulated_position = scene.get<Components.Transform2D>(
+            simulated.entity
+        ).position.divide(Showcase.pixels_per_meter)
         let distance = Math.sqrt(
-            position.subtract(simulated.body.position()).length_squared()
+            position.subtract(simulated_position).length_squared()
         )
         clearance = Math.min(
             clearance,
@@ -58,6 +63,7 @@ func spawn_clearance(
 
 func random_spawn_position(
     simulation:&Simulation,
+    scene:@Resources.World,
     radius:float
 ) Math.Vec2 {
     let limit = Showcase.spawn_half_extent - radius
@@ -69,7 +75,7 @@ func random_spawn_position(
             simulation.randomizer.get_float(-limit, limit),
             simulation.randomizer.get_float(-limit, limit)
         )
-        let clearance = spawn_clearance(simulation, position, radius)
+        let clearance = spawn_clearance(simulation, scene, position, radius)
         if clearance > best_clearance {
             best = position
             best_clearance = clearance
@@ -88,7 +94,7 @@ public func spawn_body_preview(
     let is_box = index % 2 == 1
     let size = body_size(index, is_box)
     let radius = body_radius(size, is_box)
-    let local_position = random_spawn_position(simulation, radius)
+    let local_position = random_spawn_position(simulation, scene, radius)
     let local_rotation = (index % 5 - 2) as float * 0.12
     let position = simulation.container_center.add(rotate_offset(
         local_position,

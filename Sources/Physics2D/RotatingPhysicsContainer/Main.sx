@@ -1,16 +1,16 @@
 use GFX.Animation
 use GFX.Application
 use GFX.Color
+use GFX.Physics
 use GFX.Plugins
-use Module.Interpolation.interpolate_body_visuals
-use Module.Interpolation.interpolate_container_visual
 use Module.Interpolation.interpolate_pending_visuals
+use Module.Model.Showcase
 use Module.Model.Simulation
 use Module.Systems.activate_bodies
 use Module.Systems.create_scene
-use Module.Systems.simulate
 use Module.Systems.spawn_bodies
 use Module.Systems.sync_container
+use Module.Systems.sync_container_walls
 use Module.Visuals.Visuals
 
 func main() {
@@ -27,24 +27,22 @@ func main() {
             ..clear = Color.slate_950()
         ))
         ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.Physics2D(Plugins.Physics2D.Settings()
+            ..fixed_delta = Showcase.fixed_delta
+            ..maximum_catch_up_steps = 8
+            ..scene_units_per_meter = Showcase.pixels_per_meter
+            ..execution = Physics.Physics2DExecutionMode.workers(4)
+        ))
         ..add_plugin(Plugins.Animation())
         ..add_plugin(Plugins.FPSPanel())
         ..add_system(Application.Schedule.startup, create_scene)
         ..add_after_system(Application.Schedule.update, sync_container)
+        ..add_after_system(Application.Schedule.update, sync_container_walls)
         ..add_after_system(Application.Schedule.update, activate_bodies)
         ..add_after_system(Application.Schedule.update, spawn_bodies)
-        ..add_after_system(Application.Schedule.update, simulate)
-        ..add_after_system(
-            Application.Schedule.update,
-            interpolate_container_visual
-        )
         ..add_after_system(
             Application.Schedule.update,
             interpolate_pending_visuals
-        )
-        ..add_after_system(
-            Application.Schedule.update,
-            interpolate_body_visuals
         )
         ..run()
 }

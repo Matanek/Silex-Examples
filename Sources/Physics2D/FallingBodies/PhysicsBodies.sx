@@ -20,7 +20,10 @@ func create_fixed_box(
     )
 }
 
-public func create_container(world:&Resources.World, simulation:&Simulation) {
+public func create_container(
+    world:&Resources.World,
+    simulation:&Simulation
+) {
     let half_width = Demo.container_width * 0.5
     let half_height = Demo.container_height * 0.5
     let boundary_half = Demo.boundary_depth * 0.5

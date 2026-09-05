@@ -24,7 +24,7 @@ A large or multi-file demonstration receives a directory with a `Main.sx`
 entry point:
 
 ```text
-Sources/FallingBodies/Main.sx
+Sources/Physics2D/FallingBodies/Main.sx
 Sources/EmbeddedWebView/Main.sx
 Sources/EmbeddedWebView/Web/...
 ```
@@ -42,6 +42,9 @@ Sources/Games/Minesweeper/Main.sx
 Closely related Bundle demonstrations share the stable `Sources/Bundle/`
 prefix so content transitions, window replacement, and simultaneous windows
 can be explored together without flattening their names into `Bundle...` files.
+The `Sources/Physics2D/` prefix similarly groups the focused body-control and
+shape-response demonstrations with the larger falling-bodies and rotating-
+container applications.
 
 A single [`Package.json`](Package.json) describes the dependency graph needed
 by the complete catalog.
@@ -77,6 +80,7 @@ silex run Sources/BoidsSimulation.sx
 silex run Sources/CanvasProjection3D.sx
 silex run Sources/CanvasEffectsGallery/Main.sx
 silex run Sources/CanvasFilterPostProcess/Main.sx
+silex run Sources/CharacterMover2D.sx
 silex run Sources/FPSStatsPanel.sx
 silex run Sources/PerformanceStatsPanel.sx
 silex run Sources/PlotGallery.sx
@@ -88,12 +92,65 @@ silex run Sources/WebViewBridge.sx
 Run multi-file demonstrations from the repository root as well:
 
 ```sh
-silex run Sources/FallingBodies
-silex run Sources/RotatingPhysicsContainer
-silex run Sources/ShapeGallery2D
+silex run Sources/Physics2D/FallingBodies/Main.sx
+silex run Sources/Physics2D/RotatingPhysicsContainer/Main.sx
+silex run Sources/PhysicsDebugDraw2D/Main.sx --release
+silex run Sources/PhysicsJointDebugDraw2D/Main.sx --release
+silex run Sources/ShapeGallery2D/Main.sx
 silex run Sources/Apps/Calculator
 silex run Sources/Games/Minesweeper
 ```
+
+`FallingBodies` is the visual counterpart of the `FallingBodies2D` benchmark.
+It uses the same fixed body sizes, fixed-step world and background physics
+worker, then publishes completed transform snapshots to Scene2D without
+blocking rendered frames. Benchmark options, diagnostics and metric panels are
+deliberately omitted. `RotatingPhysicsContainer` remains the focused example
+of the application-level `Plugins.Physics2D` integration.
+
+`PhysicsDebugDraw2D` is a live metric diagnostic scene. It applies the
+`(0, -9.81) m/s²` world gravity at a fixed 60 Hz and continuously recycles
+falling bodies through ramps, a chain, a sensor, and a floor. Its fixed labels
+live in a separate retained vector Canvas; the geometric Canvas is rebuilt
+only after a physics step. `PhysicsJointDebugDraw2D` places all eight joint
+families under the same SI gravity as suspended mechanisms. Both examples
+display an FPS panel and accept `--verify` for a bounded motion check followed
+by a three-frame hidden renderer smoke.
+
+The focused Physics 2D demonstrations are direct files:
+
+```sh
+silex run Sources/Physics2D/BodyControl.sx
+silex run Sources/Physics2D/ShapeResponse.sx
+```
+
+`BodyControl.sx` visualizes compound mass derivation, an offset center of mass,
+an off-center impulse, and a kinematic tray carrying dynamic cargo through
+contacts and collider-aware CCD. `ShapeResponse.sx` repeatedly drops a bullet
+circle, capsule, rounded polygon, and segment onto polygonal platforms and a
+one-sided chain conveyor, exercising the shared contact response and its
+material rules.
+
+Both focused demonstrations accept `--verify` on their compiled executable:
+
+```sh
+silex compile Sources/Physics2D/BodyControl.sx -o /tmp/silex-body-control
+/tmp/silex-body-control --verify
+silex compile Sources/Physics2D/ShapeResponse.sx -o /tmp/silex-shape-response
+/tmp/silex-shape-response --verify
+```
+
+The package consumer tests remain the correctness oracle for the underlying
+APIs:
+
+```sh
+silex test Tests/Consumer/Tests/BodyControl.sx
+silex test Tests/Consumer/Tests/DynamicShapes.sx
+```
+
+Run those two commands from the `GFX.Physics` package checkout, and link that
+checkout into this workspace before compiling demonstrations against
+unpublished package changes.
 
 The calculator accepts mouse input and keyboard calculations. The main number
 row and the numeric keypad are supported directly. Use `+`, `-`, `*`, `/`,
@@ -134,13 +191,36 @@ explicitly.
 
 Their `Module.*` imports are explicitly relative to each source directory. The
 manifest declares `"sources": "Sources"`, so this physical directory does not
-appear in module names: `Sources/FallingBodies/Model.sx` becomes
-`FallingBodies.Model` and remains accessible as
-`Package.FallingBodies.Model`. You can also enter a demonstration directory
-and run `silex run`; the parent manifest and its dependencies remain active.
+appear in module names: `Sources/Physics2D/FallingBodies/Model.sx` becomes
+`Physics2D.FallingBodies.Model` and remains accessible as
+`Package.Physics2D.FallingBodies.Model`. You can also enter a demonstration
+directory and run `silex run Main.sx`; the parent manifest and its dependencies
+remain active.
 
 The Plot gallery presents several pages in sequence. Closing the current
 window opens the next page.
+
+`CharacterMover2D.sx` demonstrates a capsule controller across a slope, steps,
+a concave corner, an unobstructed trampoline, a light pushable dynamic crate,
+ten bouncing balls, and a moving elevator. Arena walls retain dynamic objects,
+while fixed-step simulation keeps prop contacts and descending elevator carry
+stable. The in-window performance panel tracks current and lowest FPS, frames
+longer than 33 ms, maximum frame time, measured physics-step cost, and the
+progressive pressure applied while pushing. Balls are light, damped dynamic
+supports: the character collides with and can jump from them, while the first
+shape-cast contact immediately gives each touched ball enough lead velocity to
+yield without letting the capsule pass through it. Sustained pressure spreads
+clustered balls around the character.
+Because this bounded-speed playground contains no bullet, it uses discrete
+collision detection, lets idle props sleep, and caps fixed-step catch-up at
+four steps per rendered frame.
+Ground acceleration and
+deceleration preserve momentum instead of replacing velocity from input; jumps
+retain that trajectory at their actual takeoff speed. Air control is expressed
+as an acceleration whose influence increases as takeoff momentum decreases.
+Vertical jumps therefore remain useful for reaching nearby platforms without
+gaining full running speed, and a short coyote window makes platform edges more
+forgiving.
 
 `AnalogClock.sx` hosts its retained Canvas content in one
 `Application.Bundle`. The `Bundle/` examples cover the three ownership layouts:

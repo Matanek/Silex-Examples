@@ -1,0 +1,60 @@
+use GFX.Canvas
+use GFX.Color
+use STD.Math
+use Module.Model.Demo
+
+public class Visuals {
+    var circle:Canvas
+    var box:Canvas
+
+    init() {
+        let center = Demo.body_pixels as float * 0.5
+        let radius = Demo.body_radius * Demo.pixels_per_meter
+        let size = Demo.body_size * Demo.pixels_per_meter
+        self.circle = Canvas()
+            ..paint(func(painter:&Canvas.Painter) {
+                painter.fill(
+                    Canvas.Circle(Math.Vec2(center), radius),
+                    Canvas.Fill.solid(Color.white())
+                )
+            })
+        self.box = Canvas()
+            ..paint(func(painter:&Canvas.Painter) {
+                painter.fill(
+                    Canvas.Rect(
+                        Math.Vec2(center - size * 0.5),
+                        Math.Vec2(size)
+                    ),
+                    Canvas.Fill.solid(Color.white())
+                )
+            })
+    }
+
+    func drawing(is_circle:bool) Canvas {
+        if is_circle { return self.circle }
+        return self.box
+    }
+}
+
+public func container_drawing() Canvas {
+    return Canvas()
+        ..paint(func(painter:&Canvas.Painter) {
+            painter.stroke(
+                Canvas.Rect(
+                    Math.Vec2(2.0),
+                    Math.Vec2(
+                        Demo.container_width * Demo.pixels_per_meter - 4.0,
+                        Demo.container_height * Demo.pixels_per_meter - 4.0
+                    )
+                ),
+                Canvas.Stroke(Color.slate_500(), 3.0)
+            )
+    })
+}
+
+public func body_color(index:int) Color {
+    if index % 4 == 0 { return Color.sky_400() }
+    if index % 4 == 1 { return Color.cyan_400() }
+    if index % 4 == 2 { return Color.violet_400() }
+    return Color.fuchsia_400()
+}
