@@ -1,0 +1,514 @@
+use AI.BehaviourTree
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Plugins
+use GFX.Resources
+use STD.Math
+use STD.Process
+use STD.Randomizer
+
+static struct Demo {
+    let width:int = 960
+    let height:int = 640
+    let creature_count:int = 24
+    let verification_frames:int = 10
+    let verification_resume_delay:int = 1
+    let presentation_resume_delay:int = 45
+}
+
+enum Intent {
+    explore
+    eat
+    rest
+    flee
+}
+
+struct CreatureMind {
+    let id:int
+    let direction:int
+    var hungry:bool
+    var tired:bool
+    var danger:bool
+    var action_step:int
+    var wake_next:bool
+    var intent:Intent
+    var meals:int
+    var rests:int
+    var escapes:int
+    var abandoned_explorations:int
+}
+
+struct Wake {
+    let frame:int
+    let entity:ECS.Entity
+}
+
+struct DangerSignal {}
+
+class DemoRun {
+    let verification:bool
+    var frame:int
+    var definitions_built:int
+    var instances_created:int
+    var entities:ECS.Entity[]
+    var pending_wakes:Wake[]
+    var frame_evaluations:int[]
+    var frame_node_visits:int[]
+    var current_evaluations:int
+    var current_node_visits:int
+    var targeted_events:int
+    var danger_events:int
+    var resumed_actions:int
+    var meals:int
+    var rests:int
+    var escapes:int
+    var abandoned_explorations:int
+
+    init(verification:bool) {
+        self.verification = verification
+        self.frame = 0
+        self.definitions_built = 0
+        self.instances_created = 0
+        self.entities = []
+        self.pending_wakes = []
+        self.frame_evaluations = []
+        self.frame_node_visits = []
+        self.current_evaluations = 0
+        self.current_node_visits = 0
+        self.targeted_events = 0
+        self.danger_events = 0
+        self.resumed_actions = 0
+        self.meals = 0
+        self.rests = 0
+        self.escapes = 0
+        self.abandoned_explorations = 0
+    }
+
+    func schedule(entity:ECS.Entity) {
+        var delay = Demo.presentation_resume_delay
+        if self.verification { delay = Demo.verification_resume_delay }
+        self.pending_wakes.append(Wake(frame:self.frame + delay, entity:entity))
+    }
+}
+
+func verification_mode() bool {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments {
+                if argument == "--verify" { return true }
+            }
+        }
+    }
+    return false
+}
+
+func senses_danger(mind:@CreatureMind) bool { return mind.danger }
+func is_hungry(mind:@CreatureMind) bool { return mind.hungry }
+func is_tired(mind:@CreatureMind) bool { return mind.tired }
+
+func flee(mind:&CreatureMind) BehaviourTree.Status {
+    mind.intent = Intent.flee
+    if mind.action_step == 0 {
+        mind.action_step = 1
+        mind.wake_next = true
+        return BehaviourTree.Status.running
+    }
+    mind.action_step = 0
+    mind.danger = false
+    mind.escapes++
+    return BehaviourTree.Status.success
+}
+
+func eat(mind:&CreatureMind) BehaviourTree.Status {
+    mind.intent = Intent.eat
+    if mind.action_step == 0 {
+        mind.action_step = 1
+        mind.wake_next = true
+        return BehaviourTree.Status.running
+    }
+    mind.action_step = 0
+    mind.hungry = false
+    mind.meals++
+    return BehaviourTree.Status.success
+}
+
+func rest(mind:&CreatureMind) BehaviourTree.Status {
+    mind.intent = Intent.rest
+    if mind.action_step == 0 {
+        mind.action_step = 1
+        mind.wake_next = true
+        return BehaviourTree.Status.running
+    }
+    mind.action_step = 0
+    mind.tired = false
+    mind.rests++
+    return BehaviourTree.Status.success
+}
+
+func explore(mind:&CreatureMind) BehaviourTree.Status {
+    mind.intent = Intent.explore
+    if mind.action_step == 0 {
+        mind.action_step = 1
+        return BehaviourTree.Status.running
+    }
+    mind.action_step = 0
+    return BehaviourTree.Status.success
+}
+
+func abandon_exploration(mind:&CreatureMind) {
+    mind.action_step = 0
+    mind.abandoned_explorations++
+}
+
+func creature_definition(run:&DemoRun) BehaviourTree.Definition<CreatureMind> {
+    var builder = BehaviourTree.Builder<CreatureMind>()
+    builder.begin_selector("survival")
+    builder.begin_sequence("escape danger")
+    builder.condition("danger nearby", senses_danger)
+    builder.action("flee", flee)
+    builder.end()
+    builder.begin_sequence("find food")
+    builder.condition("hungry", is_hungry)
+    builder.action("eat", eat)
+    builder.end()
+    builder.begin_sequence("recover")
+    builder.condition("tired", is_tired)
+    builder.action("rest", rest)
+    builder.end()
+    builder.action("explore", explore, abandon_exploration)
+    builder.end()
+
+    var definition:BehaviourTree.Definition<CreatureMind>? = null
+    match builder.build() {
+        success(value) => { definition = value }
+        failure(_) => { panic("the creature behaviour tree must be valid") }
+    }
+    run.definitions_built++
+    return definition!
+}
+
+func creature_drawing() Canvas {
+    return Canvas()..paint(func(painter:&Canvas.Painter) {
+        painter.fill(
+            Canvas.Rect(Math.Vec2(2.0, 5.0), Math.Vec2(36.0, 24.0), 10.0),
+            Canvas.Fill.solid(Color.white())
+        )
+        painter.fill(
+            Canvas.Circle(Math.Vec2(29.0, 12.0), 2.4),
+            Canvas.Fill.solid(Color.slate_950())
+        )
+        painter.fill(
+            Canvas.Circle(Math.Vec2(29.0, 22.0), 2.4),
+            Canvas.Fill.solid(Color.slate_950())
+        )
+    })
+}
+
+func legend_drawing() Canvas {
+    var font = Canvas.Font.default()
+    return Canvas()..paint(func(painter:&Canvas.Painter) {
+        painter.text(
+            "Shared tree · sleeping agents are not ticked",
+            Math.Vec2(24.0, 28.0),
+            Canvas.TextStyle(size:22.0, color:Color.white(), font:font)
+        )
+        let labels:str[] = ["EXPLORE", "EAT", "REST", "DANGER"]
+        let colors:Color[] = [
+            Color.emerald_400(), Color.amber_400(),
+            Color.sky_400(), Color.rose_500()
+        ]
+        for index in 0...labels.count() {
+            let x = 28.0 + index as float * 150.0
+            painter.fill(
+                Canvas.Circle(Math.Vec2(x, 67.0), 7.0),
+                Canvas.Fill.solid(colors[index])
+            )
+            painter.text(
+                labels[index],
+                Math.Vec2(x + 15.0, 61.0),
+                Canvas.TextStyle(size:13.0, color:Color.slate_200(), font:font)
+            )
+        }
+    })
+}
+
+func random_range(randomizer:Randomizer, minimum:float, maximum:float) float {
+    return minimum + randomizer.get_float() * (maximum - minimum)
+}
+
+func spawn_creatures(
+    definition:@Resources.Behaviour<CreatureMind>,
+    world:&Resources.World,
+    run:&DemoRun
+) {
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Camera2D())
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(legend_drawing(), Demo.width, 96)
+            ..space = Components.CanvasSpace.viewport
+            ..anchor = Math.Vec2()
+            ..pivot = Math.Vec2()
+            ..layer = 10
+        )
+    )
+
+    var drawing = creature_drawing()
+    var randomizer = Randomizer(0xB3_A4_10_42)
+    for index in 0...Demo.creature_count {
+        var direction = -1
+        if index % 2 == 0 { direction = 1 }
+        let entity = world.spawn(ECS.EntityRecipe()
+            ..with(CreatureMind(
+                id:index,
+                direction:direction,
+                hungry:false,
+                tired:false,
+                danger:false,
+                action_step:0,
+                wake_next:false,
+                intent:Intent.explore,
+                meals:0,
+                rests:0,
+                escapes:0,
+                abandoned_explorations:0
+            ))
+            ..with(definition.instantiate())
+            ..with(Components.BehaviourReady())
+            ..with(Components.Transform2D(position:Math.Vec2(
+                random_range(randomizer, -420.0, 420.0),
+                random_range(randomizer, -220.0, 205.0)
+            )))
+            ..with(Components.Canvas(drawing, 40, 34)
+                ..color = Color.emerald_400()
+                ..layer = 1
+            )
+        )
+        run.entities.append(entity)
+        run.instances_created++
+    }
+}
+
+func make_ready(world:&Resources.World, run:&DemoRun, entity:ECS.Entity) {
+    if !world.is_alive(entity) || world.has<Components.BehaviourReady>(entity) { return }
+    world.insert(entity, Components.BehaviourReady())
+    run.targeted_events++
+}
+
+func signal_danger(world:&Resources.World, run:&DemoRun, entity:ECS.Entity) {
+    world.insert(entity, DangerSignal())
+    run.danger_events++
+    make_ready(world, run, entity)
+}
+
+func signal_hunger(world:&Resources.World, run:&DemoRun, entity:ECS.Entity) {
+    world.update<CreatureMind>(entity, func(mind:&CreatureMind) {
+        mind.hungry = true
+    })
+    make_ready(world, run, entity)
+}
+
+func signal_fatigue(world:&Resources.World, run:&DemoRun, entity:ECS.Entity) {
+    world.update<CreatureMind>(entity, func(mind:&CreatureMind) {
+        mind.tired = true
+    })
+    make_ready(world, run, entity)
+}
+
+func begin_frame(world:&Resources.World, run:&DemoRun) {
+    run.frame++
+    run.current_evaluations = 0
+    run.current_node_visits = 0
+
+    var remaining:Wake[] = []
+    for wake in run.pending_wakes {
+        if wake.frame <= run.frame {
+            make_ready(world, run, wake.entity)
+        } else {
+            remaining.append(wake)
+        }
+    }
+    run.pending_wakes = remaining
+
+    if run.verification {
+        if run.frame == 3 { signal_danger(world, run, run.entities[0]) }
+        if run.frame == 6 {
+            signal_hunger(world, run, run.entities[1])
+            signal_fatigue(world, run, run.entities[2])
+        }
+        return
+    }
+
+    let cycle = run.frame % 360
+    if cycle == 60 { signal_danger(world, run, run.entities[0]) }
+    if cycle == 150 {
+        signal_hunger(world, run, run.entities[1])
+        signal_fatigue(world, run, run.entities[2])
+    }
+    if cycle == 240 { signal_danger(world, run, run.entities[3]) }
+    if cycle == 330 {
+        signal_hunger(world, run, run.entities[4])
+        signal_fatigue(world, run, run.entities[5])
+    }
+}
+
+func interrupt_danger(
+    commands:&Resources.Commands,
+    run:&DemoRun,
+    query:ECS.Query<(
+        ECS.Entity,
+        &Components.Behaviour<CreatureMind>,
+        &CreatureMind,
+        @DangerSignal
+    )>
+) {
+    for (entity, behaviour, mind, signal) in query {
+        let before = mind.abandoned_explorations
+        mind.danger = true
+        behaviour.interrupt(mind)
+        run.abandoned_explorations += mind.abandoned_explorations - before
+        commands.remove<DangerSignal>(entity)
+    }
+}
+
+func run_behaviours(
+    commands:&Resources.Commands,
+    run:&DemoRun,
+    query:ECS.Query<(
+        ECS.Entity,
+        &Components.Behaviour<CreatureMind>,
+        &CreatureMind,
+        @Components.BehaviourReady
+    )>
+) {
+    for (entity, behaviour, mind, ready) in query {
+        run.current_evaluations++
+        let action_step = mind.action_step
+        let meals = mind.meals
+        let rests = mind.rests
+        let escapes = mind.escapes
+        let status = behaviour.evaluate(mind, func(name:@str, transition:BehaviourTree.Transition) {
+            match transition {
+                entered => { run.current_node_visits++ }
+                else => {}
+            }
+        })
+
+        if action_step == 1 { run.resumed_actions++ }
+        run.meals += mind.meals - meals
+        run.rests += mind.rests - rests
+        run.escapes += mind.escapes - escapes
+        commands.remove<Components.BehaviourReady>(entity)
+
+        if mind.wake_next {
+            mind.wake_next = false
+            run.schedule(entity)
+        } else if status != BehaviourTree.Status.running &&
+            (mind.danger || mind.hungry || mind.tired)
+        {
+            run.schedule(entity)
+        }
+    }
+}
+
+func intent_color(intent:Intent) Color {
+    return match intent {
+        explore => Color.emerald_400()
+        eat => Color.amber_400()
+        rest => Color.sky_400()
+        flee => Color.rose_500()
+    }
+}
+
+func present_creatures(
+    query:ECS.Query<(@CreatureMind, &Components.Transform2D, &Components.Canvas)>
+) {
+    for (mind, transform, canvas) in query {
+        var speed = 0.65
+        if mind.intent == Intent.flee { speed = 2.8 }
+        if mind.intent == Intent.rest { speed = 0.0 }
+        transform.position.x += mind.direction as float * speed
+        if transform.position.x > 445.0 { transform.position.x = -445.0 }
+        if transform.position.x < -445.0 { transform.position.x = 445.0 }
+        canvas.color = intent_color(mind.intent)
+    }
+}
+
+func record_frame(run:&DemoRun) {
+    run.frame_evaluations.append(run.current_evaluations)
+    run.frame_node_visits.append(run.current_node_visits)
+}
+
+func run_verification(application:Application) int {
+    application.run_schedule(Application.Schedule.initialize)
+    application.run_schedule(Application.Schedule.startup)
+    for frame in 0...Demo.verification_frames {
+        application.run_schedule(Application.Schedule.update)
+        application.run_schedule(Application.Schedule.post_update)
+        application.run_schedule(Application.Schedule.render)
+    }
+    application.run_schedule(Application.Schedule.shutdown)
+    application.run_schedule(Application.Schedule.finalize)
+    return 0
+}
+
+func verify(run:@DemoRun) {
+    assert(run.definitions_built == 1)
+    assert(run.instances_created == Demo.creature_count)
+    assert(run.frame_evaluations.count() == Demo.verification_frames)
+    assert(run.frame_evaluations[0] == Demo.creature_count)
+    assert(run.frame_evaluations[1] == 0)
+    assert(run.frame_evaluations[2] == 1)
+    assert(run.frame_evaluations[3] == 1)
+    assert(run.frame_evaluations[4] == 0)
+    assert(run.frame_evaluations[5] == 2)
+    assert(run.frame_evaluations[6] == 2)
+    assert(run.frame_evaluations[7] == 2)
+    assert(run.frame_evaluations[8] == 0)
+    assert(run.frame_node_visits[1] == 0)
+    assert(run.frame_node_visits[2] > 0)
+    assert(run.targeted_events == 8)
+    assert(run.danger_events == 1)
+    assert(run.abandoned_explorations == 1)
+    assert(run.resumed_actions == 5)
+    assert(run.meals == 1)
+    assert(run.rests == 1)
+    assert(run.escapes == 1)
+}
+
+func main() {
+    let verification = verification_mode()
+    var run = DemoRun(verification)
+    var definition = creature_definition(run)
+    var application = Application()
+        ..add_resource(definition)
+        ..add_resource(run)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Behaviour Tree Creatures"
+            ..width = Demo.width
+            ..height = Demo.height
+            ..hidden = verification
+        ))
+        ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
+            ..clear = Color.slate_950()
+        ))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.ECS())
+        ..add_system(Application.Schedule.startup, spawn_creatures)
+        ..add_system(Application.Schedule.update, begin_frame)
+        ..add_system(Application.Schedule.update, interrupt_danger)
+        ..add_system(Application.Schedule.update, run_behaviours)
+        ..add_system(Application.Schedule.update, present_creatures)
+        ..add_system(Application.Schedule.post_update, record_frame)
+
+    if verification { application.with_runner(run_verification) }
+
+    assert(application.run() == 0)
+    if verification { verify(run) }
+}

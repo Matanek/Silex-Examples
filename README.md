@@ -52,6 +52,7 @@ by the complete catalog.
 ## Installing published packages
 
 ```sh
+silex install AI
 silex install GFX --suite
 silex install GFX.Audio
 silex install GFX.Physics
@@ -75,6 +76,7 @@ silex run Sources/DirectWindowInputLoop.sx
 silex run Sources/DedicatedSystemTerminal.sx
 silex run Sources/ComposedSystemTerminal.sx
 silex run Sources/ApplicationCommandConsole.sx
+silex run Sources/BehaviourTreeCreatures.sx
 silex run Sources/GeneratedHTMLWebView.sx
 silex run Sources/BoidsSimulation.sx
 silex run Sources/CanvasProjection3D.sx
@@ -100,6 +102,27 @@ silex run Sources/ShapeGallery2D/Main.sx
 silex run Sources/Apps/Calculator
 silex run Sources/Games/Minesweeper
 ```
+
+`BehaviourTreeCreatures.sx` shows 24 ECS agents sharing one immutable
+`Resources.Behaviour<CreatureMind>` while each entity owns its own
+`Components.Behaviour<CreatureMind>` execution state. Green creatures explore,
+amber creatures eat, blue creatures rest, and red creatures flee. Targeted
+events add `Components.BehaviourReady`; the Behaviour Tree query therefore
+does no work on frames where every agent sleeps. Danger is carried by a
+one-frame ECS signal which explicitly interrupts exploration before the
+priority branch runs. Gameplay state produces intents, while a separate
+presentation system owns movement and color.
+
+Compile its deterministic hidden smoke and pass `--verify` to the executable:
+
+```sh
+silex compile Sources/BehaviourTreeCreatures.sx -o /tmp/silex-bt-creatures
+/tmp/silex-bt-creatures --verify
+```
+
+The bounded run asserts one shared definition, 24 independent instances, an
+idle frame with zero node visits, a single-agent danger wake, resumed running
+actions, and completed food, rest, escape, and abandonment paths.
 
 `FallingBodies` is the visual counterpart of the `FallingBodies2D` benchmark.
 It uses the same fixed body sizes, fixed-step world and background physics
