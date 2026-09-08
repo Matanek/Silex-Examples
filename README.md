@@ -103,15 +103,15 @@ silex run Sources/Apps/Calculator
 silex run Sources/Games/Minesweeper
 ```
 
-`BehaviourTreeCreatures.sx` shows 24 ECS agents sharing one immutable
-`Resources.Behaviour<CreatureMind>` while each entity owns its own
-`Components.Behaviour<CreatureMind>` execution state. Green creatures explore,
-amber creatures eat, blue creatures rest, and red creatures flee. Targeted
-events add `Components.BehaviourReady`; the Behaviour Tree query therefore
-does no work on frames where every agent sleeps. Danger is carried by a
-one-frame ECS signal which explicitly interrupts exploration before the
-priority branch runs. Gameplay state produces intents, while a separate
-presentation system owns movement and color.
+`BehaviourTreeCreatures.sx` is a top-down RTS vignette driven by one immutable
+`Resources.Behaviour<Battlefield>` and one independent
+`Components.Behaviour<Battlefield>` instance per unit. Two workers travel
+between a crystal mine and storage, three guards patrol then intercept raiders,
+and alternating waves of one or two raiders respawn two seconds after the
+previous wave is defeated. A wounded worker or guard interrupts its current
+action, retreats to storage, heals, then resumes its role. The terrain, health
+bars and live decision panel make each selected branch observable without
+relying on color alone.
 
 Compile its deterministic hidden smoke and pass `--verify` to the executable:
 
@@ -120,9 +120,10 @@ silex compile Sources/BehaviourTreeCreatures.sx -o /tmp/silex-bt-creatures
 /tmp/silex-bt-creatures --verify
 ```
 
-The bounded run asserts one shared definition, 24 independent instances, an
-idle frame with zero node visits, a single-agent danger wake, resumed running
-actions, and completed food, rest, escape, and abandonment paths.
+The bounded run asserts one shared definition, five persistent villagers,
+dynamic raider instances, multiple waves, completed gather/deposit cycles,
+combat on both sides, a priority interruption, a completed heal and defeated
+raiders.
 
 `FallingBodies` is the visual counterpart of the `FallingBodies2D` benchmark.
 It uses the same fixed body sizes, fixed-step world and background physics

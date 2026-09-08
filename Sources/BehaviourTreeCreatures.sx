@@ -8,242 +8,709 @@ use GFX.Plugins
 use GFX.Resources
 use STD.Math
 use STD.Process
-use STD.Randomizer
 
 static struct Demo {
-    let width:int = 960
-    let height:int = 640
-    let creature_count:int = 24
-    let verification_frames:int = 10
-    let verification_resume_delay:int = 1
-    let presentation_resume_delay:int = 45
+    let width:int = 1100
+    let height:int = 700
+    let hud_width:int = 320
+    let verification_frames:int = 540
+    let verification_delta:float = 1.0 / 30.0
+    let respawn_delay:float = 2.0
+    let worker_speed:float = 105.0
+    let guard_speed:float = 125.0
+    let raider_speed:float = 92.0
+    let wounded_health:float = 58.0
+    let maximum_health:float = 100.0
+    let mine:Math.Vec2 = Math.Vec2(-350.0, 150.0)
+    let storage:Math.Vec2 = Math.Vec2(-310.0, -150.0)
+    let raider_camp:Math.Vec2 = Math.Vec2(165.0, 135.0)
+}
+
+enum Role {
+    worker
+    guard
+    raider
 }
 
 enum Intent {
-    explore
-    eat
-    rest
-    flee
+    idle
+    mine
+    gather
+    haul
+    deposit
+    patrol
+    intercept
+    defend
+    raid
+    attack
+    retreat
+    heal
+    defeated
 }
 
-struct CreatureMind {
+class Actor {
     let id:int
-    let direction:int
-    var hungry:bool
-    var tired:bool
-    var danger:bool
-    var action_step:int
-    var wake_next:bool
+    let name:str
+    let role:Role
+    var position:Math.Vec2
+    var health:float
+    var alive:bool
     var intent:Intent
-    var meals:int
-    var rests:int
-    var escapes:int
-    var abandoned_explorations:int
+    var cargo:int
+    var action_elapsed:float
+    var patrol_target:int
+    var entity:ECS.Entity?
+    var visual:Canvas
+
+    init(id:int, name:str, role:Role, position:Math.Vec2, health:float = Demo.maximum_health) {
+        self.id = id
+        self.name = name
+        self.role = role
+        self.position = position
+        self.health = health
+        self.alive = true
+        self.intent = Intent.idle
+        self.cargo = 0
+        self.action_elapsed = 0.0
+        self.patrol_target = id % 2
+        self.entity = null
+        self.visual = Canvas()
+    }
+
+    func drawing() Canvas { return self.visual }
 }
 
-struct Wake {
-    let frame:int
-    let entity:ECS.Entity
-}
-
-struct DangerSignal {}
-
-class DemoRun {
+class Battlefield {
     let verification:bool
-    var frame:int
+    var actors:Actor[]
+    var current_actor_index:int
+    var delta:float
+    var elapsed:float
+    var hud_elapsed:float
+    var villagers:Actor[]
+    var workers:Actor[]
+    var guards:Actor[]
+    var raiders:Actor[]
+    var hud:Canvas
+    var next_actor_id:int
+    var waves_spawned:int
+    var respawn_remaining:float
     var definitions_built:int
     var instances_created:int
-    var entities:ECS.Entity[]
-    var pending_wakes:Wake[]
-    var frame_evaluations:int[]
-    var frame_node_visits:int[]
-    var current_evaluations:int
-    var current_node_visits:int
-    var targeted_events:int
-    var danger_events:int
-    var resumed_actions:int
-    var meals:int
-    var rests:int
-    var escapes:int
-    var abandoned_explorations:int
+    var evaluations:int
+    var interruptions:int
+    var resources_gathered:int
+    var resources_stored:int
+    var deliveries:int
+    var guard_hits:int
+    var raider_hits:int
+    var raiders_defeated:int
+    var heals_completed:int
 
     init(verification:bool) {
         self.verification = verification
-        self.frame = 0
+        self.actors = []
+        self.current_actor_index = -1
+        self.delta = 0.0
+        self.elapsed = 0.0
+        self.hud_elapsed = 1.0
+        self.villagers = []
+        self.workers = []
+        self.guards = []
+        self.raiders = []
+        self.hud = Canvas()
+        self.next_actor_id = 0
+        self.waves_spawned = 0
+        self.respawn_remaining = -1.0
         self.definitions_built = 0
         self.instances_created = 0
-        self.entities = []
-        self.pending_wakes = []
-        self.frame_evaluations = []
-        self.frame_node_visits = []
-        self.current_evaluations = 0
-        self.current_node_visits = 0
-        self.targeted_events = 0
-        self.danger_events = 0
-        self.resumed_actions = 0
-        self.meals = 0
-        self.rests = 0
-        self.escapes = 0
-        self.abandoned_explorations = 0
+        self.evaluations = 0
+        self.interruptions = 0
+        self.resources_gathered = 0
+        self.resources_stored = 0
+        self.deliveries = 0
+        self.guard_hits = 0
+        self.raider_hits = 0
+        self.raiders_defeated = 0
+        self.heals_completed = 0
     }
 
-    func schedule(entity:ECS.Entity) {
-        var delay = Demo.presentation_resume_delay
-        if self.verification { delay = Demo.verification_resume_delay }
-        self.pending_wakes.append(Wake(frame:self.frame + delay, entity:entity))
-    }
+    func hud_drawing() Canvas { return self.hud }
+    func current_actor() Actor { return self.actors[self.current_actor_index] }
+    func actor_at(index:int) Actor { return self.actors[index] }
+}
+
+struct UnitMind {
+    let actor_index:int
 }
 
 func verification_mode() bool {
     match Process.arguments() {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
-            for argument in arguments {
-                if argument == "--verify" { return true }
-            }
+            for argument in arguments { if argument == "--verify" { return true } }
         }
     }
     return false
 }
 
-func senses_danger(mind:@CreatureMind) bool { return mind.danger }
-func is_hungry(mind:@CreatureMind) bool { return mind.hungry }
-func is_tired(mind:@CreatureMind) bool { return mind.tired }
+func is_villager_wounded(mind:@Battlefield) bool {
+    return mind.current_actor().role != Role.raider && mind.current_actor().health < Demo.wounded_health
+}
 
-func flee(mind:&CreatureMind) BehaviourTree.Status {
-    mind.intent = Intent.flee
-    if mind.action_step == 0 {
-        mind.action_step = 1
-        mind.wake_next = true
-        return BehaviourTree.Status.running
+func is_worker(mind:@Battlefield) bool { return mind.current_actor().role == Role.worker }
+func is_guard(mind:@Battlefield) bool { return mind.current_actor().role == Role.guard }
+func is_raider(mind:@Battlefield) bool { return mind.current_actor().role == Role.raider }
+func carries_resources(mind:@Battlefield) bool { return mind.current_actor().cargo > 0 }
+
+func closest_alive(actors:@Actor[], origin:Math.Vec2) Actor? {
+    var closest:Actor? = null
+    var closest_distance = 1_000_000.0
+    for actor in actors {
+        if actor.alive {
+            let distance = actor.position.distance(origin)
+            if distance < closest_distance {
+                closest = actor
+                closest_distance = distance
+            }
+        }
     }
-    mind.action_step = 0
-    mind.danger = false
-    mind.escapes++
+    return closest
+}
+
+func nearest_raider(mind:@Battlefield) Actor? {
+    return closest_alive(mind.raiders, mind.current_actor().position)
+}
+
+func has_raider(mind:@Battlefield) bool { return nearest_raider(mind) != null }
+
+func raid_target(mind:@Battlefield) Actor? {
+    var nearby_guard:Actor? = null
+    var guard_distance = 145.0
+    for guard in mind.guards {
+        if guard.alive {
+            let distance = guard.position.distance(mind.current_actor().position)
+            if distance < guard_distance {
+                nearby_guard = guard
+                guard_distance = distance
+            }
+        }
+    }
+    if nearby_guard != null { return nearby_guard }
+    return closest_alive(mind.workers, mind.current_actor().position)
+}
+
+func move_towards(actor:&Actor, target:Math.Vec2, speed:float, delta:float) bool {
+    let offset = target.subtract(actor.position)
+    let distance = offset.length()
+    if distance <= 3.0 {
+        actor.position = target
+        return true
+    }
+    let step = speed * delta
+    if step >= distance {
+        actor.position = target
+        return true
+    }
+    actor.position = actor.position.add(offset.normalized().multiply(step))
+    return false
+}
+
+func retreat_to_storage(mind:&Battlefield) BehaviourTree.Status {
+    var actor = mind.current_actor()
+    actor.intent = Intent.retreat
+    if move_towards(actor, Demo.storage, Demo.guard_speed, mind.delta) {
+        return BehaviourTree.Status.success
+    }
+    return BehaviourTree.Status.running
+}
+
+func heal_at_storage(mind:&Battlefield) BehaviourTree.Status {
+    var actor = mind.current_actor()
+    actor.intent = Intent.heal
+    actor.health = Math.min(
+        Demo.maximum_health,
+        actor.health + 68.0 * mind.delta
+    )
+    if actor.health < Demo.maximum_health { return BehaviourTree.Status.running }
+    actor.action_elapsed = 0.0
+    mind.heals_completed++
     return BehaviourTree.Status.success
 }
 
-func eat(mind:&CreatureMind) BehaviourTree.Status {
-    mind.intent = Intent.eat
-    if mind.action_step == 0 {
-        mind.action_step = 1
-        mind.wake_next = true
-        return BehaviourTree.Status.running
+func walk_to_mine(mind:&Battlefield) BehaviourTree.Status {
+    var actor = mind.current_actor()
+    actor.intent = Intent.mine
+    if move_towards(actor, Demo.mine, Demo.worker_speed, mind.delta) {
+        return BehaviourTree.Status.success
     }
-    mind.action_step = 0
-    mind.hungry = false
-    mind.meals++
+    return BehaviourTree.Status.running
+}
+
+func gather_crystals(mind:&Battlefield) BehaviourTree.Status {
+    var actor = mind.current_actor()
+    actor.intent = Intent.gather
+    actor.action_elapsed += mind.delta
+    if actor.action_elapsed < 1.0 { return BehaviourTree.Status.running }
+    actor.action_elapsed = 0.0
+    actor.cargo = 3
+    mind.resources_gathered += 3
     return BehaviourTree.Status.success
 }
 
-func rest(mind:&CreatureMind) BehaviourTree.Status {
-    mind.intent = Intent.rest
-    if mind.action_step == 0 {
-        mind.action_step = 1
-        mind.wake_next = true
-        return BehaviourTree.Status.running
+func haul_to_storage(mind:&Battlefield) BehaviourTree.Status {
+    var actor = mind.current_actor()
+    actor.intent = Intent.haul
+    if move_towards(actor, Demo.storage, Demo.worker_speed, mind.delta) {
+        return BehaviourTree.Status.success
     }
-    mind.action_step = 0
-    mind.tired = false
-    mind.rests++
+    return BehaviourTree.Status.running
+}
+
+func deposit_resources(mind:&Battlefield) BehaviourTree.Status {
+    var actor = mind.current_actor()
+    actor.intent = Intent.deposit
+    mind.resources_stored += actor.cargo
+    actor.cargo = 0
+    mind.deliveries++
     return BehaviourTree.Status.success
 }
 
-func explore(mind:&CreatureMind) BehaviourTree.Status {
-    mind.intent = Intent.explore
-    if mind.action_step == 0 {
-        mind.action_step = 1
+func patrol(mind:&Battlefield) BehaviourTree.Status {
+    var actor = mind.current_actor()
+    actor.intent = Intent.patrol
+    var target = Math.Vec2(-150.0, -45.0)
+    if actor.patrol_target == 1 { target = Math.Vec2(-35.0, 75.0) }
+    if move_towards(actor, target, Demo.guard_speed * 0.55, mind.delta) {
+        actor.patrol_target = 1 - actor.patrol_target
+    }
+    return BehaviourTree.Status.running
+}
+
+func intercept_raider(mind:&Battlefield) BehaviourTree.Status {
+    var actor = mind.current_actor()
+    actor.intent = Intent.intercept
+    if let target = nearest_raider(mind) {
+        if actor.position.distance(target.position) <= 38.0 {
+            return BehaviourTree.Status.success
+        }
+        move_towards(actor, target.position, Demo.guard_speed, mind.delta)
         return BehaviourTree.Status.running
     }
-    mind.action_step = 0
     return BehaviourTree.Status.success
 }
 
-func abandon_exploration(mind:&CreatureMind) {
-    mind.action_step = 0
-    mind.abandoned_explorations++
+func defend_village(mind:&Battlefield) BehaviourTree.Status {
+    var actor = mind.current_actor()
+    actor.intent = Intent.defend
+    if let target = nearest_raider(mind) {
+        if actor.position.distance(target.position) > 44.0 {
+            return BehaviourTree.Status.failure
+        }
+        actor.action_elapsed -= mind.delta
+        if actor.action_elapsed <= 0.0 {
+            target.health -= 15.0
+            actor.action_elapsed = 0.55
+            mind.guard_hits++
+            if target.health <= 0.0 {
+                target.health = 0.0
+                target.alive = false
+                target.intent = Intent.defeated
+                mind.raiders_defeated++
+                actor.action_elapsed = 0.0
+                return BehaviourTree.Status.success
+            }
+        }
+        return BehaviourTree.Status.running
+    }
+    return BehaviourTree.Status.success
 }
 
-func creature_definition(run:&DemoRun) BehaviourTree.Definition<CreatureMind> {
-    var builder = BehaviourTree.Builder<CreatureMind>()
-    builder.begin_selector("survival")
-    builder.begin_sequence("escape danger")
-    builder.condition("danger nearby", senses_danger)
-    builder.action("flee", flee)
-    builder.end()
-    builder.begin_sequence("find food")
-    builder.condition("hungry", is_hungry)
-    builder.action("eat", eat)
-    builder.end()
-    builder.begin_sequence("recover")
-    builder.condition("tired", is_tired)
-    builder.action("rest", rest)
-    builder.end()
-    builder.action("explore", explore, abandon_exploration)
+func approach_village(mind:&Battlefield) BehaviourTree.Status {
+    var actor = mind.current_actor()
+    actor.intent = Intent.raid
+    if let target = raid_target(mind) {
+        if actor.position.distance(target.position) <= 34.0 {
+            return BehaviourTree.Status.success
+        }
+        move_towards(actor, target.position, Demo.raider_speed, mind.delta)
+        return BehaviourTree.Status.running
+    }
+    return BehaviourTree.Status.failure
+}
+
+func attack_villager(mind:&Battlefield) BehaviourTree.Status {
+    var actor = mind.current_actor()
+    actor.intent = Intent.attack
+    if let target = raid_target(mind) {
+        if actor.position.distance(target.position) > 42.0 {
+            return BehaviourTree.Status.failure
+        }
+        actor.action_elapsed -= mind.delta
+        if actor.action_elapsed <= 0.0 {
+            target.health -= 24.0
+            if target.health < 10.0 { target.health = 10.0 }
+            actor.action_elapsed = 0.65
+            mind.raider_hits++
+        }
+        return BehaviourTree.Status.running
+    }
+    return BehaviourTree.Status.failure
+}
+
+func abandon_action(mind:&Battlefield) {
+    var actor = mind.current_actor()
+    actor.action_elapsed = 0.0
+}
+
+func unit_definition(battlefield:&Battlefield) BehaviourTree.Definition<Battlefield> {
+    var builder = BehaviourTree.Builder<Battlefield>()
+    builder.begin_selector("unit priorities")
+
+    builder.begin_sequence("recover at storage")
+    builder.condition("villager is wounded", is_villager_wounded)
+    builder.action("retreat to storage", retreat_to_storage, abandon_action)
+    builder.action("heal at storage", heal_at_storage, abandon_action)
     builder.end()
 
-    var definition:BehaviourTree.Definition<CreatureMind>? = null
+    builder.begin_sequence("worker routine")
+    builder.condition("is a worker", is_worker)
+    builder.begin_selector("deliver or gather")
+    builder.begin_sequence("deliver cargo")
+    builder.condition("is carrying crystals", carries_resources)
+    builder.action("haul to storage", haul_to_storage, abandon_action)
+    builder.action("deposit crystals", deposit_resources)
+    builder.end()
+    builder.begin_sequence("collect cargo")
+    builder.action("walk to crystal mine", walk_to_mine, abandon_action)
+    builder.action("gather crystals", gather_crystals, abandon_action)
+    builder.end()
+    builder.end()
+    builder.end()
+
+    builder.begin_sequence("guard routine")
+    builder.condition("is a guard", is_guard)
+    builder.begin_selector("defend or patrol")
+    builder.begin_sequence("defend village")
+    builder.condition("raider detected", has_raider)
+    builder.action("intercept raider", intercept_raider, abandon_action)
+    builder.action("strike raider", defend_village, abandon_action)
+    builder.end()
+    builder.action("patrol village", patrol, abandon_action)
+    builder.end()
+    builder.end()
+
+    builder.begin_sequence("raider routine")
+    builder.condition("is a raider", is_raider)
+    builder.action("approach village", approach_village, abandon_action)
+    builder.action("attack villager", attack_villager, abandon_action)
+    builder.end()
+    builder.end()
+
+    var definition:BehaviourTree.Definition<Battlefield>? = null
     match builder.build() {
         success(value) => { definition = value }
-        failure(_) => { panic("the creature behaviour tree must be valid") }
+        failure(_) => { panic("the RTS behaviour tree must be valid") }
     }
-    run.definitions_built++
+    battlefield.definitions_built++
     return definition!
 }
 
-func creature_drawing() Canvas {
-    return Canvas()..paint(func(painter:&Canvas.Painter) {
-        painter.fill(
-            Canvas.Rect(Math.Vec2(2.0, 5.0), Math.Vec2(36.0, 24.0), 10.0),
-            Canvas.Fill.solid(Color.white())
-        )
-        painter.fill(
-            Canvas.Circle(Math.Vec2(29.0, 12.0), 2.4),
-            Canvas.Fill.solid(Color.slate_950())
-        )
-        painter.fill(
-            Canvas.Circle(Math.Vec2(29.0, 22.0), 2.4),
-            Canvas.Fill.solid(Color.slate_950())
-        )
-    })
+func intent_label(intent:Intent) str {
+    return match intent {
+        idle => "choosing a task"
+        mine => "walking to the mine"
+        gather => "gathering crystals"
+        haul => "hauling cargo"
+        deposit => "depositing cargo"
+        patrol => "patrolling"
+        intercept => "intercepting a raider"
+        defend => "defending the village"
+        raid => "raiding the village"
+        attack => "attacking a villager"
+        retreat => "retreating to storage"
+        heal => "healing at storage"
+        defeated => "defeated"
+    }
 }
 
-func legend_drawing() Canvas {
-    var font = Canvas.Font.default()
-    return Canvas()..paint(func(painter:&Canvas.Painter) {
-        painter.text(
-            "Shared tree · sleeping agents are not ticked",
-            Math.Vec2(24.0, 28.0),
-            Canvas.TextStyle(size:22.0, color:Color.white(), font:font)
+func role_color(role:Role) Color {
+    return match role {
+        worker => Color.amber_400()
+        guard => Color.sky_400()
+        raider => Color.rose_500()
+    }
+}
+
+func redraw_actor(actor:Actor) {
+    let body = role_color(actor.role)
+    let health_ratio = actor.health / Demo.maximum_health
+    var health_color = Color.emerald_400()
+    if health_ratio < 0.6 { health_color = Color.rose_400() }
+    var drawing = actor.visual
+    drawing.clear()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        var font = Canvas.Font.default()
+        painter.fill(
+            Canvas.Rect(Math.Vec2(8.0, 17.0), Math.Vec2(72.0, 46.0), 14.0),
+            Canvas.Fill.solid(Color.slate_950().with_alpha(0.82))
         )
-        let labels:str[] = ["EXPLORE", "EAT", "REST", "DANGER"]
-        let colors:Color[] = [
-            Color.emerald_400(), Color.amber_400(),
-            Color.sky_400(), Color.rose_500()
-        ]
-        for index in 0...labels.count() {
-            let x = 28.0 + index as float * 150.0
+        if actor.role == Role.worker {
+            painter.fill(Canvas.Circle(Math.Vec2(38.0, 38.0), 14.0), Canvas.Fill.solid(body))
+            painter.stroke(
+                Canvas.Line(Math.Vec2(51.0, 25.0), Math.Vec2(61.0, 48.0)),
+                Canvas.Stroke(Color.amber_100(), 4.0)..cap = Canvas.StrokeCap.round
+            )
+            if actor.cargo > 0 {
+                painter.fill(
+                    Canvas.Rect(Math.Vec2(18.0, 30.0), Math.Vec2(12.0, 12.0), 2.0),
+                    Canvas.Fill.solid(Color.yellow_200())
+                )
+            }
+        } elif actor.role == Role.guard {
+            painter.fill(Canvas.Circle(Math.Vec2(42.0, 38.0), 15.0), Canvas.Fill.solid(body))
             painter.fill(
-                Canvas.Circle(Math.Vec2(x, 67.0), 7.0),
-                Canvas.Fill.solid(colors[index])
+                Canvas.Rect(Math.Vec2(17.0, 26.0), Math.Vec2(14.0, 25.0), 6.0),
+                Canvas.Fill.solid(Color.blue_700())
             )
-            painter.text(
-                labels[index],
-                Math.Vec2(x + 15.0, 61.0),
-                Canvas.TextStyle(size:13.0, color:Color.slate_200(), font:font)
+            painter.stroke(
+                Canvas.Line(Math.Vec2(58.0, 24.0), Math.Vec2(58.0, 52.0)),
+                Canvas.Stroke(Color.slate_100(), 3.0)..cap = Canvas.StrokeCap.round
             )
+        } else {
+            var diamond = Canvas.Path()
+                ..move_to(Math.Vec2(44.0, 20.0))
+                ..line_to(Math.Vec2(64.0, 38.0))
+                ..line_to(Math.Vec2(44.0, 56.0))
+                ..line_to(Math.Vec2(24.0, 38.0))
+                ..close()
+            painter.fill(diamond, Canvas.Fill.solid(body))
+            painter.fill(Canvas.Circle(Math.Vec2(38.0, 36.0), 2.5), Canvas.Fill.solid(Color.white()))
+            painter.fill(Canvas.Circle(Math.Vec2(50.0, 36.0), 2.5), Canvas.Fill.solid(Color.white()))
         }
+        painter.fill(
+            Canvas.Rect(Math.Vec2(13.0, 8.0), Math.Vec2(62.0, 5.0), 2.0),
+            Canvas.Fill.solid(Color.slate_800())
+        )
+        painter.fill(
+            Canvas.Rect(Math.Vec2(13.0, 8.0), Math.Vec2(62.0 * health_ratio, 5.0), 2.0),
+            Canvas.Fill.solid(health_color)
+        )
+        painter.text(
+            actor.name,
+            Math.Vec2(24.0, 63.0),
+            Canvas.TextStyle(size:11.0, color:Color.white(), font:font)
+        )
     })
 }
 
-func random_range(randomizer:Randomizer, minimum:float, maximum:float) float {
-    return minimum + randomizer.get_float() * (maximum - minimum)
+func background_drawing() Canvas {
+    return Canvas()..paint(func(painter:&Canvas.Painter) {
+        var font = Canvas.Font.default()
+        painter.fill(
+            Canvas.Rect(Math.Vec2(), Math.Vec2(Demo.width as float, Demo.height as float)),
+            Canvas.Fill.solid(Color.rgb(0.035, 0.075, 0.07))
+        )
+        painter.fill(
+            Canvas.Rect(Math.Vec2(18.0, 92.0), Math.Vec2(744.0, 588.0), 18.0),
+            Canvas.Fill.solid(Color.rgb(0.075, 0.145, 0.105))
+        )
+        var x = 48.0
+        while x < 760.0 {
+            painter.stroke(
+                Canvas.Line(Math.Vec2(x, 110.0), Math.Vec2(x, 660.0)),
+                Canvas.Stroke(Color.white().with_alpha(0.035), 1.0)
+            )
+            x += 48.0
+        }
+        var y = 116.0
+        while y < 680.0 {
+            painter.stroke(
+                Canvas.Line(Math.Vec2(28.0, y), Math.Vec2(750.0, y)),
+                Canvas.Stroke(Color.white().with_alpha(0.035), 1.0)
+            )
+            y += 48.0
+        }
+        painter.text(
+            "BEHAVIOUR TREE · RTS VILLAGE",
+            Math.Vec2(28.0, 24.0),
+            Canvas.TextStyle(size:26.0, color:Color.white(), font:font)
+        )
+        painter.text(
+            "Watch priorities change: work / patrol / raid → retreat → heal",
+            Math.Vec2(30.0, 60.0),
+            Canvas.TextStyle(size:15.0, color:Color.slate_300(), font:font)
+        )
+    })
 }
 
-func spawn_creatures(
-    definition:@Resources.Behaviour<CreatureMind>,
+func mine_drawing() Canvas {
+    return Canvas()..paint(func(painter:&Canvas.Painter) {
+        var font = Canvas.Font.default()
+        painter.fill(Canvas.Circle(Math.Vec2(70.0, 52.0), 40.0), Canvas.Fill.solid(Color.slate_800()))
+        painter.fill(Canvas.Circle(Math.Vec2(52.0, 46.0), 12.0), Canvas.Fill.solid(Color.cyan_300()))
+        painter.fill(Canvas.Circle(Math.Vec2(74.0, 35.0), 15.0), Canvas.Fill.solid(Color.sky_400()))
+        painter.fill(Canvas.Circle(Math.Vec2(89.0, 57.0), 11.0), Canvas.Fill.solid(Color.cyan_200()))
+        painter.text("CRYSTAL MINE", Math.Vec2(18.0, 92.0), Canvas.TextStyle(size:14.0, color:Color.cyan_100(), font:font))
+    })
+}
+
+func storage_drawing() Canvas {
+    return Canvas()..paint(func(painter:&Canvas.Painter) {
+        var font = Canvas.Font.default()
+        painter.fill(
+            Canvas.Rect(Math.Vec2(20.0, 26.0), Math.Vec2(125.0, 70.0), 10.0),
+            Canvas.Fill.solid(Color.amber_800())
+        )
+        var roof = Canvas.Path()
+            ..move_to(Math.Vec2(10.0, 34.0))
+            ..line_to(Math.Vec2(82.0, 4.0))
+            ..line_to(Math.Vec2(154.0, 34.0))
+            ..close()
+        painter.fill(roof, Canvas.Fill.solid(Color.orange_500()))
+        painter.fill(
+            Canvas.Rect(Math.Vec2(68.0, 58.0), Math.Vec2(28.0, 38.0), 4.0),
+            Canvas.Fill.solid(Color.amber_200())
+        )
+        painter.fill(Canvas.Circle(Math.Vec2(129.0, 76.0), 13.0), Canvas.Fill.solid(Color.emerald_400()))
+        painter.text("STORAGE + HEAL", Math.Vec2(17.0, 105.0), Canvas.TextStyle(size:14.0, color:Color.amber_100(), font:font))
+    })
+}
+
+func camp_drawing() Canvas {
+    return Canvas()..paint(func(painter:&Canvas.Painter) {
+        var font = Canvas.Font.default()
+        painter.fill(Canvas.Circle(Math.Vec2(66.0, 49.0), 40.0), Canvas.Fill.solid(Color.rose_950()))
+        painter.stroke(Canvas.Circle(Math.Vec2(66.0, 49.0), 29.0), Canvas.Stroke(Color.rose_500(), 5.0))
+        painter.fill(Canvas.Circle(Math.Vec2(66.0, 49.0), 10.0), Canvas.Fill.solid(Color.rose_400()))
+        painter.text("RAIDER CAMP", Math.Vec2(15.0, 94.0), Canvas.TextStyle(size:14.0, color:Color.rose_200(), font:font))
+    })
+}
+
+func active_raiders(battlefield:@Battlefield) int {
+    var count = 0
+    for raider in battlefield.raiders { if raider.alive { count++ } }
+    return count
+}
+
+func paint_hud(battlefield:&Battlefield) {
+    var drawing = battlefield.hud
+    drawing.clear()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        var font = Canvas.Font.default()
+        painter.fill(
+            Canvas.Rect(Math.Vec2(), Math.Vec2(Demo.hud_width as float, Demo.height as float)),
+            Canvas.Fill.solid(Color.slate_950().with_alpha(0.97))
+        )
+        painter.stroke(
+            Canvas.Line(Math.Vec2(0.0, 0.0), Math.Vec2(0.0, Demo.height as float)),
+            Canvas.Stroke(Color.slate_700(), 2.0)
+        )
+        painter.text("LIVE DECISIONS", Math.Vec2(24.0, 26.0), Canvas.TextStyle(size:20.0, color:Color.white(), font:font))
+        painter.text("One shared tree · one instance per unit", Math.Vec2(24.0, 56.0), Canvas.TextStyle(size:12.0, color:Color.slate_400(), font:font))
+
+        var y = 94.0
+        for actor in battlefield.villagers {
+            painter.fill(Canvas.Circle(Math.Vec2(29.0, y + 8.0), 6.0), Canvas.Fill.solid(role_color(actor.role)))
+            painter.text(actor.name + "  HP $(Math.round(actor.health) as int)", Math.Vec2(44.0, y), Canvas.TextStyle(size:14.0, color:Color.slate_100(), font:font))
+            painter.text("→ " + intent_label(actor.intent), Math.Vec2(44.0, y + 22.0), Canvas.TextStyle(size:12.0, color:Color.slate_400(), font:font))
+            y += 58.0
+        }
+
+        painter.stroke(
+            Canvas.Line(Math.Vec2(24.0, 397.0), Math.Vec2(296.0, 397.0)),
+            Canvas.Stroke(Color.slate_700(), 1.0)
+        )
+        painter.text("RAID", Math.Vec2(24.0, 417.0), Canvas.TextStyle(size:14.0, color:Color.rose_300(), font:font))
+        painter.text("Wave $(battlefield.waves_spawned) · $(active_raiders(battlefield)) alive", Math.Vec2(24.0, 443.0), Canvas.TextStyle(size:16.0, color:Color.white(), font:font))
+        if active_raiders(battlefield) == 0 {
+            painter.text("Next wave in $(Math.ceil(battlefield.respawn_remaining) as int) s", Math.Vec2(24.0, 469.0), Canvas.TextStyle(size:12.0, color:Color.slate_400(), font:font))
+        } else {
+            var raider_y = 469.0
+            for raider in battlefield.raiders {
+                if raider.alive {
+                    painter.text(raider.name + "  HP $(Math.round(raider.health) as int) · " + intent_label(raider.intent), Math.Vec2(24.0, raider_y), Canvas.TextStyle(size:11.0, color:Color.rose_200(), font:font))
+                    raider_y += 20.0
+                }
+            }
+        }
+
+        painter.fill(
+            Canvas.Rect(Math.Vec2(20.0, 524.0), Math.Vec2(280.0, 145.0), 12.0),
+            Canvas.Fill.solid(Color.slate_900())
+        )
+        painter.text("VILLAGE", Math.Vec2(36.0, 542.0), Canvas.TextStyle(size:13.0, color:Color.emerald_300(), font:font))
+        painter.text("Stored crystals   $(battlefield.resources_stored)", Math.Vec2(36.0, 570.0), Canvas.TextStyle(size:15.0, color:Color.white(), font:font))
+        painter.text("Deliveries        $(battlefield.deliveries)", Math.Vec2(36.0, 598.0), Canvas.TextStyle(size:14.0, color:Color.slate_300(), font:font))
+        painter.text("Raiders defeated  $(battlefield.raiders_defeated)", Math.Vec2(36.0, 624.0), Canvas.TextStyle(size:14.0, color:Color.slate_300(), font:font))
+        painter.text("Heals completed   $(battlefield.heals_completed)", Math.Vec2(36.0, 650.0), Canvas.TextStyle(size:14.0, color:Color.slate_300(), font:font))
+    })
+}
+
+func spawn_actor(
+    definition:@Resources.Behaviour<Battlefield>,
     world:&Resources.World,
-    run:&DemoRun
+    battlefield:&Battlefield,
+    actor:Actor
+) {
+    redraw_actor(actor)
+    let actor_index = battlefield.actors.count()
+    battlefield.actors.append(actor)
+    let entity = world.spawn(ECS.EntityRecipe()
+        ..with(UnitMind(actor_index:actor_index))
+        ..with(definition.instantiate())
+        ..with(Components.BehaviourReady())
+        ..with(Components.Transform2D(position:actor.position))
+        ..with(Components.Canvas(actor.drawing(), 88, 76)..layer = 8)
+    )
+    actor.entity = entity
+    battlefield.instances_created++
+}
+
+func spawn_villager(
+    definition:@Resources.Behaviour<Battlefield>,
+    world:&Resources.World,
+    battlefield:&Battlefield,
+    name:str,
+    role:Role,
+    position:Math.Vec2
+) {
+    var actor = Actor(battlefield.next_actor_id, name, role, position)
+    battlefield.next_actor_id++
+    battlefield.villagers.append(actor)
+    if role == Role.worker { battlefield.workers.append(actor) }
+    else { battlefield.guards.append(actor) }
+    spawn_actor(definition, world, battlefield, actor)
+}
+
+func spawn_wave(
+    definition:@Resources.Behaviour<Battlefield>,
+    world:&Resources.World,
+    battlefield:&Battlefield
+) {
+    battlefield.waves_spawned++
+    battlefield.respawn_remaining = -1.0
+    var count = 1
+    if battlefield.waves_spawned % 2 == 0 { count = 2 }
+    for index in 0...count {
+        let position = Math.Vec2(165.0, 101.0 + index as float * 68.0)
+        var actor = Actor(
+            battlefield.next_actor_id,
+            "RAIDER $(battlefield.next_actor_id)",
+            Role.raider,
+            position,
+            180.0
+        )
+        battlefield.next_actor_id++
+        battlefield.raiders.append(actor)
+        spawn_actor(definition, world, battlefield, actor)
+    }
+}
+
+func setup_scene(
+    definition:@Resources.Behaviour<Battlefield>,
+    world:&Resources.World,
+    battlefield:&Battlefield
 ) {
     world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform2D())
@@ -251,246 +718,173 @@ func spawn_creatures(
     )
     world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform2D())
-        ..with(Components.Canvas(legend_drawing(), Demo.width, 96)
+        ..with(Components.Canvas(background_drawing(), Demo.width, Demo.height)
+            ..layer = -20
+        )
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:Demo.mine))
+        ..with(Components.Canvas(mine_drawing(), 140, 112)..layer = 1)
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:Demo.storage))
+        ..with(Components.Canvas(storage_drawing(), 164, 124)..layer = 1)
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D(position:Demo.raider_camp))
+        ..with(Components.Canvas(camp_drawing(), 132, 108)..layer = 1)
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(battlefield.hud_drawing(), Demo.hud_width, Demo.height)
             ..space = Components.CanvasSpace.viewport
-            ..anchor = Math.Vec2()
-            ..pivot = Math.Vec2()
-            ..layer = 10
+            ..anchor = Math.Vec2(1.0, 0.0)
+            ..pivot = Math.Vec2(1.0, 0.0)
+            ..layer = 20
         )
     )
 
-    var drawing = creature_drawing()
-    var randomizer = Randomizer(0xB3_A4_10_42)
-    for index in 0...Demo.creature_count {
-        var direction = -1
-        if index % 2 == 0 { direction = 1 }
-        let entity = world.spawn(ECS.EntityRecipe()
-            ..with(CreatureMind(
-                id:index,
-                direction:direction,
-                hungry:false,
-                tired:false,
-                danger:false,
-                action_step:0,
-                wake_next:false,
-                intent:Intent.explore,
-                meals:0,
-                rests:0,
-                escapes:0,
-                abandoned_explorations:0
-            ))
-            ..with(definition.instantiate())
-            ..with(Components.BehaviourReady())
-            ..with(Components.Transform2D(position:Math.Vec2(
-                random_range(randomizer, -420.0, 420.0),
-                random_range(randomizer, -220.0, 205.0)
-            )))
-            ..with(Components.Canvas(drawing, 40, 34)
-                ..color = Color.emerald_400()
-                ..layer = 1
-            )
-        )
-        run.entities.append(entity)
-        run.instances_created++
-    }
+    spawn_villager(definition, world, battlefield, "WORKER 1", Role.worker, Math.Vec2(-355.0, -115.0))
+    spawn_villager(definition, world, battlefield, "WORKER 2", Role.worker, Math.Vec2(-262.0, -130.0))
+    spawn_villager(definition, world, battlefield, "GUARD 1", Role.guard, Math.Vec2(-155.0, -55.0))
+    spawn_villager(definition, world, battlefield, "GUARD 2", Role.guard, Math.Vec2(-105.0, 5.0))
+    spawn_villager(definition, world, battlefield, "GUARD 3", Role.guard, Math.Vec2(-55.0, 65.0))
+    spawn_wave(definition, world, battlefield)
+    paint_hud(battlefield)
 }
 
-func make_ready(world:&Resources.World, run:&DemoRun, entity:ECS.Entity) {
-    if !world.is_alive(entity) || world.has<Components.BehaviourReady>(entity) { return }
-    world.insert(entity, Components.BehaviourReady())
-    run.targeted_events++
+func advance_game(time:@Resources.FrameTime, battlefield:&Battlefield) {
+    if battlefield.verification { battlefield.delta = Demo.verification_delta }
+    else { battlefield.delta = time.delta }
+    battlefield.elapsed += battlefield.delta
+    battlefield.hud_elapsed += battlefield.delta
 }
 
-func signal_danger(world:&Resources.World, run:&DemoRun, entity:ECS.Entity) {
-    world.insert(entity, DangerSignal())
-    run.danger_events++
-    make_ready(world, run, entity)
-}
-
-func signal_hunger(world:&Resources.World, run:&DemoRun, entity:ECS.Entity) {
-    world.update<CreatureMind>(entity, func(mind:&CreatureMind) {
-        mind.hungry = true
-    })
-    make_ready(world, run, entity)
-}
-
-func signal_fatigue(world:&Resources.World, run:&DemoRun, entity:ECS.Entity) {
-    world.update<CreatureMind>(entity, func(mind:&CreatureMind) {
-        mind.tired = true
-    })
-    make_ready(world, run, entity)
-}
-
-func begin_frame(world:&Resources.World, run:&DemoRun) {
-    run.frame++
-    run.current_evaluations = 0
-    run.current_node_visits = 0
-
-    var remaining:Wake[] = []
-    for wake in run.pending_wakes {
-        if wake.frame <= run.frame {
-            make_ready(world, run, wake.entity)
-        } else {
-            remaining.append(wake)
-        }
-    }
-    run.pending_wakes = remaining
-
-    if run.verification {
-        if run.frame == 3 { signal_danger(world, run, run.entities[0]) }
-        if run.frame == 6 {
-            signal_hunger(world, run, run.entities[1])
-            signal_fatigue(world, run, run.entities[2])
-        }
+func update_waves(
+    definition:@Resources.Behaviour<Battlefield>,
+    world:&Resources.World,
+    battlefield:&Battlefield
+) {
+    if active_raiders(battlefield) > 0 { return }
+    if battlefield.respawn_remaining < 0.0 {
+        battlefield.respawn_remaining = Demo.respawn_delay
         return
     }
-
-    let cycle = run.frame % 360
-    if cycle == 60 { signal_danger(world, run, run.entities[0]) }
-    if cycle == 150 {
-        signal_hunger(world, run, run.entities[1])
-        signal_fatigue(world, run, run.entities[2])
-    }
-    if cycle == 240 { signal_danger(world, run, run.entities[3]) }
-    if cycle == 330 {
-        signal_hunger(world, run, run.entities[4])
-        signal_fatigue(world, run, run.entities[5])
+    battlefield.respawn_remaining -= battlefield.delta
+    if battlefield.respawn_remaining <= 0.0 {
+        spawn_wave(definition, world, battlefield)
     }
 }
 
-func interrupt_danger(
-    commands:&Resources.Commands,
-    run:&DemoRun,
-    query:ECS.Query<(
-        ECS.Entity,
-        &Components.Behaviour<CreatureMind>,
-        &CreatureMind,
-        @DangerSignal
-    )>
+func replan_priorities(
+    battlefield:&Battlefield,
+    query:ECS.Query<(&Components.Behaviour<Battlefield>, &UnitMind)>
 ) {
-    for (entity, behaviour, mind, signal) in query {
-        let before = mind.abandoned_explorations
-        mind.danger = true
-        behaviour.interrupt(mind)
-        run.abandoned_explorations += mind.abandoned_explorations - before
-        commands.remove<DangerSignal>(entity)
+    for (behaviour, mind) in query {
+        battlefield.current_actor_index = mind.actor_index
+        var interrupt = false
+        if is_villager_wounded(battlefield) &&
+            battlefield.current_actor().intent != Intent.retreat &&
+            battlefield.current_actor().intent != Intent.heal
+        {
+            interrupt = true
+        }
+        if battlefield.current_actor().role == Role.guard && has_raider(battlefield) &&
+            battlefield.current_actor().intent == Intent.patrol
+        {
+            interrupt = true
+        }
+        if interrupt {
+            behaviour.interrupt(battlefield)
+            battlefield.interruptions++
+        }
     }
 }
 
 func run_behaviours(
-    commands:&Resources.Commands,
-    run:&DemoRun,
+    battlefield:&Battlefield,
     query:ECS.Query<(
-        ECS.Entity,
-        &Components.Behaviour<CreatureMind>,
-        &CreatureMind,
+        &Components.Behaviour<Battlefield>,
+        &UnitMind,
         @Components.BehaviourReady
     )>
 ) {
-    for (entity, behaviour, mind, ready) in query {
-        run.current_evaluations++
-        let action_step = mind.action_step
-        let meals = mind.meals
-        let rests = mind.rests
-        let escapes = mind.escapes
-        let status = behaviour.evaluate(mind, func(name:@str, transition:BehaviourTree.Transition) {
-            match transition {
-                entered => { run.current_node_visits++ }
-                else => {}
+    for (behaviour, mind, ready) in query {
+        battlefield.current_actor_index = mind.actor_index
+        if !battlefield.current_actor().alive { continue }
+        battlefield.evaluations++
+        let status = behaviour.evaluate(battlefield)
+        if status != BehaviourTree.Status.running { behaviour.reset() }
+    }
+}
+
+func cleanup_defeated(world:&Resources.World, battlefield:&Battlefield) {
+    for raider in battlefield.raiders {
+        if !raider.alive {
+            if let entity = raider.entity {
+                if world.is_alive(entity) { world.destroy(entity) }
+                raider.entity = null
             }
-        })
-
-        if action_step == 1 { run.resumed_actions++ }
-        run.meals += mind.meals - meals
-        run.rests += mind.rests - rests
-        run.escapes += mind.escapes - escapes
-        commands.remove<Components.BehaviourReady>(entity)
-
-        if mind.wake_next {
-            mind.wake_next = false
-            run.schedule(entity)
-        } else if status != BehaviourTree.Status.running &&
-            (mind.danger || mind.hungry || mind.tired)
-        {
-            run.schedule(entity)
         }
     }
 }
 
-func intent_color(intent:Intent) Color {
-    return match intent {
-        explore => Color.emerald_400()
-        eat => Color.amber_400()
-        rest => Color.sky_400()
-        flee => Color.rose_500()
-    }
-}
-
-func present_creatures(
-    query:ECS.Query<(@CreatureMind, &Components.Transform2D, &Components.Canvas)>
+func present_units(
+    battlefield:&Battlefield,
+    query:ECS.Query<(@UnitMind, &Components.Transform2D)>
 ) {
-    for (mind, transform, canvas) in query {
-        var speed = 0.65
-        if mind.intent == Intent.flee { speed = 2.8 }
-        if mind.intent == Intent.rest { speed = 0.0 }
-        transform.position.x += mind.direction as float * speed
-        if transform.position.x > 445.0 { transform.position.x = -445.0 }
-        if transform.position.x < -445.0 { transform.position.x = 445.0 }
-        canvas.color = intent_color(mind.intent)
+    for (mind, transform) in query {
+        var actor = battlefield.actor_at(mind.actor_index)
+        transform.position = actor.position
+        redraw_actor(actor)
     }
-}
-
-func record_frame(run:&DemoRun) {
-    run.frame_evaluations.append(run.current_evaluations)
-    run.frame_node_visits.append(run.current_node_visits)
+    if battlefield.hud_elapsed >= 0.1 {
+        battlefield.hud_elapsed = 0.0
+        paint_hud(battlefield)
+    }
 }
 
 func run_verification(application:Application) int {
     application.run_schedule(Application.Schedule.initialize)
     application.run_schedule(Application.Schedule.startup)
     for frame in 0...Demo.verification_frames {
+        application.run_schedule(Application.Schedule.pre_update)
         application.run_schedule(Application.Schedule.update)
         application.run_schedule(Application.Schedule.post_update)
-        application.run_schedule(Application.Schedule.render)
+        if frame % 30 == 0 { application.run_schedule(Application.Schedule.render) }
     }
     application.run_schedule(Application.Schedule.shutdown)
     application.run_schedule(Application.Schedule.finalize)
     return 0
 }
 
-func verify(run:@DemoRun) {
-    assert(run.definitions_built == 1)
-    assert(run.instances_created == Demo.creature_count)
-    assert(run.frame_evaluations.count() == Demo.verification_frames)
-    assert(run.frame_evaluations[0] == Demo.creature_count)
-    assert(run.frame_evaluations[1] == 0)
-    assert(run.frame_evaluations[2] == 1)
-    assert(run.frame_evaluations[3] == 1)
-    assert(run.frame_evaluations[4] == 0)
-    assert(run.frame_evaluations[5] == 2)
-    assert(run.frame_evaluations[6] == 2)
-    assert(run.frame_evaluations[7] == 2)
-    assert(run.frame_evaluations[8] == 0)
-    assert(run.frame_node_visits[1] == 0)
-    assert(run.frame_node_visits[2] > 0)
-    assert(run.targeted_events == 8)
-    assert(run.danger_events == 1)
-    assert(run.abandoned_explorations == 1)
-    assert(run.resumed_actions == 5)
-    assert(run.meals == 1)
-    assert(run.rests == 1)
-    assert(run.escapes == 1)
+func verify(battlefield:@Battlefield) {
+    assert(battlefield.definitions_built == 1)
+    assert(battlefield.villagers.count() == 5)
+    assert(battlefield.workers.count() == 2)
+    assert(battlefield.guards.count() == 3)
+    assert(battlefield.instances_created > 5)
+    assert(battlefield.waves_spawned >= 2)
+    assert(battlefield.resources_gathered > 0)
+    assert(battlefield.resources_stored > 0)
+    assert(battlefield.deliveries > 0)
+    assert(battlefield.guard_hits > 0)
+    assert(battlefield.raider_hits > 0)
+    assert(battlefield.raiders_defeated > 0)
+    assert(battlefield.heals_completed > 0)
+    assert(battlefield.interruptions > 0)
+    assert(battlefield.evaluations > Demo.verification_frames)
 }
 
 func main() {
     let verification = verification_mode()
-    var run = DemoRun(verification)
-    var definition = creature_definition(run)
+    var battlefield = Battlefield(verification)
+    var definition = unit_definition(battlefield)
     var application = Application()
         ..add_resource(definition)
-        ..add_resource(run)
+        ..add_resource(battlefield)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
-            ..title = "Behaviour Tree Creatures"
+            ..title = "Behaviour Tree RTS Village"
             ..width = Demo.width
             ..height = Demo.height
             ..hidden = verification
@@ -500,15 +894,18 @@ func main() {
         ))
         ..add_plugin(Plugins.Scene2D())
         ..add_plugin(Plugins.ECS())
-        ..add_system(Application.Schedule.startup, spawn_creatures)
-        ..add_system(Application.Schedule.update, begin_frame)
-        ..add_system(Application.Schedule.update, interrupt_danger)
+        ..add_plugin(Plugins.Time())
+        ..add_plugin(Plugins.FramePacing(60))
+        ..add_system(Application.Schedule.startup, setup_scene)
+        ..add_system(Application.Schedule.update, advance_game)
+        ..add_system(Application.Schedule.update, update_waves)
+        ..add_system(Application.Schedule.update, replan_priorities)
         ..add_system(Application.Schedule.update, run_behaviours)
-        ..add_system(Application.Schedule.update, present_creatures)
-        ..add_system(Application.Schedule.post_update, record_frame)
+        ..add_system(Application.Schedule.update, cleanup_defeated)
+        ..add_system(Application.Schedule.update, present_units)
 
     if verification { application.with_runner(run_verification) }
 
     assert(application.run() == 0)
-    if verification { verify(run) }
+    if verification { verify(battlefield) }
 }
