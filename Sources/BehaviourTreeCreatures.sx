@@ -19,8 +19,11 @@ static struct Demo {
     let worker_speed:float = 105.0
     let guard_speed:float = 125.0
     let raider_speed:float = 92.0
-    let wounded_health:float = 58.0
+    let wounded_health:float = 40.0
     let maximum_health:float = 100.0
+    let no_guard_assignment:int = 0
+    let tank_assignment:int = 1
+    let support_assignment:int = 2
     let mine:Math.Vec2 = Math.Vec2(-350.0, 150.0)
     let storage:Math.Vec2 = Math.Vec2(-310.0, -150.0)
     let raider_camp:Math.Vec2 = Math.Vec2(165.0, 135.0)
@@ -39,8 +42,8 @@ enum Intent {
     haul
     deposit
     patrol
-    intercept
-    defend
+    frontline
+    support
     raid
     attack
     retreat
@@ -54,25 +57,46 @@ class Actor {
     let role:Role
     var position:Math.Vec2
     var health:float
+    let maximum_health:float
+    let attack_damage:float
     var alive:bool
     var intent:Intent
     var cargo:int
     var action_elapsed:float
     var patrol_target:int
+    var guard_assignment:int
+    var guard_assignment_changed:bool
+    var rendered_health:int
+    var rendered_cargo:int
+    var rendered_guard_assignment:int
     var entity:ECS.Entity?
     var visual:Canvas
 
-    init(id:int, name:str, role:Role, position:Math.Vec2, health:float = Demo.maximum_health) {
+    init(
+        id:int,
+        name:str,
+        role:Role,
+        position:Math.Vec2,
+        health:float = Demo.maximum_health,
+        attack_damage:float = 0.0
+    ) {
         self.id = id
         self.name = name
         self.role = role
         self.position = position
         self.health = health
+        self.maximum_health = health
+        self.attack_damage = attack_damage
         self.alive = true
         self.intent = Intent.idle
         self.cargo = 0
         self.action_elapsed = 0.0
         self.patrol_target = id % 2
+        self.guard_assignment = Demo.no_guard_assignment
+        self.guard_assignment_changed = false
+        self.rendered_health = -1
+        self.rendered_cargo = -1
+        self.rendered_guard_assignment = -1
         self.entity = null
         self.visual = Canvas()
     }
@@ -106,6 +130,9 @@ class Battlefield {
     var raider_hits:int
     var raiders_defeated:int
     var heals_completed:int
+    var active_tank_id:int
+    var tank_switches:int
+    var maximum_recovering_guards:int
 
     init(verification:bool) {
         self.verification = verification
@@ -133,6 +160,9 @@ class Battlefield {
         self.raider_hits = 0
         self.raiders_defeated = 0
         self.heals_completed = 0
+        self.active_tank_id = -1
+        self.tank_switches = 0
+        self.maximum_recovering_guards = 0
     }
 
     func hud_drawing() Canvas { return self.hud }
@@ -161,6 +191,12 @@ func is_villager_wounded(mind:@Battlefield) bool {
 func is_worker(mind:@Battlefield) bool { return mind.current_actor().role == Role.worker }
 func is_guard(mind:@Battlefield) bool { return mind.current_actor().role == Role.guard }
 func is_raider(mind:@Battlefield) bool { return mind.current_actor().role == Role.raider }
+func is_active_tank(mind:@Battlefield) bool {
+    return mind.current_actor().guard_assignment == Demo.tank_assignment
+}
+func is_support_guard(mind:@Battlefield) bool {
+    return mind.current_actor().guard_assignment == Demo.support_assignment
+}
 func carries_resources(mind:@Battlefield) bool { return mind.current_actor().cargo > 0 }
 
 func closest_alive(actors:@Actor[], origin:Math.Vec2) Actor? {
@@ -184,20 +220,15 @@ func nearest_raider(mind:@Battlefield) Actor? {
 
 func has_raider(mind:@Battlefield) bool { return nearest_raider(mind) != null }
 
-func raid_target(mind:@Battlefield) Actor? {
-    var nearby_guard:Actor? = null
-    var guard_distance = 145.0
+func active_tank(mind:@Battlefield) Actor? {
     for guard in mind.guards {
-        if guard.alive {
-            let distance = guard.position.distance(mind.current_actor().position)
-            if distance < guard_distance {
-                nearby_guard = guard
-                guard_distance = distance
-            }
-        }
+        if guard.alive && guard.id == mind.active_tank_id { return guard }
     }
-    if nearby_guard != null { return nearby_guard }
-    return closest_alive(mind.workers, mind.current_actor().position)
+    return null
+}
+
+func raid_target(mind:@Battlefield) Actor? {
+    return active_tank(mind)
 }
 
 func move_towards(actor:&Actor, target:Math.Vec2, speed:float, delta:float) bool {
@@ -219,7 +250,15 @@ func move_towards(actor:&Actor, target:Math.Vec2, speed:float, delta:float) bool
 func retreat_to_storage(mind:&Battlefield) BehaviourTree.Status {
     var actor = mind.current_actor()
     actor.intent = Intent.retreat
-    if move_towards(actor, Demo.storage, Demo.guard_speed, mind.delta) {
+    var offset = Math.Vec2(-42.0, -58.0)
+    if actor.role == Role.guard {
+        let slot = actor.id % 3
+        offset = Math.Vec2(-50.0 + slot as float * 38.0, -68.0)
+    } elif actor.id % 2 == 1 {
+        offset = Math.Vec2(18.0, -58.0)
+    }
+    let storage = Demo.storage
+    if move_towards(actor, storage.add(offset), Demo.guard_speed, mind.delta) {
         return BehaviourTree.Status.success
     }
     return BehaviourTree.Status.running
@@ -241,7 +280,10 @@ func heal_at_storage(mind:&Battlefield) BehaviourTree.Status {
 func walk_to_mine(mind:&Battlefield) BehaviourTree.Status {
     var actor = mind.current_actor()
     actor.intent = Intent.mine
-    if move_towards(actor, Demo.mine, Demo.worker_speed, mind.delta) {
+    var offset = Math.Vec2(-22.0, -42.0)
+    if actor.id % 2 == 1 { offset = Math.Vec2(26.0, -42.0) }
+    let mine = Demo.mine
+    if move_towards(actor, mine.add(offset), Demo.worker_speed, mind.delta) {
         return BehaviourTree.Status.success
     }
     return BehaviourTree.Status.running
@@ -261,7 +303,10 @@ func gather_crystals(mind:&Battlefield) BehaviourTree.Status {
 func haul_to_storage(mind:&Battlefield) BehaviourTree.Status {
     var actor = mind.current_actor()
     actor.intent = Intent.haul
-    if move_towards(actor, Demo.storage, Demo.worker_speed, mind.delta) {
+    var offset = Math.Vec2(-35.0, -58.0)
+    if actor.id % 2 == 1 { offset = Math.Vec2(10.0, -58.0) }
+    let storage = Demo.storage
+    if move_towards(actor, storage.add(offset), Demo.worker_speed, mind.delta) {
         return BehaviourTree.Status.success
     }
     return BehaviourTree.Status.running
@@ -279,47 +324,65 @@ func deposit_resources(mind:&Battlefield) BehaviourTree.Status {
 func patrol(mind:&Battlefield) BehaviourTree.Status {
     var actor = mind.current_actor()
     actor.intent = Intent.patrol
-    var target = Math.Vec2(-150.0, -45.0)
-    if actor.patrol_target == 1 { target = Math.Vec2(-35.0, 75.0) }
+    let lane = (actor.id % 3) as float
+    var target = Math.Vec2(-185.0 + lane * 48.0, -38.0 + lane * 22.0)
+    if actor.patrol_target == 1 {
+        target = Math.Vec2(-62.0 + lane * 42.0, 92.0 - lane * 24.0)
+    }
     if move_towards(actor, target, Demo.guard_speed * 0.55, mind.delta) {
         actor.patrol_target = 1 - actor.patrol_target
     }
     return BehaviourTree.Status.running
 }
 
-func intercept_raider(mind:&Battlefield) BehaviourTree.Status {
+func defeat_raider(actor:&Actor, target:&Actor, mind:&Battlefield, damage:float, cooldown:float) bool {
+    actor.action_elapsed -= mind.delta
+    if actor.action_elapsed > 0.0 { return false }
+    target.health -= damage
+    actor.action_elapsed = cooldown
+    mind.guard_hits++
+    if target.health > 0.0 { return false }
+    target.health = 0.0
+    target.alive = false
+    target.intent = Intent.defeated
+    mind.raiders_defeated++
+    actor.action_elapsed = 0.0
+    return true
+}
+
+func hold_frontline(mind:&Battlefield) BehaviourTree.Status {
     var actor = mind.current_actor()
-    actor.intent = Intent.intercept
-    if let target = nearest_raider(mind) {
-        if actor.position.distance(target.position) <= 38.0 {
+    actor.intent = Intent.frontline
+    if var target = nearest_raider(mind) {
+        let front = target.position.add(Math.Vec2(-34.0, 0.0))
+        let can_strike = actor.position.distance(target.position) <= 46.0
+        if actor.position.distance(front) > 5.0 {
+            move_towards(actor, front, Demo.guard_speed, mind.delta)
+            if !can_strike { return BehaviourTree.Status.running }
+        }
+        if defeat_raider(actor, target, mind, 14.0, 0.55) {
             return BehaviourTree.Status.success
         }
-        move_towards(actor, target.position, Demo.guard_speed, mind.delta)
         return BehaviourTree.Status.running
     }
     return BehaviourTree.Status.success
 }
 
-func defend_village(mind:&Battlefield) BehaviourTree.Status {
+func support_frontline(mind:&Battlefield) BehaviourTree.Status {
     var actor = mind.current_actor()
-    actor.intent = Intent.defend
-    if let target = nearest_raider(mind) {
-        if actor.position.distance(target.position) > 44.0 {
-            return BehaviourTree.Status.failure
+    actor.intent = Intent.support
+    if var target = nearest_raider(mind) {
+        var offset = Math.Vec2(-48.0, -42.0)
+        if actor.id % 3 == 1 { offset = Math.Vec2(-48.0, 42.0) }
+        elif actor.id % 3 == 2 { offset = Math.Vec2(-64.0, 0.0) }
+        let formation = target.position.add(offset)
+        let can_strike = actor.position.distance(target.position) <= 76.0
+        if actor.position.distance(formation) > 5.0 {
+            move_towards(actor, formation, Demo.guard_speed * 0.92, mind.delta)
+            if !can_strike { return BehaviourTree.Status.running }
         }
-        actor.action_elapsed -= mind.delta
-        if actor.action_elapsed <= 0.0 {
-            target.health -= 15.0
-            actor.action_elapsed = 0.55
-            mind.guard_hits++
-            if target.health <= 0.0 {
-                target.health = 0.0
-                target.alive = false
-                target.intent = Intent.defeated
-                mind.raiders_defeated++
-                actor.action_elapsed = 0.0
-                return BehaviourTree.Status.success
-            }
+        if defeat_raider(actor, target, mind, 12.0, 0.70) {
+            return BehaviourTree.Status.success
         }
         return BehaviourTree.Status.running
     }
@@ -348,7 +411,7 @@ func attack_villager(mind:&Battlefield) BehaviourTree.Status {
         }
         actor.action_elapsed -= mind.delta
         if actor.action_elapsed <= 0.0 {
-            target.health -= 24.0
+            target.health -= actor.attack_damage
             if target.health < 10.0 { target.health = 10.0 }
             actor.action_elapsed = 0.65
             mind.raider_hits++
@@ -391,10 +454,15 @@ func unit_definition(battlefield:&Battlefield) BehaviourTree.Definition<Battlefi
     builder.begin_sequence("guard routine")
     builder.condition("is a guard", is_guard)
     builder.begin_selector("defend or patrol")
-    builder.begin_sequence("defend village")
+    builder.begin_sequence("hold the frontline")
     builder.condition("raider detected", has_raider)
-    builder.action("intercept raider", intercept_raider, abandon_action)
-    builder.action("strike raider", defend_village, abandon_action)
+    builder.condition("is active tank", is_active_tank)
+    builder.action("hold and strike", hold_frontline, abandon_action)
+    builder.end()
+    builder.begin_sequence("support the tank")
+    builder.condition("raider detected", has_raider)
+    builder.condition("is support guard", is_support_guard)
+    builder.action("flank and strike", support_frontline, abandon_action)
     builder.end()
     builder.action("patrol village", patrol, abandon_action)
     builder.end()
@@ -424,8 +492,8 @@ func intent_label(intent:Intent) str {
         haul => "hauling cargo"
         deposit => "depositing cargo"
         patrol => "patrolling"
-        intercept => "intercepting a raider"
-        defend => "defending the village"
+        frontline => "tanking on the frontline"
+        support => "supporting the tank"
         raid => "raiding the village"
         attack => "attacking a villager"
         retreat => "retreating to storage"
@@ -442,66 +510,68 @@ func role_color(role:Role) Color {
     }
 }
 
+func actor_marker(actor:Actor) str {
+    return match actor.role {
+        worker => "W$(actor.id + 1)"
+        guard => "G$(actor.id - 1)"
+        raider => "R$(actor.id)"
+    }
+}
+
 func redraw_actor(actor:Actor) {
     let body = role_color(actor.role)
-    let health_ratio = actor.health / Demo.maximum_health
+    let health_ratio = actor.health / actor.maximum_health
     var health_color = Color.emerald_400()
     if health_ratio < 0.6 { health_color = Color.rose_400() }
     var drawing = actor.visual
     drawing.clear()
     drawing.paint(func(painter:&Canvas.Painter) {
         var font = Canvas.Font.default()
-        painter.fill(
-            Canvas.Rect(Math.Vec2(8.0, 17.0), Math.Vec2(72.0, 46.0), 14.0),
-            Canvas.Fill.solid(Color.slate_950().with_alpha(0.82))
-        )
         if actor.role == Role.worker {
-            painter.fill(Canvas.Circle(Math.Vec2(38.0, 38.0), 14.0), Canvas.Fill.solid(body))
-            painter.stroke(
-                Canvas.Line(Math.Vec2(51.0, 25.0), Math.Vec2(61.0, 48.0)),
-                Canvas.Stroke(Color.amber_100(), 4.0)..cap = Canvas.StrokeCap.round
-            )
+            painter.fill(Canvas.Circle(Math.Vec2(36.0, 31.0), 14.0), Canvas.Fill.solid(body))
             if actor.cargo > 0 {
                 painter.fill(
-                    Canvas.Rect(Math.Vec2(18.0, 30.0), Math.Vec2(12.0, 12.0), 2.0),
-                    Canvas.Fill.solid(Color.yellow_200())
+                    Canvas.Circle(Math.Vec2(54.0, 31.0), 5.0),
+                    Canvas.Fill.solid(Color.amber_100())
                 )
             }
         } elif actor.role == Role.guard {
-            painter.fill(Canvas.Circle(Math.Vec2(42.0, 38.0), 15.0), Canvas.Fill.solid(body))
             painter.fill(
-                Canvas.Rect(Math.Vec2(17.0, 26.0), Math.Vec2(14.0, 25.0), 6.0),
-                Canvas.Fill.solid(Color.blue_700())
+                Canvas.Rect(Math.Vec2(22.0, 17.0), Math.Vec2(28.0, 28.0)),
+                Canvas.Fill.solid(Color.blue_500())
             )
-            painter.stroke(
-                Canvas.Line(Math.Vec2(58.0, 24.0), Math.Vec2(58.0, 52.0)),
-                Canvas.Stroke(Color.slate_100(), 3.0)..cap = Canvas.StrokeCap.round
-            )
+            if actor.guard_assignment == Demo.tank_assignment {
+                painter.stroke(
+                    Canvas.Rect(Math.Vec2(18.0, 13.0), Math.Vec2(36.0, 36.0)),
+                    Canvas.Stroke(Color.cyan_100(), 2.0)
+                )
+            }
         } else {
             var diamond = Canvas.Path()
-                ..move_to(Math.Vec2(44.0, 20.0))
-                ..line_to(Math.Vec2(64.0, 38.0))
-                ..line_to(Math.Vec2(44.0, 56.0))
-                ..line_to(Math.Vec2(24.0, 38.0))
+                ..move_to(Math.Vec2(36.0, 14.0))
+                ..line_to(Math.Vec2(53.0, 31.0))
+                ..line_to(Math.Vec2(36.0, 48.0))
+                ..line_to(Math.Vec2(19.0, 31.0))
                 ..close()
             painter.fill(diamond, Canvas.Fill.solid(body))
-            painter.fill(Canvas.Circle(Math.Vec2(38.0, 36.0), 2.5), Canvas.Fill.solid(Color.white()))
-            painter.fill(Canvas.Circle(Math.Vec2(50.0, 36.0), 2.5), Canvas.Fill.solid(Color.white()))
         }
         painter.fill(
-            Canvas.Rect(Math.Vec2(13.0, 8.0), Math.Vec2(62.0, 5.0), 2.0),
+            Canvas.Rect(Math.Vec2(10.0, 4.0), Math.Vec2(52.0, 4.0), 2.0),
             Canvas.Fill.solid(Color.slate_800())
         )
         painter.fill(
-            Canvas.Rect(Math.Vec2(13.0, 8.0), Math.Vec2(62.0 * health_ratio, 5.0), 2.0),
+            Canvas.Rect(Math.Vec2(10.0, 4.0), Math.Vec2(52.0 * health_ratio, 4.0), 2.0),
             Canvas.Fill.solid(health_color)
         )
         painter.text(
-            actor.name,
-            Math.Vec2(24.0, 63.0),
+            actor_marker(actor),
+            Math.Vec2(27.0, 53.0),
             Canvas.TextStyle(size:11.0, color:Color.white(), font:font)
         )
     })
+    actor.rendered_health = Math.round(actor.health) as int
+    actor.rendered_cargo = actor.cargo
+    actor.rendered_guard_assignment = actor.guard_assignment
 }
 
 func background_drawing() Canvas {
@@ -608,6 +678,9 @@ func paint_hud(battlefield:&Battlefield) {
         )
         painter.text("LIVE DECISIONS", Math.Vec2(24.0, 26.0), Canvas.TextStyle(size:20.0, color:Color.white(), font:font))
         painter.text("One shared tree · one instance per unit", Math.Vec2(24.0, 56.0), Canvas.TextStyle(size:12.0, color:Color.slate_400(), font:font))
+        var tank_name = "none"
+        if let tank = active_tank(battlefield) { tank_name = tank.name }
+        painter.text("Tank: " + tank_name + " · rotations $(battlefield.tank_switches)", Math.Vec2(24.0, 76.0), Canvas.TextStyle(size:11.0, color:Color.cyan_200(), font:font))
 
         var y = 94.0
         for actor in battlefield.villagers {
@@ -661,7 +734,7 @@ func spawn_actor(
         ..with(definition.instantiate())
         ..with(Components.BehaviourReady())
         ..with(Components.Transform2D(position:actor.position))
-        ..with(Components.Canvas(actor.drawing(), 88, 76)..layer = 8)
+        ..with(Components.Canvas(actor.drawing(), 72, 68)..layer = 8)
     )
     actor.entity = entity
     battlefield.instances_created++
@@ -692,6 +765,12 @@ func spawn_wave(
     battlefield.respawn_remaining = -1.0
     var count = 1
     if battlefield.waves_spawned % 2 == 0 { count = 2 }
+    var health = 160.0
+    var attack_damage = 14.0
+    if count > 1 {
+        health = 110.0
+        attack_damage = 8.0
+    }
     for index in 0...count {
         let position = Math.Vec2(165.0, 101.0 + index as float * 68.0)
         var actor = Actor(
@@ -699,7 +778,8 @@ func spawn_wave(
             "RAIDER $(battlefield.next_actor_id)",
             Role.raider,
             position,
-            180.0
+            health,
+            attack_damage
         )
         battlefield.next_actor_id++
         battlefield.raiders.append(actor)
@@ -776,6 +856,66 @@ func update_waves(
     }
 }
 
+func coordinate_guards(battlefield:&Battlefield) {
+    let raiders_are_active = active_raiders(battlefield) > 0
+    var recovering_guards = 0
+    for guard in battlefield.guards {
+        if guard.intent == Intent.retreat || guard.intent == Intent.heal {
+            recovering_guards++
+        }
+    }
+    if raiders_are_active && recovering_guards > battlefield.maximum_recovering_guards {
+        battlefield.maximum_recovering_guards = recovering_guards
+    }
+    let previous_tank_id = battlefield.active_tank_id + 0
+    var next_tank_id = previous_tank_id + 0
+    var current_is_ready = false
+    if raiders_are_active {
+        for guard in battlefield.guards {
+            if guard.alive && guard.id == next_tank_id &&
+                guard.health >= Demo.wounded_health &&
+                guard.intent != Intent.retreat && guard.intent != Intent.heal
+            {
+                current_is_ready = true
+            }
+        }
+        if !current_is_ready {
+            next_tank_id = -1
+            var best_health = Demo.wounded_health - 1.0
+            for guard in battlefield.guards {
+                if guard.alive && guard.health >= Demo.wounded_health &&
+                    guard.intent != Intent.retreat && guard.intent != Intent.heal &&
+                    guard.health > best_health
+                {
+                    next_tank_id = guard.id
+                    best_health = guard.health
+                }
+            }
+        }
+    } else {
+        next_tank_id = -1
+    }
+
+    if previous_tank_id >= 0 && next_tank_id >= 0 &&
+        previous_tank_id != next_tank_id
+    {
+        battlefield.tank_switches++
+    }
+    battlefield.active_tank_id = next_tank_id
+
+    for guard in battlefield.guards {
+        var assignment = Demo.no_guard_assignment
+        if raiders_are_active {
+            assignment = Demo.support_assignment
+            if guard.id == next_tank_id { assignment = Demo.tank_assignment }
+        }
+        if guard.guard_assignment != assignment {
+            guard.guard_assignment = assignment
+            guard.guard_assignment_changed = true
+        }
+    }
+}
+
 func replan_priorities(
     battlefield:&Battlefield,
     query:ECS.Query<(&Components.Behaviour<Battlefield>, &UnitMind)>
@@ -792,6 +932,13 @@ func replan_priorities(
         if battlefield.current_actor().role == Role.guard && has_raider(battlefield) &&
             battlefield.current_actor().intent == Intent.patrol
         {
+            interrupt = true
+        }
+        if battlefield.current_actor().role == Role.guard &&
+            battlefield.current_actor().guard_assignment_changed
+        {
+            var guard = battlefield.current_actor()
+            guard.guard_assignment_changed = false
             interrupt = true
         }
         if interrupt {
@@ -836,7 +983,12 @@ func present_units(
     for (mind, transform) in query {
         var actor = battlefield.actor_at(mind.actor_index)
         transform.position = actor.position
-        redraw_actor(actor)
+        if actor.rendered_health != Math.round(actor.health) as int ||
+            actor.rendered_cargo != actor.cargo ||
+            actor.rendered_guard_assignment != actor.guard_assignment
+        {
+            redraw_actor(actor)
+        }
     }
     if battlefield.hud_elapsed >= 0.1 {
         battlefield.hud_elapsed = 0.0
@@ -872,6 +1024,8 @@ func verify(battlefield:@Battlefield) {
     assert(battlefield.raider_hits > 0)
     assert(battlefield.raiders_defeated > 0)
     assert(battlefield.heals_completed > 0)
+    assert(battlefield.tank_switches > 0)
+    assert(battlefield.maximum_recovering_guards < battlefield.guards.count())
     assert(battlefield.interruptions > 0)
     assert(battlefield.evaluations > Demo.verification_frames)
 }
@@ -899,6 +1053,7 @@ func main() {
         ..add_system(Application.Schedule.startup, setup_scene)
         ..add_system(Application.Schedule.update, advance_game)
         ..add_system(Application.Schedule.update, update_waves)
+        ..add_system(Application.Schedule.update, coordinate_guards)
         ..add_system(Application.Schedule.update, replan_priorities)
         ..add_system(Application.Schedule.update, run_behaviours)
         ..add_system(Application.Schedule.update, cleanup_defeated)

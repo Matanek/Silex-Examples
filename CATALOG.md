@@ -13,7 +13,7 @@ synchronisation automatique.
 | Application command console | `Sources/ApplicationCommandConsole.sx` | `GFX.UI.Terminal/Examples/ApplicationConsole.sx` |
 | Application GPU triangle | `Sources/ApplicationGPUTriangle/Main.sx` | `GFX.GPU/Examples/TriangleApplication.sx` |
 | Application window | `Sources/ApplicationWindow.sx` | `GFX/Examples/ApplicationWindow.sx` |
-| Behaviour Tree RTS village | `Sources/BehaviourTreeCreatures.sx` | création propre au catalogue : ouvriers, gardes, pillards, soins prioritaires et vagues dynamiques avec l’intégration publique `AI` + ECS de GFX |
+| Behaviour Tree RTS village | `Sources/BehaviourTreeCreatures.sx` | création propre au catalogue : ouvriers ronds, gardes carrés coordonnés avec relève du tank, pillards en losange, soins prioritaires et vagues dynamiques avec l’intégration publique `AI` + ECS de GFX |
 | Boids simulation | `Sources/BoidsSimulation.sx` | `GFX.Scene2D/Examples/Boids.sx` |
 | Vector Canvas projected shadow | `Sources/CanvasProjection3D.sx` | création propre au catalogue |
 | Canvas effects gallery | `Sources/CanvasEffectsGallery/Main.sx` | création propre au catalogue |

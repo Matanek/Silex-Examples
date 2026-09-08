@@ -105,13 +105,16 @@ silex run Sources/Games/Minesweeper
 
 `BehaviourTreeCreatures.sx` is a top-down RTS vignette driven by one immutable
 `Resources.Behaviour<Battlefield>` and one independent
-`Components.Behaviour<Battlefield>` instance per unit. Two workers travel
-between a crystal mine and storage, three guards patrol then intercept raiders,
-and alternating waves of one or two raiders respawn two seconds after the
-previous wave is defeated. A wounded worker or guard interrupts its current
-action, retreats to storage, heals, then resumes its role. The terrain, health
-bars and live decision panel make each selected branch observable without
-relying on color alone.
+`Components.Behaviour<Battlefield>` instance per unit. Two round yellow workers
+travel between a crystal mine and storage. Three square blue guards patrol in
+separate lanes, then form around each red diamond raider: one tanks on the
+frontline while the other two support it. The raider is stronger than one
+guard; when the tank becomes wounded, its tree is interrupted, a healthy guard
+takes over, and the wounded guard retreats to its own healing slot before
+returning. Alternating waves use one hard-hitting raider or two lighter
+raiders, then respawn two seconds after the previous wave is defeated. Health
+bars, short unit markers and the live decision panel expose the active branches
+and tank rotations.
 
 Compile its deterministic hidden smoke and pass `--verify` to the executable:
 
@@ -122,8 +125,8 @@ silex compile Sources/BehaviourTreeCreatures.sx -o /tmp/silex-bt-creatures
 
 The bounded run asserts one shared definition, five persistent villagers,
 dynamic raider instances, multiple waves, completed gather/deposit cycles,
-combat on both sides, a priority interruption, a completed heal and defeated
-raiders.
+combat on both sides, a tank rotation, a priority interruption, a completed
+heal and defeated raiders.
 
 `FallingBodies` is the visual counterpart of the `FallingBodies2D` benchmark.
 It uses the same fixed body sizes, fixed-step world and background physics
