@@ -1,0 +1,29 @@
+use GFX.Assets.Image
+use GFX.Assets.PNG
+use GFX.Nodes
+use GFX.Scene2D
+use STD.Math
+
+public struct Sheets {
+    let terrain:Image.Handle
+    let characters:Image.Handle
+}
+
+public func load(images:&Image.Store) Sheets {
+    return Sheets(
+        terrain:images.add(PNG.decode(embed_bytes("../../Assets/KenneyPixelPlatformer/Tilemap/tilemap_packed.png"))),
+        characters:images.add(PNG.decode(embed_bytes("../../Assets/KenneyPixelPlatformer/Tilemap/tilemap-characters_packed.png")))
+    )
+}
+
+public func tile_region(tile:int) Image.Region {
+    return Image.Region((tile % 20) * 18, (tile / 20) * 18, 18, 18)
+}
+
+public func sprite(image:Image.Handle, tile:int, position:Math.Vec2) Nodes.Sprite2D {
+    var result = Nodes.Sprite2D(image, name:"Tile $(tile) at $(position.x)", size:Math.Vec2(18.0), layer:-5)
+    result.region(tile_region(tile))
+    result.sampling(Scene2D.Sampling.pixelated)
+    result.position = position
+    return result
+}

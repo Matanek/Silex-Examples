@@ -285,3 +285,14 @@ repository, and public performance workloads belong in `Silex-Benchmarks`.
 
 The [`CATALOG.md`](CATALOG.md) file records the origin of the selected examples
 and the other visual candidates identified during the inventory.
+
+## Platformer2D
+
+[Pixel Trail](Sources/Platformer2D/README.md) is a small playable platformer using
+Kenney's CC0 sprites, retained tile layers, nine-tile terrain patches, merged
+collisions and a fixed-step character controller. From the SilexProject workspace
+root, run `silex run Silex-Examples/Sources/Platformer2D/Main.sx`.
+
+Use arrows or physical A/D keys to move, Space to jump, R to restart and Escape
+to quit. This example exercises the locally linked Scene2D, Physics and Nodes
+package changes; use those workspace versions until their next publication.

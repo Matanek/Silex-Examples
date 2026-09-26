@@ -1,0 +1,80 @@
+use GFX.Assets.Image
+use GFX.Nodes
+use GFX.Physics
+use GFX.Scene2D
+use STD.Math
+
+// Game feel stays in the example; motion and collision queries belong to Physics/Nodes.
+public class Player:Nodes.CharacterBody2D {
+    private var visual:Nodes.Sprite2D
+    private var direction:float = 0.0
+    private var jump_held:bool = false
+    private var jump_buffer:float = 0.0
+    private var coyote:float = 0.0
+    private var elapsed:float = 0.0
+    private var grounded:bool = false
+
+    init(image:Image.Handle):super(Physics.CharacterMover2DSettings()
+        ..capsule = Physics.Capsule2D(Math.Vec2(0.0, -3.0 / 18.0),
+            Math.Vec2(0.0, 3.0 / 18.0), 7.0 / 18.0)
+        ..tolerance = 0.002, "Player") {
+        var visual = Nodes.Sprite2D(image, size:Math.Vec2(24.0), layer:-4)
+        visual.sampling(Scene2D.Sampling.pixelated)
+        visual.region(Image.Region(0, 0, 24, 24))
+        visual.position = Math.Vec2(0.0, 1.0)
+        self.visual = visual
+        self.add_child(self.visual)
+        self.reset()
+    }
+
+    func reset() {
+        self.position = Math.Vec2(54.0, 66.0)
+        self.velocity = Math.Vec2()
+        self.jump_buffer = 0.0
+        self.coyote = 0.0
+        self.grounded = false
+    }
+
+    func control(direction:float, jump_held:bool, jump_pressed:bool) {
+        self.direction = Math.clamp(direction, -1.0, 1.0)
+        self.jump_held = jump_held
+        if jump_pressed { self.jump_buffer = 0.12 }
+    }
+
+    func is_grounded() bool { return self.grounded }
+
+    override func on_physics_process(delta:float) {
+        self.elapsed += delta
+        self.jump_buffer = Math.max(0.0, self.jump_buffer - delta)
+        self.coyote = Math.max(0.0, self.coyote - delta)
+        if self.grounded { self.coyote = 0.10 }
+        let target = self.direction * 150.0
+        var acceleration = 750.0
+        if self.direction == 0.0 { acceleration = 900.0 }
+        if self.velocity.x < target {
+            self.velocity.x = Math.min(target, self.velocity.x + acceleration * delta)
+        } else {
+            self.velocity.x = Math.max(target, self.velocity.x - acceleration * delta)
+        }
+        if self.jump_buffer > 0.0 && self.coyote > 0.0 {
+            self.velocity.y = 350.0
+            self.jump_buffer = 0.0
+            self.coyote = 0.0
+            self.grounded = false
+        }
+        if !self.jump_held && self.velocity.y > 115.0 { self.velocity.y = 115.0 }
+        self.velocity.y = Math.max(-500.0, self.velocity.y - 750.0 * delta)
+        let motion = self.move()
+        self.grounded = false
+        for collision in motion.collisions() {
+            if collision.normal.y > 0.65 { self.grounded = true }
+        }
+        var frame = 0
+        if !self.grounded || (Math.abs(self.velocity.x) > 8.0 && Math.floor(self.elapsed * 10.0) as int % 2 == 1) {
+            frame = 1
+        }
+        self.visual.region(Image.Region(frame * 24, 0, 24, 24))
+        if self.direction < 0.0 { self.visual.scale = Math.Vec2(-1.0, 1.0) }
+        elif self.direction > 0.0 { self.visual.scale = Math.Vec2(1.0) }
+    }
+}

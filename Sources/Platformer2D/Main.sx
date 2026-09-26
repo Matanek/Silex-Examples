@@ -1,0 +1,123 @@
+use Module.Art
+use Module.Level
+use Module.Player
+use GFX.Application
+use GFX.Assets.Image
+use GFX.Canvas
+use GFX.Color
+use GFX.Input
+use GFX.Nodes
+use GFX.Physics
+use GFX.Rendering
+use GFX.Plugins
+use STD.Math
+use STD.Process
+
+class Game:Nodes.Node {
+    private var player:Player? = null
+    private var level:Level? = null
+    private var camera:Nodes.Camera2D = Nodes.Camera2D(zoom:3.0)
+    private var hud:Nodes.Canvas2D = Nodes.Canvas2D("HUD")
+    private var hud_score:int = -1
+    private var hud_won:bool = false
+    init():super("Platformer2D") {}
+
+    override func on_ready() {
+        var resources = self.resources()
+        var images = resources.get_mut<Image.Store>()
+        let sheets = Art.load(images)
+        var level = Level(sheets.terrain)
+        var player = Player(sheets.characters)
+        self.level = level
+        self.player = player
+        self.add_child(level)
+        self.add_child(player)
+        self.camera.position = Math.Vec2(160.0, 90.0)
+        self.hud.position = Math.Vec2(-152.0, 82.0)
+        self.camera.add_child(self.hud)
+        self.add_child(self.camera)
+    }
+
+    override func on_process(delta:float) {
+        if self.input().is_pressed(Input.Key.escape) { self.quit_application() }
+        if var player = self.player {
+            if var level = self.level {
+                if self.input().is_pressed(Input.Key.r) {
+                    player.reset()
+                    level.reset()
+                }
+                if player.position.y < -72.0 { player.reset() }
+                var direction = 0.0
+                if self.input().is_down(Input.Key.a) || self.input().is_down(Input.Key.left) { direction -= 1.0 }
+                if self.input().is_down(Input.Key.d) || self.input().is_down(Input.Key.right) { direction += 1.0 }
+                if level.won() { direction = 0.0 }
+                player.control(direction, self.input().is_down(Input.Key.space),
+                    !level.won() && self.input().is_pressed(Input.Key.space))
+                level.update(player.position, delta)
+                self.camera.position = Math.Vec2(
+                    Math.round(Math.clamp(player.position.x, 160.0, 1136.0)),
+                    Math.round(Math.max(90.0, player.position.y + 15.0)))
+                if level.score() != self.hud_score || level.won() != self.hud_won {
+                    self.hud_score = level.score()
+                    self.hud_won = level.won()
+                    self.paint_hud(level.score(), level.coin_count(), level.won())
+                }
+            }
+        }
+    }
+
+    private func paint_hud(score:int, count:int, won:bool) {
+        self.hud.clear()
+        self.hud.paint(func(painter:&Canvas.Painter) {
+            painter.fill(Canvas.Rect(Math.Vec2(), Math.Vec2(304.0, 26.0), 3.0),
+                Canvas.Fill.solid(Color.rgba(0.07, 0.13, 0.18, 0.9)))
+            painter.text("PIXEL TRAIL   $(score) / $(count)", Math.Vec2(6.0, 3.0),
+                Canvas.TextStyle(size:9.0, color:Color.white()))
+            painter.text("Arrows / Q D: move   Space: jump   R: restart", Math.Vec2(6.0, 15.0),
+                Canvas.TextStyle(size:6.0, color:Color.white()))
+            if won {
+                painter.fill(Canvas.Rect(Math.Vec2(32.0, 55.0), Math.Vec2(240.0, 50.0), 5.0),
+                    Canvas.Fill.solid(Color.slate_900()))
+                painter.text("Course complete!", Math.Vec2(48.0, 65.0),
+                    Canvas.TextStyle(size:16.0, color:Color.white()))
+                painter.text("$(score) / $(count) coins - R to play again", Math.Vec2(48.0, 87.0),
+                    Canvas.TextStyle(size:8.0, color:Color.white()))
+            }
+        })
+    }
+}
+
+struct Verification { let enabled:bool; var frames:int = 0 }
+
+func verify_frame(renderer:@Rendering.Renderer, physics:@Physics.World2D,
+                  verification:&Verification, controller:&Application.Controller) {
+    if !verification.enabled { return }
+    verification.frames++
+    assert(renderer.stats().draw_calls() > 0 && renderer.stats().draw_calls() < 20)
+    assert(renderer.stats().instances() > 40 && renderer.stats().instances() < 1000)
+    assert(physics.body_count() == 2)
+    if verification.frames == 12 {
+        print("Platformer2D: $(renderer.stats().draw_calls()) draws, $(renderer.stats().instances()) instances, 2 bodies")
+        controller.stop()
+    }
+}
+
+func main() {
+    var verify = false
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--verify" { verify = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var root = Game()
+    Application()
+        ..add_resource(Verification(enabled:verify))
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Silex - Pixel Trail"..width = 960..height = 540..resizable = false..hidden = verify))
+        ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()..clear = Color.rgb(0.46, 0.76, 0.87)))
+        ..add_plugin(Plugins.Physics2D(Plugins.Physics2D.Settings()
+            ..scene_units_per_meter = 18.0..fixed_delta = 1.0 / 120.0
+            ..world = (Physics.World2DSettings()..gravity = Math.Vec2())))
+        ..add_plugin(Plugins.Nodes(root))
+        ..add_after_system(Application.Schedule.render, verify_frame)
+        ..run()
+}
