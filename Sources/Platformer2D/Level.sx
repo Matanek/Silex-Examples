@@ -41,7 +41,8 @@ public class Level:Nodes.Node2D {
         }
         self.flag = Art.sprite(image, 111, Math.Vec2(1224.0, 81.0))
         self.add_child(self.flag)
-        self.add_child(Art.sprite(image, 109, Math.Vec2(1224.0, 63.0)))
+        // Tile 131 continues the left-aligned metal pole in frames 111/112.
+        self.add_child(Art.sprite(image, 131, Math.Vec2(1224.0, 63.0)))
     }
 
     func score() int { return self.collected }

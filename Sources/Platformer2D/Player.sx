@@ -74,7 +74,8 @@ public class Player:Nodes.CharacterBody2D {
             frame = 1
         }
         self.visual.region(Image.Region(frame * 24, 0, 24, 24))
-        if self.direction < 0.0 { self.visual.scale = Math.Vec2(-1.0, 1.0) }
-        elif self.direction > 0.0 { self.visual.scale = Math.Vec2(1.0) }
+        // Kenney's character faces left in the source atlas.
+        if self.direction < 0.0 { self.visual.scale = Math.Vec2(1.0) }
+        elif self.direction > 0.0 { self.visual.scale = Math.Vec2(-1.0, 1.0) }
     }
 }

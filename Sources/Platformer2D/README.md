@@ -44,7 +44,7 @@ Les indices sont ceux du fichier packed, à partir de zéro :
 | Terre/herbe | 21, 22, 23 | 121, 122, 123 | 141, 142, 143 |
 | Panneau vert contigu 3 × 3 | 17, 18, 19 | 37, 38, 39 | 57, 58, 59 |
 
-Les pièces alternent 151/152 ; le drapeau 111/112 avec un pied 109.
+Les pièces alternent 151/152 ; le drapeau 111/112 avec le prolongement de mât 131.
 Le personnage utilise les deux premières cellules de 24 × 24 de l'atlas de
 personnages. Les lignes de la grille montent dans le monde ; `TilePatch`
 place donc les morceaux supérieurs sur la ligne la plus élevée.
