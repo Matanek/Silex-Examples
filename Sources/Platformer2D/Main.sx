@@ -1,6 +1,7 @@
 use Module.Art
 use Module.Level
 use Module.Player
+use Module.Motion
 use GFX.Application
 use GFX.Assets.Image
 use GFX.Canvas
@@ -42,11 +43,16 @@ class Game:Nodes.Node {
         if self.input().is_pressed(Input.Key.escape) { self.quit_application() }
         if var player = self.player {
             if var level = self.level {
+                var reset_camera = false
                 if self.input().is_pressed(Input.Key.r) {
                     player.reset()
                     level.reset()
+                    reset_camera = true
                 }
-                if player.position.y < -72.0 { player.reset() }
+                if player.position.y < -72.0 {
+                    player.reset()
+                    reset_camera = true
+                }
                 var direction = 0.0
                 if self.input().is_down(Input.Key.a) || self.input().is_down(Input.Key.left) { direction -= 1.0 }
                 if self.input().is_down(Input.Key.d) || self.input().is_down(Input.Key.right) { direction += 1.0 }
@@ -54,9 +60,7 @@ class Game:Nodes.Node {
                 player.control(direction, self.input().is_down(Input.Key.space),
                     !level.won() && self.input().is_pressed(Input.Key.space))
                 level.update(player.position, delta)
-                self.camera.position = Math.Vec2(
-                    Math.round(Math.clamp(player.position.x, 160.0, 1136.0)),
-                    Math.round(Math.max(90.0, player.position.y + 15.0)))
+                self.camera.position = Motion.camera_position(self.camera.position, player.position, delta, reset_camera)
                 if level.score() != self.hud_score || level.won() != self.hud_won {
                     self.hud_score = level.score()
                     self.hud_won = level.won()

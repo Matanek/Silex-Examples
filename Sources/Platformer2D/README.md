@@ -13,11 +13,14 @@ silex run Silex-Examples/Sources/Platformer2D/Main.sx
 
 - Flèches gauche/droite ou touches physiques Q/D sur AZERTY, A/D sur QWERTY.
 - Espace : sauter ; relâcher tôt pour réduire la hauteur.
+- En vol, relâcher la direction conserve l’élan avec une faible décélération ;
+  maintenir la direction conserve la pleine vitesse et allonge le saut.
 - R : recommencer ; Échap : quitter.
 
 La fenêtre fixe de 960 × 540 affiche des pixels agrandis trois fois, avec une
-caméra qui suit le personnage. Les atlas PNG sont intégrés à la compilation ;
-le binaire fonctionne indépendamment de son dossier de lancement.
+caméra qui suit progressivement le personnage, avec un retour immédiat au
+départ après une chute ou un redémarrage. Les atlas PNG sont intégrés à la
+compilation ; le binaire fonctionne indépendamment de son dossier de lancement.
 
 ## Ce que l'exemple utilise
 
@@ -30,6 +33,8 @@ le binaire fonctionne indépendamment de son dossier de lancement.
 
 La gravité, le contrôle du personnage, la tolérance au bord des plateformes et
 la courte mémorisation du bouton de saut sont des règles de jeu dans `Player.sx`.
+`Motion.sx` règle le freinage au sol, l’inertie en vol et le suivi de caméra
+indépendant de la fréquence d’affichage.
 Les pièces et le drapeau utilisent des tests de proximité, sans corps physiques.
 Le rendu de terrain, sa préparation retenue, son culling, ses instances GPU et
 les collisions fusionnées appartiennent aux packages, accessibles aussi en ECS.
@@ -57,13 +62,14 @@ sont conservés dans `../../Assets/KenneyPixelPlatformer/`.
 Toujours depuis la racine du workspace :
 
 ```sh
+silex test Silex-Examples/Sources/Platformer2D/Tests/Motion.sx
 silex test Silex-Examples/Sources/Platformer2D/Tests/Gameplay.sx
 silex compile Silex-Examples/Sources/Platformer2D/Main.sx -o /tmp/silex-platformer2d
 /tmp/silex-platformer2d --verify
 ```
 
-Le test de gameplay parcourt le niveau à pas fixe et vérifie l'arrivée. Le mode
-`--verify` exécute douze frames dans une fenêtre masquée, vérifie le nombre de
+Les tests de mouvement ne créent aucune fenêtre. Le test de gameplay parcourt
+le niveau à pas fixe et vérifie l'arrivée. Le mode `--verify` exécute douze frames dans une fenêtre masquée, vérifie le nombre de
 corps et les bornes de dessins/instances, puis quitte. Il ne remplace pas une
 vérification visuelle et manuelle du contrôle du personnage.
 

@@ -1,0 +1,25 @@
+use STD.Math
+
+// These rates define the game's feel, in scene units per second squared.
+public func horizontal_velocity(current:float, direction:float, grounded:bool, delta:float) float {
+    let target = Math.clamp(direction, -1.0, 1.0) * 150.0
+    var acceleration = 450.0
+    if grounded { acceleration = 750.0 }
+    if direction == 0.0 {
+        acceleration = 60.0
+        if grounded { acceleration = 900.0 }
+    }
+    let change = acceleration * Math.max(0.0, delta)
+    if current < target { return Math.min(target, current + change) }
+    return Math.max(target, current - change)
+}
+
+public func camera_position(current:Math.Vec2, player:Math.Vec2, delta:float, snap:bool = false) Math.Vec2 {
+    let target = Math.Vec2(Math.clamp(player.x, 160.0, 1136.0), Math.max(90.0, player.y + 15.0))
+    if snap { return target }
+    let elapsed = Math.max(0.0, delta)
+    // Exponential following has the same response at different frame rates.
+    return Math.Vec2(
+        Math.lerp(current.x, target.x, 1.0 - Math.exp(-8.0 * elapsed)),
+        Math.lerp(current.y, target.y, 1.0 - Math.exp(-6.0 * elapsed)))
+}

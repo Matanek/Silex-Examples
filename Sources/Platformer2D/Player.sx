@@ -1,3 +1,4 @@
+use Module.Motion
 use GFX.Assets.Image
 use GFX.Nodes
 use GFX.Physics
@@ -48,20 +49,13 @@ public class Player:Nodes.CharacterBody2D {
         self.jump_buffer = Math.max(0.0, self.jump_buffer - delta)
         self.coyote = Math.max(0.0, self.coyote - delta)
         if self.grounded { self.coyote = 0.10 }
-        let target = self.direction * 150.0
-        var acceleration = 750.0
-        if self.direction == 0.0 { acceleration = 900.0 }
-        if self.velocity.x < target {
-            self.velocity.x = Math.min(target, self.velocity.x + acceleration * delta)
-        } else {
-            self.velocity.x = Math.max(target, self.velocity.x - acceleration * delta)
-        }
         if self.jump_buffer > 0.0 && self.coyote > 0.0 {
             self.velocity.y = 350.0
             self.jump_buffer = 0.0
             self.coyote = 0.0
             self.grounded = false
         }
+        self.velocity.x = Motion.horizontal_velocity(self.velocity.x, self.direction, self.grounded, delta)
         if !self.jump_held && self.velocity.y > 115.0 { self.velocity.y = 115.0 }
         self.velocity.y = Math.max(-500.0, self.velocity.y - 750.0 * delta)
         let motion = self.move()

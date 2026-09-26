@@ -1,0 +1,37 @@
+use Package.Platformer2D.Motion
+use STD.Math
+
+test "releasing direction in flight preserves momentum but shortens the jump" {
+    var released = 150.0
+    var held = 150.0
+    var released_distance = 0.0
+    var held_distance = 0.0
+    for _ in 0...120 {
+        released = Motion.horizontal_velocity(released, 0.0, false, 1.0 / 120.0)
+        held = Motion.horizontal_velocity(held, 1.0, false, 1.0 / 120.0)
+        released_distance += released / 120.0
+        held_distance += held / 120.0
+    }
+    assert(released > 80.0 && released < 100.0)
+    assert(released_distance > 100.0 && released_distance < held_distance)
+    assert(held == 150.0)
+    assert(Motion.horizontal_velocity(-150.0, 0.0, false, 0.5) == -120.0)
+    assert(Motion.horizontal_velocity(150.0, 0.0, true, 0.2) == 0.0)
+    assert(Motion.horizontal_velocity(10.0, 0.0, false, 1.0) == 0.0)
+    assert(Motion.horizontal_velocity(150.0, -1.0, false, 1.0) == -150.0)
+}
+
+test "camera follows smoothly with a frame-rate independent response and snaps on respawn" {
+    let target = Math.Vec2(600.0, 185.0)
+    let first = Motion.camera_position(Math.Vec2(160.0, 90.0), target, 1.0 / 60.0)
+    assert(first.x > 160.0 && first.x < 600.0)
+    assert(first.y > 90.0 && first.y < 200.0)
+    var slow = Math.Vec2(160.0, 90.0)
+    var fast = slow
+    for _ in 0...30 { slow = Motion.camera_position(slow, target, 1.0 / 30.0) }
+    for _ in 0...120 { fast = Motion.camera_position(fast, target, 1.0 / 120.0) }
+    assert(slow.nearly_equal(fast, 0.001))
+    assert(slow.x > 599.0 && slow.x < 600.0)
+    assert(Motion.camera_position(slow, Math.Vec2(54.0, 66.0), 0.0, true) == Math.Vec2(160.0, 90.0))
+    assert(Motion.camera_position(slow, target, 0.0) == slow)
+}
