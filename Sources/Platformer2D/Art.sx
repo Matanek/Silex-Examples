@@ -7,12 +7,14 @@ use STD.Math
 public struct Sheets {
     let terrain:Image.Handle
     let characters:Image.Handle
+    let backgrounds:Image.Handle
 }
 
 public func load(images:&Image.Store) Sheets {
     return Sheets(
         terrain:images.add(PNG.decode(embed_bytes("../../Assets/KenneyPixelPlatformer/Tilemap/tilemap_packed.png"))),
-        characters:images.add(PNG.decode(embed_bytes("../../Assets/KenneyPixelPlatformer/Tilemap/tilemap-characters_packed.png")))
+        characters:images.add(PNG.decode(embed_bytes("../../Assets/KenneyPixelPlatformer/Tilemap/tilemap-characters_packed.png"))),
+        backgrounds:images.add(PNG.decode(embed_bytes("../../Assets/KenneyPixelPlatformer/Tilemap/tilemap-backgrounds_packed.png")))
     )
 }
 

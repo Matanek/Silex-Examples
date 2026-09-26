@@ -1,4 +1,5 @@
 use Module.Art
+use Module.Background
 use Module.Level
 use Module.Player
 use Module.Motion
@@ -27,6 +28,7 @@ class Game:Nodes.Node {
         var resources = self.resources()
         var images = resources.get_mut<Image.Store>()
         let sheets = Art.load(images)
+        self.add_child(Background(sheets.backgrounds))
         var level = Level(sheets.terrain)
         var player = Player(sheets.characters)
         self.level = level

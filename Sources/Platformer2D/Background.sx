@@ -1,0 +1,29 @@
+use GFX.Assets.Image
+use GFX.Nodes
+use GFX.Scene2D
+use STD.Math
+
+public class Background:Nodes.Parallax2D {
+    // super currently accepts positional arguments: factor, origin, repeat period.
+    init(image:Image.Handle):super("Blue landscape", Math.Vec2(0.2, 0.0),
+        Math.Vec2(160.0, 90.0), Math.Vec2(96.0, 0.0)) {
+        // Only the solid colors are stretched. The illustrated row keeps its pixels.
+        var sky = Nodes.Sprite2D(image, "Sky", Math.Vec2(96.0, 128.0),
+            pivot:Math.Vec2(0.0, 1.0), layer:-101)
+        sky.region(Image.Region(0, 0, 24, 24))
+        sky.sampling(Scene2D.Sampling.pixelated)
+        sky.position = Math.Vec2(0.0, 120.0)
+        self.add_child(sky)
+        var lower = Nodes.Sprite2D(image, "Distant ground", Math.Vec2(96.0, 224.0),
+            pivot:Math.Vec2(0.0, 1.0), layer:-101)
+        lower.region(Image.Region(0, 48, 24, 24))
+        lower.sampling(Scene2D.Sampling.pixelated)
+        lower.position = Math.Vec2(0.0, -128.0)
+        self.add_child(lower)
+        var horizon = Nodes.TileMap2D(Scene2D.TileAtlas(image, 24, 24), 4, 1,
+            "Clouds and trees", layer:-100)
+        for column in 0...4 { horizon.set(column, 0, 8 + column) }
+        horizon.position = Math.Vec2(0.0, 96.0)
+        self.add_child(horizon)
+    }
+}

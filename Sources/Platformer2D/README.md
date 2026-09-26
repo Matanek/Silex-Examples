@@ -24,6 +24,7 @@ compilation ; le binaire fonctionne indépendamment de son dossier de lancement.
 
 ## Ce que l'exemple utilise
 
+- `Nodes.Parallax2D` pour le paysage bleu répétitif, à 20 % de la vitesse horizontale du monde, avec un horizon stable.
 - `Nodes.TileMap2D` pour les couches solides et décoratives.
 - `Scene2D.TilePatch` pour répéter neuf tuiles sans étirer les coins.
 - `Physics.TileMapCollider2D` pour fusionner les cellules en rectangles et
@@ -53,6 +54,11 @@ Les pièces alternent 151/152 ; le drapeau 111/112 avec le prolongement de mât 
 Le personnage utilise les deux premières cellules de 24 × 24 de l'atlas de
 personnages. Les lignes de la grille montent dans le monde ; `TilePatch`
 place donc les morceaux supérieurs sur la ligne la plus élevée.
+
+Le fond packed mesure 192 × 72 pixels (8 × 3 cellules de 24 × 24).
+`Background.sx` répète les quatre tuiles bleues de la ligne centrale, indices
+8 à 11, sur une période de 96 unités. Les couleurs unies des cellules 0 et 16
+prolongent le ciel et le bas du paysage ; les motifs illustrés gardent leur taille.
 
 Assets : Kenney, **Pixel Platformer 1.2**, CC0. Le pack original et sa licence
 sont conservés dans `../../Assets/KenneyPixelPlatformer/`.
