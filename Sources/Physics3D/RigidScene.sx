@@ -1,0 +1,115 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+
+class DemoState {
+    var marker:ECS.Entity = ECS.Entity()
+}
+
+func create_scene(
+    world:&Resources.World,
+    meshes:&Resources.Meshes3D,
+    state:&DemoState
+) {
+    let floor_mesh = meshes.add(Scene3D.Geometry.Cube.make(
+        Math.Vec3(8.0, 0.5, 8.0)
+    ))
+    let box_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.8)))
+    let marker_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.12)))
+
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.0, -0.25, 0.0)))
+        ..with(Components.Mesh3D(floor_mesh))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(90, 111, 129), roughness:0.85
+        ))
+        ..with(Components.PhysicsBody3D(Physics.RigidBody3DSettings()
+            ..body_type = Physics.BodyType3D.fixed
+            ..shape = Physics.Shape3D.box(Physics.Box3D(
+                Math.Vec3(8.0, 0.5, 8.0)
+            ))))
+    )
+
+    let colors:Color[] = [
+        Color.bytes(70, 174, 235),
+        Color.bytes(237, 176, 83),
+        Color.bytes(169, 118, 222)
+    ]
+    var index = 0
+    while index < 3 {
+        world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D(
+                position:Math.Vec3(index as float * 1.2 - 1.2,
+                    2.4 + index as float * 1.2, 0.0),
+                rotation:Math.Quat.angle_axis(
+                    index as float * 0.12, Math.Vec3.back()
+                )
+            ))
+            ..with(Components.Mesh3D(box_mesh))
+            ..with(Components.Material3D(
+                albedo:colors[index], metallic:0.05, roughness:0.4
+            ))
+            ..with(Components.PhysicsBody3D(Physics.RigidBody3DSettings()
+                ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.8)))))
+        )
+        index++
+    }
+
+    state.marker = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.0, -100.0, 0.0)))
+        ..with(Components.Mesh3D(marker_mesh))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(245, 83, 95), roughness:0.35
+        ))
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.AmbientLight3D(
+            color:Color.white(), intensity:0.14
+        ))
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.SunLight3D(
+            direction:Math.Vec3(-0.45, -1.0, -0.3).normalized(),
+            color:Color.white(), intensity:3.5
+        ))
+    )
+}
+
+func mark_new_contact(
+    world:&Resources.World,
+    events:@Resources.Physics3DFrameEvents,
+    state:@DemoState
+) {
+    if events.contact_begin_count() == 0 { return }
+    let point = events.contact_begin(0).point()
+    world.update<Components.Transform3D>(state.marker,
+        func(transform:&Components.Transform3D) {
+            transform.position = point
+        })
+}
+
+func main() {
+    Application()
+        ..add_resource(DemoState())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Silex Physics 3D — rigid scene"
+            ..width = 1000
+            ..height = 700
+        ))
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(0.0, 1.8, 0.0)
+            ..distance = 11.0
+            ..pitch = Math.radians(-28.0)
+        ))
+        ..add_plugin(Plugins.Physics3D())
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.post_update, mark_new_contact)
+        ..run()
+}

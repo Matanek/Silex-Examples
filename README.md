@@ -96,6 +96,7 @@ Run multi-file demonstrations from the repository root as well:
 ```sh
 silex run Sources/Physics2D/FallingBodies/Main.sx
 silex run Sources/Physics2D/RotatingPhysicsContainer/Main.sx
+silex run Sources/Physics3D/RigidScene.sx
 silex run Sources/PhysicsDebugDraw2D/Main.sx --release
 silex run Sources/PhysicsJointDebugDraw2D/Main.sx --release
 silex run Sources/ShapeGallery2D/Main.sx
@@ -134,6 +135,12 @@ worker, then publishes completed transform snapshots to Scene2D without
 blocking rendered frames. Benchmark options, diagnostics and metric panels are
 deliberately omitted. `RotatingPhysicsContainer` remains the focused example
 of the application-level `Plugins.Physics2D` integration.
+
+`Physics3D/RigidScene.sx` shows the application-level `Plugins.Physics3D`
+integration with Scene3D: three dynamic cubes fall onto a fixed floor, and a
+red marker records the latest contact begin point. The mesh and collider of
+each body use the same dimensions; Scene3D reads the pose published by the
+physics plugin before rendering.
 
 `PhysicsDebugDraw2D` is a live metric diagnostic scene. It applies the
 `(0, -9.81) m/s²` world gravity at a fixed 60 Hz and continuously recycles
