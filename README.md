@@ -97,6 +97,7 @@ Run multi-file demonstrations from the repository root as well:
 silex run Sources/Physics2D/FallingBodies/Main.sx
 silex run Sources/Physics2D/RotatingPhysicsContainer/Main.sx
 silex run Sources/Physics3D/RigidScene.sx
+silex run Sources/Physics3D/DistanceSpringScene.sx
 silex run Sources/PhysicsDebugDraw2D/Main.sx --release
 silex run Sources/PhysicsJointDebugDraw2D/Main.sx --release
 silex run Sources/ShapeGallery2D/Main.sx
@@ -146,6 +147,12 @@ continuous collision for the next shot, and **R** to query the wall with a
 filtered ray. The console reports the selected mode, ray fraction, and sensor
 crossing. With continuous collision enabled, the projectile reaches the wall;
 with it disabled, the projectile can pass through in one fixed step.
+
+`Physics3D/DistanceSpringScene.sx` shows a separate 3D distance spring: a
+blue weight oscillates beneath a fixed gold anchor without gravity. Press
+**R** to release it again from length 3 toward target length 2, and **D**
+to switch between damping ratios 0.1 and 1.0. The first mode overshoots and
+oscillates; the second returns without a visible overshoot.
 
 `PhysicsDebugDraw2D` is a live metric diagnostic scene. It applies the
 `(0, -9.81) m/s²` world gravity at a fixed 60 Hz and continuously recycles

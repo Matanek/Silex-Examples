@@ -1,0 +1,134 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+
+class SpringSceneState {
+    var weight_entity:ECS.Entity = ECS.Entity()
+    var weight:Physics.RigidBody3D? = null
+    var joint:Physics.DistanceConstraint3D? = null
+    var damping:float = 0.1
+}
+
+func create_spring_scene(
+    world:&Resources.World,
+    meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D,
+    state:&SpringSceneState
+) {
+    let floor_mesh = meshes.add(Scene3D.Geometry.Cube.make(
+        Math.Vec3(6.0, 0.2, 6.0)
+    ))
+    let anchor_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.3)))
+    let weight_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.6)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.0, -0.1, 0.0)))
+        ..with(Components.Mesh3D(floor_mesh))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(90, 111, 129), roughness:0.85
+        ))
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.0, 4.0, 0.0)))
+        ..with(Components.Mesh3D(anchor_mesh))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(237, 176, 83), roughness:0.45
+        ))
+    )
+    state.weight_entity = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.0, 1.0, 0.0)))
+        ..with(Components.Mesh3D(weight_mesh))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(70, 174, 235), roughness:0.4
+        ))
+    )
+    var anchor = physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed
+        ..transform = Physics.Transform3D(position:Math.Vec3(0.0, 4.0, 0.0)))
+    var weight = physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.6)))
+        ..transform = Physics.Transform3D(position:Math.Vec3(0.0, 1.0, 0.0))
+        ..gravity_scale = 0.0
+        ..linear_damping = 0.0
+        ..allow_sleep = false)
+    var settings = Physics.DistanceConstraint3DSettings(2.0)
+    settings.spring_hertz = 2.0
+    settings.spring_damping_ratio = state.damping
+    state.weight = weight
+    state.joint = physics.create_distance_constraint(anchor, weight, settings)
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.AmbientLight3D(
+            color:Color.white(), intensity:0.14
+        ))
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.SunLight3D(
+            direction:Math.Vec3(-0.45, -1.0, -0.3).normalized(),
+            color:Color.white(), intensity:3.5
+        ))
+    )
+}
+
+func control_spring(
+    input:@Resources.InputState,
+    state:&SpringSceneState,
+    controller:&Application.Controller
+) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if input.is_pressed(Input.Key.d) {
+        if state.damping == 0.1 { state.damping = 1.0 }
+        else { state.damping = 0.1 }
+        if let joint = state.joint {
+            joint.set_spring(2.0, state.damping)
+            print("Spring damping ratio: $(state.damping)")
+        }
+    }
+    if input.is_pressed(Input.Key.r) {
+        if let weight = state.weight {
+            weight.set_transform(Physics.Transform3D(
+                position:Math.Vec3(0.0, 1.0, 0.0)))
+            weight.set_linear_velocity(Math.Vec3())
+            weight.set_angular_velocity(Math.Vec3())
+            print("Spring released from length 3")
+        }
+    }
+}
+
+func sync_spring_scene(world:&Resources.World, state:@SpringSceneState) {
+    if let weight = state.weight {
+        let position = weight.position()
+        let rotation = weight.rotation()
+        world.update<Components.Transform3D>(state.weight_entity,
+            func(transform:&Components.Transform3D) {
+                transform.position = position
+                transform.rotation = rotation
+            })
+    }
+}
+
+func main() {
+    Application()
+        ..add_resource(SpringSceneState())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Silex Physics 3D — R: release, D: damping"
+            ..width = 1000
+            ..height = 700
+        ))
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(0.0, 2.0, 0.0)
+            ..distance = 8.0
+            ..pitch = Math.radians(-18.0)
+        ))
+        ..add_plugin(Plugins.Physics3D())
+        ..add_system(Application.Schedule.startup, create_spring_scene)
+        ..add_system(Application.Schedule.update, control_spring)
+        ..add_system(Application.Schedule.post_update, sync_spring_scene)
+        ..run()
+}
