@@ -140,7 +140,12 @@ of the application-level `Plugins.Physics2D` integration.
 integration with Scene3D: three dynamic cubes fall onto a fixed floor, and a
 red marker records the latest contact begin point. The mesh and collider of
 each body use the same dimensions; Scene3D reads the pose published by the
-physics plugin before rendering.
+physics plugin before rendering. A separate lane contains a purple sensor and
+a thin red wall. Press **Space** to fire a fast yellow box, **C** to switch
+continuous collision for the next shot, and **R** to query the wall with a
+filtered ray. The console reports the selected mode, ray fraction, and sensor
+crossing. With continuous collision enabled, the projectile reaches the wall;
+with it disabled, the projectile can pass through in one fixed step.
 
 `PhysicsDebugDraw2D` is a live metric diagnostic scene. It applies the
 `(0, -9.81) m/s²` world gravity at a fixed 60 Hz and continuously recycles

@@ -2,6 +2,7 @@ use GFX.Application
 use GFX.Color
 use GFX.Components
 use GFX.ECS
+use GFX.Input
 use GFX.Physics
 use GFX.Plugins
 use GFX.Resources
@@ -10,6 +11,9 @@ use STD.Math
 
 class DemoState {
     var marker:ECS.Entity = ECS.Entity()
+    var projectile:ECS.Entity? = null
+    var projectile_mesh:Scene3D.MeshHandle = Scene3D.MeshHandle()
+    var continuous:bool = true
 }
 
 func create_scene(
@@ -22,6 +26,7 @@ func create_scene(
     ))
     let box_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.8)))
     let marker_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.12)))
+    state.projectile_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.25)))
 
     world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform3D(position:Math.Vec3(0.0, -0.25, 0.0)))
@@ -61,6 +66,38 @@ func create_scene(
         index++
     }
 
+    let wall_size = Math.Vec3(0.1, 2.0, 1.0)
+    let sensor_size = Math.Vec3(0.1, 1.2, 1.0)
+    let wall_mesh = meshes.add(Scene3D.Geometry.Cube.make(wall_size))
+    let sensor_mesh = meshes.add(Scene3D.Geometry.Cube.make(sensor_size))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.0, 1.0, -2.5)))
+        ..with(Components.Mesh3D(wall_mesh))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(225, 89, 76), roughness:0.45
+        ))
+        ..with(Components.PhysicsBody3D(Physics.RigidBody3DSettings()
+            ..body_type = Physics.BodyType3D.fixed
+            ..shape = Physics.Shape3D.box(Physics.Box3D(wall_size))
+            ..collision_filter = Physics.CollisionFilter3D(
+                category_bits:0x4, mask_bits:0x1
+            )))
+    )
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(-1.6, 1.0, -2.5)))
+        ..with(Components.Mesh3D(sensor_mesh))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(189, 107, 231), roughness:0.45
+        ))
+        ..with(Components.PhysicsBody3D(Physics.RigidBody3DSettings()
+            ..body_type = Physics.BodyType3D.fixed
+            ..shape = Physics.Shape3D.box(Physics.Box3D(sensor_size))
+            ..collision_filter = Physics.CollisionFilter3D(
+                category_bits:0x2, mask_bits:0x1
+            )
+            ..is_sensor = true))
+    )
+
     state.marker = world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform3D(position:Math.Vec3(0.0, -100.0, 0.0)))
         ..with(Components.Mesh3D(marker_mesh))
@@ -86,19 +123,71 @@ func mark_new_contact(
     events:@Resources.Physics3DFrameEvents,
     state:@DemoState
 ) {
-    if events.contact_begin_count() == 0 { return }
-    let point = events.contact_begin(0).point()
-    world.update<Components.Transform3D>(state.marker,
-        func(transform:&Components.Transform3D) {
-            transform.position = point
-        })
+    var index = 0
+    while index < events.contact_begin_count() {
+        var contact = events.contact_begin(index)
+        if contact.is_sensor() { print("Sensor crossed") }
+        let point = contact.point()
+        world.update<Components.Transform3D>(state.marker,
+            func(transform:&Components.Transform3D) {
+                transform.position = point
+            })
+        index++
+    }
+}
+
+func control_projectile(
+    input:@Resources.InputState,
+    world:&Resources.World,
+    physics:@Physics.World3D,
+    state:&DemoState,
+    controller:&Application.Controller
+) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if input.is_pressed(Input.Key.c) {
+        state.continuous = !state.continuous
+        print("Continuous collision: $(state.continuous)")
+    }
+    if input.is_pressed(Input.Key.r) {
+        let ray = Physics.Ray3D(
+            Math.Vec3(-3.0, 1.0, -2.5), Math.Vec3(6.0, 0.0, 0.0)
+        )
+        let hit = physics.ray_cast(ray, null,
+            Physics.QueryFilter3D(mask_bits:0x4, include_sensors:false))
+        if let found = hit {
+            print("Wall ray fraction: $(found.fraction())")
+        }
+    }
+    if input.is_pressed(Input.Key.space) {
+        if let old = state.projectile {
+            if world.is_alive(old) { world.destroy(old) }
+        }
+        state.projectile = world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D(
+                position:Math.Vec3(-3.0, 1.0, -2.5)))
+            ..with(Components.Mesh3D(state.projectile_mesh))
+            ..with(Components.Material3D(
+                albedo:Color.bytes(243, 211, 87), roughness:0.35
+            ))
+            ..with(Components.PhysicsBody3D(Physics.RigidBody3DSettings()
+                ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.25)))
+                ..linear_velocity = Math.Vec3(120.0, 0.0, 0.0)
+                ..gravity_scale = 0.0
+                ..allow_sleep = false
+                ..continuous_collision = state.continuous
+                ..collision_filter = Physics.CollisionFilter3D(
+                    category_bits:0x1, mask_bits:0x6
+                )))
+        )
+        print("Projectile fired; continuous collision: $(state.continuous)")
+    }
 }
 
 func main() {
     Application()
         ..add_resource(DemoState())
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
-            ..title = "Silex Physics 3D — rigid scene"
+            ..title = "Silex Physics 3D — Space: fire, C: CCD, R: ray"
             ..width = 1000
             ..height = 700
         ))
@@ -110,6 +199,7 @@ func main() {
         ))
         ..add_plugin(Plugins.Physics3D())
         ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, control_projectile)
         ..add_system(Application.Schedule.post_update, mark_new_contact)
         ..run()
 }
