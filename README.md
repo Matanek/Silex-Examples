@@ -161,7 +161,10 @@ of small boxes above a plain floor. Press **Space** to push the top of the
 column, **P** to pause or resume physics, or **Escape** to quit. The on-screen
 performance panel reports rendered FPS, frame duration and draw statistics.
 The window title and console report emitted/target body counts, completed
-fixed steps per second and measured milliseconds per physics step. Pausing
+fixed steps per second, mean/peak milliseconds per physics step and steps per
+rendered frame. The console also reports physics milliseconds per frame.
+Frame duration measures the interval between rendered frames, including
+simulation and catch-up steps; it is not a GPU timer. Pausing
 physics while the scene keeps rendering helps locate the bottleneck. These
 live observations are distinct from the repeatable, renderer-free
 `WorldScale` benchmark. From the workspace root, compile and run for example:

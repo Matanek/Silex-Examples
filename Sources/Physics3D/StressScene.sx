@@ -26,6 +26,7 @@ class StressState {
     var seconds:float = 0.0
     var physics_steps:int = 0
     var physics_ms:float = 0.0
+    var peak_step_ms:float = 0.0
     var collapsed:bool = false
 
     init(mode:str, count:int) {
@@ -43,7 +44,9 @@ func begin_stress_step(application:Application, delta:float) {
 func end_stress_step(application:Application, delta:float) {
     var resources = application.resources()
     var state = resources.get_mut<StressState>()
-    state.physics_ms += state.step_clock.tick() * 1000.0
+    let elapsed = state.step_clock.tick() * 1000.0
+    state.physics_ms += elapsed
+    state.peak_step_ms = Math.max(state.peak_step_ms, elapsed)
     state.physics_steps++
 }
 
@@ -273,16 +276,22 @@ func update_stress(
         if state.physics_steps > 0 {
             step_ms = state.physics_ms / state.physics_steps as float
         }
+        let steps_per_second = state.physics_steps as float / state.seconds
+        let steps_per_frame = state.physics_steps as float / state.frames as float
+        let physics_frame_ms = state.physics_ms / state.frames as float
         let title = "Silex Physics 3D — $(state.mode) " +
             "$(state.bodies.count())/$(state.count) bodies — " +
-            "$(state.physics_steps) steps/s — $(step_ms) ms/step"
+            "$(steps_per_second) steps/s — $(step_ms) ms/step — " +
+            "peak $(state.peak_step_ms) ms — $(steps_per_frame) steps/frame"
         if simulation.is_paused() { window.set_title(title + " — paused") }
         else { window.set_title(title) }
-        print("$(title) — $(state.frames) frames/$(state.seconds) s")
+        print("$(title) — physics $(physics_frame_ms) ms/frame — " +
+            "$(state.frames) frames/$(state.seconds) s")
         state.seconds = 0.0
         state.frames = 0
         state.physics_steps = 0
         state.physics_ms = 0.0
+        state.peak_step_ms = 0.0
     }
 }
 
