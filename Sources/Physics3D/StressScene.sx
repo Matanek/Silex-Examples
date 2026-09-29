@@ -7,6 +7,7 @@ use GFX.Physics
 use GFX.Plugins
 use GFX.Resources
 use GFX.Scene3D
+use GFX.Stats
 use STD.Math
 use STD.Process
 use STD.Time.Clock
@@ -16,14 +17,41 @@ class StressState {
     var count:int = 128
     var entities:ECS.Entity[] = []
     var bodies:Physics.RigidBody3D[] = []
+    var dynamic_mesh:Scene3D.MeshHandle = Scene3D.MeshHandle()
+    var colors:Color[] = []
+    var emission:float = 0.0
     var clock:Clock = Clock()
+    var step_clock:Clock = Clock()
     var frames:int = 0
     var seconds:float = 0.0
+    var physics_steps:int = 0
+    var physics_ms:float = 0.0
     var collapsed:bool = false
 
     init(mode:str, count:int) {
         self.mode = mode
         self.count = count
+    }
+}
+
+func begin_stress_step(application:Application, delta:float) {
+    var resources = application.resources()
+    var state = resources.get_mut<StressState>()
+    state.step_clock.tick()
+}
+
+func end_stress_step(application:Application, delta:float) {
+    var resources = application.resources()
+    var state = resources.get_mut<StressState>()
+    state.physics_ms += state.step_clock.tick() * 1000.0
+    state.physics_steps++
+}
+
+struct StressStepMetrics:Application.Plugin {
+    func id() str { return "Physics3DStressStepMetrics" }
+    func build(host:&Application) {
+        Physics.Physics3DStep.before_step(host, begin_stress_step)
+        Physics.Physics3DStep.after_step(host, end_stress_step)
     }
 }
 
@@ -81,17 +109,66 @@ func fixed_box(
     meshes:&Resources.Meshes3D,
     size:Math.Vec3,
     position:Math.Vec3,
-    color:Color
+    color:Color,
+    opacity:float = 1.0
 ) {
     let mesh = meshes.add(Scene3D.Geometry.Cube.make(size))
+    var alpha = Scene3D.AlphaMode.opaque
+    if opacity < 1.0 { alpha = Scene3D.AlphaMode.blend }
     world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform3D(position:position))
         ..with(Components.Mesh3D(mesh))
-        ..with(Components.Material3D(albedo:color, roughness:0.85)))
+        ..with(Components.Material3D(
+            albedo:color.with_alpha(opacity), roughness:0.85))
+        ..with(Scene3D.MaterialSettings(alpha:alpha, double_sided:true)))
     physics.create_rigid_body(Physics.RigidBody3DSettings()
         ..body_type = Physics.BodyType3D.fixed
         ..shape = Physics.Shape3D.box(Physics.Box3D(size))
         ..transform = Physics.Transform3D(position:position))
+}
+
+func spawn_dynamic_body(
+    world:&Resources.World,
+    physics:&Physics.World3D,
+    state:&StressState,
+    index:int
+) {
+    var position = Math.Vec3()
+    var velocity = Math.Vec3()
+    var shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.2))
+    if state.mode == "bin" {
+        let lane = (index * 37) % 25
+        let column = lane % 5
+        let row = lane / 5
+        position = Math.Vec3(
+            -1.2 + column as float * 0.43,
+            7.4,
+            (row as float - 2.0) * 0.43
+        )
+        velocity = Math.Vec3(2.0, -1.0, 0.0)
+    } else {
+        let column = index % 4
+        let row = (index / 4) % 4
+        let layer = index / 16
+        position = Math.Vec3(
+            (column as float - 1.5) * 0.31 + layer as float * 0.025,
+            0.16 + layer as float * 0.31,
+            (row as float - 1.5) * 0.31
+        )
+        shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.3)))
+    }
+    state.entities.append(world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:position))
+        ..with(Components.Mesh3D(state.dynamic_mesh))
+        ..with(Components.Material3D(
+            albedo:state.colors[index % state.colors.count()],
+            roughness:0.55))))
+    state.bodies.append(physics.create_rigid_body(
+        Physics.RigidBody3DSettings()
+            ..shape = shape
+            ..transform = Physics.Transform3D(position:position)
+            ..linear_velocity = velocity
+            ..friction = 0.6))
 }
 
 func create_stress_scene(
@@ -100,67 +177,36 @@ func create_stress_scene(
     meshes:&Resources.Meshes3D,
     state:&StressState
 ) {
-    var dynamic_mesh = Scene3D.MeshHandle()
     let floor_color = Color.bytes(105, 120, 133)
     if state.mode == "bin" {
-        dynamic_mesh = meshes.add(sphere_mesh(0.2))
+        state.dynamic_mesh = meshes.add(sphere_mesh(0.2))
         fixed_box(world, physics, meshes, Math.Vec3(5.0, 0.5, 5.0),
             Math.Vec3(0.0, -0.25, 0.0), floor_color)
         let wall_color = Color.bytes(72, 84, 98)
         fixed_box(world, physics, meshes, Math.Vec3(0.5, 8.0, 5.0),
-            Math.Vec3(-2.75, 4.0, 0.0), wall_color)
+            Math.Vec3(-2.75, 4.0, 0.0), wall_color, 0.16)
         fixed_box(world, physics, meshes, Math.Vec3(0.5, 8.0, 5.0),
-            Math.Vec3(2.75, 4.0, 0.0), wall_color)
+            Math.Vec3(2.75, 4.0, 0.0), wall_color, 0.16)
         fixed_box(world, physics, meshes, Math.Vec3(5.0, 8.0, 0.5),
-            Math.Vec3(0.0, 4.0, -2.75), wall_color)
+            Math.Vec3(0.0, 4.0, -2.75), wall_color, 0.16)
         fixed_box(world, physics, meshes, Math.Vec3(5.0, 8.0, 0.5),
-            Math.Vec3(0.0, 4.0, 2.75), wall_color)
+            Math.Vec3(0.0, 4.0, 2.75), wall_color, 0.16)
     } else {
-        dynamic_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.3)))
+        state.dynamic_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.3)))
         fixed_box(world, physics, meshes, Math.Vec3(24.0, 0.5, 24.0),
             Math.Vec3(0.0, -0.25, 0.0), floor_color)
     }
-    let colors:Color[] = [
+    state.colors = [
         Color.bytes(86, 194, 234), Color.bytes(244, 177, 84),
         Color.bytes(179, 128, 227), Color.bytes(103, 204, 147),
         Color.bytes(242, 109, 125), Color.bytes(234, 220, 99)
     ]
-    var index = 0
-    while index < state.count {
-        var position = Math.Vec3()
-        var shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.2))
-        if state.mode == "bin" {
-            let column = index % 10
-            let row = (index / 10) % 10
-            let layer = index / 100
-            position = Math.Vec3(
-                (column as float - 4.5) * 0.41,
-                4.0 + layer as float * 0.41,
-                (row as float - 4.5) * 0.41
-            )
-        } else {
-            let column = index % 4
-            let row = (index / 4) % 4
-            let layer = index / 16
-            position = Math.Vec3(
-                (column as float - 1.5) * 0.31 + layer as float * 0.025,
-                0.16 + layer as float * 0.31,
-                (row as float - 1.5) * 0.31
-            )
-            shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.3)))
+    if state.mode == "column" {
+        var index = 0
+        while index < state.count {
+            spawn_dynamic_body(world, physics, state, index)
+            index++
         }
-        state.entities.append(world.spawn(ECS.EntityRecipe()
-            ..with(Components.Transform3D(position:position))
-            ..with(Components.Mesh3D(dynamic_mesh))
-            ..with(Components.Material3D(
-                albedo:colors[index % colors.count()],
-                roughness:0.55))))
-        state.bodies.append(physics.create_rigid_body(
-            Physics.RigidBody3DSettings()
-                ..shape = shape
-                ..transform = Physics.Transform3D(position:position)
-                ..friction = 0.6))
-        index++
     }
     world.spawn(ECS.EntityRecipe()
         ..with(Components.AmbientLight3D(
@@ -171,16 +217,45 @@ func create_stress_scene(
             color:Color.white(), intensity:3.0)))
     state.clock.tick()
     print("Physics 3D stress: $(state.mode), $(state.count) dynamic bodies")
-    print("Press Space to topple the column; Escape to quit")
+    print("Bin emits 80 spheres/s; Space topples the column; P pauses physics; Escape quits")
+}
+
+func emit_spheres(
+    world:&Resources.World,
+    physics:&Physics.World3D,
+    state:&StressState,
+    delta:float
+) {
+    state.emission = Math.min(8.0, state.emission + delta * 80.0)
+    var emitted = 0
+    while state.emission >= 1.0 && state.bodies.count() < state.count &&
+        emitted < 8
+    {
+        spawn_dynamic_body(world, physics, state, state.bodies.count())
+        state.emission -= 1.0
+        emitted++
+    }
 }
 
 func update_stress(
     input:@Resources.InputState,
     controller:&Application.Controller,
+    time:@Resources.FrameTime,
+    world:&Resources.World,
+    physics:&Physics.World3D,
+    window:&Resources.Window,
+    simulation:&Application.Simulation,
     state:&StressState
 ) {
     if input.is_pressed(Input.Key.escape) { controller.stop() }
-    if state.mode == "column" && !state.collapsed &&
+    if input.is_pressed(Input.Key.p) {
+        if simulation.is_paused() { simulation.resume() }
+        else { simulation.pause() }
+    }
+    if state.mode == "bin" && !simulation.is_paused() {
+        emit_spheres(world, physics, state, time.delta)
+    }
+    if state.mode == "column" && !simulation.is_paused() && !state.collapsed &&
         input.is_pressed(Input.Key.space) {
         var first = state.count - 16
         if first < 0 { first = 0 }
@@ -194,9 +269,20 @@ func update_stress(
     state.seconds += state.clock.tick()
     state.frames++
     if state.seconds >= 1.0 {
-        print("mode=$(state.mode) bodies=$(state.count) frames=$(state.frames) seconds=$(state.seconds)")
+        var step_ms = 0.0
+        if state.physics_steps > 0 {
+            step_ms = state.physics_ms / state.physics_steps as float
+        }
+        let title = "Silex Physics 3D — $(state.mode) " +
+            "$(state.bodies.count())/$(state.count) bodies — " +
+            "$(state.physics_steps) steps/s — $(step_ms) ms/step"
+        if simulation.is_paused() { window.set_title(title + " — paused") }
+        else { window.set_title(title) }
+        print("$(title) — $(state.frames) frames/$(state.seconds) s")
         state.seconds = 0.0
         state.frames = 0
+        state.physics_steps = 0
+        state.physics_ms = 0.0
     }
 }
 
@@ -245,13 +331,16 @@ func run_scene(mode:str, count:int) {
             ..width = 1100
             ..height = 800))
         ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Stats.PerformancePanel())
         ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
             ..target = Math.Vec3(0.0, target_height, 0.0)
             ..distance = camera_distance
             ..pitch = Math.radians(-22.0)))
         ..add_plugin(Plugins.Physics3D())
+        ..add_plugin(StressStepMetrics())
         ..add_system(Application.Schedule.startup, create_stress_scene)
-        ..add_system(Application.Schedule.update, update_stress)
+        ..add_system(Application.Schedule.update, update_stress,
+            process_mode:Application.ProcessMode.always)
         ..add_system(Application.Schedule.post_update, sync_stress)
         ..run()
 }
@@ -271,4 +360,33 @@ func main() {
         }
     }
     panic("usage: StressScene [bin|column 32|64|128|256|512|1024]")
+}
+
+test "sphere jet emits progressively and caps each slow frame" {
+    var world = ECS.World()
+    var physics = Physics.World3D()
+    var state = StressState("bin", 128)
+    state.colors = [Color.white()]
+    var frame = 0
+    while frame < 60 {
+        emit_spheres(world, physics, state, 1.0 / 60.0)
+        frame++
+    }
+    assert(state.bodies.count() == 80)
+    assert(world.entities().count() == 80)
+    assert(physics.body_count() == 80)
+    emit_spheres(world, physics, state, 0.1)
+    assert(state.bodies.count() == 88)
+    emit_spheres(world, physics, state, 0.0)
+    assert(state.bodies.count() == 88)
+    var first = 0
+    while first < 25 {
+        var second = first + 1
+        while second < 25 {
+            assert(state.bodies[first].position().distance(
+                state.bodies[second].position()) >= 0.4)
+            second++
+        }
+        first++
+    }
 }

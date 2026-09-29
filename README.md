@@ -155,14 +155,16 @@ to switch between damping ratios 0.1 and 1.0. The first mode overshoots and
 oscillates; the second returns without a visible overshoot.
 
 `Physics3D/StressScene.sx` provides two selectable visual loads on plain,
-untextured surfaces. `bin` drops colored spheres into a fixed container;
-`column` builds a tall stack of small boxes above a plain floor. Press
-**Space** to push the top of the column and watch it collapse, or **Escape**
-to quit. The console prints the selected dynamic-body count and the number of
-update callbacks per elapsed second. These callbacks are a display-side
-observation, not a measure of isolated physics cost; use the separate
-`WorldScale` benchmark for the latter. From the workspace root, compile and
-run for example:
+untextured surfaces. `bin` emits colored spheres into a fixed container at
+up to 80 per second, behind translucent walls; `column` builds a tall stack
+of small boxes above a plain floor. Press **Space** to push the top of the
+column, **P** to pause or resume physics, or **Escape** to quit. The on-screen
+performance panel reports rendered FPS, frame duration and draw statistics.
+The window title and console report emitted/target body counts, completed
+fixed steps per second and measured milliseconds per physics step. Pausing
+physics while the scene keeps rendering helps locate the bottleneck. These
+live observations are distinct from the repeatable, renderer-free
+`WorldScale` benchmark. From the workspace root, compile and run for example:
 
 ```sh
 silex compile Silex-Examples/Sources/Physics3D/StressScene.sx --release \
