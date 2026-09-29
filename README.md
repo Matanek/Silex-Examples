@@ -154,6 +154,28 @@ blue weight oscillates beneath a fixed gold anchor without gravity. Press
 to switch between damping ratios 0.1 and 1.0. The first mode overshoots and
 oscillates; the second returns without a visible overshoot.
 
+`Physics3D/StressScene.sx` provides two selectable visual loads on plain,
+untextured surfaces. `bin` drops colored spheres into a fixed container;
+`column` builds a tall stack of small boxes above a plain floor. Press
+**Space** to push the top of the column and watch it collapse, or **Escape**
+to quit. The console prints the selected dynamic-body count and the number of
+update callbacks per elapsed second. These callbacks are a display-side
+observation, not a measure of isolated physics cost; use the separate
+`WorldScale` benchmark for the latter. From the workspace root, compile and
+run for example:
+
+```sh
+silex compile Silex-Examples/Sources/Physics3D/StressScene.sx --release \
+  -o .silex/physics3d-stress-scene
+.silex/physics3d-stress-scene bin 128
+.silex/physics3d-stress-scene column 128
+```
+
+Counts 32, 64, 128, 256, 512 and 1024 are accepted. Larger choices are
+stress experiments rather than a promised interactive frame rate. The
+physics-only box-column guard covers 256 boxes; use 128 as the first visual
+comparison before increasing the load.
+
 `PhysicsDebugDraw2D` is a live metric diagnostic scene. It applies the
 `(0, -9.81) m/s²` world gravity at a fixed 60 Hz and continuously recycles
 falling bodies through ramps, a chain, a sensor, and a floor. Its fixed labels

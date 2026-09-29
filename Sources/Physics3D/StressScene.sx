@@ -1,0 +1,274 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+use STD.Time.Clock
+
+class StressState {
+    var mode:str = "bin"
+    var count:int = 128
+    var entities:ECS.Entity[] = []
+    var bodies:Physics.RigidBody3D[] = []
+    var clock:Clock = Clock()
+    var frames:int = 0
+    var seconds:float = 0.0
+    var collapsed:bool = false
+
+    init(mode:str, count:int) {
+        self.mode = mode
+        self.count = count
+    }
+}
+
+func sphere_mesh(radius:float) Scene3D.Geometry.Mesh {
+    let rings = 10
+    let segments = 16
+    var vertices:Scene3D.Geometry.Vertex[] = []
+    var indices:uint32[] = []
+    var ring = 0
+    while ring <= rings {
+        let latitude = Math.pi() * ring as float / rings as float
+        let height = Math.cos(latitude)
+        let spread = Math.sin(latitude)
+        var segment = 0
+        while segment <= segments {
+            let longitude = 2.0 * Math.pi() * segment as float /
+                segments as float
+            let normal = Math.Vec3(
+                spread * Math.cos(longitude),
+                height,
+                spread * Math.sin(longitude)
+            )
+            vertices.append(Scene3D.Geometry.Vertex(
+                position:normal.multiply(radius),
+                normal:normal,
+                uv:Math.Vec2(segment as float / segments as float,
+                    ring as float / rings as float)
+            ))
+            segment++
+        }
+        ring++
+    }
+    ring = 0
+    while ring < rings {
+        var segment = 0
+        while segment < segments {
+            let first = ring * (segments + 1) + segment
+            let below = first + segments + 1
+            indices.append(first as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append(below as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append((below + 1) as uint32)
+            indices.append(below as uint32)
+            segment++
+        }
+        ring++
+    }
+    return Scene3D.Geometry.Mesh(vertices, indices)
+}
+
+func fixed_box(
+    world:&Resources.World,
+    physics:&Physics.World3D,
+    meshes:&Resources.Meshes3D,
+    size:Math.Vec3,
+    position:Math.Vec3,
+    color:Color
+) {
+    let mesh = meshes.add(Scene3D.Geometry.Cube.make(size))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:position))
+        ..with(Components.Mesh3D(mesh))
+        ..with(Components.Material3D(albedo:color, roughness:0.85)))
+    physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.box(Physics.Box3D(size))
+        ..transform = Physics.Transform3D(position:position))
+}
+
+func create_stress_scene(
+    world:&Resources.World,
+    physics:&Physics.World3D,
+    meshes:&Resources.Meshes3D,
+    state:&StressState
+) {
+    var dynamic_mesh = Scene3D.MeshHandle()
+    let floor_color = Color.bytes(105, 120, 133)
+    if state.mode == "bin" {
+        dynamic_mesh = meshes.add(sphere_mesh(0.2))
+        fixed_box(world, physics, meshes, Math.Vec3(5.0, 0.5, 5.0),
+            Math.Vec3(0.0, -0.25, 0.0), floor_color)
+        let wall_color = Color.bytes(72, 84, 98)
+        fixed_box(world, physics, meshes, Math.Vec3(0.5, 8.0, 5.0),
+            Math.Vec3(-2.75, 4.0, 0.0), wall_color)
+        fixed_box(world, physics, meshes, Math.Vec3(0.5, 8.0, 5.0),
+            Math.Vec3(2.75, 4.0, 0.0), wall_color)
+        fixed_box(world, physics, meshes, Math.Vec3(5.0, 8.0, 0.5),
+            Math.Vec3(0.0, 4.0, -2.75), wall_color)
+        fixed_box(world, physics, meshes, Math.Vec3(5.0, 8.0, 0.5),
+            Math.Vec3(0.0, 4.0, 2.75), wall_color)
+    } else {
+        dynamic_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.3)))
+        fixed_box(world, physics, meshes, Math.Vec3(24.0, 0.5, 24.0),
+            Math.Vec3(0.0, -0.25, 0.0), floor_color)
+    }
+    let colors:Color[] = [
+        Color.bytes(86, 194, 234), Color.bytes(244, 177, 84),
+        Color.bytes(179, 128, 227), Color.bytes(103, 204, 147),
+        Color.bytes(242, 109, 125), Color.bytes(234, 220, 99)
+    ]
+    var index = 0
+    while index < state.count {
+        var position = Math.Vec3()
+        var shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.2))
+        if state.mode == "bin" {
+            let column = index % 10
+            let row = (index / 10) % 10
+            let layer = index / 100
+            position = Math.Vec3(
+                (column as float - 4.5) * 0.41,
+                4.0 + layer as float * 0.41,
+                (row as float - 4.5) * 0.41
+            )
+        } else {
+            let column = index % 4
+            let row = (index / 4) % 4
+            let layer = index / 16
+            position = Math.Vec3(
+                (column as float - 1.5) * 0.31 + layer as float * 0.025,
+                0.16 + layer as float * 0.31,
+                (row as float - 1.5) * 0.31
+            )
+            shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.3)))
+        }
+        state.entities.append(world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D(position:position))
+            ..with(Components.Mesh3D(dynamic_mesh))
+            ..with(Components.Material3D(
+                albedo:colors[index % colors.count()],
+                roughness:0.55))))
+        state.bodies.append(physics.create_rigid_body(
+            Physics.RigidBody3DSettings()
+                ..shape = shape
+                ..transform = Physics.Transform3D(position:position)
+                ..friction = 0.6))
+        index++
+    }
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.AmbientLight3D(
+            color:Color.white(), intensity:0.2)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.SunLight3D(
+            direction:Math.Vec3(-0.4, -1.0, -0.3).normalized(),
+            color:Color.white(), intensity:3.0)))
+    state.clock.tick()
+    print("Physics 3D stress: $(state.mode), $(state.count) dynamic bodies")
+    print("Press Space to topple the column; Escape to quit")
+}
+
+func update_stress(
+    input:@Resources.InputState,
+    controller:&Application.Controller,
+    state:&StressState
+) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if state.mode == "column" && !state.collapsed &&
+        input.is_pressed(Input.Key.space) {
+        var first = state.count - 16
+        if first < 0 { first = 0 }
+        var index = first
+        while index < state.count {
+            state.bodies[index].apply_impulse(Math.Vec3(0.8, 0.0, 0.0))
+            index++
+        }
+        state.collapsed = true
+    }
+    state.seconds += state.clock.tick()
+    state.frames++
+    if state.seconds >= 1.0 {
+        print("mode=$(state.mode) bodies=$(state.count) frames=$(state.frames) seconds=$(state.seconds)")
+        state.seconds = 0.0
+        state.frames = 0
+    }
+}
+
+func sync_stress(world:&Resources.World, state:@StressState) {
+    var index = 0
+    while index < state.bodies.count() {
+        let position = state.bodies[index].position()
+        let rotation = state.bodies[index].rotation()
+        world.update<Components.Transform3D>(state.entities[index],
+            func(transform:&Components.Transform3D) {
+                transform.position = position
+                transform.rotation = rotation
+            })
+        index++
+    }
+}
+
+func body_count_argument(value:str) int {
+    if value == "32" { return 32 }
+    if value == "64" { return 64 }
+    if value == "128" { return 128 }
+    if value == "256" { return 256 }
+    if value == "512" { return 512 }
+    if value == "1024" { return 1024 }
+    panic("expected 32, 64, 128, 256, 512 or 1024 bodies")
+}
+
+func run_scene(mode:str, count:int) {
+    if mode != "bin" && mode != "column" {
+        panic("expected bin or column")
+    }
+    var target_height = 2.5
+    var camera_distance = 15.0
+    if mode == "column" {
+        let height = (count as float / 16.0) * 0.31
+        target_height = Math.max(target_height, height * 0.5)
+        camera_distance = Math.max(camera_distance, height * 1.8)
+    } else if count > 512 {
+        target_height = 4.0
+        camera_distance = 18.0
+    }
+    Application()
+        ..add_resource(StressState(mode, count))
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Silex Physics 3D Stress"
+            ..width = 1100
+            ..height = 800))
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(0.0, target_height, 0.0)
+            ..distance = camera_distance
+            ..pitch = Math.radians(-22.0)))
+        ..add_plugin(Plugins.Physics3D())
+        ..add_system(Application.Schedule.startup, create_stress_scene)
+        ..add_system(Application.Schedule.update, update_stress)
+        ..add_system(Application.Schedule.post_update, sync_stress)
+        ..run()
+}
+
+func main() {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            if arguments.count() == 1 {
+                run_scene("bin", 128)
+                return
+            }
+            if arguments.count() == 3 {
+                run_scene(arguments[1], body_count_argument(arguments[2]))
+                return
+            }
+        }
+    }
+    panic("usage: StressScene [bin|column 32|64|128|256|512|1024]")
+}
