@@ -163,8 +163,10 @@ spread so the balls mix across the depth instead of stacking in parallel planes.
 of small boxes above a plain floor. Press **Space** to push the top of the
 column, **P** to pause or resume physics, or **Escape** to quit. The on-screen
 performance panel reports rendered FPS, frame duration and draw statistics.
-The window title and console report emitted/target body counts, completed
-awake body counts, fixed steps per second, mean/peak milliseconds per physics step and steps per
+A matching panel directly below it displays emitted/target dynamic bodies
+and awake bodies, refreshed once per second. The fixed aquarium walls are
+excluded from these body counts. The window title and console also report
+these counts, fixed steps per second, mean/peak milliseconds per physics step and steps per
 rendered frame. The console also reports physics milliseconds per frame.
 Frame duration measures the interval between rendered frames, including
 simulation and catch-up steps; it is not a GPU timer. Pausing
@@ -177,11 +179,13 @@ comparable to this scene. From the workspace root, compile and run for example:
 ```sh
 silex compile Silex-Examples/Sources/Physics3D/StressScene.sx --release \
   -o .silex/physics3d-stress-scene
-.silex/physics3d-stress-scene bin 128
+.silex/physics3d-stress-scene bin 2048
+.silex/physics3d-stress-scene bin 4000
 .silex/physics3d-stress-scene column 128
 ```
 
-Counts 32, 64, 128, 256, 512 and 1024 are accepted. Larger choices are
+The default aquarium target is 2048 spheres; `column` without a count uses 128.
+Counts 32, 64, 128, 256, 512, 1024, 2048, 4000 and 4096 are accepted. Larger choices are
 stress experiments rather than a promised interactive frame rate. The
 physics-only box-column guard covers 256 boxes; use 128 as the first visual
 comparison before increasing the load.
