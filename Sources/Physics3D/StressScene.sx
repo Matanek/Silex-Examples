@@ -154,12 +154,14 @@ func spawn_dynamic_body(
         let lane = (index * 37) % 25
         let column = lane % 5
         let row = lane / 5
+        // A repeatable nozzle spread breaks the five disconnected planar jets.
+        let spread = Math.sin(index as float * 2.3999632)
         position = Math.Vec3(
             -4.3 + column as float * 0.43,
             5.2,
-            (row as float - 2.0) * 0.43
+            (row as float - 2.0) * 0.43 + spread * 0.01
         )
-        velocity = Math.Vec3(2.0, -1.0, 0.0)
+        velocity = Math.Vec3(2.0, -1.0, spread * 0.6)
     } else {
         let column = index % 4
         let row = (index / 4) % 4
@@ -317,8 +319,12 @@ func update_stress(
         let steps_per_second = state.physics_steps as float / state.seconds
         let steps_per_frame = state.physics_steps as float / state.frames as float
         let physics_frame_ms = state.physics_ms / state.frames as float
+        var awake = 0
+        for body in state.bodies {
+            if body.is_awake() { awake++ }
+        }
         let title = "Silex Physics 3D — $(state.mode) " +
-            "$(state.bodies.count())/$(state.count) bodies — " +
+            "$(state.bodies.count())/$(state.count) bodies ($(awake) awake) — " +
             "$(steps_per_second) steps/s — $(step_ms) ms/step — " +
             "peak $(state.peak_step_ms) ms — $(steps_per_frame) steps/frame"
         if simulation.is_paused() { window.set_title(title + " — paused") }

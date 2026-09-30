@@ -158,12 +158,13 @@ oscillates; the second returns without a visible overshoot.
 untextured surfaces. `bin` emits colored spheres into a fixed container at
 up to 80 per second into an open, horizontal aquarium (10 × 4 × 5 m).
 Its 4 cm glass walls, thin seams and fixed three-quarter view keep the contents
-visible; the inlet sits above the left side. `column` builds a tall stack
+visible; the inlet sits above the left side and adds a repeatable lateral
+spread so the balls mix across the depth instead of stacking in parallel planes. `column` builds a tall stack
 of small boxes above a plain floor. Press **Space** to push the top of the
 column, **P** to pause or resume physics, or **Escape** to quit. The on-screen
 performance panel reports rendered FPS, frame duration and draw statistics.
 The window title and console report emitted/target body counts, completed
-fixed steps per second, mean/peak milliseconds per physics step and steps per
+awake body counts, fixed steps per second, mean/peak milliseconds per physics step and steps per
 rendered frame. The console also reports physics milliseconds per frame.
 Frame duration measures the interval between rendered frames, including
 simulation and catch-up steps; it is not a GPU timer. Pausing
