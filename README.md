@@ -163,8 +163,9 @@ spread so the balls mix across the depth instead of stacking in parallel planes.
 of small boxes above a plain floor. Press **Space** to push the top of the
 column, **P** to pause or resume physics, or **Escape** to quit. The on-screen
 performance panel reports rendered FPS, frame duration and draw statistics.
-A matching panel directly below it displays emitted/target dynamic bodies
-and awake bodies, refreshed once per second. The fixed aquarium walls are
+A matching panel directly below it displays emitted/target dynamic bodies,
+awake bodies, and physics milliseconds per step and per rendered frame,
+refreshed once per second. The fixed aquarium walls are
 excluded from these body counts. The window title and console also report
 these counts, fixed steps per second, mean/peak milliseconds per physics step and steps per
 rendered frame. The console also reports physics milliseconds per frame.
@@ -183,6 +184,12 @@ silex compile Silex-Examples/Sources/Physics3D/StressScene.sx --release \
 .silex/physics3d-stress-scene bin 4000
 .silex/physics3d-stress-scene column 128
 ```
+
+The stress scene requests immediate presentation. Dynamic visuals use one
+`Scene3D.Instances` group per color; group poses are replaced only after a
+physics step or emission has changed them. Bodies remain individually simulated.
+The displayed frame interval still includes physics, so a rendered FPS value
+with physics paused is not an active-simulation result.
 
 The default aquarium target is 2048 spheres; `column` without a count uses 128.
 Counts 32, 64, 128, 256, 512, 1024, 2048, 4000 and 4096 are accepted. Larger choices are

@@ -3,9 +3,11 @@ use GFX.Canvas
 use GFX.Color
 use GFX.Components
 use GFX.ECS
+use GFX.GPU
 use GFX.Input
 use GFX.Physics
 use GFX.Plugins
+use GFX.Rendering
 use GFX.Resources
 use GFX.Scene2D
 use GFX.Scene3D
@@ -23,6 +25,9 @@ class StressState {
     var dynamic_mesh:Scene3D.MeshHandle = Scene3D.MeshHandle()
     var colors:Color[] = []
     var emission:float = 0.0
+    var poses_dirty:bool = true
+    var positions:Math.Vec3[] = []
+    var rotations:Math.Quat[] = []
     var clock:Clock = Clock()
     var step_clock:Clock = Clock()
     var frames:int = 0
@@ -39,12 +44,17 @@ class StressState {
 }
 
 // Refreshed with the existing one-second telemetry, not for every body/frame.
-func body_counter_canvas(count:int, target:int, awake:int) Canvas {
+func milliseconds_label(value:float) str {
+    let tenths = Math.round(value * 10.0) as int
+    return "$(tenths / 10).$(tenths % 10) ms"
+}
+
+func body_counter_canvas(count:int, target:int, awake:int, step_ms:float = 0.0, frame_ms:float = 0.0) Canvas {
     var canvas = Canvas()
     canvas.paint(func(painter:&Canvas.Painter) {
-        painter.fill(Canvas.Rect(Math.Vec2(), Math.Vec2(252.0, 100.0), 9.0),
+        painter.fill(Canvas.Rect(Math.Vec2(), Math.Vec2(252.0, 148.0), 9.0),
             Canvas.Fill.solid(Color.black().with_alpha(0.82)))
-        painter.stroke(Canvas.Rect(Math.Vec2(0.5), Math.Vec2(251.0, 99.0), 9.0),
+        painter.stroke(Canvas.Rect(Math.Vec2(0.5), Math.Vec2(251.0, 147.0), 9.0),
             Canvas.Stroke(Color.cyan_400().with_alpha(0.48), 1.0))
         painter.text("PHYSICS 3D", Math.Vec2(16.0, 11.0),
             Canvas.TextStyle(size:14.0, color:Color.cyan_300(), weight:Canvas.TextWeight.bold))
@@ -57,6 +67,14 @@ func body_counter_canvas(count:int, target:int, awake:int) Canvas {
         painter.text("AWAKE", Math.Vec2(16.0, 72.0),
             Canvas.TextStyle(size:13.0, color:Color.slate_300()))
         painter.text("$(awake)", Math.Vec2(236.0, 72.0),
+            Canvas.TextStyle(size:13.0, color:Color.white(), alignment:Canvas.TextAlignment.end))
+        painter.text("PHYSICS / STEP", Math.Vec2(16.0, 96.0),
+            Canvas.TextStyle(size:13.0, color:Color.slate_300()))
+        painter.text(milliseconds_label(step_ms), Math.Vec2(236.0, 96.0),
+            Canvas.TextStyle(size:13.0, color:Color.white(), alignment:Canvas.TextAlignment.end))
+        painter.text("PHYSICS / FRAME", Math.Vec2(16.0, 120.0),
+            Canvas.TextStyle(size:13.0, color:Color.slate_300()))
+        painter.text(milliseconds_label(frame_ms), Math.Vec2(236.0, 120.0),
             Canvas.TextStyle(size:13.0, color:Color.white(), alignment:Canvas.TextAlignment.end))
     })
     return canvas
@@ -75,6 +93,7 @@ func end_stress_step(application:Application, delta:float) {
     state.physics_ms += elapsed
     state.peak_step_ms = Math.max(state.peak_step_ms, elapsed)
     state.physics_steps++
+    state.poses_dirty = true
 }
 
 struct StressStepMetrics:Application.Plugin {
@@ -200,12 +219,20 @@ func spawn_dynamic_body(
         )
         shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.3)))
     }
-    state.entities.append(world.spawn(ECS.EntityRecipe()
-        ..with(Components.Transform3D(position:position))
-        ..with(Components.Mesh3D(state.dynamic_mesh))
-        ..with(Components.Material3D(
-            albedo:state.colors[index % state.colors.count()],
-            roughness:0.55))))
+    state.poses_dirty = true
+    state.positions.append(position)
+    state.rotations.append(Math.Quat())
+    let group = index % state.colors.count()
+    if index < state.colors.count() {
+        state.entities.append(world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D())
+            ..with(Components.Mesh3D(state.dynamic_mesh))
+            ..with(Scene3D.Instances())
+            ..with(Components.Material3D(albedo:state.colors[group], roughness:0.55))))
+    }
+    world.update<Scene3D.Instances>(state.entities[group], func(instances:&Scene3D.Instances) {
+        instances.append(Scene3D.Transform(position:position))
+    })
     state.bodies.append(physics.create_rigid_body(
         Physics.RigidBody3DSettings()
             ..shape = shape
@@ -288,7 +315,7 @@ func create_stress_scene(
     state.counter = world.spawn(ECS.EntityRecipe()
         ..with(Scene2D.Transform(position:Math.Vec2(16.0, 280.0)))
         ..with(Scene2D.Canvas(
-            body_counter_canvas(state.bodies.count(), state.count, state.bodies.count()), 252, 100)
+            body_counter_canvas(state.bodies.count(), state.count, state.bodies.count()), 252, 148)
             ..anchor = Math.Vec2()
             ..pivot = Math.Vec2()
             ..space = Scene2D.CanvasSpace.viewport
@@ -359,7 +386,7 @@ func update_stress(
             if body.is_awake() { awake++ }
         }
         world.update<Scene2D.Canvas>(state.counter, func(display:&Scene2D.Canvas) {
-            display.replace(body_counter_canvas(state.bodies.count(), state.count, awake))
+            display.replace(body_counter_canvas(state.bodies.count(), state.count, awake, step_ms, physics_frame_ms))
         })
         let title = "Silex Physics 3D — $(state.mode) " +
             "$(state.bodies.count())/$(state.count) bodies ($(awake) awake) — " +
@@ -377,17 +404,36 @@ func update_stress(
     }
 }
 
-func sync_stress(world:&Resources.World, state:@StressState) {
-    var index = 0
-    while index < state.bodies.count() {
-        let position = state.bodies[index].position()
-        let rotation = state.bodies[index].rotation()
-        world.update<Components.Transform3D>(state.entities[index],
-            func(transform:&Components.Transform3D) {
-                transform.position = position
-                transform.rotation = rotation
+func sync_stress(world:&Resources.World, state:&StressState) {
+    if !state.poses_dirty { return }
+    state.poses_dirty = false
+    var group = 0
+    while group < state.entities.count() {
+        var transforms:Scene3D.Transform[] = []
+        var changed = false
+        var index = group
+        while index < state.bodies.count() {
+            let position = state.bodies[index].position()
+            let rotation = state.bodies[index].rotation()
+            let previous_position = state.positions[index]
+            let previous_rotation = state.rotations[index]
+            if position.x != previous_position.x || position.y != previous_position.y ||
+                position.z != previous_position.z || rotation.x != previous_rotation.x ||
+                rotation.y != previous_rotation.y || rotation.z != previous_rotation.z ||
+                rotation.w != previous_rotation.w {
+                changed = true
+                state.positions[index] = position
+                state.rotations[index] = rotation
+            }
+            transforms.append(Scene3D.Transform(position:position, rotation:rotation))
+            index += state.colors.count()
+        }
+        if changed {
+            world.update<Scene3D.Instances>(state.entities[group], func(instances:&Scene3D.Instances) {
+                instances.replace(transforms)
             })
-        index++
+        }
+        group++
     }
 }
 
@@ -402,6 +448,12 @@ func body_count_argument(value:str) int {
     if value == "4000" { return 4000 }
     if value == "4096" { return 4096 }
     panic("expected 32, 64, 128, 256, 512, 1024, 2048, 4000 or 4096 bodies")
+}
+
+func log_presentation(surface:@GPU.Surface, device:@GPU.Device) {
+    var mode = "synchronized"
+    if surface.present_mode() == GPU.PresentMode.immediate { mode = "immediate" }
+    print("Presentation: $(mode); GPU driver: $(device.driver())")
 }
 
 func run_scene(mode:str, count:int) {
@@ -428,6 +480,8 @@ func run_scene(mode:str, count:int) {
             ..title = "Silex Physics 3D Stress"
             ..width = window_width
             ..height = 800))
+        ..add_plugin(Plugins.Rendering(Plugins.Rendering.Settings()
+            ..present_mode = Rendering.PresentMode.immediate))
         ..add_plugin(Plugins.Scene3D())
         ..add_plugin(Stats.PerformancePanel())
         ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
@@ -438,6 +492,7 @@ func run_scene(mode:str, count:int) {
         ..add_plugin(Plugins.Physics3D())
         ..add_plugin(StressStepMetrics())
         ..add_system(Application.Schedule.startup, create_stress_scene)
+        ..add_system(Application.Schedule.startup, log_presentation)
         ..add_system(Application.Schedule.update, update_stress,
             process_mode:Application.ProcessMode.always)
         ..add_system(Application.Schedule.post_update, sync_stress)
@@ -477,7 +532,8 @@ test "sphere jet emits progressively and caps each slow frame" {
         frame++
     }
     assert(state.bodies.count() == 80)
-    assert(world.entities().count() == 80)
+    assert(world.entities().count() == 1)
+    assert(world.get<Scene3D.Instances>(state.entities[0]).count() == 80)
     assert(physics.body_count() == 80)
     emit_spheres(world, physics, state, 0.1)
     assert(state.bodies.count() == 88)
@@ -493,4 +549,31 @@ test "sphere jet emits progressively and caps each slow frame" {
         }
         first++
     }
+}
+
+test "instanced groups preserve body poses and retain unchanged revisions" {
+    var world = ECS.World()
+    var physics = Physics.World3D()
+    var state = StressState("bin", 128)
+    state.colors = [Color.white(), Color.black(), Color.cyan_300()]
+    emit_spheres(world, physics, state, 0.1)
+    assert(state.bodies.count() == 8 && world.entities().count() == 3)
+    assert(world.get<Scene3D.Instances>(state.entities[0]).count() == 3)
+    assert(world.get<Scene3D.Instances>(state.entities[1]).count() == 3)
+    assert(world.get<Scene3D.Instances>(state.entities[2]).count() == 2)
+    let unchanged_revision = world.get<Scene3D.Instances>(state.entities[0]).revision()
+    let changed_revision = world.get<Scene3D.Instances>(state.entities[1]).revision()
+    let position = Math.Vec3(1.0, 2.0, 3.0)
+    let rotation = Math.Quat.angle_axis(0.4, Math.Vec3.up())
+    state.bodies[7].set_transform(Physics.Transform3D(position:position, rotation:rotation))
+    sync_stress(world, state)
+    assert(world.get<Scene3D.Instances>(state.entities[0]).revision() == unchanged_revision)
+    assert(world.get<Scene3D.Instances>(state.entities[1]).revision() == changed_revision + 1)
+    let pose = world.get<Scene3D.Instances>(state.entities[1]).transforms()[2]
+    assert(pose.position.nearly_equal(position, 0.000001))
+    assert(Math.abs(pose.rotation.w - rotation.w) < 0.000001)
+    assert(Math.abs(pose.rotation.y - rotation.y) < 0.000001)
+    state.poses_dirty = true
+    sync_stress(world, state)
+    assert(world.get<Scene3D.Instances>(state.entities[1]).revision() == changed_revision + 1)
 }
