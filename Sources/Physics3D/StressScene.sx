@@ -106,9 +106,8 @@ func sphere_mesh(radius:float) Scene3D.Geometry.Mesh {
     return Scene3D.Geometry.Mesh(vertices, indices)
 }
 
-func fixed_box(
+func visual_box(
     world:&Resources.World,
-    physics:&Physics.World3D,
     meshes:&Resources.Meshes3D,
     size:Math.Vec3,
     position:Math.Vec3,
@@ -123,7 +122,19 @@ func fixed_box(
         ..with(Components.Mesh3D(mesh))
         ..with(Components.Material3D(
             albedo:color.with_alpha(opacity), roughness:0.85))
-        ..with(Scene3D.MaterialSettings(alpha:alpha, double_sided:true)))
+        ..with(Scene3D.MaterialSettings(alpha:alpha, unlit:opacity < 1.0)))
+}
+
+func fixed_box(
+    world:&Resources.World,
+    physics:&Physics.World3D,
+    meshes:&Resources.Meshes3D,
+    size:Math.Vec3,
+    position:Math.Vec3,
+    color:Color,
+    opacity:float = 1.0
+) {
+    visual_box(world, meshes, size, position, color, opacity)
     physics.create_rigid_body(Physics.RigidBody3DSettings()
         ..body_type = Physics.BodyType3D.fixed
         ..shape = Physics.Shape3D.box(Physics.Box3D(size))
@@ -144,8 +155,8 @@ func spawn_dynamic_body(
         let column = lane % 5
         let row = lane / 5
         position = Math.Vec3(
-            -1.2 + column as float * 0.43,
-            7.4,
+            -4.3 + column as float * 0.43,
+            5.2,
             (row as float - 2.0) * 0.43
         )
         velocity = Math.Vec3(2.0, -1.0, 0.0)
@@ -183,17 +194,36 @@ func create_stress_scene(
     let floor_color = Color.bytes(105, 120, 133)
     if state.mode == "bin" {
         state.dynamic_mesh = meshes.add(sphere_mesh(0.2))
-        fixed_box(world, physics, meshes, Math.Vec3(5.0, 0.5, 5.0),
-            Math.Vec3(0.0, -0.25, 0.0), floor_color)
-        let wall_color = Color.bytes(72, 84, 98)
-        fixed_box(world, physics, meshes, Math.Vec3(0.5, 8.0, 5.0),
-            Math.Vec3(-2.75, 4.0, 0.0), wall_color, 0.16)
-        fixed_box(world, physics, meshes, Math.Vec3(0.5, 8.0, 5.0),
-            Math.Vec3(2.75, 4.0, 0.0), wall_color, 0.16)
-        fixed_box(world, physics, meshes, Math.Vec3(5.0, 8.0, 0.5),
-            Math.Vec3(0.0, 4.0, -2.75), wall_color, 0.16)
-        fixed_box(world, physics, meshes, Math.Vec3(5.0, 8.0, 0.5),
-            Math.Vec3(0.0, 4.0, 2.75), wall_color, 0.16)
+        // Interior: 10 m wide, 4 m high, 5 m deep; open at the top.
+        // Glass and colliders share the same thin dimensions and inner faces.
+        fixed_box(world, physics, meshes, Math.Vec3(10.08, 0.08, 5.08),
+            Math.Vec3(0.0, -0.04, 0.0), Color.bytes(46, 54, 65))
+        let glass_color = Color.bytes(132, 162, 187)
+        fixed_box(world, physics, meshes, Math.Vec3(0.04, 4.0, 5.08),
+            Math.Vec3(-5.02, 2.0, 0.0), glass_color, 0.065)
+        fixed_box(world, physics, meshes, Math.Vec3(0.04, 4.0, 5.08),
+            Math.Vec3(5.02, 2.0, 0.0), glass_color, 0.065)
+        fixed_box(world, physics, meshes, Math.Vec3(10.0, 4.0, 0.04),
+            Math.Vec3(0.0, 2.0, -2.52), glass_color, 0.065)
+        fixed_box(world, physics, meshes, Math.Vec3(10.0, 4.0, 0.04),
+            Math.Vec3(0.0, 2.0, 2.52), glass_color, 0.065)
+        // Fine seams keep the silhouette readable without a bulky frame.
+        let edge_color = Color.bytes(128, 154, 174)
+        var side = -1
+        while side <= 1 {
+            visual_box(world, meshes, Math.Vec3(10.04, 0.018, 0.018),
+                Math.Vec3(0.0, 4.0, side as float * 2.52), edge_color, 0.45)
+            visual_box(world, meshes, Math.Vec3(0.018, 0.018, 5.04),
+                Math.Vec3(side as float * 5.02, 4.0, 0.0), edge_color, 0.45)
+            var end = -1
+            while end <= 1 {
+                visual_box(world, meshes, Math.Vec3(0.018, 4.0, 0.018),
+                    Math.Vec3(side as float * 5.02, 2.0, end as float * 2.52),
+                    edge_color, 0.45)
+                end += 2
+            }
+            side += 2
+        }
     } else {
         state.dynamic_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.3)))
         fixed_box(world, physics, meshes, Math.Vec3(24.0, 0.5, 24.0),
@@ -204,6 +234,14 @@ func create_stress_scene(
         Color.bytes(179, 128, 227), Color.bytes(103, 204, 147),
         Color.bytes(242, 109, 125), Color.bytes(234, 220, 99)
     ]
+    if state.mode == "bin" {
+        state.colors = [
+            Color.bytes(16, 139, 240), Color.bytes(245, 81, 24),
+            Color.bytes(112, 31, 224), Color.bytes(34, 196, 49),
+            Color.bytes(232, 27, 103), Color.bytes(240, 208, 22),
+            Color.bytes(10, 195, 180), Color.bytes(204, 48, 217)
+        ]
+    }
     if state.mode == "column" {
         var index = 0
         while index < state.count {
@@ -325,25 +363,30 @@ func run_scene(mode:str, count:int) {
     }
     var target_height = 2.5
     var camera_distance = 15.0
+    var camera_yaw = 0.0
+    var window_width = 1100
     if mode == "column" {
         let height = (count as float / 16.0) * 0.31
         target_height = Math.max(target_height, height * 0.5)
         camera_distance = Math.max(camera_distance, height * 1.8)
-    } else if count > 512 {
-        target_height = 4.0
-        camera_distance = 18.0
+    } else {
+        target_height = 3.2
+        camera_distance = 21.0
+        camera_yaw = Math.radians(25.0)
+        window_width = 1280
     }
     Application()
         ..add_resource(StressState(mode, count))
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
             ..title = "Silex Physics 3D Stress"
-            ..width = 1100
+            ..width = window_width
             ..height = 800))
         ..add_plugin(Plugins.Scene3D())
         ..add_plugin(Stats.PerformancePanel())
         ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
             ..target = Math.Vec3(0.0, target_height, 0.0)
             ..distance = camera_distance
+            ..yaw = camera_yaw
             ..pitch = Math.radians(-22.0)))
         ..add_plugin(Plugins.Physics3D())
         ..add_plugin(StressStepMetrics())
