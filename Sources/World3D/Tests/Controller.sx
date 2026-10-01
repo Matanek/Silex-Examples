@@ -160,7 +160,7 @@ func footstep_case() {
         controller.step(world, FPSController.Commands() ..forward = 1.0, 1.0 / 120.0)
         if controller.step_event {
             assert(controller.step_pan * last_pan <= 0.0)
-            assert(Math.abs(controller.step_pan) == 0.375)
+            assert(Math.abs(controller.step_pan) == 0.1)
             last_pan = controller.step_pan
             steps++
         }

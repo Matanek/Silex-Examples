@@ -51,8 +51,8 @@ jumping while active.
 
 Footsteps and slide audio reuse the original WorldDemo MP3 samples, decoded once
 at startup through GFX.Audio. Steps follow the walking head-bob cycle and alternate
-left/right with slight gain and pitch variation. Standing still, pushing against a
-wall, jumping and sliding do not emit walking steps. Landings produce one centered
+slightly left/right near the center (±0.1 pan), with small gain and pitch variation.
+Standing still, pushing against a wall, jumping and sliding do not emit walking steps. Landings produce one centered
 impact; the slide sound ends when the slide ends or the character is reset.
 
 `FPSController.sx` owns gameplay and camera effects, `Player.sx` binds input and
