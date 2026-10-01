@@ -56,6 +56,8 @@ Standing still, pushing against a wall, jumping and sliding do not emit walking 
 A landing produces one centered impact only after at least 0.30 m of descent from
 the airborne peak. Brief losses of support over small obstacles preserve the
 left/right walking sequence, and their heights do not accumulate across contacts.
+Landing gain rises linearly from 15% at 0.30 m to 100% at 1.50 m and stays capped
+above that height. Pitch still varies slightly; the impact remains centered.
 The slide sound ends when the slide ends or the character is reset.
 
 `FPSController.sx` owns gameplay and camera effects, `Player.sx` binds input and
