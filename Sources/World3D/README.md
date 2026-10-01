@@ -34,10 +34,10 @@ paths resolve. A directly compiled executable must be launched from that directo
 | R | Reset the character |
 | Escape | Quit |
 
-The settings adapt the archived NKEngine WorldDemo: 6 m/s walk, 7.8 m/s sprint,
-3.6 m/s crouch (7.8 m/s while holding Sprint), 1.85 m nominal jump height,
-0.4 s ascent and 0.35 s descent,
-125 ms coyote time, 45° slope limit and 1.2 m maximum step. Camera effects include
+The settings adapt the archived NKEngine WorldDemo: 6 m/s walk, 7.8 m/s sprint.
+Crouching uses 60% of the standing speed: 3.6 m/s walk, 4.68 m/s sprint.
+The nominal jump height is 1.85 m, with 0.4 s ascent and 0.35 s descent.
+Other settings include 125 ms coyote time, 45° slope limit and 1.2 m maximum step. Camera effects include
 stair smoothing, head bob, landing dip, strafe tilt and sprint FOV (75–90°).
 The 120 Hz movement loop is independent of rendering. Both the capsule position
 and its stair correction are interpolated together. The viewpoint catches up at
