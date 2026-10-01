@@ -1,0 +1,170 @@
+use GFX.Physics
+use STD.Math
+
+public struct Commands {
+    var forward:float = 0.0
+    var right:float = 0.0
+    var sprint:bool = false
+    var crouch_held:bool = false
+    var crouch_pressed:bool = false
+    var jump_pressed:bool = false
+    var jump_released:bool = false
+}
+
+// Gameplay extracted from the archived WorldDemo: units are metres and seconds.
+// The physics mover owns contacts; these rules own the feel of the FPS.
+public class FPSController {
+    var position:Math.Vec3
+    var previous_position:Math.Vec3
+    var velocity:Math.Vec3
+    var grounded:bool = false
+    var yaw:float = 0.0
+    var pitch:float = 0.0
+    var stair_offset:float = 0.0
+    var field_of_view:float = 75.0
+    var bob:Math.Vec2
+    var tilt:float = 0.0
+    var landing_dip:float = 0.0
+    var crouch_offset:float = 0.0
+    var sliding:bool = false
+    private var slide_timer:float = 0.0
+    private var slide_speed:float = 0.0
+    private var slide_direction:Math.Vec3
+    private var coyote:float = 0.0
+    private var airborne_time:float = 0.0
+    private var bob_time:float = 0.0
+    private var dip_target:float = 0.0
+    private var mover:Physics.CharacterMover3D
+
+    init() {
+        self.position = Math.Vec3(0.0, 0.852, 8.0)
+        self.previous_position = self.position
+        self.velocity = Math.Vec3()
+        self.bob = Math.Vec2()
+        self.slide_direction = Math.Vec3()
+        self.mover = Physics.CharacterMover3D(Physics.CharacterMover3DSettings()
+            ..step_height = 1.2 ..step_forward = 0.18 ..floor_snap = 0.5)
+    }
+
+    func look(delta:Math.Vec2) {
+        self.yaw -= delta.x * 0.002
+        self.pitch = Math.clamp(self.pitch - delta.y * 0.002, -1.50098, 1.50098)
+    }
+
+    func step(world:@Physics.World3D, commands:Commands, delta:float) {
+        self.previous_position = self.position
+        let was_grounded = self.grounded
+        let yaw_rotation = Math.Quat.angle_axis(self.yaw, Math.Vec3.up())
+        var direction = yaw_rotation.rotate(Math.Vec3.front()).multiply(commands.forward)
+            .add(yaw_rotation.rotate(Math.Vec3.right()).multiply(commands.right))
+        if direction.length_squared() > 1.0 { direction = direction.normalized() }
+        let previous_speed = Math.Vec2(self.velocity.x, self.velocity.z).length()
+        if !self.sliding && self.grounded && direction.length_squared() > 0.001 &&
+            commands.sprint && commands.crouch_pressed && previous_speed > 6.0 {
+            self.sliding = true
+            self.slide_timer = 1.35
+            self.slide_speed = Math.max(previous_speed, 7.8)
+            self.slide_direction = Math.Vec3(self.velocity.x, 0.0, self.velocity.z).normalized()
+        }
+        if self.sliding {
+            self.slide_timer = Math.max(0.0, self.slide_timer - delta)
+            if !commands.crouch_held || self.slide_timer <= 0.0 || !self.grounded {
+                self.sliding = false
+            }
+        }
+        let sprinting = commands.sprint && !commands.crouch_held && !self.sliding
+        var speed = 6.0
+        if sprinting { speed *= 1.3 }
+        if commands.crouch_held { speed = 3.0 }
+        var desired = direction.multiply(speed)
+        if self.sliding {
+            desired = self.slide_direction.multiply(Math.max(3.0,
+                self.slide_speed * self.slide_timer / 1.35))
+        }
+        var velocity = self.velocity
+        if self.grounded {
+            velocity.x = desired.x
+            velocity.z = desired.z
+            velocity.y = 0.0
+        } else {
+            let blend = Math.min(1.0, 1.5 * delta)
+            velocity.x = Math.lerp(velocity.x, desired.x, blend)
+            velocity.z = Math.lerp(velocity.z, desired.z, blend)
+            var gravity = -2.0 * 1.85 / (0.35 * 0.35)
+            if velocity.y > 0.0 { gravity = -2.0 * 1.85 / (0.4 * 0.4) }
+            velocity.y += gravity * delta
+        }
+        self.coyote = Math.max(0.0, self.coyote - delta)
+        var jumped = false
+        if commands.jump_pressed && !self.sliding && (self.grounded || self.coyote > 0.0) {
+            velocity.y = 2.0 * 1.85 / 0.4
+            self.grounded = false
+            self.coyote = 0.0
+            jumped = true
+        }
+        if commands.jump_released && velocity.y > 0.0 { velocity.y *= 0.75 }
+        let result = self.mover.calculate_move(world, self.position,
+            velocity.multiply(delta), self.grounded)
+        self.position = result.position
+        self.grounded = result.grounded
+        self.velocity = result.clip_velocity(velocity)
+        if was_grounded && !self.grounded && !jumped { self.coyote = 0.125 }
+        if result.stepped {
+            self.stair_offset = Math.clamp(self.stair_offset -
+                (self.position.y - self.previous_position.y), -1.2, 0.0)
+        }
+        if !self.grounded {
+            self.airborne_time += delta
+            self.stair_offset = 0.0
+        } else {
+            if !was_grounded {
+                self.dip_target = -Math.clamp(self.airborne_time * 0.18, 0.02, 0.2)
+            }
+            self.airborne_time = 0.0
+            self.stair_offset *= Math.exp(-10.0 * delta)
+        }
+        let horizontal_speed = Math.Vec2(self.velocity.x, self.velocity.z).length()
+        var bob_target = Math.Vec2()
+        if self.grounded && !self.sliding && horizontal_speed > 0.1 {
+            self.bob_time += horizontal_speed * delta
+            var x_amount = 0.2
+            var y_amount = -0.08
+            if sprinting { x_amount = 0.25; y_amount = -0.1 }
+            bob_target = Math.Vec2(Math.sin(self.bob_time * 1.25) * x_amount,
+                Math.sin(self.bob_time * 2.5) * y_amount)
+        }
+        let alpha = 1.0 - Math.exp(-10.0 * delta)
+        self.bob = self.bob.add(bob_target.subtract(self.bob).multiply(alpha))
+        // Match the archive: crouching lowers the viewpoint and walking speed;
+        // the collision capsule stays full height, including during a slide.
+        var target_crouch = 0.0
+        if commands.crouch_held { target_crouch = 1.15 - 1.7 }
+        self.crouch_offset = Math.lerp(self.crouch_offset, target_crouch, alpha)
+        let target_tilt = commands.right * 0.05 * Math.min(horizontal_speed / 6.0, 1.0)
+        self.tilt = Math.lerp(self.tilt, target_tilt, alpha)
+        var target_fov = 75.0
+        if sprinting && direction.length_squared() > 0.01 { target_fov = 90.0 }
+        self.field_of_view = Math.lerp(self.field_of_view, target_fov, 1.0 - Math.exp(-2.0 * delta))
+        var dip_speed = 12.0
+        if self.dip_target < 0.0 { dip_speed = 25.0 }
+        self.landing_dip = Math.lerp(self.landing_dip, self.dip_target,
+            1.0 - Math.exp(-dip_speed * delta))
+        if self.dip_target < 0.0 && self.landing_dip <= self.dip_target + 0.001 {
+            self.dip_target = 0.0
+        }
+    }
+
+    func eye_position(interpolation:float) Math.Vec3 {
+        let center = self.previous_position.add(self.position.subtract(
+            self.previous_position).multiply(interpolation))
+        let right = Math.Quat.angle_axis(self.yaw, Math.Vec3.up()).rotate(Math.Vec3.right())
+        return center.add(right.multiply(self.bob.x)).add(Math.Vec3(0.0,
+            0.85 + self.stair_offset + self.bob.y + self.landing_dip + self.crouch_offset, 0.0))
+    }
+
+    func rotation() Math.Quat {
+        return Math.Quat.angle_axis(self.yaw, Math.Vec3.up())
+            .multiply(Math.Quat.angle_axis(self.pitch, Math.Vec3.right()))
+            .multiply(Math.Quat.angle_axis(-self.tilt, Math.Vec3.front()))
+    }
+}

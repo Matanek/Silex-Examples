@@ -6,6 +6,8 @@ use GFX.Color
 use GFX.Components
 use GFX.ECS
 use GFX.GPU
+use GFX.Physics
+use Module.Player
 use GFX.Input
 use GFX.Plugins
 use GFX.Resources
@@ -23,8 +25,11 @@ func textured_material(image:Image.Handle, scale:Math.Vec2) Components.MaterialS
 func add_ground(
     world:&Resources.World,
     meshes:&Resources.Meshes3D,
-    grid:Image.Handle
+    grid:Image.Handle,
+    physics:&Physics.World3D
 ) {
+    collider(physics, Components.Transform3D(
+        position:Math.Vec3(0.0, -0.5, 0.0), scale:Math.Vec3(100.0, 1.0, 100.0)))
     let ground = meshes.add(Scene3D.Geometry.Plane.make(Math.Vec2(100.0)))
     let ground_rotation = Math.Quat.angle_axis(
         Math.radians(-90.0),
@@ -71,7 +76,8 @@ func spawn_scattered_instances(
 func add_rocks(
     world:&Resources.World,
     cube:Scene3D.MeshHandle,
-    grid:Image.Handle
+    grid:Image.Handle,
+    physics:&Physics.World3D
 ) {
     let rock_material = Components.Material3D(
         albedo:Color.bytes(145, 153, 161),
@@ -93,6 +99,7 @@ func add_rocks(
         var transform = placement
         transform.position.y = transform.scale.y * 0.35
         rock_transforms.append(transform)
+        collider(physics, transform)
     }
     spawn_scattered_instances(
         world, rock_transforms, cube, rock_material, rock_texture
@@ -115,6 +122,7 @@ func add_rocks(
         var transform = placement
         transform.position.y = transform.scale.y * 0.3
         pebble_transforms.append(transform)
+        collider(physics, transform)
     }
     spawn_scattered_instances(
         world, pebble_transforms, cube, pebble_material, pebble_texture
@@ -124,7 +132,8 @@ func add_rocks(
 func add_trees(
     world:&Resources.World,
     cube:Scene3D.MeshHandle,
-    grid:Image.Handle
+    grid:Image.Handle,
+    physics:&Physics.World3D
 ) {
     var trees = world_scatter(42, 0x51_1E_80_1F)
         ..vary_rotation(Math.Vec3(), Math.Vec3(0.0, Math.two_pi(), 0.0))
@@ -156,6 +165,8 @@ func add_trees(
             scale:Math.Vec3(2.0 * size, 2.25 * size, 2.0 * size)
         ))
     }
+    for transform in trunk_transforms { collider(physics, transform) }
+    for transform in crown_transforms { collider(physics, transform) }
     spawn_scattered_instances(
         world, trunk_transforms, cube, trunk_material, trunk_texture
     )
@@ -280,48 +291,73 @@ func add_lighting(world:&Resources.World) {
 func create_world(
     world:&Resources.World,
     meshes:&Resources.Meshes3D,
-    images:&Resources.Images
+    images:&Resources.Images,
+    physics:&Physics.World3D
 ) {
     let grid = images.add(PNG.load("Assets/DarkGrid.png"))
     let cube = meshes.add(Scene3D.Geometry.Cube.make())
-    add_ground(world, meshes, grid)
-    add_rocks(world, cube, grid)
-    add_trees(world, cube, grid)
+    add_ground(world, meshes, grid, physics)
+    add_rocks(world, cube, grid, physics)
+    add_trees(world, cube, grid, physics)
     add_blender_trees(world, meshes, images)
     add_grass(world, meshes, images)
     add_lighting(world)
+    add_course(world, physics, cube)
 }
 
-func exit_application(
-    input:@Resources.InputState,
-    controller:&Application.Controller
-) {
-    if input.is_pressed(Input.Key.escape) {
-        controller.stop()
+func collider(physics:&Physics.World3D, transform:Components.Transform3D) {
+    physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.box(Physics.Box3D(transform.scale))
+        ..transform = Physics.Transform3D(transform.position, transform.rotation))
+}
+
+func obstacle(world:&Resources.World, physics:&Physics.World3D,
+    cube:Scene3D.MeshHandle, transform:Components.Transform3D, color:Color) {
+    collider(physics, transform)
+    world.spawn(ECS.EntityRecipe()
+        ..with(transform) ..with(Components.Mesh3D(cube))
+        ..with(Components.Material3D(albedo:color, roughness:0.85)))
+}
+
+func add_course(world:&Resources.World, physics:&Physics.World3D, cube:Scene3D.MeshHandle) {
+    var index = 0
+    while index < 4 {
+        let height = 0.35 * (index as float + 1.0)
+        obstacle(world, physics, cube, Components.Transform3D(
+            position:Math.Vec3(0.0, height / 2.0, 4.5 - index as float),
+            scale:Math.Vec3(2.0, height, 1.0)), Color.bytes(90, 154, 173))
+        index++
     }
+    obstacle(world, physics, cube, Components.Transform3D(
+        position:Math.Vec3(3.3, 0.5, 3.0), scale:Math.Vec3(2.0, 1.0, 2.0)),
+        Color.bytes(151, 175, 111))
+    obstacle(world, physics, cube, Components.Transform3D(
+        position:Math.Vec3(-3.3, 1.0, 3.0), scale:Math.Vec3(2.0, 2.0, 2.0)),
+        Color.bytes(185, 116, 93))
+    obstacle(world, physics, cube, Components.Transform3D(
+        position:Math.Vec3(3.3, 2.0, -1.0), scale:Math.Vec3(2.5, 0.2, 2.0)),
+        Color.bytes(185, 158, 99))
 }
 
 func main() {
-    var camera_settings = Plugins.FirstPersonCamera3D.Settings()
-        ..position = Math.Vec3(0.0, 1.7, 8.0)
-        ..move_speed = 6.0
-        ..sprint_multiplier = 2.0
-        ..far_plane = 180.0
     var window_settings = Plugins.Window.Settings()
-        ..title = "Scene3D — World (WASD, Shift, Escape)"
-        ..width = 1280
-        ..height = 720
-        ..maximized = true
+        ..title = "World3D FPS — WASD | Shift sprint | Space jump | R reset"
+        ..width = 1280 ..height = 720 ..maximized = true
     Application()
         ..add_plugin(Plugins.Window(window_settings))
         ..add_plugin(Plugins.GPU())
         ..add_plugin(Plugins.Rendering())
         ..add_plugin(Plugins.Scene3D())
-        ..add_plugin(Plugins.FirstPersonCamera3D(camera_settings))
+        ..add_plugin(Plugins.Input())
+        ..add_plugin(Application.Time())
         ..add_plugin(Plugins.PerformancePanel())
+        ..add_resource(Physics.World3D())
+        ..add_resource(Player())
         ..add_resource(Resources.Skybox3D.procedural(Scene3D.ProceduralSky.day()))
         ..add_resource(Resources.ToneMapping3D.aces(exposure:0.25))
         ..add_system(Application.Schedule.startup, create_world)
-        ..add_system(Application.Schedule.update, exit_application)
+        ..add_system(Application.Schedule.startup, Player.start)
+        ..add_system(Application.Schedule.update, Player.update)
         ..run()
 }

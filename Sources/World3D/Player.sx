@@ -1,0 +1,99 @@
+use GFX.Application
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Resources
+use Module.FPSController
+use STD.Math
+use STD.Process
+
+public class Player {
+    var motor:FPSController
+    var camera:ECS.Entity
+    var commands:FPSController.Commands
+    var accumulator:float = 0.0
+    var elapsed:float = 0.0
+    var smoke:bool = false
+    var highest:float = 0.0
+    var jumped:bool = false
+    init() {
+        self.motor = FPSController()
+        self.camera = ECS.Entity()
+        self.commands = FPSController.Commands()
+    }
+}
+
+public func start(player:&Player, world:&Resources.World, window:&Resources.Window) {
+    player.camera = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:player.motor.eye_position(1.0)))
+        ..with(Components.Camera3D(vertical_fov:Math.radians(75.0), near_plane:0.05, far_plane:180.0)))
+    match Process.arguments() {
+        success(arguments) => {
+            for argument in arguments { if argument == "--smoke" { player.smoke = true } }
+        }
+        failure(error) => { panic(error.detail) }
+    }
+    if !player.smoke { window.set_relative_mouse(true) }
+    print("World3D FPS: WASD move, Shift sprint, Space jump (release for a shorter jump), Alt crouch/slide while sprinting, R reset, Escape quit")
+}
+
+public func update(player:&Player, physics:@Physics.World3D, world:&Resources.World,
+    input:@Resources.InputState, time:@Resources.FrameTime, application:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { application.stop(); return }
+    if input.is_pressed(Input.Key.r) {
+        player.motor = FPSController()
+        player.accumulator = 0.0
+        player.commands = FPSController.Commands()
+    }
+    player.motor.look(input.mouse_delta())
+    var commands = copy player.commands
+    commands.forward = 0.0
+    commands.right = 0.0
+    if input.is_down(Input.Key.w) { commands.forward += 1.0 }
+    if input.is_down(Input.Key.s) { commands.forward -= 1.0 }
+    if input.is_down(Input.Key.d) { commands.right += 1.0 }
+    if input.is_down(Input.Key.a) { commands.right -= 1.0 }
+    commands.sprint = input.is_down(Input.Key.left_shift)
+    commands.crouch_held = input.is_down(Input.Key.left_alt)
+    commands.crouch_pressed = commands.crouch_pressed || input.is_pressed(Input.Key.left_alt)
+    commands.jump_pressed = commands.jump_pressed || input.is_pressed(Input.Key.space)
+    commands.jump_released = commands.jump_released || input.is_released(Input.Key.space)
+    player.accumulator += Math.min(time.delta, 0.1)
+    while player.accumulator >= 1.0 / 120.0 {
+        if player.smoke {
+            commands.forward = 0.0
+            if player.elapsed < 0.95 { commands.forward = 1.0 }
+            if player.elapsed > 1.5 && !player.jumped {
+                commands.jump_pressed = true
+                player.jumped = true
+            }
+        }
+        player.motor.step(physics, commands, 1.0 / 120.0)
+        player.elapsed += 1.0 / 120.0
+        player.highest = Math.max(player.highest, player.motor.position.y)
+        commands.crouch_pressed = false
+        commands.jump_pressed = false
+        commands.jump_released = false
+        player.accumulator -= 1.0 / 120.0
+    }
+    player.commands = commands
+    let position = player.motor.eye_position(player.accumulator * 120.0)
+    let rotation = player.motor.rotation()
+    world.update<Components.Transform3D>(player.camera, func(transform:&Components.Transform3D) {
+        transform.position = position
+        transform.rotation = rotation
+    })
+    let fov = Math.radians(player.motor.field_of_view)
+    world.update<Components.Camera3D>(player.camera, func(camera:&Components.Camera3D) {
+        camera.vertical_fov = fov
+    })
+    if player.smoke && player.elapsed >= 4.0 {
+        print("FPS smoke position=$(player.motor.position.z), height=$(player.motor.position.y), peak=$(player.highest), grounded=$(player.motor.grounded)")
+        assert(player.motor.position.z < 2.0)
+        assert(player.highest > 3.0)
+        assert(player.motor.grounded)
+        print("World3D FPS smoke: stairs crossed, jump and landing verified")
+        application.stop()
+    }
+}

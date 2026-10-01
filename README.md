@@ -6,6 +6,9 @@ is a catalog of standalone applications: focused technical illustrations
 belong in documentation, while API proofs remain under `Tests/` in their
 owning package.
 
+The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
+variable jumping and automatic stair climbing in a forest.
+
 ## Organization
 
 All demonstrations live under [`Sources/`](Sources/). Focused technical
