@@ -123,7 +123,8 @@ func create_compound_scene(
         color:Color.white(), intensity:0.2)))
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(
         direction:Math.Vec3(-0.45, -1.0, -0.3).normalized(),
-        color:Color.white(), intensity:3.5)))
+        color:Color.white(), intensity:3.5)
+        ..shadow_distance = 30.0))
     match Process.arguments() {
         success(arguments) => {
             for argument in arguments { if argument == "--smoke" { state.smoke = true } }
