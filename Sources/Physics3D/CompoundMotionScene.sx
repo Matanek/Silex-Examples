@@ -1,0 +1,228 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+
+struct BodyVisual {
+    let entity:ECS.Entity
+    var body:Physics.RigidBody3D
+    let child_pose:Physics.Transform3D
+}
+
+class CompoundSceneState {
+    var visuals:BodyVisual[] = []
+    var payloads:Physics.RigidBody3D[] = []
+    var starts:Physics.Transform3D[] = []
+    var lift:Physics.RigidBody3D? = null
+    var rotor:Physics.RigidBody3D? = null
+    var raised:bool = false
+    var spinning:bool = true
+    var smoke:bool = false
+    var elapsed:float = 0.0
+}
+
+func add_box_visual(
+    world:&Resources.World, meshes:&Resources.Meshes3D, state:&CompoundSceneState,
+    body:Physics.RigidBody3D, size:Math.Vec3, color:Color,
+    child_pose:Physics.Transform3D = Physics.Transform3D()
+) {
+    let mesh = meshes.add(Scene3D.Geometry.Cube.make(size))
+    let entity = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:body.transform().point(child_pose.position),
+            rotation:body.rotation().multiply(child_pose.rotation)))
+        ..with(Components.Mesh3D(mesh))
+        ..with(Components.Material3D(albedo:color, roughness:0.65)))
+    state.visuals.append(BodyVisual(entity:entity, body:body, child_pose:child_pose))
+}
+
+func add_compound(
+    world:&Resources.World, meshes:&Resources.Meshes3D, physics:&Physics.World3D,
+    state:&CompoundSceneState, children:Physics.CompoundChild3D[],
+    pose:Physics.Transform3D, color:Color
+) Physics.RigidBody3D {
+    var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.kinematic
+        ..shape = Physics.Shape3D.compound(Physics.Compound3D(children))
+        ..transform = pose ..friction = 0.9)
+    for child in children {
+        match child.shape {
+            box(box) => { add_box_visual(world, meshes, state, body,
+                box.size, color, child.transform) }
+            sphere(_) => {}
+            capsule(_) => {}
+            compound(_) => {}
+        }
+    }
+    return body
+}
+
+func add_payload(
+    world:&Resources.World, meshes:&Resources.Meshes3D, physics:&Physics.World3D,
+    state:&CompoundSceneState, size:Math.Vec3, position:Math.Vec3, color:Color
+) {
+    let pose = Physics.Transform3D(position:position)
+    var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..shape = Physics.Shape3D.box(Physics.Box3D(size))
+        ..transform = pose ..friction = 0.9)
+    state.payloads.append(body)
+    state.starts.append(pose)
+    add_box_visual(world, meshes, state, body, size, color)
+}
+
+func create_compound_scene(
+    world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&CompoundSceneState
+) {
+    var floor = physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(15.0, 0.3, 10.0)))
+        ..transform = Physics.Transform3D(position:Math.Vec3(0.0, -0.15, 0.0)))
+    add_box_visual(world, meshes, state, floor, Math.Vec3(15.0, 0.3, 10.0),
+        Color.bytes(72, 89, 103))
+    state.lift = add_compound(world, meshes, physics, state, [
+        Physics.CompoundChild3D(30,
+            Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.8, 0.3, 3.0))),
+            Physics.Transform3D(position:Math.Vec3(-0.85, 0.0, 0.0))),
+        Physics.CompoundChild3D(10,
+            Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.8, 0.3, 3.0))),
+            Physics.Transform3D(position:Math.Vec3(0.85, 0.0, 0.0)))
+    ], Physics.Transform3D(position:Math.Vec3(-3.5, 0.6, 0.0)),
+        Color.bytes(60, 151, 212))
+    // A single bridge rests on both children. The smaller crates are free bodies.
+    add_payload(world, meshes, physics, state, Math.Vec3(2.7, 0.35, 2.6),
+        Math.Vec3(-3.5, 0.925, 0.0), Color.bytes(232, 177, 84))
+    add_payload(world, meshes, physics, state, Math.Vec3(0.65),
+        Math.Vec3(-4.1, 1.45, 0.1), Color.bytes(206, 103, 98))
+    add_payload(world, meshes, physics, state, Math.Vec3(0.65),
+        Math.Vec3(-2.9, 1.45, -0.1), Color.bytes(136, 111, 199))
+
+    state.rotor = add_compound(world, meshes, physics, state, [
+        Physics.CompoundChild3D(9,
+            Physics.Shape3D.box(Physics.Box3D(Math.Vec3(3.8, 0.5, 0.25)))),
+        Physics.CompoundChild3D(2,
+            Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.25, 0.5, 3.8))))
+    ], Physics.Transform3D(position:Math.Vec3(3.0, 0.3, 0.0)),
+        Color.bytes(57, 181, 161))
+    if let rotor = state.rotor { rotor.set_angular_velocity(Math.Vec3(0.0, 0.6, 0.0)) }
+    var index = 0
+    while index < 8 {
+        let angle = index as float * Math.pi() / 4.0
+        add_payload(world, meshes, physics, state, Math.Vec3(0.55),
+            Math.Vec3(3.0 + Math.cos(angle) * 1.75, 0.85, Math.sin(angle) * 1.75),
+            Color.bytes(229, 177, 89))
+        index++
+    }
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(
+        color:Color.white(), intensity:0.2)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(
+        direction:Math.Vec3(-0.45, -1.0, -0.3).normalized(),
+        color:Color.white(), intensity:3.5)))
+    match Process.arguments() {
+        success(arguments) => {
+            for argument in arguments { if argument == "--smoke" { state.smoke = true } }
+        }
+        failure(error) => { panic(error.detail) }
+    }
+    print("Compound colliders: Space raises/lowers the two-rail lift; P toggles the rotor; R resets; Escape quits")
+}
+
+func control_compounds(input:@Resources.InputState, time:@Resources.FrameTime,
+    state:&CompoundSceneState, controller:&Application.Controller) {
+    if state.smoke {
+        state.elapsed += time.delta
+        if state.elapsed > 1.0 && !state.raised {
+            state.raised = true
+            if let lift = state.lift {
+                lift.move_kinematic(Physics.Transform3D(
+                    position:Math.Vec3(-3.5, 2.6, 0.0)), 3.0)
+            }
+        }
+        if state.elapsed > 6.0 {
+            assert(Math.abs(state.payloads[0].position().y - 2.925) < 0.05)
+            assert(state.payloads[1].position().y > 3.1)
+            assert(state.payloads[2].position().y > 3.1)
+            var displaced = 0
+            var index = 3
+            while index < state.payloads.count() {
+                if state.payloads[index].position().subtract(state.starts[index].position).length() > 0.5 {
+                    displaced++
+                }
+                index++
+            }
+            assert(displaced >= 4)
+            print("Compound scene smoke: lift carries its three loads; rotor displaced $(displaced) crates")
+            controller.stop()
+        }
+    }
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if input.is_pressed(Input.Key.space) {
+        state.raised = !state.raised
+        var height = 0.6
+        if state.raised { height = 2.6 }
+        if let lift = state.lift {
+            lift.move_kinematic(Physics.Transform3D(
+                position:Math.Vec3(-3.5, height, 0.0)), 3.0)
+        }
+    }
+    if input.is_pressed(Input.Key.p) {
+        state.spinning = !state.spinning
+        if let rotor = state.rotor {
+            var velocity = Math.Vec3()
+            if state.spinning { velocity = Math.Vec3(0.0, 0.6, 0.0) }
+            rotor.set_angular_velocity(velocity)
+        }
+    }
+    if input.is_pressed(Input.Key.r) {
+        state.raised = false
+        if let lift = state.lift {
+            lift.set_transform(Physics.Transform3D(position:Math.Vec3(-3.5, 0.6, 0.0)))
+            lift.set_linear_velocity(Math.Vec3())
+        }
+        if let rotor = state.rotor {
+            rotor.set_transform(Physics.Transform3D(position:Math.Vec3(3.0, 0.3, 0.0)))
+        }
+        var index = 0
+        for body in state.payloads {
+            body.set_transform(state.starts[index])
+            body.set_linear_velocity(Math.Vec3())
+            body.set_angular_velocity(Math.Vec3())
+            index++
+        }
+    }
+}
+
+func sync_compounds(world:&Resources.World, state:@CompoundSceneState) {
+    for visual in state.visuals {
+        let position = visual.body.transform().point(visual.child_pose.position)
+        let rotation = visual.body.rotation().multiply(visual.child_pose.rotation)
+        world.update<Components.Transform3D>(visual.entity,
+            func(transform:&Components.Transform3D) {
+                transform.position = position
+                transform.rotation = rotation
+            })
+    }
+}
+
+func main() {
+    Application()
+        ..add_resource(CompoundSceneState())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Silex 3D — Space: lift | P: rotor | R: reset"
+            ..width = 1200 ..height = 800))
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(0.0, 0.7, 0.0) ..distance = 15.0
+            ..pitch = Math.radians(-28.0)))
+        ..add_plugin(Plugins.Physics3D())
+        ..add_system(Application.Schedule.startup, create_compound_scene)
+        ..add_system(Application.Schedule.update, control_compounds)
+        ..add_system(Application.Schedule.render, sync_compounds)
+        ..run()
+}

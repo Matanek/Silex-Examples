@@ -154,6 +154,21 @@ blue weight oscillates beneath a fixed gold anchor without gravity. Press
 to switch between damping ratios 0.1 and 1.0. The first mode overshoots and
 oscillates; the second returns without a visible overshoot.
 
+`Physics3D/CompoundMotionScene.sx` demonstrates fixed and kinematic compound
+contacts: a two-rail lift carries a bridge and crates while a rotating cross
+pushes independent crates. Press **Space** to raise/lower the lift, **P** to
+stop/start the rotor, **R** to reset, and **Escape** to quit. The two blue rails
+belong to one collider; both support the bridge simultaneously. Each visible
+part follows its physical child's pose.
+
+From the workspace root (or the Spec Worktree group root):
+
+```sh
+silex compile Silex-Examples/Sources/Physics3D/CompoundMotionScene.sx --release \
+  -o .silex/physics3d-compound-motion-release
+.silex/physics3d-compound-motion-release
+```
+
 `Physics3D/StressScene.sx` provides two selectable visual loads on plain,
 untextured surfaces. `bin` emits colored spheres into a fixed container at
 up to 80 per second into an open, horizontal aquarium (10 × 4 × 5 m).
