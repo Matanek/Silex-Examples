@@ -47,9 +47,9 @@ public class FootstepAudio {
         self.was_sliding = controller.sliding
         if controller.sliding { return }
         if controller.landed_event {
-            // A light landing starts at 15% gain; 1.5 m reaches full gain.
+            // Fade in from silence at 0.3 m; 1.5 m reaches full gain.
             let strength = Math.clamp((controller.landing_height - 0.3) / 1.2, 0.0, 1.0)
-            self.play(audio, Math.lerp(0.15, 1.0, strength),
+            self.play(audio, strength,
                 0.8 + Math.lerp(0.92, 1.08, self.random.get_float()) * 0.1, 0.0)
             self.landings_played++
         } else if controller.step_event {
