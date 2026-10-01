@@ -36,6 +36,7 @@ public class FPSController {
     private var slide_direction:Math.Vec3
     private var coyote:float = 0.0
     private var airborne_time:float = 0.0
+    private var airborne_peak_y:float = 0.0
     private var bob_time:float = 0.0
     private var dip_target:float = 0.0
     private var mover:Physics.CharacterMover3D
@@ -61,6 +62,9 @@ public class FPSController {
         self.step_event = false
         self.landed_event = false
         let was_grounded = self.grounded
+        if was_grounded || self.airborne_time == 0.0 {
+            self.airborne_peak_y = self.position.y
+        }
         let yaw_rotation = Math.Quat.angle_axis(self.yaw, Math.Vec3.up())
         var direction = yaw_rotation.rotate(Math.Vec3.front()).multiply(commands.forward)
             .add(yaw_rotation.rotate(Math.Vec3.right()).multiply(commands.right))
@@ -121,14 +125,19 @@ public class FPSController {
         if was_grounded && self.grounded && !jumped {
             self.stair_offset -= self.position.y - self.previous_position.y
         }
+        self.airborne_peak_y = Math.max(self.airborne_peak_y, self.position.y)
         if !self.grounded {
             self.airborne_time += delta
         } else {
-            self.landed_event = !was_grounded && self.airborne_time > 0.08
+            // Small losses of support keep the walking cadence. An impact is
+            // based on actual descent, not time spent airborne near an edge.
+            let fall_height = self.airborne_peak_y - self.position.y
+            self.landed_event = !was_grounded && fall_height >= 0.3
             if self.landed_event {
                 self.dip_target = -Math.clamp(self.airborne_time * 0.18, 0.02, 0.2)
             }
             self.airborne_time = 0.0
+            self.airborne_peak_y = self.position.y
         }
         // Smooth only the support correction: ballistic jump motion stays immediate.
         // Retain the offset on takeoff so a jump mid-stair cannot snap the camera.

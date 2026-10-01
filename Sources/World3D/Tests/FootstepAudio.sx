@@ -17,8 +17,14 @@ func main() {
     var controller = FPSController()
     var i = 0
     while i < 360 {
+        if i == 110 || i == 210 {
+            controller.position.y += 0.2
+            controller.grounded = false
+            controller.velocity.y = 0.0
+        }
         controller.step(world, FPSController.Commands() ..forward = 1.0, 1.0 / 120.0)
         footsteps.update(audio, controller)
+        assert(footsteps.landings_played == 0)
         i++
     }
     assert(footsteps.steps_played >= 6)

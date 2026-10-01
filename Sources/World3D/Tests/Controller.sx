@@ -191,6 +191,55 @@ func footstep_case() {
         i++
     }
 }
+func landing_height_case(height:float, expected:int, frequency:float = 120.0) {
+    var world = Physics.World3D()
+    floor(world)
+    var controller = FPSController()
+    controller.position.y += height
+    var landings = 0
+    var i = 0
+    while i < frequency {
+        controller.step(world, FPSController.Commands(), 1.0 / frequency)
+        if controller.landed_event { landings++ }
+        i++
+    }
+    print("drop $(height) at $(frequency) Hz: $(landings) impacts")
+    assert(controller.grounded && landings == expected)
+}
+func small_fall_cadence_case() {
+    var world = Physics.World3D()
+    floor(world)
+    var controller = FPSController()
+    var steps = 0
+    var last_pan = 0.0
+    var i = 0
+    while i < 600 {
+        // Reproduce brief unsupported transitions while preserving gait phase.
+        if i == 110 || i == 210 || i == 310 || i == 410 {
+            controller.position.y += 0.2
+            controller.grounded = false
+            controller.velocity.y = 0.0
+        }
+        controller.step(world, FPSController.Commands() ..forward = 1.0 ..sprint = true, 1.0 / 120.0)
+        assert(!controller.landed_event)
+        if controller.step_event {
+            assert(controller.step_pan * last_pan < 0.0 || steps == 0)
+            last_pan = controller.step_pan
+            steps++
+        }
+        i++
+    }
+    assert(controller.grounded && steps >= 12)
+}
+func landing_heights() {
+    landing_height_case(0.12, 0)
+    landing_height_case(0.2, 0)
+    landing_height_case(0.29, 0)
+    landing_height_case(0.31, 1)
+    landing_height_case(0.8, 1)
+    landing_height_case(0.2, 0, 60.0)
+    landing_height_case(0.8, 1, 60.0)
+}
 func wall_footstep_case() {
     var world = Physics.World3D()
     floor(world)
@@ -230,6 +279,8 @@ func stair_jump_case() {
     assert(support_eye(controller, 1.0) - before - ballistic <= 3.0 / 120.0 + 0.0001)
 }
 test "FPS footsteps alternate only while walking, with one landing event" { footstep_case() }
+test "FPS landing impact requires a significant fall height" { landing_heights() }
+test "FPS repeated micro falls preserve sprint footstep alternation" { small_fall_cadence_case() }
 test "FPS pushing into a wall does not produce footsteps" { wall_footstep_case() }
 test "FPS jumping during stair smoothing cannot snap the eye" { stair_jump_case() }
 test "FPS strafe leans the camera toward the movement" { tilt_case() }
@@ -239,4 +290,4 @@ test "WorldDemo jump height, variable jump and landing" { jump_case() }
 test "WorldDemo speeds, normalized diagonals and sprint FOV" { movement_case() }
 test "WorldDemo crouch and timed slide keep the full-height capsule" { crouch_slide_case() }
 test "WorldDemo coyote time permits one jump after leaving a ledge" { coyote_case() }
-func main() { footstep_case(); wall_footstep_case(); stair_jump_case(); tilt_case(); stairs_case(); stairs_case(0.12); jump_case(); movement_case(); crouch_slide_case(); coyote_case(); print("FPS controller scenarios passed") }
+func main() { landing_heights(); small_fall_cadence_case(); footstep_case(); wall_footstep_case(); stair_jump_case(); tilt_case(); stairs_case(); stairs_case(0.12); jump_case(); movement_case(); crouch_slide_case(); coyote_case(); print("FPS controller scenarios passed") }
