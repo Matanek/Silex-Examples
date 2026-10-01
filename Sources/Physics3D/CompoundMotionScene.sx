@@ -123,16 +123,22 @@ func create_compound_scene(
             Color.bytes(229, 177, 89))
         index++
     }
-    state.dynamic_compound = add_compound(world, meshes, physics, state, [
+    var dynamic_children:Physics.CompoundChild3D[] = [
         Physics.CompoundChild3D(11,
             Physics.Shape3D.box(Physics.Box3D(Math.Vec3(2.0, 1.0, 1.0))),
             Physics.Transform3D(position:Math.Vec3(-1.0, 0.0, 0.0))),
         Physics.CompoundChild3D(22,
             Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.0, 2.0, 1.0))),
-            Physics.Transform3D(position:Math.Vec3(1.0, 1.0, 0.0),
+            Physics.Transform3D(position:Math.Vec3(0.0, 0.7, 0.0),
                 rotation:Math.Quat.angle_axis(Math.pi() / 4.0,
                     Math.Vec3(0.0, 0.0, 1.0))))
-    ], state.dynamic_start, Color.bytes(169, 105, 205),
+    ]
+    let join = Physics.Geometry3D.distance(
+        Physics.ShapePlacement3D(dynamic_children[0].shape, dynamic_children[0].transform),
+        Physics.ShapePlacement3D(dynamic_children[1].shape, dynamic_children[1].transform))
+    assert(join.separation < -0.25)
+    state.dynamic_compound = add_compound(world, meshes, physics, state,
+        dynamic_children, state.dynamic_start, Color.bytes(169, 105, 205),
         Physics.BodyType3D.dynamic)
     world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(
         color:Color.white(), intensity:0.2)))
@@ -164,7 +170,7 @@ func control_compounds(input:@Resources.InputState, time:@Resources.FrameTime,
             if let body = state.dynamic_compound {
                 let pose = body.position()
                 assert(Math.abs(body.mass_properties().mass - 4.0) < 0.0001)
-                assert(Math.abs(body.mass_properties().inertia_tensor.x.y + 1.75) < 0.0001)
+                assert(Math.abs(body.mass_properties().inertia_tensor.x.y + 0.45) < 0.0001)
                 assert(Math.is_finite(pose.x) && Math.is_finite(pose.y) &&
                     Math.is_finite(pose.z) && pose.y < 2.0)
             } else { assert(false) }
