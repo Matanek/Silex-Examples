@@ -41,7 +41,8 @@ stair smoothing, head bob, landing dip, strafe tilt and sprint FOV (75–90°).
 The 120 Hz movement loop is independent of rendering. Both the capsule position
 and its stair correction are interpolated together. The viewpoint catches up at
 at most 3 m/s after support height changes; jumping retains its ballistic motion.
-Strafe tilt leans toward the direction of movement.
+Step probing preserves the requested horizontal speed, including small obstacles
+and slow movement. Strafe tilt leans toward the direction of movement.
 
 Like the archive, crouching changes eye height and speed while preserving the
 full-height capsule. It does not allow passing under a lower ceiling. A slide

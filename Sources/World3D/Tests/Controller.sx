@@ -117,28 +117,31 @@ func support_eye(controller:FPSController, fraction:float) float {
     return controller.eye_position(fraction).y - 0.85 - controller.bob.y -
         controller.landing_dip - controller.crouch_offset
 }
-func stairs_case() {
+func stairs_case(height:float = 0.8) {
     var world = Physics.World3D()
     floor(world)
     world.create_rigid_body(Physics.RigidBody3DSettings()
         ..body_type = Physics.BodyType3D.fixed
-        ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(3.0, 0.8, 2.0)))
-        ..transform = Physics.Transform3D(position:Math.Vec3(0.0, 0.4, 5.0)))
+        ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(3.0, height, 2.0)))
+        ..transform = Physics.Transform3D(position:Math.Vec3(0.0, height / 2.0, 5.0)))
     var controller = FPSController()
     controller.step(world, FPSController.Commands(), 1.0 / 120.0)
     var climbed = false
     var i = 0
     while i < 180 {
         let before = support_eye(controller, 1.0)
+        let position_before = controller.position
         var command = FPSController.Commands()
         if i < 55 { command.forward = 1.0 }
         controller.step(world, command, 1.0 / 120.0)
+        let moved = controller.position.subtract(position_before)
+        assert(Math.Vec2(moved.x, moved.z).length() <= 6.0 / 120.0 + 0.0001)
         let start = support_eye(controller, 0.0)
         let end = support_eye(controller, 1.0)
         assert(Math.abs(start - before) < 0.0001)
         assert(Math.abs(end - start) <= 3.0 / 120.0 + 0.0001)
         assert(Math.abs(support_eye(controller, 0.5) - (start + end) * 0.5) < 0.0001)
-        if controller.position.y > 1.6 { climbed = true }
+        if controller.position.y > 0.84 + height { climbed = true }
         i++
     }
     assert(climbed && controller.grounded)
@@ -231,8 +234,9 @@ test "FPS pushing into a wall does not produce footsteps" { wall_footstep_case()
 test "FPS jumping during stair smoothing cannot snap the eye" { stair_jump_case() }
 test "FPS strafe leans the camera toward the movement" { tilt_case() }
 test "FPS stair camera stays continuous across fixed and render steps" { stairs_case() }
+test "FPS small obstacle preserves walking speed and smooth camera" { stairs_case(0.12) }
 test "WorldDemo jump height, variable jump and landing" { jump_case() }
 test "WorldDemo speeds, normalized diagonals and sprint FOV" { movement_case() }
 test "WorldDemo crouch and timed slide keep the full-height capsule" { crouch_slide_case() }
 test "WorldDemo coyote time permits one jump after leaving a ledge" { coyote_case() }
-func main() { footstep_case(); wall_footstep_case(); stair_jump_case(); tilt_case(); stairs_case(); jump_case(); movement_case(); crouch_slide_case(); coyote_case(); print("FPS controller scenarios passed") }
+func main() { footstep_case(); wall_footstep_case(); stair_jump_case(); tilt_case(); stairs_case(); stairs_case(0.12); jump_case(); movement_case(); crouch_slide_case(); coyote_case(); print("FPS controller scenarios passed") }

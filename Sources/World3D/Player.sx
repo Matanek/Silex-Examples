@@ -70,7 +70,8 @@ public func update(player:&Player, physics:@Physics.World3D, world:&Resources.Wo
     while player.accumulator >= 1.0 / 120.0 {
         if player.smoke {
             commands.forward = 0.0
-            if player.elapsed < 0.95 { commands.forward = 1.0 }
+            // Reach the last tread at 6 m/s without relying on extra stair travel.
+            if player.elapsed < 1.15 { commands.forward = 1.0 }
             if player.elapsed > 1.5 && !player.jumped {
                 commands.jump_pressed = true
                 player.jumped = true
@@ -102,7 +103,8 @@ public func update(player:&Player, physics:@Physics.World3D, world:&Resources.Wo
     })
     if player.smoke && player.elapsed >= 4.0 {
         print("FPS smoke position=$(player.motor.position.z), height=$(player.motor.position.y), peak=$(player.highest), grounded=$(player.motor.grounded)")
-        assert(player.motor.position.z < 2.0)
+        // Start z=8, travel about 6 * 1.15 m. Collisions can reduce progress.
+        assert(player.motor.position.z >= 1.0 && player.motor.position.z < 2.0)
         assert(player.highest > 3.0)
         assert(player.motor.grounded)
         print("World3D FPS audio: steps=$(player.footsteps.steps_played), landings=$(player.footsteps.landings_played)")
