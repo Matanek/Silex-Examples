@@ -3,6 +3,9 @@
 Walk through the forest with an upright collision capsule. The central blue
 staircase exercises step climbing; the green one-metre ledge is walkable, the
 red two-metre block prevents automatic step climbing, and the yellow roof blocks upward motion.
+The cyan platform to the left of the course, near `x=-4.5, z=0`, moves back
+and forth while turning 90°. Step onto it, release movement, watch the view
+follow its pose, then jump off. Standing still on it does not trigger footsteps.
 Scattered cube rocks, pebbles and procedural trees use their rendered transforms
 as box colliders. Imported GLTF foliage and grass remain decorative, as in the
 archived WorldDemo; they have no mesh colliders.
@@ -64,17 +67,33 @@ The slide sound ends when the slide ends or the character is reset.
 
 `FPSController.sx` owns gameplay and camera effects, `Player.sx` binds input and
 Application, `FootstepAudio.sx` consumes movement events, and
-`GFX.Physics.CharacterMover3D` resolves capsule motion. The
-current mover treats body poses as stationary during each call: moving-platform
-transport, pushing dynamic bodies and physical character-to-character interaction
-are future physics work.
+`GFX.Physics.CharacterMover3D` resolves capsule motion. It retains the
+supporting body between calls and carries the virtual character through its
+kinematic pose change. `MovingSupport.sx` advances the platform on the same
+120 Hz fixed loop as the FPS motor. Pushing dynamic bodies and physical
+character-to-character interaction remain future physics work.
 
 ## Verification
 
 The consumer test `GFX.Physics/Tests/Consumer/Tests/CharacterMover3D.sx` covers
-capsule collision behavior; `Tests/Controller.sx` covers the FPS movement rules.
+capsule collision behavior; `Tests/Controller.sx` covers the FPS movement rules,
+including the platform's outward and return trajectories with rotation.
 Pass `--smoke` to the executable for an automatic four-second staircase, jump
 and landing run. It checks the final support, peak height and footstep/landing
 playback requests,
 then exits. `Tests/FootstepAudio.sx` also exercises MP3 decoding, overlapping voices,
 slide start/stop and reset with a real or dummy audio device.
+
+For the platform smoke, compile from the Spec `Worktree/` root with an explicit
+source path, then run the executable beside the source assets:
+
+```sh
+Silex/Toolchain/zig-out/bin/silex compile Silex-Examples/Sources/World3D/Main.sx --release --output .silex/world3d-support-smoke
+cd Silex-Examples/Sources/World3D
+../../../.silex/world3d-support-smoke --support-smoke
+```
+
+The five-second smoke checks that a stationary player remains grounded and
+fixed relative to the platform through both motion directions. It requires
+an available SDL window. For a manual visual check, use the interactive run
+command above and walk to the cyan platform.

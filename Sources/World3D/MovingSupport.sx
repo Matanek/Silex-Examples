@@ -1,0 +1,59 @@
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Physics
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+
+// Scene-owned platform. The physics pose advances before the FPS motor at 120 Hz.
+public class MovingSupport {
+    var body:Physics.RigidBody3D? = null
+    var visual:ECS.Entity? = null
+    var steps:int = 0
+    var outbound:bool = true
+}
+
+public func create(support:&MovingSupport, world:&Resources.World,
+    meshes:&Resources.Meshes3D, physics:&Physics.World3D) {
+    let size = Math.Vec3(3.0, 0.8, 2.0)
+    var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.kinematic
+        ..shape = Physics.Shape3D.box(Physics.Box3D(size))
+        ..transform = Physics.Transform3D(position:Math.Vec3(-4.5, 0.4, 0.0)))
+    let mesh = meshes.add(Scene3D.Geometry.Cube.make(size))
+    support.visual = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:body.position()))
+        ..with(Components.Mesh3D(mesh))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(71, 186, 195), roughness:0.7)))
+    support.body = body
+    body.move_kinematic(Physics.Transform3D(
+        position:Math.Vec3(-5.7, 0.4, 0.0),
+        rotation:Math.Quat.angle_axis(Math.half_pi(), Math.Vec3.up())), 2.5)
+}
+
+public func step(support:&MovingSupport, physics:&Physics.World3D,
+    world:&Resources.World, delta:float) {
+    physics.step(delta)
+    support.steps++
+    if let body = support.body {
+        if support.steps == 300 {
+            support.steps = 0
+            support.outbound = !support.outbound
+            var target = Physics.Transform3D(position:Math.Vec3(-5.7, 0.4, 0.0),
+                rotation:Math.Quat.angle_axis(Math.half_pi(), Math.Vec3.up()))
+            if !support.outbound {
+                target = Physics.Transform3D(position:Math.Vec3(-4.5, 0.4, 0.0))
+            }
+            body.move_kinematic(target, 2.5)
+        }
+        if let visual = support.visual {
+            world.update<Components.Transform3D>(visual,
+                func(transform:&Components.Transform3D) {
+                    transform.position = body.position()
+                    transform.rotation = body.rotation()
+                })
+        }
+    }
+}

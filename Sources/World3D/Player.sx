@@ -6,6 +6,7 @@ use GFX.Physics
 use GFX.Resources
 use Module.FPSController
 use Module.FootstepAudio
+use Module.MovingSupport
 use STD.Math
 use STD.Process
 
@@ -17,6 +18,9 @@ public class Player {
     var accumulator:float = 0.0
     var elapsed:float = 0.0
     var smoke:bool = false
+    var support_smoke:bool = false
+    var support_local:Math.Vec3
+    var support_settled:bool = false
     var highest:float = 0.0
     var jumped:bool = false
     var jump_landings:int = 0
@@ -25,25 +29,37 @@ public class Player {
         self.footsteps = FootstepAudio()
         self.camera = ECS.Entity()
         self.commands = FPSController.Commands()
+        self.support_local = Math.Vec3()
     }
 }
 
-public func start(player:&Player, world:&Resources.World, window:&Resources.Window, audio:&Resources.Audio) {
+public func start(player:&Player, world:&Resources.World, window:&Resources.Window,
+    audio:&Resources.Audio, support:@MovingSupport) {
     player.footsteps.load(audio)
     player.camera = world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform3D(position:player.motor.eye_position(1.0)))
         ..with(Components.Camera3D(vertical_fov:Math.radians(75.0), near_plane:0.05, far_plane:180.0)))
     match Process.arguments() {
         success(arguments) => {
-            for argument in arguments { if argument == "--smoke" { player.smoke = true } }
+            for argument in arguments {
+                if argument == "--smoke" { player.smoke = true }
+                if argument == "--support-smoke" { player.support_smoke = true }
+            }
         }
         failure(error) => { panic(error.detail) }
     }
-    if !player.smoke { window.set_relative_mouse(true) }
-    print("World3D FPS: WASD move, Shift sprint, Space jump (release for a shorter jump), Alt crouch/slide while sprinting, R reset, Escape quit")
+    if player.support_smoke {
+        if let body = support.body {
+            player.motor.position = body.transform().point(Math.Vec3(0.5, 1.252, 0.0))
+            player.motor.previous_position = player.motor.position
+        }
+    }
+    if !player.smoke && !player.support_smoke { window.set_relative_mouse(true) }
+    print("World3D FPS: WASD move, Shift sprint, Space jump (release for a shorter jump), Alt crouch/slide while sprinting, R reset, Escape quit; cyan platform at x=-4.5, z=0")
 }
 
-public func update(player:&Player, physics:@Physics.World3D, world:&Resources.World,
+public func update(player:&Player, physics:&Physics.World3D, world:&Resources.World,
+    support:&MovingSupport,
     input:@Resources.InputState, time:@Resources.FrameTime, application:&Application.Controller,
     audio:&Resources.Audio) {
     if input.is_pressed(Input.Key.escape) { application.stop(); return }
@@ -53,7 +69,7 @@ public func update(player:&Player, physics:@Physics.World3D, world:&Resources.Wo
         player.accumulator = 0.0
         player.commands = FPSController.Commands()
     }
-    if !player.smoke { player.motor.look(input.mouse_delta()) }
+    if !player.smoke && !player.support_smoke { player.motor.look(input.mouse_delta()) }
     var commands = copy player.commands
     commands.forward = 0.0
     commands.right = 0.0
@@ -77,7 +93,22 @@ public func update(player:&Player, physics:@Physics.World3D, world:&Resources.Wo
                 player.jumped = true
             }
         }
+        MovingSupport.step(support, physics, world, 1.0 / 120.0)
         player.motor.step(physics, commands, 1.0 / 120.0)
+        if player.support_smoke {
+            if let body = support.body {
+                let local_position = body.transform().inverse_point(player.motor.position)
+                if !player.support_settled && player.motor.grounded {
+                    player.support_local = local_position
+                    player.support_settled = true
+                }
+                if player.support_settled {
+                    assert(player.motor.grounded)
+                    assert(local_position.subtract(player.support_local).length() < 0.08)
+                    assert(!player.motor.step_event)
+                }
+            }
+        }
         player.footsteps.update(audio, player.motor)
         if player.smoke && player.motor.landed_event {
             if player.jumped { player.jump_landings++ }
@@ -111,6 +142,11 @@ public func update(player:&Player, physics:@Physics.World3D, world:&Resources.Wo
         assert(player.footsteps.steps_played > 0)
         assert(player.jump_landings == 1)
         print("World3D FPS smoke: stairs crossed, jump, landing and audio verified")
+        application.stop()
+    }
+    if player.support_smoke && player.elapsed >= 5.0 {
+        assert(player.support_settled)
+        print("World3D support smoke: player followed translation and rotation in both directions")
         application.stop()
     }
 }

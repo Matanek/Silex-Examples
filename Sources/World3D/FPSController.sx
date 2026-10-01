@@ -149,8 +149,8 @@ public class FPSController {
         let recovery = -self.stair_offset * (1.0 - Math.exp(-8.0 * delta))
         self.stair_offset += Math.clamp(recovery, -3.0 * delta, 3.0 * delta)
         let horizontal_speed = Math.Vec2(self.velocity.x, self.velocity.z).length()
-        let traveled = Math.Vec2(self.position.x - self.previous_position.x,
-            self.position.z - self.previous_position.z).length()
+        // Platform carriage is world-space travel, not a walking step.
+        let traveled = Math.Vec2(self.velocity.x, self.velocity.z).length() * delta
         let walking = self.grounded && !self.sliding && traveled > 0.1 * delta
         let previous_bob_x = self.bob.x
         var bob_target = Math.Vec2()

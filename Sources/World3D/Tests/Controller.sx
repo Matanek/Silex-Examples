@@ -302,6 +302,39 @@ func stair_jump_case() {
     assert(ballistic > 0.07)
     assert(support_eye(controller, 1.0) - before - ballistic <= 3.0 / 120.0 + 0.0001)
 }
+func moving_support_case() {
+    var world = Physics.World3D()
+    var platform = world.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.kinematic
+        ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(3.0, 0.8, 2.0)))
+        ..transform = Physics.Transform3D(position:Math.Vec3(-4.5, 0.4, 0.0)))
+    var controller = FPSController()
+    controller.position = platform.transform().point(Math.Vec3(0.5, 1.252, 0.0))
+    controller.previous_position = controller.position
+    controller.step(world, FPSController.Commands(), 1.0 / 120.0)
+    assert(controller.grounded)
+    let origin = platform.transform().inverse_point(controller.position)
+    platform.move_kinematic(Physics.Transform3D(
+        position:Math.Vec3(-5.7, 0.4, 0.0),
+        rotation:Math.Quat.angle_axis(Math.half_pi(), Math.Vec3.up())), 2.5)
+    var i = 0
+    while i < 600 {
+        if i == 300 {
+            platform.move_kinematic(Physics.Transform3D(
+                position:Math.Vec3(-4.5, 0.4, 0.0)), 2.5)
+        }
+        world.step(1.0 / 120.0)
+        controller.step(world, FPSController.Commands(), 1.0 / 120.0)
+        let relative = platform.transform().inverse_point(controller.position)
+        assert(controller.grounded)
+        assert(relative.subtract(origin).length() < 0.08)
+        assert(!controller.step_event)
+        assert(controller.bob.length_squared() < 0.0001)
+        i++
+    }
+    assert(controller.velocity.length() < 0.01)
+}
+test "World3D FPS follows its translating and rotating platform" { moving_support_case() }
 test "FPS footsteps alternate only while walking, with one landing event" { footstep_case() }
 test "FPS landing impact requires a significant fall height" { landing_heights() }
 test "FPS repeated micro falls preserve sprint footstep alternation" { small_fall_cadence_case() }
@@ -314,4 +347,4 @@ test "WorldDemo jump height, variable jump and landing" { jump_case() }
 test "WorldDemo speeds, normalized diagonals and sprint FOV" { movement_case() }
 test "WorldDemo crouch and timed slide keep the full-height capsule" { crouch_slide_case() }
 test "WorldDemo coyote time permits one jump after leaving a ledge" { coyote_case() }
-func main() { landing_heights(); small_fall_cadence_case(); footstep_case(); wall_footstep_case(); stair_jump_case(); tilt_case(); stairs_case(); stairs_case(0.12); jump_case(); movement_case(); crouch_slide_case(); coyote_case(); print("FPS controller scenarios passed") }
+func main() { moving_support_case(); landing_heights(); small_fall_cadence_case(); footstep_case(); wall_footstep_case(); stair_jump_case(); tilt_case(); stairs_case(); stairs_case(0.12); jump_case(); movement_case(); crouch_slide_case(); coyote_case(); print("FPS controller scenarios passed") }

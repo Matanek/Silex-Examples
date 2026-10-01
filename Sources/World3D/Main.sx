@@ -8,6 +8,7 @@ use GFX.ECS
 use GFX.GPU
 use GFX.Physics
 use Module.Player
+use Module.MovingSupport
 use GFX.Input
 use GFX.Plugins
 use GFX.Resources
@@ -354,10 +355,12 @@ func main() {
         ..add_plugin(Application.Time())
         ..add_plugin(Plugins.PerformancePanel())
         ..add_resource(Physics.World3D())
+        ..add_resource(MovingSupport())
         ..add_resource(Player())
         ..add_resource(Resources.Skybox3D.procedural(Scene3D.ProceduralSky.day()))
         ..add_resource(Resources.ToneMapping3D.aces(exposure:0.25))
         ..add_system(Application.Schedule.startup, create_world)
+        ..add_system(Application.Schedule.startup, MovingSupport.create)
         ..add_system(Application.Schedule.startup, Player.start)
         ..add_system(Application.Schedule.update, Player.update)
         ..run()
