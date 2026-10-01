@@ -95,8 +95,144 @@ func coyote_case() {
     controller.step(world, FPSController.Commands() ..right = 1.0 ..jump_pressed = true, 1.0 / 120.0)
     assert(controller.velocity.y < first_velocity)
 }
+func tilt_case() {
+    var world = Physics.World3D()
+    floor(world)
+    let sides:float[] = [-1.0, 1.0]
+    for side in sides {
+        var controller = FPSController()
+        controller.yaw = 0.7
+        controller.step(world, FPSController.Commands(), 1.0 / 120.0)
+        var i = 0
+        while i < 60 {
+            controller.step(world, FPSController.Commands() ..right = side, 1.0 / 120.0)
+            i++
+        }
+        let right = Math.Quat.angle_axis(controller.yaw, Math.Vec3.up()).rotate(Math.Vec3.right())
+        let camera_up = controller.rotation().rotate(Math.Vec3.up())
+        assert(camera_up.dot(right) * side > 0.04)
+    }
+}
+func support_eye(controller:FPSController, fraction:float) float {
+    return controller.eye_position(fraction).y - 0.85 - controller.bob.y -
+        controller.landing_dip - controller.crouch_offset
+}
+func stairs_case() {
+    var world = Physics.World3D()
+    floor(world)
+    world.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(3.0, 0.8, 2.0)))
+        ..transform = Physics.Transform3D(position:Math.Vec3(0.0, 0.4, 5.0)))
+    var controller = FPSController()
+    controller.step(world, FPSController.Commands(), 1.0 / 120.0)
+    var climbed = false
+    var i = 0
+    while i < 180 {
+        let before = support_eye(controller, 1.0)
+        var command = FPSController.Commands()
+        if i < 55 { command.forward = 1.0 }
+        controller.step(world, command, 1.0 / 120.0)
+        let start = support_eye(controller, 0.0)
+        let end = support_eye(controller, 1.0)
+        assert(Math.abs(start - before) < 0.0001)
+        assert(Math.abs(end - start) <= 3.0 / 120.0 + 0.0001)
+        assert(Math.abs(support_eye(controller, 0.5) - (start + end) * 0.5) < 0.0001)
+        if controller.position.y > 1.6 { climbed = true }
+        i++
+    }
+    assert(climbed && controller.grounded)
+    assert(Math.abs(support_eye(controller, 1.0) - controller.position.y) < 0.001)
+}
+func footstep_case() {
+    var world = Physics.World3D()
+    floor(world)
+    var controller = FPSController()
+    controller.step(world, FPSController.Commands(), 1.0 / 120.0)
+    assert(!controller.landed_event && !controller.step_event)
+    var steps = 0
+    var last_pan = 0.0
+    var i = 0
+    while i < 240 {
+        controller.step(world, FPSController.Commands() ..forward = 1.0, 1.0 / 120.0)
+        if controller.step_event {
+            assert(controller.step_pan * last_pan <= 0.0)
+            assert(Math.abs(controller.step_pan) == 0.375)
+            last_pan = controller.step_pan
+            steps++
+        }
+        i++
+    }
+    assert(steps >= 4 && steps <= 5)
+    i = 0
+    while i < 60 {
+        controller.step(world, FPSController.Commands(), 1.0 / 120.0)
+        assert(!controller.step_event && !controller.landed_event)
+        i++
+    }
+    var landings = 0
+    i = 0
+    while i < 150 {
+        controller.step(world, FPSController.Commands() ..jump_pressed = i == 0, 1.0 / 120.0)
+        assert(!controller.step_event)
+        if controller.landed_event { landings++ }
+        i++
+    }
+    assert(landings == 1)
+    controller.step(world, FPSController.Commands() ..forward = 1.0 ..sprint = true, 1.0 / 120.0)
+    i = 0
+    while i < 60 {
+        controller.step(world, FPSController.Commands() ..forward = 1.0 ..sprint = true
+            ..crouch_held = true ..crouch_pressed = i == 0, 1.0 / 120.0)
+        assert(controller.sliding && !controller.step_event)
+        i++
+    }
+}
+func wall_footstep_case() {
+    var world = Physics.World3D()
+    floor(world)
+    world.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(10.0, 5.0, 1.0)))
+        ..transform = Physics.Transform3D(position:Math.Vec3(0.0, 2.5, 6.0)))
+    var controller = FPSController()
+    var i = 0
+    while i < 240 {
+        controller.step(world, FPSController.Commands() ..forward = 1.0, 1.0 / 120.0)
+        if i > 60 { assert(!controller.step_event) }
+        i++
+    }
+}
+func stair_jump_case() {
+    var world = Physics.World3D()
+    floor(world)
+    world.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(3.0, 0.8, 2.0)))
+        ..transform = Physics.Transform3D(position:Math.Vec3(0.0, 0.4, 5.0)))
+    var controller = FPSController()
+    var i = 0
+    while controller.position.y < 1.6 && i < 120 {
+        controller.step(world, FPSController.Commands() ..forward = 1.0, 1.0 / 120.0)
+        i++
+    }
+    assert(i < 120 && controller.stair_offset < -0.5)
+    let before = support_eye(controller, 1.0)
+    let previous_y = controller.position.y
+    controller.step(world, FPSController.Commands() ..jump_pressed = true, 1.0 / 120.0)
+    assert(!controller.grounded)
+    assert(Math.abs(support_eye(controller, 0.0) - before) < 0.0001)
+    let ballistic = controller.position.y - previous_y
+    assert(ballistic > 0.07)
+    assert(support_eye(controller, 1.0) - before - ballistic <= 3.0 / 120.0 + 0.0001)
+}
+test "FPS footsteps alternate only while walking, with one landing event" { footstep_case() }
+test "FPS pushing into a wall does not produce footsteps" { wall_footstep_case() }
+test "FPS jumping during stair smoothing cannot snap the eye" { stair_jump_case() }
+test "FPS strafe leans the camera toward the movement" { tilt_case() }
+test "FPS stair camera stays continuous across fixed and render steps" { stairs_case() }
 test "WorldDemo jump height, variable jump and landing" { jump_case() }
 test "WorldDemo speeds, normalized diagonals and sprint FOV" { movement_case() }
 test "WorldDemo crouch and timed slide keep the full-height capsule" { crouch_slide_case() }
 test "WorldDemo coyote time permits one jump after leaving a ledge" { coyote_case() }
-func main() { jump_case(); movement_case(); crouch_slide_case(); coyote_case(); print("FPS controller scenarios passed") }
+func main() { footstep_case(); wall_footstep_case(); stair_jump_case(); tilt_case(); stairs_case(); jump_case(); movement_case(); crouch_slide_case(); coyote_case(); print("FPS controller scenarios passed") }

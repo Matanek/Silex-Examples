@@ -350,6 +350,7 @@ func main() {
         ..add_plugin(Plugins.Rendering())
         ..add_plugin(Plugins.Scene3D())
         ..add_plugin(Plugins.Input())
+        ..add_plugin(Plugins.Audio())
         ..add_plugin(Application.Time())
         ..add_plugin(Plugins.PerformancePanel())
         ..add_resource(Physics.World3D())

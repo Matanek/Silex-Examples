@@ -38,15 +38,25 @@ The settings follow the archived NKEngine WorldDemo: 6 m/s walk, 7.8 m/s sprint,
 3 m/s crouch, 1.85 m nominal jump height, 0.4 s ascent and 0.35 s descent,
 125 ms coyote time, 45° slope limit and 1.2 m maximum step. Camera effects include
 stair smoothing, head bob, landing dip, strafe tilt and sprint FOV (75–90°).
-The 120 Hz movement loop is independent of rendering and interpolates position.
+The 120 Hz movement loop is independent of rendering. Both the capsule position
+and its stair correction are interpolated together. The viewpoint catches up at
+at most 3 m/s after support height changes; jumping retains its ballistic motion.
+Strafe tilt leans toward the direction of movement.
 
 Like the archive, crouching changes eye height and speed while preserving the
 full-height capsule. It does not allow passing under a lower ceiling. A slide
 lasts at most 1.35 s, ends when Alt is released or support is lost, and prevents
-jumping while active. Footstep sounds are not included.
+jumping while active.
+
+Footsteps and slide audio reuse the original WorldDemo MP3 samples, decoded once
+at startup through GFX.Audio. Steps follow the walking head-bob cycle and alternate
+left/right with slight gain and pitch variation. Standing still, pushing against a
+wall, jumping and sliding do not emit walking steps. Landings produce one centered
+impact; the slide sound ends when the slide ends or the character is reset.
 
 `FPSController.sx` owns gameplay and camera effects, `Player.sx` binds input and
-Application, and `GFX.Physics.CharacterMover3D` resolves capsule motion. The
+Application, `FootstepAudio.sx` consumes movement events, and
+`GFX.Physics.CharacterMover3D` resolves capsule motion. The
 current mover treats body poses as stationary during each call: moving-platform
 transport, pushing dynamic bodies and physical character-to-character interaction
 are future physics work.
@@ -56,4 +66,7 @@ are future physics work.
 The consumer test `GFX.Physics/Tests/Consumer/Tests/CharacterMover3D.sx` covers
 capsule collision behavior; `Tests/Controller.sx` covers the FPS movement rules.
 Pass `--smoke` to the executable for an automatic four-second staircase, jump
-and landing run. It checks the final support and peak height and then exits.
+and landing run. It checks the final support, peak height and footstep/landing
+playback requests,
+then exits. `Tests/FootstepAudio.sx` also exercises MP3 decoding, overlapping voices,
+slide start/stop and reset with a real or dummy audio device.

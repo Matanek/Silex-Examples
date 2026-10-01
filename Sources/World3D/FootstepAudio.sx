@@ -1,0 +1,71 @@
+use GFX.Audio as GFXAudio
+use Module.FPSController
+use STD.Math
+use STD.Randomizer
+
+// Samples are decoded once. At most four footstep voices and one slide overlap.
+// Consume after every physics step so render interpolation cannot lose events.
+public class FootstepAudio {
+    private var footstep:GFXAudio.Sound
+    private var slide:GFXAudio.Sound
+    private var voices:GFXAudio.PlayingSound[]
+    private var slide_voice:GFXAudio.PlayingSound
+    private var next_voice:int = 0
+    private var was_sliding:bool = false
+    private var random:Randomizer
+    var steps_played:int = 0
+    var landings_played:int = 0
+    var slides_played:int = 0
+
+    init() {
+        self.footstep = GFXAudio.Sound()
+        self.slide = GFXAudio.Sound()
+        self.voices = [GFXAudio.PlayingSound(), GFXAudio.PlayingSound(),
+            GFXAudio.PlayingSound(), GFXAudio.PlayingSound()]
+        self.slide_voice = GFXAudio.PlayingSound()
+        self.random = Randomizer()
+    }
+
+    func load(audio:&GFXAudio.Audio) {
+        self.footstep = audio.load("Assets/Sounds/footstep.mp3")
+        self.slide = audio.load("Assets/Sounds/ground-slide.mp3")
+    }
+
+    func reset(audio:&GFXAudio.Audio) {
+        for voice in self.voices { audio.release(voice) }
+        audio.release(self.slide_voice)
+        self.was_sliding = false
+    }
+
+    func update(audio:&GFXAudio.Audio, controller:@FPSController) {
+        if controller.sliding && !self.was_sliding {
+            self.slide_voice = audio.play(self.slide, GFXAudio.Playback(volume:0.8))
+            self.slides_played++
+        } else if !controller.sliding && self.was_sliding {
+            audio.release(self.slide_voice)
+        }
+        self.was_sliding = controller.sliding
+        if controller.sliding { return }
+        if controller.landed_event {
+            self.play(audio, 1.0 + Math.lerp(0.55, 0.8, self.random.get_float()) * 0.2,
+                0.8 + Math.lerp(0.92, 1.08, self.random.get_float()) * 0.1, 0.0)
+            self.landings_played++
+        } else if controller.step_event {
+            self.play(audio, Math.lerp(0.55, 0.8, self.random.get_float()),
+                Math.lerp(0.92, 1.08, self.random.get_float()), controller.step_pan)
+            self.steps_played++
+        }
+    }
+
+    private func play(audio:&GFXAudio.Audio, volume:float, speed:float, pan:float) {
+        audio.release(self.voices[self.next_voice])
+        var settings = GFXAudio.Playback(volume:volume, speed:speed)
+        // Listener-relative placement alternates the feet at a constant distance.
+        // Landings remain centered without positional attenuation.
+        if pan != 0.0 {
+            settings.position = Math.Vec3(pan, 0.0, -Math.sqrt(1.0 - pan * pan))
+        }
+        self.voices[self.next_voice] = audio.play(self.footstep, settings)
+        self.next_voice = (self.next_voice + 1) % 4
+    }
+}

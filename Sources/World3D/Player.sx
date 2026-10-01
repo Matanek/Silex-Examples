@@ -5,11 +5,13 @@ use GFX.Input
 use GFX.Physics
 use GFX.Resources
 use Module.FPSController
+use Module.FootstepAudio
 use STD.Math
 use STD.Process
 
 public class Player {
     var motor:FPSController
+    var footsteps:FootstepAudio
     var camera:ECS.Entity
     var commands:FPSController.Commands
     var accumulator:float = 0.0
@@ -17,14 +19,17 @@ public class Player {
     var smoke:bool = false
     var highest:float = 0.0
     var jumped:bool = false
+    var jump_landings:int = 0
     init() {
         self.motor = FPSController()
+        self.footsteps = FootstepAudio()
         self.camera = ECS.Entity()
         self.commands = FPSController.Commands()
     }
 }
 
-public func start(player:&Player, world:&Resources.World, window:&Resources.Window) {
+public func start(player:&Player, world:&Resources.World, window:&Resources.Window, audio:&Resources.Audio) {
+    player.footsteps.load(audio)
     player.camera = world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform3D(position:player.motor.eye_position(1.0)))
         ..with(Components.Camera3D(vertical_fov:Math.radians(75.0), near_plane:0.05, far_plane:180.0)))
@@ -39,14 +44,16 @@ public func start(player:&Player, world:&Resources.World, window:&Resources.Wind
 }
 
 public func update(player:&Player, physics:@Physics.World3D, world:&Resources.World,
-    input:@Resources.InputState, time:@Resources.FrameTime, application:&Application.Controller) {
+    input:@Resources.InputState, time:@Resources.FrameTime, application:&Application.Controller,
+    audio:&Resources.Audio) {
     if input.is_pressed(Input.Key.escape) { application.stop(); return }
     if input.is_pressed(Input.Key.r) {
+        player.footsteps.reset(audio)
         player.motor = FPSController()
         player.accumulator = 0.0
         player.commands = FPSController.Commands()
     }
-    player.motor.look(input.mouse_delta())
+    if !player.smoke { player.motor.look(input.mouse_delta()) }
     var commands = copy player.commands
     commands.forward = 0.0
     commands.right = 0.0
@@ -70,6 +77,11 @@ public func update(player:&Player, physics:@Physics.World3D, world:&Resources.Wo
             }
         }
         player.motor.step(physics, commands, 1.0 / 120.0)
+        player.footsteps.update(audio, player.motor)
+        if player.smoke && player.motor.landed_event {
+            if player.jumped { player.jump_landings++ }
+            print("FPS smoke landing: time=$(player.elapsed), height=$(player.motor.position.y), z=$(player.motor.position.z), after jump=$(player.jumped)")
+        }
         player.elapsed += 1.0 / 120.0
         player.highest = Math.max(player.highest, player.motor.position.y)
         commands.crouch_pressed = false
@@ -93,7 +105,10 @@ public func update(player:&Player, physics:@Physics.World3D, world:&Resources.Wo
         assert(player.motor.position.z < 2.0)
         assert(player.highest > 3.0)
         assert(player.motor.grounded)
-        print("World3D FPS smoke: stairs crossed, jump and landing verified")
+        print("World3D FPS audio: steps=$(player.footsteps.steps_played), landings=$(player.footsteps.landings_played)")
+        assert(player.footsteps.steps_played > 0)
+        assert(player.jump_landings == 1)
+        print("World3D FPS smoke: stairs crossed, jump, landing and audio verified")
         application.stop()
     }
 }

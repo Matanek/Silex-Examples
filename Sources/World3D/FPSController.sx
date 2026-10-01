@@ -21,6 +21,10 @@ public class FPSController {
     var yaw:float = 0.0
     var pitch:float = 0.0
     var stair_offset:float = 0.0
+    private var previous_stair_offset:float = 0.0
+    var step_event:bool = false
+    var step_pan:float = 0.0
+    var landed_event:bool = false
     var field_of_view:float = 75.0
     var bob:Math.Vec2
     var tilt:float = 0.0
@@ -53,6 +57,9 @@ public class FPSController {
 
     func step(world:@Physics.World3D, commands:Commands, delta:float) {
         self.previous_position = self.position
+        self.previous_stair_offset = self.stair_offset
+        self.step_event = false
+        self.landed_event = false
         let was_grounded = self.grounded
         let yaw_rotation = Math.Quat.angle_axis(self.yaw, Math.Vec3.up())
         var direction = yaw_rotation.rotate(Math.Vec3.front()).multiply(commands.forward)
@@ -109,24 +116,32 @@ public class FPSController {
         self.grounded = result.grounded
         self.velocity = result.clip_velocity(velocity)
         if was_grounded && !self.grounded && !jumped { self.coyote = 0.125 }
-        if result.stepped {
-            self.stair_offset = Math.clamp(self.stair_offset -
-                (self.position.y - self.previous_position.y), -1.2, 0.0)
+        // Keep the eye continuous when support changes height, including capsule
+        // edge recovery and downward floor snapping, not just explicit step casts.
+        if was_grounded && self.grounded && !jumped {
+            self.stair_offset -= self.position.y - self.previous_position.y
         }
         if !self.grounded {
             self.airborne_time += delta
-            self.stair_offset = 0.0
         } else {
-            if !was_grounded {
+            self.landed_event = !was_grounded && self.airborne_time > 0.08
+            if self.landed_event {
                 self.dip_target = -Math.clamp(self.airborne_time * 0.18, 0.02, 0.2)
             }
             self.airborne_time = 0.0
-            self.stair_offset *= Math.exp(-10.0 * delta)
         }
+        // Smooth only the support correction: ballistic jump motion stays immediate.
+        // Retain the offset on takeoff so a jump mid-stair cannot snap the camera.
+        let recovery = -self.stair_offset * (1.0 - Math.exp(-8.0 * delta))
+        self.stair_offset += Math.clamp(recovery, -3.0 * delta, 3.0 * delta)
         let horizontal_speed = Math.Vec2(self.velocity.x, self.velocity.z).length()
+        let traveled = Math.Vec2(self.position.x - self.previous_position.x,
+            self.position.z - self.previous_position.z).length()
+        let walking = self.grounded && !self.sliding && traveled > 0.1 * delta
+        let previous_bob_x = self.bob.x
         var bob_target = Math.Vec2()
-        if self.grounded && !self.sliding && horizontal_speed > 0.1 {
-            self.bob_time += horizontal_speed * delta
+        if walking {
+            self.bob_time += traveled
             var x_amount = 0.2
             var y_amount = -0.08
             if sprinting { x_amount = 0.25; y_amount = -0.1 }
@@ -135,6 +150,12 @@ public class FPSController {
         }
         let alpha = 1.0 - Math.exp(-10.0 * delta)
         self.bob = self.bob.add(bob_target.subtract(self.bob).multiply(alpha))
+        self.step_event = walking && previous_bob_x * self.bob.x < 0.0
+        self.step_pan = 0.0
+        if self.step_event {
+            self.step_pan = 0.375
+            if self.bob.x < 0.0 { self.step_pan = -0.375 }
+        }
         // Match the archive: crouching lowers the viewpoint and walking speed;
         // the collision capsule stays full height, including during a slide.
         var target_crouch = 0.0
@@ -155,16 +176,17 @@ public class FPSController {
     }
 
     func eye_position(interpolation:float) Math.Vec3 {
-        let center = self.previous_position.add(self.position.subtract(
-            self.previous_position).multiply(interpolation))
+        let previous_center = self.previous_position.add(Math.Vec3(0.0, self.previous_stair_offset, 0.0))
+        let current_center = self.position.add(Math.Vec3(0.0, self.stair_offset, 0.0))
+        let center = previous_center.add(current_center.subtract(previous_center).multiply(interpolation))
         let right = Math.Quat.angle_axis(self.yaw, Math.Vec3.up()).rotate(Math.Vec3.right())
         return center.add(right.multiply(self.bob.x)).add(Math.Vec3(0.0,
-            0.85 + self.stair_offset + self.bob.y + self.landing_dip + self.crouch_offset, 0.0))
+            0.85 + self.bob.y + self.landing_dip + self.crouch_offset, 0.0))
     }
 
     func rotation() Math.Quat {
         return Math.Quat.angle_axis(self.yaw, Math.Vec3.up())
             .multiply(Math.Quat.angle_axis(self.pitch, Math.Vec3.right()))
-            .multiply(Math.Quat.angle_axis(-self.tilt, Math.Vec3.front()))
+            .multiply(Math.Quat.angle_axis(self.tilt, Math.Vec3.front()))
     }
 }

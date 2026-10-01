@@ -1,0 +1,56 @@
+use Package.World3D.FPSController
+use Package.World3D.FootstepAudio
+use GFX.Audio as GFXAudio
+use GFX.Physics
+use STD.Math
+
+// Compile from the workspace root; run beside World3D/Main.sx for its assets.
+func main() {
+    var audio = GFXAudio.Audio()
+    var footsteps = FootstepAudio()
+    footsteps.load(audio)
+    var world = Physics.World3D()
+    world.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(100.0, 1.0, 100.0)))
+        ..transform = Physics.Transform3D(position:Math.Vec3(0.0, -0.5, 0.0)))
+    var controller = FPSController()
+    var i = 0
+    while i < 360 {
+        controller.step(world, FPSController.Commands() ..forward = 1.0, 1.0 / 120.0)
+        footsteps.update(audio, controller)
+        i++
+    }
+    assert(footsteps.steps_played >= 6)
+    let walking_steps = footsteps.steps_played
+    i = 0
+    while i < 150 {
+        controller.step(world, FPSController.Commands() ..jump_pressed = i == 0, 1.0 / 120.0)
+        footsteps.update(audio, controller)
+        i++
+    }
+    assert(footsteps.landings_played == 1)
+    assert(footsteps.steps_played == walking_steps)
+    controller.step(world, FPSController.Commands() ..forward = 1.0 ..sprint = true, 1.0 / 120.0)
+    footsteps.update(audio, controller)
+    let pre_slide_steps = footsteps.steps_played
+    i = 0
+    while i < 60 {
+        controller.step(world, FPSController.Commands() ..forward = 1.0 ..sprint = true
+            ..crouch_held = true ..crouch_pressed = i == 0, 1.0 / 120.0)
+        footsteps.update(audio, controller)
+        i++
+    }
+    assert(footsteps.slides_played == 1)
+    assert(footsteps.steps_played == pre_slide_steps)
+    controller.step(world, FPSController.Commands(), 1.0 / 120.0)
+    footsteps.update(audio, controller)
+    assert(!controller.sliding)
+    footsteps.reset(audio)
+    footsteps.reset(audio)
+    controller = FPSController()
+    controller.step(world, FPSController.Commands(), 1.0 / 120.0)
+    footsteps.update(audio, controller)
+    assert(footsteps.landings_played == 1)
+    print("World3D audio smoke: MP3 samples, footsteps, landing, slide and reset passed")
+}
