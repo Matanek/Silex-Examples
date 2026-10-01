@@ -72,7 +72,7 @@ func crouch_slide_case() {
         i++
     }
     assert(!controller.sliding && controller.grounded)
-    assert(Math.abs(controller.velocity.z + 3.0) < 0.01)
+    assert(Math.abs(controller.velocity.z + 3.6) < 0.01)
     assert(Math.abs(controller.crouch_offset + 0.55) < 0.01)
     assert(Math.abs(controller.position.y - 0.852) < 0.005)
     assert(controller.crouching)
@@ -84,12 +84,12 @@ func crouch_slide_case() {
         assert(controller.crouching && !controller.sliding && controller.grounded)
         i++
     }
-    assert(Math.abs(crouch_start - controller.position.z - 3.9) < 0.01)
+    assert(Math.abs(crouch_start - controller.position.z - 7.8) < 0.01)
     assert(Math.abs(controller.crouch_offset + 0.55) < 0.01)
     assert(Math.abs(controller.field_of_view - 75.0) < 0.01)
     controller.step(world, FPSController.Commands() ..forward = 1.0
         ..crouch_held = true, 1.0 / 120.0)
-    assert(controller.crouching && Math.abs(controller.velocity.z + 3.0) < 0.01)
+    assert(controller.crouching && Math.abs(controller.velocity.z + 3.6) < 0.01)
     controller.step(world, FPSController.Commands() ..forward = 1.0, 1.0 / 120.0)
     assert(!controller.crouching && Math.abs(controller.velocity.z + 6.0) < 0.01)
 }

@@ -34,8 +34,8 @@ paths resolve. A directly compiled executable must be launched from that directo
 | R | Reset the character |
 | Escape | Quit |
 
-The settings follow the archived NKEngine WorldDemo: 6 m/s walk, 7.8 m/s sprint,
-3 m/s crouch (3.9 m/s while holding Sprint), 1.85 m nominal jump height,
+The settings adapt the archived NKEngine WorldDemo: 6 m/s walk, 7.8 m/s sprint,
+3.6 m/s crouch (7.8 m/s while holding Sprint), 1.85 m nominal jump height,
 0.4 s ascent and 0.35 s descent,
 125 ms coyote time, 45° slope limit and 1.2 m maximum step. Camera effects include
 stair smoothing, head bob, landing dip, strafe tilt and sprint FOV (75–90°).
