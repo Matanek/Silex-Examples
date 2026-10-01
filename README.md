@@ -157,12 +157,14 @@ blue weight oscillates beneath a fixed gold anchor without gravity. Press
 to switch between damping ratios 0.1 and 1.0. The first mode overshoots and
 oscillates; the second returns without a visible overshoot.
 
-`Physics3D/CompoundMotionScene.sx` demonstrates fixed and kinematic compound
-contacts: a two-rail lift carries a bridge and crates while a rotating cross
-pushes independent crates. Press **Space** to raise/lower the lift, **P** to
-stop/start the rotor, **R** to reset, and **Escape** to quit. The two blue rails
-belong to one collider; both support the bridge simultaneously. Each visible
-part follows its physical child's pose.
+`Physics3D/CompoundMotionScene.sx` demonstrates kinematic and dynamic compound
+contacts: a two-rail lift carries a bridge and crates, a rotating cross pushes
+independent crates, and a purple two-box body falls onto the floor and turns.
+Press **Space** to raise/lower the lift, **P** to stop/start the rotor, **R**
+to reset, and **Escape** to quit. The two blue rails belong to one collider;
+both support the bridge simultaneously. Every visible leaf follows its body's
+physical pose. Pass `--smoke` to the compiled executable for a bounded check
+of the lift, rotor, and dynamic compound without manual input.
 
 From the workspace root (or the Spec Worktree group root):
 

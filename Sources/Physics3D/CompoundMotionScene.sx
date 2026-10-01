@@ -22,6 +22,9 @@ class CompoundSceneState {
     var starts:Physics.Transform3D[] = []
     var lift:Physics.RigidBody3D? = null
     var rotor:Physics.RigidBody3D? = null
+    var dynamic_compound:Physics.RigidBody3D? = null
+    var dynamic_start:Physics.Transform3D = Physics.Transform3D(
+        position:Math.Vec3(0.0, 3.0, -3.2))
     var raised:bool = false
     var spinning:bool = true
     var smoke:bool = false
@@ -45,10 +48,11 @@ func add_box_visual(
 func add_compound(
     world:&Resources.World, meshes:&Resources.Meshes3D, physics:&Physics.World3D,
     state:&CompoundSceneState, children:Physics.CompoundChild3D[],
-    pose:Physics.Transform3D, color:Color
+    pose:Physics.Transform3D, color:Color,
+    body_type:Physics.BodyType3D = Physics.BodyType3D.kinematic
 ) Physics.RigidBody3D {
     var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
-        ..body_type = Physics.BodyType3D.kinematic
+        ..body_type = body_type
         ..shape = Physics.Shape3D.compound(Physics.Compound3D(children))
         ..transform = pose ..friction = 0.9)
     for child in children {
@@ -119,6 +123,17 @@ func create_compound_scene(
             Color.bytes(229, 177, 89))
         index++
     }
+    state.dynamic_compound = add_compound(world, meshes, physics, state, [
+        Physics.CompoundChild3D(11,
+            Physics.Shape3D.box(Physics.Box3D(Math.Vec3(2.0, 1.0, 1.0))),
+            Physics.Transform3D(position:Math.Vec3(-1.0, 0.0, 0.0))),
+        Physics.CompoundChild3D(22,
+            Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.0, 2.0, 1.0))),
+            Physics.Transform3D(position:Math.Vec3(1.0, 1.0, 0.0),
+                rotation:Math.Quat.angle_axis(Math.pi() / 4.0,
+                    Math.Vec3(0.0, 0.0, 1.0))))
+    ], state.dynamic_start, Color.bytes(169, 105, 205),
+        Physics.BodyType3D.dynamic)
     world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(
         color:Color.white(), intensity:0.2)))
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(
@@ -131,7 +146,7 @@ func create_compound_scene(
         }
         failure(error) => { panic(error.detail) }
     }
-    print("Compound colliders: Space raises/lowers the two-rail lift; P toggles the rotor; R resets; Escape quits")
+    print("Compound colliders: purple dynamic pair falls; Space raises/lowers the two-rail lift; P toggles the rotor; R resets; Escape quits")
 }
 
 func control_compounds(input:@Resources.InputState, time:@Resources.FrameTime,
@@ -146,6 +161,13 @@ func control_compounds(input:@Resources.InputState, time:@Resources.FrameTime,
             }
         }
         if state.elapsed > 6.0 {
+            if let body = state.dynamic_compound {
+                let pose = body.position()
+                assert(Math.abs(body.mass_properties().mass - 4.0) < 0.0001)
+                assert(Math.abs(body.mass_properties().inertia_tensor.x.y + 1.75) < 0.0001)
+                assert(Math.is_finite(pose.x) && Math.is_finite(pose.y) &&
+                    Math.is_finite(pose.z) && pose.y < 2.0)
+            } else { assert(false) }
             assert(Math.abs(state.payloads[0].position().y - 2.925) < 0.05)
             assert(state.payloads[1].position().y > 3.1)
             assert(state.payloads[2].position().y > 3.1)
@@ -158,7 +180,7 @@ func control_compounds(input:@Resources.InputState, time:@Resources.FrameTime,
                 index++
             }
             assert(displaced >= 4)
-            print("Compound scene smoke: lift carries its three loads; rotor displaced $(displaced) crates")
+            print("Compound scene smoke: dynamic pair fell; lift carries its three loads; rotor displaced $(displaced) crates")
             controller.stop()
         }
     }
@@ -189,6 +211,11 @@ func control_compounds(input:@Resources.InputState, time:@Resources.FrameTime,
         if let rotor = state.rotor {
             rotor.set_transform(Physics.Transform3D(position:Math.Vec3(3.0, 0.3, 0.0)))
         }
+        if let body = state.dynamic_compound {
+            body.set_transform(state.dynamic_start)
+            body.set_linear_velocity(Math.Vec3())
+            body.set_angular_velocity(Math.Vec3())
+        }
         var index = 0
         for body in state.payloads {
             body.set_transform(state.starts[index])
@@ -215,7 +242,7 @@ func main() {
     Application()
         ..add_resource(CompoundSceneState())
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
-            ..title = "Silex 3D — Space: lift | P: rotor | R: reset"
+            ..title = "Silex 3D — dynamic pair | Space: lift | P: rotor | R: reset"
             ..width = 1200 ..height = 800))
         ..add_plugin(Plugins.Scene3D())
         ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
