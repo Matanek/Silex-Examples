@@ -51,7 +51,8 @@ jumping while active.
 
 Footsteps and slide audio reuse the original WorldDemo MP3 samples, decoded once
 at startup through GFX.Audio. Steps follow the walking head-bob cycle and alternate
-slightly left/right near the center (±0.1 pan), with small gain and pitch variation.
+slightly left/right near the center (±0.025 pan), with small gain and pitch variation.
+Crouched footsteps use 20% of the normal walking gain; standing restores normal gain.
 Standing still, pushing against a wall, jumping and sliding do not emit walking steps.
 A landing produces one centered impact only after at least 0.30 m of descent from
 the airborne peak. Brief losses of support over small obstacles preserve the

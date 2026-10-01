@@ -75,6 +75,9 @@ func crouch_slide_case() {
     assert(Math.abs(controller.velocity.z + 3.0) < 0.01)
     assert(Math.abs(controller.crouch_offset + 0.55) < 0.01)
     assert(Math.abs(controller.position.y - 0.852) < 0.005)
+    assert(controller.crouching)
+    controller.step(world, FPSController.Commands() ..forward = 1.0, 1.0 / 120.0)
+    assert(!controller.crouching && Math.abs(controller.velocity.z + 6.0) < 0.01)
 }
 func coyote_case() {
     var world = Physics.World3D()
@@ -160,7 +163,7 @@ func footstep_case() {
         controller.step(world, FPSController.Commands() ..forward = 1.0, 1.0 / 120.0)
         if controller.step_event {
             assert(controller.step_pan * last_pan <= 0.0)
-            assert(Math.abs(controller.step_pan) == 0.1)
+            assert(Math.abs(controller.step_pan) == 0.025)
             last_pan = controller.step_pan
             steps++
         }

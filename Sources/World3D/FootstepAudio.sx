@@ -53,7 +53,9 @@ public class FootstepAudio {
                 0.8 + Math.lerp(0.92, 1.08, self.random.get_float()) * 0.1, 0.0)
             self.landings_played++
         } else if controller.step_event {
-            self.play(audio, Math.lerp(0.55, 0.8, self.random.get_float()),
+            var volume = Math.lerp(0.55, 0.8, self.random.get_float())
+            if controller.crouching { volume *= 0.2 }
+            self.play(audio, volume,
                 Math.lerp(0.92, 1.08, self.random.get_float()), controller.step_pan)
             self.steps_played++
         }

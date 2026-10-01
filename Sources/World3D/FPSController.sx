@@ -31,6 +31,7 @@ public class FPSController {
     var tilt:float = 0.0
     var landing_dip:float = 0.0
     var crouch_offset:float = 0.0
+    var crouching:bool = false
     var sliding:bool = false
     private var slide_timer:float = 0.0
     private var slide_speed:float = 0.0
@@ -63,6 +64,7 @@ public class FPSController {
         self.step_event = false
         self.landed_event = false
         self.landing_height = 0.0
+        self.crouching = commands.crouch_held
         let was_grounded = self.grounded
         if was_grounded || self.airborne_time == 0.0 {
             self.airborne_peak_y = self.position.y
@@ -165,8 +167,8 @@ public class FPSController {
         self.step_event = walking && previous_bob_x * self.bob.x < 0.0
         self.step_pan = 0.0
         if self.step_event {
-            self.step_pan = 0.1
-            if self.bob.x < 0.0 { self.step_pan = -0.1 }
+            self.step_pan = 0.025
+            if self.bob.x < 0.0 { self.step_pan = -0.025 }
         }
         // Match the archive: crouching lowers the viewpoint and walking speed;
         // the collision capsule stays full height, including during a slide.

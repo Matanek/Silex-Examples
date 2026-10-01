@@ -37,6 +37,24 @@ func main() {
     }
     assert(footsteps.landings_played == 1)
     assert(footsteps.steps_played == walking_steps)
+    let before_crouch = footsteps.steps_played
+    i = 0
+    while i < 300 {
+        controller.step(world, FPSController.Commands() ..forward = 1.0 ..crouch_held = true, 1.0 / 120.0)
+        assert(controller.crouching)
+        footsteps.update(audio, controller)
+        i++
+    }
+    assert(footsteps.steps_played > before_crouch)
+    let before_standing = footsteps.steps_played
+    i = 0
+    while i < 180 {
+        controller.step(world, FPSController.Commands() ..forward = 1.0, 1.0 / 120.0)
+        assert(!controller.crouching)
+        footsteps.update(audio, controller)
+        i++
+    }
+    assert(footsteps.steps_played > before_standing)
     controller.step(world, FPSController.Commands() ..forward = 1.0 ..sprint = true, 1.0 / 120.0)
     footsteps.update(audio, controller)
     let pre_slide_steps = footsteps.steps_played
