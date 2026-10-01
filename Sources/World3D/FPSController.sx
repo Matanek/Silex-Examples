@@ -89,8 +89,8 @@ public class FPSController {
         }
         let sprinting = commands.sprint && !commands.crouch_held && !self.sliding
         var speed = 6.0
-        if sprinting { speed *= 1.3 }
         if commands.crouch_held { speed = 3.0 }
+        if commands.sprint { speed *= 1.3 }
         var desired = direction.multiply(speed)
         if self.sliding {
             desired = self.slide_direction.multiply(Math.max(3.0,

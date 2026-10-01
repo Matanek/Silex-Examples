@@ -35,7 +35,8 @@ paths resolve. A directly compiled executable must be launched from that directo
 | Escape | Quit |
 
 The settings follow the archived NKEngine WorldDemo: 6 m/s walk, 7.8 m/s sprint,
-3 m/s crouch, 1.85 m nominal jump height, 0.4 s ascent and 0.35 s descent,
+3 m/s crouch (3.9 m/s while holding Sprint), 1.85 m nominal jump height,
+0.4 s ascent and 0.35 s descent,
 125 ms coyote time, 45° slope limit and 1.2 m maximum step. Camera effects include
 stair smoothing, head bob, landing dip, strafe tilt and sprint FOV (75–90°).
 The 120 Hz movement loop is independent of rendering. Both the capsule position
