@@ -157,12 +157,13 @@ blue weight oscillates beneath a fixed gold anchor without gravity. Press
 to switch between damping ratios 0.1 and 1.0. The first mode overshoots and
 oscillates; the second returns without a visible overshoot.
 
-`Physics3D/TriangleMeshScene.sx` shows a gold sphere crossing the shared
-diagonal of two differently colored fixed triangles. The sphere restarts after
-each crossing; press **R** to restart early or **Escape** to quit. A compiled
-binary accepts `--smoke` to check that one contact persists, the face identity
-changes, and the sphere stays at its support height. From the workspace root
-or the Spec Worktree group root, run
+`Physics3D/TriangleMeshScene.sx` shows a gold sphere falling onto a sloped
+surface made of two differently colored fixed triangles. Gravity makes it roll
+across their shared diagonal; a dark patch makes the rotation visible. The
+sphere restarts after each crossing; press **R** to restart early or **Escape**
+to quit. A compiled binary accepts `--smoke` to check the fall, continuing
+contact, both face identities, support height, and acquired spin. From the
+workspace root or the Spec Worktree group root, run
 `silex run Silex-Examples/Sources/Physics3D/TriangleMeshScene.sx`.
 
 `Physics3D/CompoundMotionScene.sx` demonstrates kinematic and dynamic compound
