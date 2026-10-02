@@ -1,0 +1,206 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+
+class MeshSceneState {
+    var sphere:Physics.RigidBody3D? = null
+    var sphere_visual:ECS.Entity = ECS.Entity()
+    var smoke:bool = false
+    var elapsed:float = 0.0
+    var min_height:float = 1.0
+    var max_height:float = 0.0
+    var crossed:bool = false
+    var first_face:bool = false
+    var second_face:bool = false
+}
+
+func floor_triangle(first:Math.Vec3, second:Math.Vec3,
+    third:Math.Vec3) Scene3D.Geometry.Mesh {
+    return Scene3D.Geometry.Mesh([
+        Scene3D.Geometry.Vertex(position:first, normal:Math.Vec3.up()),
+        Scene3D.Geometry.Vertex(position:second, normal:Math.Vec3.up()),
+        Scene3D.Geometry.Vertex(position:third, normal:Math.Vec3.up())
+    ], [0 as uint32, 1 as uint32, 2 as uint32])
+}
+
+func sphere_mesh(radius:float) Scene3D.Geometry.Mesh {
+    let rings = 12
+    let segments = 20
+    var vertices:Scene3D.Geometry.Vertex[] = []
+    var indices:uint32[] = []
+    var ring = 0
+    while ring <= rings {
+        let latitude = Math.pi() * ring as float / rings as float
+        let height = Math.cos(latitude)
+        let spread = Math.sin(latitude)
+        var segment = 0
+        while segment <= segments {
+            let longitude = 2.0 * Math.pi() * segment as float /
+                segments as float
+            let normal = Math.Vec3(spread * Math.cos(longitude), height,
+                spread * Math.sin(longitude))
+            vertices.append(Scene3D.Geometry.Vertex(
+                position:normal.multiply(radius), normal:normal,
+                uv:Math.Vec2(segment as float / segments as float,
+                    ring as float / rings as float)))
+            segment++
+        }
+        ring++
+    }
+    ring = 0
+    while ring < rings {
+        var segment = 0
+        while segment < segments {
+            let first = ring * (segments + 1) + segment
+            let below = first + segments + 1
+            indices.append(first as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append(below as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append((below + 1) as uint32)
+            indices.append(below as uint32)
+            segment++
+        }
+        ring++
+    }
+    return Scene3D.Geometry.Mesh(vertices, indices)
+}
+
+func reset_sphere(body:Physics.RigidBody3D) {
+    body.set_transform(Physics.Transform3D(
+        position:Math.Vec3(0.65, 0.5, 0.65)))
+    body.set_linear_velocity(Math.Vec3(1.5, 0.0, 1.5))
+    body.set_angular_velocity(Math.Vec3())
+}
+
+func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&MeshSceneState) {
+    let a = Math.Vec3()
+    let b = Math.Vec3(0.0, 0.0, 4.0)
+    let c = Math.Vec3(4.0, 0.0, 0.0)
+    let d = Math.Vec3(4.0, 0.0, 4.0)
+    let floor = Physics.Shape3D.mesh(Physics.TriangleMesh3D([
+        Physics.Triangle3D(a, b, c), Physics.Triangle3D(c, b, d)
+    ]))
+    physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed ..shape = floor
+        ..friction = 0.0)
+
+    let first_mesh = meshes.add(floor_triangle(a, b, c))
+    let second_mesh = meshes.add(floor_triangle(c, b, d))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Mesh3D(first_mesh))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(75, 145, 188), roughness:0.8)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Mesh3D(second_mesh))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(89, 178, 175), roughness:0.8)))
+
+    let seam = meshes.add(Scene3D.Geometry.Cube.make(
+        Math.Vec3(0.035, 0.015, 5.64)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(2.0, 0.012, 2.0),
+            rotation:Math.Quat.angle_axis(Math.radians(135.0), Math.Vec3.up())))
+        ..with(Components.Mesh3D(seam))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(31, 48, 62), roughness:0.9)))
+
+    var sphere = physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.5))
+        ..friction = 0.0 ..allow_sleep = false)
+    reset_sphere(sphere)
+    state.sphere_visual = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:sphere.position()))
+        ..with(Components.Mesh3D(meshes.add(sphere_mesh(0.5))))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(243, 185, 94), roughness:0.42)))
+    state.sphere = sphere
+
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.AmbientLight3D(
+            color:Color.white(), intensity:0.18)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.SunLight3D(
+            direction:Math.Vec3(-0.45, -1.0, -0.3).normalized(),
+            color:Color.white(), intensity:3.3)))
+    match Process.arguments() {
+        success(arguments) => {
+            for argument in arguments {
+                if argument == "--smoke" { state.smoke = true }
+            }
+        }
+        failure(error) => { panic(error.detail) }
+    }
+    print("Sphere crosses the diagonal seam; R restarts, Escape quits")
+}
+
+func control_scene(input:@Resources.InputState, time:@Resources.FrameTime,
+    physics:@Physics.World3D,
+    state:&MeshSceneState, controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if let sphere = state.sphere {
+        if input.is_pressed(Input.Key.r) ||
+            (!state.smoke && sphere.position().x > 3.35) {
+            reset_sphere(sphere)
+        }
+        if state.smoke {
+            state.elapsed += time.delta
+            let position = sphere.position()
+            state.min_height = Math.min(state.min_height, position.y)
+            state.max_height = Math.max(state.max_height, position.y)
+            if position.x > 2.05 { state.crossed = true }
+            if position.x > 0.8 && position.x < 3.2 {
+                assert(physics.contact_count() == 1)
+                var contacts:Physics.Contact3D[] = []
+                physics.write_contacts(contacts)
+                if contacts[0].first_child_id() == 0 { state.first_face = true }
+                if contacts[0].first_child_id() == 1 { state.second_face = true }
+            }
+            if state.elapsed > 2.0 {
+                assert(state.crossed && state.first_face && state.second_face &&
+                    position.x > 3.0)
+                assert(state.min_height > 0.49 && state.max_height < 0.51)
+                print("Triangle mesh scene smoke: sphere crossed with stable height")
+                controller.stop()
+            }
+        }
+    }
+}
+
+func sync_sphere(world:&Resources.World, state:@MeshSceneState) {
+    if let sphere = state.sphere {
+        let position = sphere.position()
+        let rotation = sphere.rotation()
+        world.update<Components.Transform3D>(state.sphere_visual,
+            func(transform:&Components.Transform3D) {
+                transform.position = position
+                transform.rotation = rotation
+            })
+    }
+}
+
+func main() {
+    Application()
+        ..add_resource(MeshSceneState())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Silex 3D — triangle seam | R: restart"
+            ..width = 1100 ..height = 750))
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(2.0, 0.3, 2.0)
+            ..distance = 9.0 ..pitch = Math.radians(-38.0)))
+        ..add_plugin(Plugins.Physics3D())
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, control_scene)
+        ..add_system(Application.Schedule.render, sync_sphere)
+        ..run()
+}

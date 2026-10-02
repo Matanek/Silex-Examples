@@ -65,6 +65,8 @@ func add_compound(
             sphere(_) => {}
             capsule(_) => {}
             compound(_) => {}
+            triangle(_) => {}
+            mesh(_) => {}
         }
     }
     return body
