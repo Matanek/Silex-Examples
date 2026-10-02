@@ -174,6 +174,15 @@ the fall, contact identity on all three rows, travel, and acquired spin.
 From the workspace root or Spec Worktree group root, run
 `silex run Silex-Examples/Sources/Physics3D/HeightGridScene.sx`.
 
+`Physics3D/CapsuleTerrainScene.sx` moves a gold capsule back and forth over a
+4 by 4 height grid. The marked seams show uphill and downhill support changes.
+Press **Tab** for manual movement with **WASD** or the arrow keys, **Space** to
+jump, **R** to restart, and **Escape** to quit. The capsule turns coral while
+airborne. A compiled binary accepts `--smoke` to verify continuous support
+through all three rows in both directions. From the workspace root or Spec
+Worktree group root, run
+`silex run Silex-Examples/Sources/Physics3D/CapsuleTerrainScene.sx`.
+
 `Physics3D/CompoundMotionScene.sx` demonstrates kinematic and dynamic compound
 contacts: a two-rail lift carries a bridge and crates, a rotating cross pushes
 independent crates, and a slightly tilted purple body of two joined boxes falls

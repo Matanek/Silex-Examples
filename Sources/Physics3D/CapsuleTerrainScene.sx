@@ -1,0 +1,230 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+
+class CapsuleTerrainState {
+    var mover:Physics.CharacterMover3D = Physics.CharacterMover3D(Physics.CharacterMover3DSettings() ..step_height = 0.0)
+    var position:Math.Vec3 = Math.Vec3(1.5, 1.0, 0.4)
+    var previous_position:Math.Vec3 = Math.Vec3(1.5, 1.0, 0.4)
+    var velocity:Math.Vec3 = Math.Vec3()
+    var grounded:bool = false
+    var visual:ECS.Entity = ECS.Entity()
+    var automatic:bool = true
+    var direction:float = 1.0
+    var jump_pending:bool = false
+    var accumulator:float = 0.0
+    var ticks:int = 0
+    var turns:int = 0
+    var visited_rows:bool[] = [false, false, false]
+    var smoke:bool = false
+}
+
+func floor_triangle(first:Math.Vec3, second:Math.Vec3,
+    third:Math.Vec3) Scene3D.Geometry.Mesh {
+    let normal = second.subtract(first).cross(third.subtract(first)).normalized()
+    return Scene3D.Geometry.Mesh([
+        Scene3D.Geometry.Vertex(position:first, normal:normal),
+        Scene3D.Geometry.Vertex(position:second, normal:normal),
+        Scene3D.Geometry.Vertex(position:third, normal:normal)
+    ], [0 as uint32, 1 as uint32, 2 as uint32])
+}
+
+func capsule_mesh(radius:float, half_height:float) Scene3D.Geometry.Mesh {
+    let rings = 13
+    let segments = 20
+    var vertices:Scene3D.Geometry.Vertex[] = []
+    var indices:uint32[] = []
+    var ring = 0
+    while ring <= rings {
+        var latitude = Math.half_pi() * ring as float / 6.0
+        var center = half_height
+        if ring >= 7 {
+            latitude = Math.half_pi() + Math.half_pi() * (ring - 7) as float / 6.0
+            center = -half_height
+        }
+        let height = Math.cos(latitude)
+        let spread = Math.sin(latitude)
+        var segment = 0
+        while segment <= segments {
+            let longitude = 2.0 * Math.pi() * segment as float /
+                segments as float
+            let normal = Math.Vec3(spread * Math.cos(longitude), height,
+                spread * Math.sin(longitude))
+            vertices.append(Scene3D.Geometry.Vertex(
+                position:normal.multiply(radius).add(Math.Vec3(0.0, center, 0.0)), normal:normal,
+                uv:Math.Vec2(segment as float / segments as float,
+                    ring as float / rings as float)))
+            segment++
+        }
+        ring++
+    }
+    ring = 0
+    while ring < rings {
+        var segment = 0
+        while segment < segments {
+            let first = ring * (segments + 1) + segment
+            let below = first + segments + 1
+            indices.append(first as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append(below as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append((below + 1) as uint32)
+            indices.append(below as uint32)
+            segment++
+        }
+        ring++
+    }
+    return Scene3D.Geometry.Mesh(vertices, indices)
+}
+
+func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&CapsuleTerrainState) {
+    var grid = Physics.TriangleMesh3D.from_height_grid(4, 4,
+        [0.0, 0.0, 0.0, 0.0,
+         0.15, 0.15, 0.15, 0.15,
+         0.30, 0.30, 0.30, 0.30,
+         0.15, 0.15, 0.15, 0.15], 1.0, 1.0)
+    physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed ..shape = Physics.Shape3D.mesh(grid))
+    var index = 0
+    while index < grid.triangle_count() {
+        let triangle = grid.triangle(index)
+        var tint = Color.bytes(74, 151, 190)
+        if index / 6 == 1 { tint = Color.bytes(85, 180, 177) }
+        if index / 6 == 2 { tint = Color.bytes(109, 166, 191) }
+        world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D())
+            ..with(Components.Mesh3D(meshes.add(floor_triangle(
+                triangle.first, triangle.second, triangle.third))))
+            ..with(Components.Material3D(albedo:tint, roughness:0.8)))
+        index++
+    }
+    let seam = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(3.0, 0.012, 0.025)))
+    var row = 1
+    while row <= 2 {
+        world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D(position:Math.Vec3(1.5,
+                0.15 * row as float + 0.009, row as float)))
+            ..with(Components.Mesh3D(seam))
+            ..with(Components.Material3D(albedo:Color.bytes(31, 48, 62), roughness:0.9)))
+        row++
+    }
+    state.visual = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:state.position))
+        ..with(Components.Mesh3D(meshes.add(capsule_mesh(0.3, 0.55))))
+        ..with(Components.Material3D(albedo:Color.bytes(243, 185, 94), roughness:0.42)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.AmbientLight3D(color:Color.white(), intensity:0.18)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.SunLight3D(direction:Math.Vec3(-0.45, -1.0, -0.3).normalized(),
+            color:Color.white(), intensity:3.3)))
+    match Process.arguments() {
+        success(arguments) => {
+            for argument in arguments { if argument == "--smoke" { state.smoke = true } }
+        }
+        failure(error) => { panic(error.detail) }
+    }
+    print("Capsule crosses terrain automatically; Tab: manual, WASD/arrows: move, Space: jump, R: restart, Escape: quit")
+}
+
+func move_character(input:@Resources.InputState, time:@Resources.FrameTime,
+    physics:@Physics.World3D, state:&CapsuleTerrainState, controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if input.is_pressed(Input.Key.tab) { state.automatic = !state.automatic }
+    if input.is_pressed(Input.Key.r) || state.position.y < -3.0 {
+        state.position = Math.Vec3(1.5, 1.0, 0.4)
+        state.previous_position = state.position
+        state.velocity = Math.Vec3()
+        state.grounded = false
+        state.direction = 1.0
+    }
+    if input.is_pressed(Input.Key.space) { state.jump_pending = true }
+    var command = Math.Vec3()
+    if !state.automatic {
+        if input.is_down(Input.Key.w) || input.is_down(Input.Key.up) { command.z += 1.0 }
+        if input.is_down(Input.Key.s) || input.is_down(Input.Key.down) { command.z -= 1.0 }
+        if input.is_down(Input.Key.a) || input.is_down(Input.Key.left) { command.x -= 1.0 }
+        if input.is_down(Input.Key.d) || input.is_down(Input.Key.right) { command.x += 1.0 }
+        if command.length_squared() > 1.0 { command = command.normalized() }
+    }
+    let delta = 1.0 / 120.0
+    state.accumulator = Math.min(state.accumulator + time.delta, 8.0 * delta)
+    while state.accumulator >= delta {
+        if state.automatic {
+            if (state.direction > 0.0 && state.position.z >= 2.6) ||
+                (state.direction < 0.0 && state.position.z <= 0.4) {
+                state.direction = -state.direction
+                state.turns++
+            }
+            command = Math.Vec3(0.0, 0.0, state.direction)
+        }
+        state.velocity.x = command.x * 1.2
+        state.velocity.z = command.z * 1.2
+        if state.grounded { state.velocity.y = 0.0 }
+        else { state.velocity.y -= 9.81 * delta }
+        if state.jump_pending && state.grounded {
+            state.velocity.y = 3.5
+            state.grounded = false
+        }
+        state.jump_pending = false
+        state.previous_position = state.position
+        let result = state.mover.calculate_move(physics, state.position,
+            state.velocity.multiply(delta), state.grounded)
+        state.position = result.position
+        state.grounded = result.grounded
+        state.velocity = result.clip_velocity(state.velocity)
+        state.ticks++
+        if state.smoke {
+            if state.ticks > 30 {
+                assert(state.grounded && result.support() != null)
+                assert(Math.abs(state.position.x - 1.5) < 0.001)
+                let row = Math.floor(Math.clamp(state.position.z, 0.0, 2.0)) as int
+                state.visited_rows[row] = true
+            }
+            if state.ticks == 720 {
+                assert(state.turns >= 2 && state.visited_rows[0] &&
+                    state.visited_rows[1] && state.visited_rows[2])
+                print("Capsule terrain scene smoke: continuous support across all rows in both directions")
+                controller.stop()
+            }
+        }
+        state.accumulator -= delta
+    }
+}
+
+func sync_character(world:&Resources.World, state:@CapsuleTerrainState) {
+    let interpolation = state.accumulator * 120.0
+    let position = state.previous_position.add(
+        state.position.subtract(state.previous_position).multiply(interpolation))
+    var tint = Color.bytes(243, 185, 94)
+    if !state.grounded { tint = Color.bytes(240, 120, 95) }
+    world.update<Components.Transform3D>(state.visual,
+        func(transform:&Components.Transform3D) { transform.position = position })
+    world.update<Components.Material3D>(state.visual,
+        func(material:&Components.Material3D) { material.albedo = tint })
+}
+
+func main() {
+    Application()
+        ..add_resource(CapsuleTerrainState())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Silex 3D — capsule on terrain | Tab: manual, Space: jump, R: restart"
+            ..width = 1100 ..height = 750))
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(1.5, 0.7, 1.5) ..distance = 7.0
+            ..pitch = Math.radians(-32.0)))
+        ..add_plugin(Plugins.Physics3D())
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, move_character)
+        ..add_system(Application.Schedule.render, sync_character)
+        ..run()
+}
