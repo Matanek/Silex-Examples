@@ -166,6 +166,14 @@ contact, both face identities, support height, and acquired spin. From the
 workspace root or the Spec Worktree group root, run
 `silex run Silex-Examples/Sources/Physics3D/TriangleMeshScene.sx`.
 
+`Physics3D/HeightGridScene.sx` builds a fixed 4 by 4 height grid. A gold sphere
+falls onto its three colored slopes, then rolls across the marked cell rows.
+The visible triangles use the same grid as the collider. Press **R** to
+restart or **Escape** to quit. A compiled binary accepts `--smoke` to check
+the fall, contact identity on all three rows, travel, and acquired spin.
+From the workspace root or Spec Worktree group root, run
+`silex run Silex-Examples/Sources/Physics3D/HeightGridScene.sx`.
+
 `Physics3D/CompoundMotionScene.sx` demonstrates kinematic and dynamic compound
 contacts: a two-rail lift carries a bridge and crates, a rotating cross pushes
 independent crates, and a slightly tilted purple body of two joined boxes falls

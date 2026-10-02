@@ -1,0 +1,230 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+
+class HeightGridSceneState {
+    var sphere:Physics.RigidBody3D? = null
+    var sphere_visual:ECS.Entity = ECS.Entity()
+    var rotation_marker:ECS.Entity = ECS.Entity()
+    var smoke:bool = false
+    var elapsed:float = 0.0
+    var touched:bool = false
+    var visited_rows:bool[] = [false, false, false]
+    var farthest_z:float = 0.0
+    var max_spin:float = 0.0
+}
+
+func floor_triangle(first:Math.Vec3, second:Math.Vec3,
+    third:Math.Vec3) Scene3D.Geometry.Mesh {
+    let normal = second.subtract(first).cross(third.subtract(first)).normalized()
+    return Scene3D.Geometry.Mesh([
+        Scene3D.Geometry.Vertex(position:first, normal:normal),
+        Scene3D.Geometry.Vertex(position:second, normal:normal),
+        Scene3D.Geometry.Vertex(position:third, normal:normal)
+    ], [0 as uint32, 1 as uint32, 2 as uint32])
+}
+
+func sphere_mesh(radius:float) Scene3D.Geometry.Mesh {
+    let rings = 12
+    let segments = 20
+    var vertices:Scene3D.Geometry.Vertex[] = []
+    var indices:uint32[] = []
+    var ring = 0
+    while ring <= rings {
+        let latitude = Math.pi() * ring as float / rings as float
+        let height = Math.cos(latitude)
+        let spread = Math.sin(latitude)
+        var segment = 0
+        while segment <= segments {
+            let longitude = 2.0 * Math.pi() * segment as float /
+                segments as float
+            let normal = Math.Vec3(spread * Math.cos(longitude), height,
+                spread * Math.sin(longitude))
+            vertices.append(Scene3D.Geometry.Vertex(
+                position:normal.multiply(radius), normal:normal,
+                uv:Math.Vec2(segment as float / segments as float,
+                    ring as float / rings as float)))
+            segment++
+        }
+        ring++
+    }
+    ring = 0
+    while ring < rings {
+        var segment = 0
+        while segment < segments {
+            let first = ring * (segments + 1) + segment
+            let below = first + segments + 1
+            indices.append(first as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append(below as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append((below + 1) as uint32)
+            indices.append(below as uint32)
+            segment++
+        }
+        ring++
+    }
+    return Scene3D.Geometry.Mesh(vertices, indices)
+}
+
+func reset_sphere(body:Physics.RigidBody3D) {
+    body.set_transform(Physics.Transform3D(
+        position:Math.Vec3(1.35, 2.3, 0.35)))
+    body.set_linear_velocity(Math.Vec3())
+    body.set_angular_velocity(Math.Vec3())
+}
+
+func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&HeightGridSceneState) {
+    var grid = Physics.TriangleMesh3D.from_height_grid(4, 4,
+        [1.2, 1.2, 1.2, 1.2,
+         0.8, 0.8, 0.8, 0.8,
+         0.4, 0.4, 0.4, 0.4,
+         0.0, 0.0, 0.0, 0.0], 1.0, 1.0)
+    let floor = Physics.Shape3D.mesh(grid)
+    physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed ..shape = floor
+        ..friction = 0.6)
+
+    var index = 0
+    while index < grid.triangle_count() {
+        let triangle = grid.triangle(index)
+        let triangle_mesh = meshes.add(floor_triangle(
+            triangle.first, triangle.second, triangle.third))
+        var tint = Color.bytes(74, 151, 190)
+        if index / 6 == 1 { tint = Color.bytes(85, 180, 177) }
+        if index / 6 == 2 { tint = Color.bytes(109, 166, 191) }
+        world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D())
+            ..with(Components.Mesh3D(triangle_mesh))
+            ..with(Components.Material3D(albedo:tint, roughness:0.8)))
+        index++
+    }
+    let seam = meshes.add(Scene3D.Geometry.Cube.make(
+        Math.Vec3(3.0, 0.015, 0.035)))
+    var row = 1
+    while row < 3 {
+        world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D(position:Math.Vec3(1.5,
+                1.2 - 0.4 * row as float + 0.014, row as float)))
+            ..with(Components.Mesh3D(seam))
+            ..with(Components.Material3D(
+                albedo:Color.bytes(31, 48, 62), roughness:0.9)))
+        row++
+    }
+
+    var sphere = physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.5))
+        ..friction = 0.4 ..allow_sleep = false)
+    reset_sphere(sphere)
+    state.sphere_visual = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:sphere.position()))
+        ..with(Components.Mesh3D(meshes.add(sphere_mesh(0.5))))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(243, 185, 94), roughness:0.42)))
+    let marker_mesh = meshes.add(Scene3D.Geometry.Cube.make(
+        Math.Vec3(0.18, 0.04, 0.18)))
+    state.rotation_marker = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:sphere.position().add(
+            Math.Vec3(0.0, 0.49, 0.0))))
+        ..with(Components.Mesh3D(marker_mesh))
+        ..with(Components.Material3D(
+            albedo:Color.bytes(85, 38, 33), roughness:0.8)))
+    state.sphere = sphere
+
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.AmbientLight3D(
+            color:Color.white(), intensity:0.18)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.SunLight3D(
+            direction:Math.Vec3(-0.45, -1.0, -0.3).normalized(),
+            color:Color.white(), intensity:3.3)))
+    match Process.arguments() {
+        success(arguments) => {
+            for argument in arguments {
+                if argument == "--smoke" { state.smoke = true }
+            }
+        }
+        failure(error) => { panic(error.detail) }
+    }
+    print("Sphere falls and rolls across a 3 by 3 height grid; R restarts, Escape quits")
+}
+
+func control_scene(input:@Resources.InputState, time:@Resources.FrameTime,
+    physics:@Physics.World3D,
+    state:&HeightGridSceneState, controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if let sphere = state.sphere {
+        if input.is_pressed(Input.Key.r) ||
+            (!state.smoke && sphere.position().z > 3.45) {
+            reset_sphere(sphere)
+        }
+        if state.smoke {
+            state.elapsed += time.delta
+            let position = sphere.position()
+            state.max_spin = Math.max(state.max_spin,
+                sphere.angular_velocity().length())
+            state.farthest_z = Math.max(state.farthest_z, position.z)
+            if physics.contact_count() == 1 {
+                state.touched = true
+                var contacts:Physics.Contact3D[] = []
+                physics.write_contacts(contacts)
+                let row = contacts[0].first_child_id() / 6
+                assert(row >= 0 && row < 3)
+                state.visited_rows[row] = true
+            }
+            if state.elapsed > 5.0 {
+                assert(state.touched && state.visited_rows[0] &&
+                    state.visited_rows[1] && state.visited_rows[2])
+                assert(state.farthest_z > 2.5)
+                assert(state.max_spin > 0.1)
+                print("Height grid scene smoke: sphere rolled across all three cell rows")
+                controller.stop()
+            }
+        }
+    }
+}
+
+func sync_sphere(world:&Resources.World, state:@HeightGridSceneState) {
+    if let sphere = state.sphere {
+        let position = sphere.position()
+        let rotation = sphere.rotation()
+        world.update<Components.Transform3D>(state.sphere_visual,
+            func(transform:&Components.Transform3D) {
+                transform.position = position
+                transform.rotation = rotation
+            })
+        let marker_position = position.add(rotation.rotate(
+            Math.Vec3(0.0, 0.49, 0.0)))
+        world.update<Components.Transform3D>(state.rotation_marker,
+            func(transform:&Components.Transform3D) {
+                transform.position = marker_position
+                transform.rotation = rotation
+            })
+    }
+}
+
+func main() {
+    Application()
+        ..add_resource(HeightGridSceneState())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Silex 3D — rolling across height grid | R: restart"
+            ..width = 1100 ..height = 750))
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(1.5, 0.7, 1.5)
+            ..distance = 9.0 ..pitch = Math.radians(-38.0)))
+        ..add_plugin(Plugins.Physics3D())
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, control_scene)
+        ..add_system(Application.Schedule.render, sync_sphere)
+        ..run()
+}
