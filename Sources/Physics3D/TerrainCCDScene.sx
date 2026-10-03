@@ -1,0 +1,204 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+
+class TerrainCCDState {
+    var bodies:Physics.RigidBody3D[] = []
+    var visuals:ECS.Entity[] = []
+    var fired:bool = false
+    var smoke:bool = false
+    var elapsed:float = 0.0
+}
+
+func origin(index:int) Math.Vec3 { return Math.Vec3(index as float * 5.0 - 6.5, 0.0, -1.5) }
+
+func reset(body:&Physics.RigidBody3D, index:int) {
+    var height = 1.0
+    var speed = -120.0
+    if index == 1 { height = -1.0; speed = 120.0 }
+    body.set_transform(Physics.Transform3D(position:origin(index).add(Math.Vec3(1.5, height, 1.5))))
+    body.set_linear_velocity(Math.Vec3(0.0, speed, 0.0))
+    body.set_angular_velocity(Math.Vec3())
+}
+
+func terrain(open:bool) Physics.TriangleMesh3D {
+    var triangles:Physics.Triangle3D[] = []
+    var row = 0
+    while row < 3 {
+        var column = 0
+        while column < 3 {
+            if !open || column != 1 || row != 1 {
+                let first = Math.Vec3(column as float, 0.0, row as float)
+                let next_column = first.add(Math.Vec3.right())
+                let next_row = first.add(Math.Vec3.back())
+                let opposite = next_column.add(Math.Vec3.back())
+                triangles.append(Physics.Triangle3D(first, next_row, next_column))
+                triangles.append(Physics.Triangle3D(next_column, next_row, opposite))
+            }
+            column++
+        }
+        row++
+    }
+    return Physics.TriangleMesh3D(triangles)
+}
+
+func triangle_mesh(triangle:Physics.Triangle3D) Scene3D.Geometry.Mesh {
+    let normal = triangle.normal()
+    return Scene3D.Geometry.Mesh([
+        Scene3D.Geometry.Vertex(position:triangle.first, normal:normal),
+        Scene3D.Geometry.Vertex(position:triangle.second, normal:normal),
+        Scene3D.Geometry.Vertex(position:triangle.third, normal:normal)
+    ], [0 as uint32, 1 as uint32, 2 as uint32])
+}
+
+func sphere_mesh(radius:float) Scene3D.Geometry.Mesh {
+    let rings = 12
+    let segments = 20
+    var vertices:Scene3D.Geometry.Vertex[] = []
+    var indices:uint32[] = []
+    var ring = 0
+    while ring <= rings {
+        let latitude = Math.pi() * ring as float / rings as float
+        let height = Math.cos(latitude)
+        let spread = Math.sin(latitude)
+        var segment = 0
+        while segment <= segments {
+            let longitude = 2.0 * Math.pi() * segment as float /
+                segments as float
+            let normal = Math.Vec3(spread * Math.cos(longitude), height,
+                spread * Math.sin(longitude))
+            vertices.append(Scene3D.Geometry.Vertex(
+                position:normal.multiply(radius), normal:normal,
+                uv:Math.Vec2(segment as float / segments as float,
+                    ring as float / rings as float)))
+            segment++
+        }
+        ring++
+    }
+    ring = 0
+    while ring < rings {
+        var segment = 0
+        while segment < segments {
+            let first = ring * (segments + 1) + segment
+            let below = first + segments + 1
+            indices.append(first as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append(below as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append((below + 1) as uint32)
+            indices.append(below as uint32)
+            segment++
+        }
+        ring++
+    }
+    return Scene3D.Geometry.Mesh(vertices, indices)
+}
+
+func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&TerrainCCDState) {
+    var index = 0
+    while index < 3 {
+        var grid = terrain(index == 2)
+        physics.create_rigid_body(Physics.RigidBody3DSettings()
+            ..body_type = Physics.BodyType3D.fixed ..shape = Physics.Shape3D.mesh(grid)
+            ..transform = Physics.Transform3D(position:origin(index)) ..friction = 0.0)
+        var face = 0
+        while face < grid.triangle_count() {
+            var tint = Color.bytes(72, 145, 160)
+            if face % 2 == 1 { tint = tint.lerp(Color.black(), 0.2) }
+            world.spawn(ECS.EntityRecipe()
+                ..with(Components.Transform3D(position:origin(index)))
+                ..with(Components.Mesh3D(meshes.add(triangle_mesh(grid.triangle(face)))))
+                ..with(Components.Material3D(albedo:tint, roughness:0.85)))
+            face++
+        }
+        var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
+            ..shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.25))
+            ..continuous_collision = true ..allow_sleep = false ..friction = 0.0)
+        reset(body, index)
+        var tint = Color.bytes(242, 183, 82)
+        if index == 1 { tint = Color.bytes(238, 124, 88) }
+        if index == 2 { tint = Color.bytes(137, 158, 243) }
+        state.bodies.append(body)
+        state.visuals.append(world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D(position:body.position()))
+            ..with(Components.Mesh3D(meshes.add(sphere_mesh(0.25))))
+            ..with(Components.Material3D(albedo:tint, roughness:0.45))))
+        // Small neutral marker beside the original height makes the displacement visible.
+        world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D(position:body.position().add(Math.Vec3(0.65, 0.0, 0.0))))
+            ..with(Components.Mesh3D(meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.1)))))
+            ..with(Components.Material3D(albedo:Color.bytes(190, 195, 204), roughness:0.7)))
+        index++
+    }
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.3)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(
+        direction:Math.Vec3(-0.4, -1.0, -0.3).normalized(), intensity:3.0)))
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    print("Gold: stopped by front face. Coral: passes from below. Blue: falls through opening.")
+    print("Space: advance one fast step and hold result. R: reset. Escape: quit.")
+}
+
+func control(input:@Resources.InputState, time:@Resources.FrameTime,
+    physics:&Physics.World3D, state:&TerrainCCDState, controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if input.is_pressed(Input.Key.r) {
+        var index = 0
+        while index < state.bodies.count() { reset(state.bodies[index], index); index++ }
+        state.fired = false
+        state.elapsed = 0.0
+    }
+    state.elapsed += time.delta
+    if !state.fired && (input.is_pressed(Input.Key.space) || (state.smoke && state.elapsed > 0.5)) {
+        // Intentional single-step comparison: hold the actual physics result for inspection.
+        physics.step(1.0 / 60.0)
+        state.fired = true
+        assert(Math.abs(state.bodies[0].position().y - 0.25) < 0.001)
+        assert(Math.abs(state.bodies[1].position().y - 1.0) < 0.001)
+        assert(Math.abs(state.bodies[2].position().y + 1.0) < 0.001)
+        assert(physics.contact_count() == 1)
+        print("Terrain CCD: front y=$(state.bodies[0].position().y), back y=$(state.bodies[1].position().y), opening y=$(state.bodies[2].position().y)")
+    }
+    if state.smoke && state.elapsed > 2.0 {
+        assert(state.fired)
+        print("Terrain CCD smoke: single-step results rendered and retained")
+        controller.stop()
+    }
+}
+
+func sync_bodies(world:&Resources.World, state:@TerrainCCDState) {
+    var index = 0
+    while index < state.bodies.count() {
+        let position = state.bodies[index].position()
+        world.update<Components.Transform3D>(state.visuals[index],
+            func(transform:&Components.Transform3D) { transform.position = position })
+        index++
+    }
+}
+
+func main() {
+    Application()
+        ..add_resource(TerrainCCDState())
+        ..add_resource(Physics.World3D(Physics.World3DSettings() ..gravity = Math.Vec3()))
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Silex terrain CCD | Space: fire, R: reset" ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time())
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(0.0, 0.0, 0.0) ..distance = 14.0 ..pitch = Math.radians(-25.0)))
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, control)
+        ..add_system(Application.Schedule.render, sync_bodies)
+        ..run()
+}

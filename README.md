@@ -183,6 +183,15 @@ through all three rows in both directions. From the workspace root or Spec
 Worktree group root, run
 `silex run Silex-Examples/Sources/Physics3D/CapsuleTerrainScene.sx`.
 
+`Physics3D/TerrainCCDScene.sx` compares three fast sphere trajectories in a
+single step: gold stops at a front face, coral passes upward through a back
+face, and blue falls through an opening. Space advances one 1/60 s step at
+120 m/s and holds the result for inspection; R restores the initial positions.
+Small neutral markers show the original heights. This is an intentional
+single-step comparison, independent of real-time frame rate. Run
+`silex run Silex-Examples/Sources/Physics3D/TerrainCCDScene.sx` or append
+`-- --smoke` for a bounded SDL/Metal check.
+
 `Physics3D/BoxTerrainScene.sx` shows a gold/coral stack resting across a flat
 terrain seam with the standard friction coefficient of 0.6. The blue box and
 its inclined terrain have zero friction to show sliding across five coplanar rows.
