@@ -183,14 +183,18 @@ through all three rows in both directions. From the workspace root or Spec
 Worktree group root, run
 `silex run Silex-Examples/Sources/Physics3D/CapsuleTerrainScene.sx`.
 
-`Physics3D/TerrainCCDScene.sx` compares three fast sphere trajectories in a
-single step: gold stops at a front face, coral passes upward through a back
-face, and blue falls through an opening. Space advances one 1/60 s step at
-120 m/s and holds the result for inspection; R restores the initial positions.
-Small neutral markers show the original heights. This is an intentional
-single-step comparison, independent of real-time frame rate. Run
+`Physics3D/TerrainCCDScene.sx` starts three physical trajectories automatically:
+gold falls onto the terrain and rebounds, coral rises through the back face
+then bounces on the front face, and blue falls through an opening onto a
+lower tray. All three spheres have the same constant restitution of 0.65.
+Gravity runs in real time at a fixed 1/60 s step;
+interpolated poses keep the motion smooth. The sun casts shadows out to
+40 m, covering the lower tray as well as the terrain. The scene restarts
+every four seconds.
+Press **Space** to pause or resume, **R** to restart, and
+**Escape** to quit. From the workspace root or Spec Worktree group root, run
 `silex run Silex-Examples/Sources/Physics3D/TerrainCCDScene.sx` or append
-`-- --smoke` for a bounded SDL/Metal check.
+`-- --smoke` to verify two complete animated cycles in SDL/Metal.
 
 `Physics3D/BoxTerrainScene.sx` shows a gold/coral stack resting across a flat
 terrain seam with the standard friction coefficient of 0.6. The blue box and

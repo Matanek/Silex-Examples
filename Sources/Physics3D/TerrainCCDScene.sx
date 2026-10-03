@@ -13,17 +13,28 @@ use STD.Process
 class TerrainCCDState {
     var bodies:Physics.RigidBody3D[] = []
     var visuals:ECS.Entity[] = []
-    var fired:bool = false
+    var previous:Math.Vec3[] = []
+    var previous_velocity:float[] = [0.0, 0.0, 0.0]
     var smoke:bool = false
+    var accumulator:float = 0.0
     var elapsed:float = 0.0
+    var cycles:int = 0
+    var steps:int = 0
+    var front_bounced:bool = false
+    var back_passed:bool = false
+    var back_landed:bool = false
+    var back_rebounds:int = 0
+    var hole_passed:bool = false
+    var caught:bool = false
+    var rendered_motion:bool[] = [false, false, false]
 }
 
 func origin(index:int) Math.Vec3 { return Math.Vec3(index as float * 5.0 - 6.5, 0.0, -1.5) }
 
 func reset(body:&Physics.RigidBody3D, index:int) {
-    var height = 1.0
-    var speed = -120.0
-    if index == 1 { height = -1.0; speed = 120.0 }
+    var height = 3.0
+    var speed = 0.0
+    if index == 1 { height = -1.0; speed = 8.0 }
     body.set_transform(Physics.Transform3D(position:origin(index).add(Math.Vec3(1.5, height, 1.5))))
     body.set_linear_velocity(Math.Vec3(0.0, speed, 0.0))
     body.set_angular_velocity(Math.Vec3())
@@ -120,69 +131,155 @@ func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
                 ..with(Components.Material3D(albedo:tint, roughness:0.85)))
             face++
         }
+        if index == 2 {
+            let tray_position = origin(index).add(Math.Vec3(1.5, -2.75, 1.5))
+            let tray_size = Math.Vec3(2.5, 0.3, 2.5)
+            physics.create_rigid_body(Physics.RigidBody3DSettings()
+                ..body_type = Physics.BodyType3D.fixed
+                ..shape = Physics.Shape3D.box(Physics.Box3D(tray_size))
+                ..transform = Physics.Transform3D(position:tray_position) ..friction = 0.0)
+            world.spawn(ECS.EntityRecipe()
+                ..with(Components.Transform3D(position:tray_position))
+                ..with(Components.Mesh3D(meshes.add(Scene3D.Geometry.Cube.make(tray_size))))
+                ..with(Components.Material3D(albedo:Color.bytes(75, 89, 120), roughness:0.8)))
+        }
         var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
             ..shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.25))
-            ..continuous_collision = true ..allow_sleep = false ..friction = 0.0)
+            ..continuous_collision = true ..allow_sleep = false ..friction = 0.0
+            ..restitution = 0.65)
         reset(body, index)
         var tint = Color.bytes(242, 183, 82)
         if index == 1 { tint = Color.bytes(238, 124, 88) }
         if index == 2 { tint = Color.bytes(137, 158, 243) }
         state.bodies.append(body)
+        state.previous.append(body.position())
         state.visuals.append(world.spawn(ECS.EntityRecipe()
             ..with(Components.Transform3D(position:body.position()))
             ..with(Components.Mesh3D(meshes.add(sphere_mesh(0.25))))
             ..with(Components.Material3D(albedo:tint, roughness:0.45))))
-        // Small neutral marker beside the original height makes the displacement visible.
-        world.spawn(ECS.EntityRecipe()
-            ..with(Components.Transform3D(position:body.position().add(Math.Vec3(0.65, 0.0, 0.0))))
-            ..with(Components.Mesh3D(meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.1)))))
-            ..with(Components.Material3D(albedo:Color.bytes(190, 195, 204), roughness:0.7)))
         index++
     }
     world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.3)))
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(
-        direction:Math.Vec3(-0.4, -1.0, -0.3).normalized(), intensity:3.0)))
+        direction:Math.Vec3(-0.4, -1.0, -0.3).normalized(), intensity:3.0)
+        ..shadow_distance = 40.0))
     match Process.arguments() {
         success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
         failure(error) => { panic(error.detail) }
     }
-    print("Gold: stopped by front face. Coral: passes from below. Blue: falls through opening.")
-    print("Space: advance one fast step and hold result. R: reset. Escape: quit.")
+    print("Gold: gravity-driven fall and rebounds. Coral: launched through terrain from below, then bounces with constant restitution. Blue: falls through opening onto lower tray.")
+    print("Automatic real-time simulation. Space: pause/resume. R: restart. Escape: quit.")
 }
 
-func control(input:@Resources.InputState, time:@Resources.FrameTime,
-    physics:&Physics.World3D, state:&TerrainCCDState, controller:&Application.Controller) {
-    if input.is_pressed(Input.Key.escape) { controller.stop() }
-    if input.is_pressed(Input.Key.r) {
-        var index = 0
-        while index < state.bodies.count() { reset(state.bodies[index], index); index++ }
-        state.fired = false
-        state.elapsed = 0.0
-    }
-    state.elapsed += time.delta
-    if !state.fired && (input.is_pressed(Input.Key.space) || (state.smoke && state.elapsed > 0.5)) {
-        // Intentional single-step comparison: hold the actual physics result for inspection.
-        physics.step(1.0 / 60.0)
-        state.fired = true
-        assert(Math.abs(state.bodies[0].position().y - 0.25) < 0.001)
-        assert(Math.abs(state.bodies[1].position().y - 1.0) < 0.001)
-        assert(Math.abs(state.bodies[2].position().y + 1.0) < 0.001)
-        assert(physics.contact_count() == 1)
-        print("Terrain CCD: front y=$(state.bodies[0].position().y), back y=$(state.bodies[1].position().y), opening y=$(state.bodies[2].position().y)")
-    }
-    if state.smoke && state.elapsed > 2.0 {
-        assert(state.fired)
-        print("Terrain CCD smoke: single-step results rendered and retained")
-        controller.stop()
-    }
-}
-
-func sync_bodies(world:&Resources.World, state:@TerrainCCDState) {
+func restart(state:&TerrainCCDState) {
     var index = 0
     while index < state.bodies.count() {
-        let position = state.bodies[index].position()
+        reset(state.bodies[index], index)
+        state.previous[index] = state.bodies[index].position()
+        index++
+    }
+    state.elapsed = 0.0
+    state.accumulator = 0.0
+    state.front_bounced = false
+    state.back_passed = false
+    state.back_landed = false
+    state.back_rebounds = 0
+    state.hole_passed = false
+    state.caught = false
+    state.rendered_motion = [false, false, false]
+}
+
+func observe(state:&TerrainCCDState, physics:@Physics.World3D) {
+    let gold = state.bodies[0].position()
+    let coral = state.bodies[1].position()
+    let blue = state.bodies[2].position()
+    if gold.y < 0.5 && state.bodies[0].linear_velocity().y > 1.0 { state.front_bounced = true }
+    if coral.y > 1.0 { state.back_passed = true }
+    if blue.y < -0.5 { state.hole_passed = true }
+    if blue.y < -2.0 && state.bodies[2].linear_velocity().y > 1.0 { state.caught = true }
+    var contacts:Physics.Contact3D[] = []
+    physics.write_contacts(contacts)
+    for contact in contacts {
+        var index = 0
+        while index < state.bodies.count() {
+            let body = state.bodies[index]
+            let outgoing = body.linear_velocity().y
+            if contact.normal_impulse() > 0.0 && outgoing > 1.0 &&
+                (contact.first_body().same_body(body) || contact.second_body().same_body(body)) {
+                let incoming = state.previous_velocity[index] + physics.gravity().y / 60.0
+                let ratio = outgoing / -incoming
+                assert(Math.abs(ratio - 0.65) < 0.005)
+                print("Terrain CCD rebound: sphere=$(index) incoming=$(incoming) outgoing=$(outgoing) ratio=$(ratio)")
+            }
+            index++
+        }
+        if contact.first_body().same_body(state.bodies[1]) || contact.second_body().same_body(state.bodies[1]) {
+            if state.elapsed > 1.0 && contact.normal_impulse() > 0.0 {
+                state.back_landed = true
+                if state.bodies[1].linear_velocity().y > 1.0 { state.back_rebounds++ }
+            }
+        }
+    }
+    // Check the whole trajectory, including front-face impacts and the hole.
+    assert(gold.y >= 0.249 && gold.y < 4.0)
+    assert(coral.y > -1.01 && coral.y < 4.0)
+    assert(blue.y > -2.351 && blue.y < 3.01)
+}
+
+func control(input:@Resources.InputState, simulation:&Application.Simulation,
+    physics:&Physics.World3D, state:&TerrainCCDState, controller:&Application.Controller) {
+    if !state.smoke {
+        if input.is_pressed(Input.Key.escape) { controller.stop() }
+        if input.is_pressed(Input.Key.space) {
+            if simulation.is_paused() { simulation.resume() } else { simulation.pause() }
+        }
+        if input.is_pressed(Input.Key.r) { restart(state) }
+    }
+    state.accumulator += simulation.delta()
+    let fixed_delta = 1.0 / 60.0
+    while state.accumulator >= fixed_delta {
+        var index = 0
+        while index < state.bodies.count() {
+            state.previous[index] = state.bodies[index].position()
+            if state.smoke { state.previous_velocity[index] = state.bodies[index].linear_velocity().y }
+            index++
+        }
+        physics.step(fixed_delta)
+        state.accumulator -= fixed_delta
+        state.elapsed += fixed_delta
+        state.steps++
+        if state.smoke { observe(state, physics) }
+        if state.elapsed >= 4.0 {
+            state.cycles++
+            if state.smoke {
+                assert(state.front_bounced && state.back_passed && state.back_landed)
+                assert(state.back_rebounds >= 2)
+                assert(state.hole_passed && state.caught)
+                assert(state.rendered_motion[0] && state.rendered_motion[1] && state.rendered_motion[2])
+                print("Terrain CCD smoke: cycle=$(state.cycles) steps=$(state.steps), front rebound, back traversal and $(state.back_rebounds) rebounds, opening, tray and rendered motion verified")
+                if state.cycles == 2 { controller.stop() }
+            }
+            restart(state)
+        }
+    }
+}
+
+func sync_bodies(world:&Resources.World, state:&TerrainCCDState) {
+    var index = 0
+    while index < state.bodies.count() {
+        let alpha = Math.clamp(state.accumulator * 60.0, 0.0, 1.0)
+        let position = state.previous[index].lerp(state.bodies[index].position(), alpha)
         world.update<Components.Transform3D>(state.visuals[index],
             func(transform:&Components.Transform3D) { transform.position = position })
+        if state.smoke {
+            let rendered = world.get<Components.Transform3D>(state.visuals[index]).position
+            assert(rendered.subtract(position).length() < 0.0001)
+            if index == 1 {
+                if rendered.y > 0.0 { state.rendered_motion[index] = true }
+            } else {
+                if rendered.y < 2.0 { state.rendered_motion[index] = true }
+            }
+        }
         index++
     }
 }
@@ -190,15 +287,15 @@ func sync_bodies(world:&Resources.World, state:@TerrainCCDState) {
 func main() {
     Application()
         ..add_resource(TerrainCCDState())
-        ..add_resource(Physics.World3D(Physics.World3DSettings() ..gravity = Math.Vec3()))
+        ..add_resource(Physics.World3D())
         ..add_plugin(Plugins.Window(Plugins.Window.Settings()
-            ..title = "Silex terrain CCD | Space: fire, R: reset" ..width = 1200 ..height = 720))
+            ..title = "Silex terrain CCD | Space: pause, R: restart" ..width = 1200 ..height = 720))
         ..add_plugin(Plugins.Time())
         ..add_plugin(Plugins.Scene3D())
         ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
-            ..target = Math.Vec3(0.0, 0.0, 0.0) ..distance = 14.0 ..pitch = Math.radians(-25.0)))
+            ..target = Math.Vec3(0.0, 0.4, 0.0) ..distance = 16.0 ..pitch = Math.radians(-20.0)))
         ..add_system(Application.Schedule.startup, create_scene)
-        ..add_system(Application.Schedule.update, control)
+        ..add_system(Application.Schedule.update, control, process_mode:Application.ProcessMode.always)
         ..add_system(Application.Schedule.render, sync_bodies)
         ..run()
 }
