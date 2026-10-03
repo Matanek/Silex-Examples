@@ -1,0 +1,177 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+
+class BoxTerrainState {
+    var bodies:Physics.RigidBody3D[] = []
+    var visuals:ECS.Entity[] = []
+    var smoke:bool = false
+    var elapsed:float = 0.0
+    var visited:bool[] = [false, false, false, false, false]
+    var traversed:bool = false
+}
+
+func reset_box(body:&Physics.RigidBody3D, index:int) {
+    var pose = Physics.Transform3D(position:Math.Vec3(-1.5, 2.5, 1.5))
+    var velocity = Math.Vec3()
+    if index == 1 { pose = Physics.Transform3D(position:Math.Vec3(-1.5, 3.7, 1.5)) }
+    if index == 2 {
+        pose = Physics.Transform3D(Math.Vec3(2.5,
+            1.25 - 0.25 * 0.75 + 0.5 * Math.sqrt(1.0625), 0.75),
+            Math.Quat.angle_axis(Math.atan(0.25), Math.Vec3.right()))
+        velocity = Math.Vec3(0.0, -0.25, 1.0)
+    }
+    body.set_transform(pose)
+    body.set_linear_velocity(velocity)
+    body.set_angular_velocity(Math.Vec3())
+}
+
+func triangle_mesh(triangle:Physics.Triangle3D) Scene3D.Geometry.Mesh {
+    let normal = triangle.normal()
+    return Scene3D.Geometry.Mesh([
+        Scene3D.Geometry.Vertex(position:triangle.first, normal:normal),
+        Scene3D.Geometry.Vertex(position:triangle.second, normal:normal),
+        Scene3D.Geometry.Vertex(position:triangle.third, normal:normal)
+    ], [0 as uint32, 1 as uint32, 2 as uint32])
+}
+
+func add_terrain(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, inclined:bool) {
+    var heights:float[] = []
+    var row = 0
+    while row < 6 {
+        var column = 0
+        while column < 4 {
+            var height = 0.0
+            if inclined { height = 1.25 - 0.25 * row as float }
+            heights.append(height); column++
+        }
+        row++
+    }
+    var grid = Physics.TriangleMesh3D.from_height_grid(4, 6, heights, 1.0, 1.0)
+    var origin = Math.Vec3(-3.0, 0.0, 0.0)
+    if inclined { origin.x = 1.0 }
+    physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed ..shape = Physics.Shape3D.mesh(grid)
+        ..transform = Physics.Transform3D(position:origin) ..friction = 0.0)
+    var index = 0
+    while index < grid.triangle_count() {
+        var tint = Color.bytes(75, 145, 164)
+        if inclined { tint = Color.bytes(72, 167, 170) }
+        if index % 2 == 1 { tint = tint.lerp(Color.black(), 0.22) }
+        world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D(position:origin))
+            ..with(Components.Mesh3D(meshes.add(triangle_mesh(grid.triangle(index)))))
+            ..with(Components.Material3D(albedo:tint, roughness:0.85)))
+        index++
+    }
+}
+
+func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&BoxTerrainState) {
+    add_terrain(world, meshes, physics, false)
+    add_terrain(world, meshes, physics, true)
+    var index = 0
+    while index < 3 {
+        var size = Math.Vec3(1.0)
+        if index == 1 { size = Math.Vec3(0.7) }
+        var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
+            ..shape = Physics.Shape3D.box(Physics.Box3D(size))
+            ..friction = 0.0 ..allow_sleep = false)
+        reset_box(body, index)
+        var tint = Color.bytes(242, 183, 82)
+        if index == 1 { tint = Color.bytes(238, 124, 88) }
+        if index == 2 { tint = Color.bytes(137, 158, 243) }
+        state.bodies.append(body)
+        state.visuals.append(world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D(position:body.position(), rotation:body.rotation()))
+            ..with(Components.Mesh3D(meshes.add(Scene3D.Geometry.Cube.make(size))))
+            ..with(Components.Material3D(albedo:tint, roughness:0.5))))
+        index++
+    }
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.22)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(
+        direction:Math.Vec3(-0.4, -1.0, -0.3).normalized(), intensity:3.0)))
+    match Process.arguments() {
+        success(arguments) => {
+            for argument in arguments { if argument == "--smoke" { state.smoke = true } }
+        }
+        failure(error) => { panic(error.detail) }
+    }
+    print("Left: boxes rest across terrain seams. Right: frictionless sliding. Space: disturb stack, R: restart, Escape: quit")
+}
+
+func control_scene(input:@Resources.InputState, time:@Resources.FrameTime,
+    physics:@Physics.World3D, state:&BoxTerrainState, controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if input.is_pressed(Input.Key.r) {
+        var index = 0
+        while index < state.bodies.count() { reset_box(state.bodies[index], index); index++ }
+    }
+    if input.is_pressed(Input.Key.space) {
+        state.bodies[1].apply_impulse(Math.Vec3(0.0, 0.3, 0.0))
+        state.bodies[1].apply_angular_impulse(Math.Vec3(0.003, 0.0, 0.002))
+    }
+    if state.smoke {
+        var contacts:Physics.Contact3D[] = []
+        physics.write_contacts(contacts)
+        for contact in contacts {
+            if contact.first_body().same_body(state.bodies[2]) || contact.second_body().same_body(state.bodies[2]) {
+                let row = contact.first_child_id() / 6
+                assert(row >= 0 && row < 5)
+                state.visited[row] = true
+            }
+        }
+        if state.bodies[2].position().z > 4.5 { state.traversed = true }
+        state.elapsed += time.delta
+        if state.elapsed > 6.0 {
+            assert(Math.abs(state.bodies[0].position().y - 0.5) < 0.02)
+            assert(Math.abs(state.bodies[1].position().y - 1.35) < 0.02)
+            assert(state.bodies[0].angular_velocity().length() < 0.01)
+            assert(state.bodies[1].angular_velocity().length() < 0.01)
+            assert(state.traversed)
+            for visited in state.visited { assert(visited) }
+            print("Box terrain smoke: stack rested and sliding box crossed all five rows")
+            controller.stop()
+        }
+    }
+    if state.bodies[2].position().z > 5.8 || state.bodies[2].position().y < -1.0 { reset_box(state.bodies[2], 2) }
+}
+
+func sync_boxes(world:&Resources.World, state:@BoxTerrainState) {
+    var index = 0
+    while index < state.bodies.count() {
+        let pose = state.bodies[index].transform()
+        world.update<Components.Transform3D>(state.visuals[index],
+            func(transform:&Components.Transform3D) {
+                transform.position = pose.position; transform.rotation = pose.rotation
+            })
+        index++
+    }
+}
+
+func main() {
+    Application()
+        ..add_resource(BoxTerrainState())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Silex 3D — boxes on terrain | Space: disturb, R: restart"
+            ..width = 1100 ..height = 750))
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(0.5, 0.7, 2.0) ..distance = 10.0
+            ..pitch = Math.radians(-35.0)))
+        ..add_plugin(Plugins.Physics3D(Plugins.Physics3D.Settings(fixed_delta:1.0 / 120.0,
+            maximum_catch_up_steps:8)))
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, control_scene)
+        ..add_system(Application.Schedule.render, sync_boxes)
+        ..run()
+}
