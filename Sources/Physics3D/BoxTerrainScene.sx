@@ -15,6 +15,7 @@ class BoxTerrainState {
     var visuals:ECS.Entity[] = []
     var smoke:bool = false
     var elapsed:float = 0.0
+    var disturbances:int = 0
     var visited:bool[] = [false, false, false, false, false]
     var traversed:bool = false
 }
@@ -32,6 +33,11 @@ func reset_box(body:&Physics.RigidBody3D, index:int) {
     body.set_transform(pose)
     body.set_linear_velocity(velocity)
     body.set_angular_velocity(Math.Vec3())
+}
+
+func disturb_box(body:&Physics.RigidBody3D) {
+    body.apply_impulse(Math.Vec3(0.0, 0.3, 0.0))
+    body.apply_angular_impulse(Math.Vec3(0.003, 0.0, 0.002))
 }
 
 func triangle_mesh(triangle:Physics.Triangle3D) Scene3D.Geometry.Mesh {
@@ -59,9 +65,11 @@ func add_terrain(world:&Resources.World, meshes:&Resources.Meshes3D,
     var grid = Physics.TriangleMesh3D.from_height_grid(4, 6, heights, 1.0, 1.0)
     var origin = Math.Vec3(-3.0, 0.0, 0.0)
     if inclined { origin.x = 1.0 }
+    var friction = 0.6
+    if inclined { friction = 0.0 }
     physics.create_rigid_body(Physics.RigidBody3DSettings()
         ..body_type = Physics.BodyType3D.fixed ..shape = Physics.Shape3D.mesh(grid)
-        ..transform = Physics.Transform3D(position:origin) ..friction = 0.0)
+        ..transform = Physics.Transform3D(position:origin) ..friction = friction)
     var index = 0
     while index < grid.triangle_count() {
         var tint = Color.bytes(75, 145, 164)
@@ -83,9 +91,11 @@ func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
     while index < 3 {
         var size = Math.Vec3(1.0)
         if index == 1 { size = Math.Vec3(0.7) }
+        var friction = 0.6
+        if index == 2 { friction = 0.0 }
         var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
             ..shape = Physics.Shape3D.box(Physics.Box3D(size))
-            ..friction = 0.0 ..allow_sleep = false)
+            ..friction = friction ..allow_sleep = false)
         reset_box(body, index)
         var tint = Color.bytes(242, 183, 82)
         if index == 1 { tint = Color.bytes(238, 124, 88) }
@@ -115,10 +125,14 @@ func control_scene(input:@Resources.InputState, time:@Resources.FrameTime,
     if input.is_pressed(Input.Key.r) {
         var index = 0
         while index < state.bodies.count() { reset_box(state.bodies[index], index); index++ }
+        state.elapsed = 0.0
+        state.disturbances = 0
+        state.visited = [false, false, false, false, false]
+        state.traversed = false
+        if state.smoke { print("Box terrain smoke: R restarted the test clock") }
     }
     if input.is_pressed(Input.Key.space) {
-        state.bodies[1].apply_impulse(Math.Vec3(0.0, 0.3, 0.0))
-        state.bodies[1].apply_angular_impulse(Math.Vec3(0.003, 0.0, 0.002))
+        disturb_box(state.bodies[1])
     }
     if state.smoke {
         var contacts:Physics.Contact3D[] = []
@@ -132,14 +146,32 @@ func control_scene(input:@Resources.InputState, time:@Resources.FrameTime,
         }
         if state.bodies[2].position().z > 4.5 { state.traversed = true }
         state.elapsed += time.delta
-        if state.elapsed > 6.0 {
+        if state.disturbances < 3 && state.elapsed >= 2.0 + 5.0 * state.disturbances as float {
+            print("Box terrain smoke: automatic Space impulse $(state.disturbances + 1) at $(state.elapsed) seconds")
+            disturb_box(state.bodies[1])
+            state.disturbances++
+        }
+        if state.elapsed > 2.0 {
+            // Bound lateral drift throughout the run, including after Space impulses.
+            var index = 0
+            while index < 2 {
+                let position = state.bodies[index].position()
+                assert(Math.abs(position.x + 1.5) < 0.03)
+                assert(Math.abs(position.z - 1.5) < 0.03)
+                index++
+            }
+        }
+        if state.elapsed > 30.0 {
             assert(Math.abs(state.bodies[0].position().y - 0.5) < 0.02)
             assert(Math.abs(state.bodies[1].position().y - 1.35) < 0.02)
             assert(state.bodies[0].angular_velocity().length() < 0.01)
             assert(state.bodies[1].angular_velocity().length() < 0.01)
+            assert(state.bodies[0].linear_velocity().length() < 0.01)
+            assert(state.bodies[1].linear_velocity().length() < 0.01)
+            assert(state.disturbances == 3)
             assert(state.traversed)
             for visited in state.visited { assert(visited) }
-            print("Box terrain smoke: stack rested and sliding box crossed all five rows")
+            print("Box terrain smoke: stack stable for 30 seconds after three Space impulses; sliding box crossed all five rows")
             controller.stop()
         }
     }

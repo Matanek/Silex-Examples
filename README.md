@@ -184,12 +184,15 @@ Worktree group root, run
 `silex run Silex-Examples/Sources/Physics3D/CapsuleTerrainScene.sx`.
 
 `Physics3D/BoxTerrainScene.sx` shows a gold/coral stack resting across a flat
-terrain seam and a blue box sliding across five coplanar inclined rows.
+terrain seam with the standard friction coefficient of 0.6. The blue box and
+its inclined terrain have zero friction to show sliding across five coplanar rows.
 The visible faces use the collider grids; alternating tints expose the
 triangulation. Press **Space** to disturb the top crate, **R** to restart,
 and **Escape** to quit. The sliding box restarts after leaving the terrain.
-A compiled binary accepts `--smoke` to check stack height and stability and
-all five row identities. From the workspace root or Spec Worktree group root,
+A compiled binary accepts `--smoke` to check horizontal drift, stack height
+and settling over 30 seconds, including three automatic Space impulses, and
+all five row identities. Sleeping remains disabled on the three boxes.
+From the workspace root or Spec Worktree group root,
 run `silex run Silex-Examples/Sources/Physics3D/BoxTerrainScene.sx`.
 
 `Physics3D/CompoundMotionScene.sx` demonstrates kinematic and dynamic compound
