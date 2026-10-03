@@ -1,0 +1,246 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+
+// Hulls and render meshes are built once; only two poses change each frame.
+class ConvexState {
+    var bodies:Physics.RigidBody3D[] = []
+    var visuals:ECS.Entity[] = []
+    var previous:Math.Vec3[] = []
+    var smoke:bool = false
+    var accumulator:float = 0.0
+    var elapsed:float = 0.0
+    var cycles:int = 0
+    var steps:int = 0
+    var hit_slope:bool[] = [false, false]
+    var left_slope:bool[] = [false, false]
+    var landed:bool[] = [false, false]
+    var rendered:bool[] = [false, false]
+}
+
+func start_position(index:int) Math.Vec3 {
+    return Math.Vec3(-1.5 + index as float, 4.0, -0.8 + index as float * 1.6)
+}
+func reset(state:&ConvexState) {
+    var index = 0
+    while index < state.bodies.count() {
+        state.bodies[index].set_transform(Physics.Transform3D(position:start_position(index)))
+        state.bodies[index].set_linear_velocity(Math.Vec3())
+        state.bodies[index].set_angular_velocity(Math.Vec3())
+        state.previous[index] = start_position(index)
+        index++
+    }
+    state.accumulator = 0.0
+    state.elapsed = 0.0
+    state.hit_slope = [false, false]
+    state.left_slope = [false, false]
+    state.landed = [false, false]
+    state.rendered = [false, false]
+}
+
+func triangle_mesh(triangle:Physics.Triangle3D) Scene3D.Geometry.Mesh {
+    let normal = triangle.normal()
+    return Scene3D.Geometry.Mesh([
+        Scene3D.Geometry.Vertex(position:triangle.first, normal:normal),
+        Scene3D.Geometry.Vertex(position:triangle.second, normal:normal),
+        Scene3D.Geometry.Vertex(position:triangle.third, normal:normal)
+    ], [0 as uint32, 1 as uint32, 2 as uint32])
+}
+
+func sphere_mesh(radius:float) Scene3D.Geometry.Mesh {
+    let rings = 12
+    let segments = 20
+    var vertices:Scene3D.Geometry.Vertex[] = []
+    var indices:uint32[] = []
+    var ring = 0
+    while ring <= rings {
+        let latitude = Math.pi() * ring as float / rings as float
+        let height = Math.cos(latitude)
+        let spread = Math.sin(latitude)
+        var segment = 0
+        while segment <= segments {
+            let longitude = 2.0 * Math.pi() * segment as float /
+                segments as float
+            let normal = Math.Vec3(spread * Math.cos(longitude), height,
+                spread * Math.sin(longitude))
+            vertices.append(Scene3D.Geometry.Vertex(
+                position:normal.multiply(radius), normal:normal,
+                uv:Math.Vec2(segment as float / segments as float,
+                    ring as float / rings as float)))
+            segment++
+        }
+        ring++
+    }
+    ring = 0
+    while ring < rings {
+        var segment = 0
+        while segment < segments {
+            let first = ring * (segments + 1) + segment
+            let below = first + segments + 1
+            indices.append(first as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append(below as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append((below + 1) as uint32)
+            indices.append(below as uint32)
+            segment++
+        }
+        ring++
+    }
+    return Scene3D.Geometry.Mesh(vertices, indices)
+}
+
+func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&ConvexState) {
+    var hull = Physics.ConvexHull3D([
+        Math.Vec3(-3.0, -1.0, -2.0), Math.Vec3(-3.0, 2.0, -2.0), Math.Vec3(3.0, -1.0, -2.0),
+        Math.Vec3(-3.0, -1.0, 2.0), Math.Vec3(-3.0, 2.0, 2.0), Math.Vec3(3.0, -1.0, 2.0)])
+    physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed ..shape = Physics.Shape3D.convex(hull)
+        ..friction = 0.0 ..restitution = 0.45)
+    var face = 0
+    while face < hull.triangle_count() {
+        let triangle = hull.triangle(face)
+        var tint = Color.bytes(65, 145, 157)
+        if triangle.normal().y > 0.5 { tint = Color.bytes(95, 176, 180) }
+        world.spawn(ECS.EntityRecipe()
+            ..with(Components.Mesh3D(meshes.add(triangle_mesh(triangle))))
+            ..with(Components.Transform3D())
+            ..with(Components.Material3D(albedo:tint, roughness:0.8)))
+        face++
+    }
+    let tray_size = Math.Vec3(20.0, 0.3, 6.0)
+    let tray_position = Math.Vec3(4.0, -1.5, 0.0)
+    physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type = Physics.BodyType3D.fixed ..shape = Physics.Shape3D.box(Physics.Box3D(tray_size))
+        ..transform = Physics.Transform3D(position:tray_position) ..friction = 0.0 ..restitution = 0.45)
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:tray_position))
+        ..with(Components.Mesh3D(meshes.add(Scene3D.Geometry.Cube.make(tray_size))))
+        ..with(Components.Material3D(albedo:Color.bytes(81, 91, 120), roughness:0.9)))
+    var index = 0
+    while index < 2 {
+        var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
+            ..shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.3))
+            ..transform = Physics.Transform3D(position:start_position(index))
+            ..continuous_collision = true ..allow_sleep = false ..friction = 0.0 ..restitution = 0.45)
+        var tint = Color.bytes(242, 183, 82)
+        if index == 1 { tint = Color.bytes(137, 158, 243) }
+        state.bodies.append(body)
+        state.previous.append(body.position())
+        state.visuals.append(world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform3D(position:body.position()))
+            ..with(Components.Mesh3D(meshes.add(sphere_mesh(0.3))))
+            ..with(Components.Material3D(albedo:tint, roughness:0.45))))
+        index++
+    }
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.3)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(
+        direction:Math.Vec3(-0.4, -1.0, -0.3).normalized(), intensity:3.0)
+        ..shadow_distance = 40.0))
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    print("Convex hull built from six points. Both spheres fall, bounce on its slope, slide and land on the tray.")
+    print("Real-time simulation, automatic restart every 3 seconds. Space: pause. R: restart. Escape: quit.")
+}
+
+func observe(state:&ConvexState, physics:@Physics.World3D) {
+    var contacts:Physics.Contact3D[] = []
+    physics.write_contacts(contacts)
+    var index = 0
+    while index < state.bodies.count() {
+        let position = state.bodies[index].position()
+        assert(position.y > -1.06 && position.y < 4.01)
+        assert(Math.abs(position.z - start_position(index).z) < 0.001)
+        if position.x > 3.3 { state.left_slope[index] = true }
+        for contact in contacts {
+            if (contact.first_body().same_body(state.bodies[index]) || contact.second_body().same_body(state.bodies[index])) &&
+                contact.normal_impulse() > 0.0 {
+                if position.x < 3.0 && position.y > -0.7 && state.bodies[index].linear_velocity().x > 0.1 {
+                    state.hit_slope[index] = true
+                }
+                if position.x > 3.0 && position.y < -0.7 { state.landed[index] = true }
+            }
+        }
+        index++
+    }
+}
+
+func control(input:@Resources.InputState, simulation:&Application.Simulation,
+    physics:&Physics.World3D, state:&ConvexState, controller:&Application.Controller) {
+    if !state.smoke {
+        if input.is_pressed(Input.Key.escape) { controller.stop() }
+        if input.is_pressed(Input.Key.space) {
+            if simulation.is_paused() { simulation.resume() } else { simulation.pause() }
+        }
+        if input.is_pressed(Input.Key.r) { reset(state) }
+    }
+    state.accumulator += simulation.delta()
+    let fixed_delta = 1.0 / 60.0
+    while state.accumulator >= fixed_delta {
+        var index = 0
+        while index < state.bodies.count() { state.previous[index] = state.bodies[index].position(); index++ }
+        physics.step(fixed_delta)
+        state.accumulator -= fixed_delta
+        state.elapsed += fixed_delta
+        state.steps++
+        if state.smoke { observe(state, physics) }
+        if state.elapsed >= 3.0 {
+            state.cycles++
+            if state.smoke {
+                index = 0
+                while index < state.bodies.count() {
+                    assert(state.hit_slope[index] && state.left_slope[index] && state.landed[index] && state.rendered[index])
+                    print("Convex smoke ball=$(index): slope, exit, tray and rendered motion verified")
+                    index++
+                }
+                print("Convex smoke cycle=$(state.cycles) steps=$(state.steps)")
+                if state.cycles == 2 { controller.stop() }
+            }
+            reset(state)
+        }
+    }
+}
+
+func sync_bodies(world:&Resources.World, state:&ConvexState) {
+    var index = 0
+    while index < state.bodies.count() {
+        let alpha = Math.clamp(state.accumulator * 60.0, 0.0, 1.0)
+        let position = state.previous[index].lerp(state.bodies[index].position(), alpha)
+        world.update<Components.Transform3D>(state.visuals[index],
+            func(transform:&Components.Transform3D) { transform.position = position })
+        if state.smoke {
+            let rendered = world.get<Components.Transform3D>(state.visuals[index]).position
+            assert(rendered.subtract(position).length() < 0.0001)
+            if rendered.x > start_position(index).x + 0.5 { state.rendered[index] = true }
+        }
+        index++
+    }
+}
+
+func main() {
+    Application()
+        ..add_resource(ConvexState())
+        ..add_resource(Physics.World3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "Silex convex hull | Space: pause, R: restart" ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time())
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(3.5, 0.7, 0.0) ..distance = 19.0
+            ..yaw = Math.radians(-15.0) ..pitch = Math.radians(-24.0)))
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, control, process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render, sync_bodies)
+        ..run()
+}
