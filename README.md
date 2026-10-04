@@ -184,7 +184,8 @@ Worktree group root, run
 `silex run Silex-Examples/Sources/Physics3D/CapsuleTerrainScene.sx`.
 
 `Physics3D/CharacterConvexScene.sx` walks an upright capsule up and down a
-fixed convex wedge. Tab switches to manual movement, WASD or arrows move,
+fixed convex wedge. Tab switches to manual movement, WASD or arrows move
+relative to the camera's horizontal orientation,
 Space jumps, R restarts and Escape exits. A `--smoke` run checks continuous
 support in both directions and the interpolated render component over 1,020
 fixed steps. From the workspace or Spec group root, run

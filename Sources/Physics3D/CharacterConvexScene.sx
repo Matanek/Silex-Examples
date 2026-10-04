@@ -129,7 +129,8 @@ func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
 }
 
 func move_character(input:@Resources.InputState, time:@Resources.FrameTime,
-    physics:@Physics.World3D, state:&CharacterConvexState, controller:&Application.Controller) {
+    physics:@Physics.World3D, camera:@Resources.ViewportCamera3D,
+    state:&CharacterConvexState, controller:&Application.Controller) {
     if input.is_pressed(Input.Key.escape) { controller.stop() }
     if input.is_pressed(Input.Key.tab) { state.automatic = !state.automatic }
     if input.is_pressed(Input.Key.r) || state.position.y < -3.0 {
@@ -147,6 +148,9 @@ func move_character(input:@Resources.InputState, time:@Resources.FrameTime,
         if input.is_down(Input.Key.a) || input.is_down(Input.Key.left) { command.x -= 1.0 }
         if input.is_down(Input.Key.d) || input.is_down(Input.Key.right) { command.x += 1.0 }
         if command.length_squared() > 1.0 { command = command.normalized() }
+        let forward = Math.Quat.angle_axis(camera.yaw(), Math.Vec3.up()).rotate(Math.Vec3.front())
+        let right = forward.cross(Math.Vec3.up())
+        command = forward.multiply(command.z).add(right.multiply(command.x))
     }
     let delta = 1.0 / 120.0
     state.accumulator = Math.min(state.accumulator + time.delta, 8.0 * delta)
