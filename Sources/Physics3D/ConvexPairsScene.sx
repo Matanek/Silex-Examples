@@ -1,0 +1,229 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+
+class ConvexPairsState {
+    var bodies:Physics.RigidBody3D[] = []
+    var visuals:ECS.Entity[] = []
+    var previous:Physics.Transform3D[] = []
+    var hulls:Physics.ConvexHull3D[] = []
+    var touched:bool[] = [false, false, false]
+    var rotated:bool[] = [false, false]
+    var rendered:bool[] = [false, false, false, false]
+    var smoke:bool = false
+    var elapsed:float = 0.0
+    var accumulator:float = 0.0
+    var cycles:int = 0
+    var steps:int = 0
+    var lifted:bool = false
+    var paired:bool = false
+}
+func start_position(index:int) Math.Vec3 {
+    if index == 0 { return Math.Vec3(-3.5, 0.8, 0.0) }
+    if index == 1 { return Math.Vec3(-2.95, 3.5, 0.25) }
+    if index == 2 { return Math.Vec3(4.0, 1.2, 0.0) }
+    return Math.Vec3(4.0, 0.4, 0.0)
+}
+func hull_mesh(hull:Physics.ConvexHull3D) Scene3D.Geometry.Mesh {
+    var vertices:Scene3D.Geometry.Vertex[] = []
+    var indices:uint32[] = []
+    var index = 0
+    while index < hull.triangle_count() {
+        let triangle = hull.triangle(index)
+        let normal = triangle.normal()
+        let first = vertices.count() as uint32
+        vertices.append(Scene3D.Geometry.Vertex(position:triangle.first, normal:normal))
+        vertices.append(Scene3D.Geometry.Vertex(position:triangle.second, normal:normal))
+        vertices.append(Scene3D.Geometry.Vertex(position:triangle.third, normal:normal))
+        indices.append(first); indices.append(first + 1); indices.append(first + 2)
+        index++
+    }
+    return Scene3D.Geometry.Mesh(vertices, indices)
+}
+func box_hull(size:Math.Vec3, offset:Math.Vec3 = Math.Vec3()) Physics.ConvexHull3D {
+    var points:Math.Vec3[] = []
+    var x = -1
+    while x <= 1 {
+        var y = -1
+        while y <= 1 {
+            var z = -1
+            while z <= 1 {
+                points.append(Math.Vec3(size.x * (x as float), size.y * (y as float), size.z * (z as float)).multiply(0.5).add(offset))
+                z += 2
+            }
+            y += 2
+        }
+        x += 2
+    }
+    return Physics.ConvexHull3D(points)
+}
+func dynamic_hull(index:int) Physics.ConvexHull3D {
+    if index == 0 { return box_hull(Math.Vec3(2.0, 1.0, 2.0), Math.Vec3(0.3, 0.0, 0.0)) }
+    if index >= 2 { return box_hull(Math.Vec3(0.6)) }
+    return Physics.ConvexHull3D([Math.Vec3(-0.6, -0.4, -0.6), Math.Vec3(0.8, -0.4, -0.6),
+        Math.Vec3(-0.6, 1.0, -0.6), Math.Vec3(-0.6, -0.4, 0.8)])
+}
+func reset(state:&ConvexPairsState) {
+    var index = 0
+    while index < state.bodies.count() {
+        let pose = Physics.Transform3D(position:start_position(index))
+        state.bodies[index].set_transform(pose)
+        state.bodies[index].set_linear_velocity(Math.Vec3())
+        state.bodies[index].set_angular_velocity(Math.Vec3())
+        if index == 1 { state.bodies[index].set_angular_velocity(Math.Vec3(1.5, 0.4, 0.9)) }
+        state.previous[index] = pose
+        index++
+    }
+    state.bodies[3].move_kinematic(Physics.Transform3D(position:Math.Vec3(4.0, 1.4, 0.0)), 1.5)
+    state.elapsed = 0.0; state.accumulator = 0.0
+    state.touched = [false, false, false]; state.rotated = [false, false]
+    state.rendered = [false, false, false, false]; state.lifted = false; state.paired = false
+}
+func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D, physics:&Physics.World3D, state:&ConvexPairsState) {
+    let floor_size = Math.Vec3(14.0, 0.4, 6.0)
+    let floor_position = Math.Vec3(0.0, -0.2, 0.0)
+    var floor_hull = box_hull(floor_size)
+    physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.convex(floor_hull) ..transform = Physics.Transform3D(position:floor_position))
+    world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:floor_position))
+        ..with(Components.Mesh3D(meshes.add(hull_mesh(floor_hull))))
+        ..with(Components.Material3D(albedo:Color.bytes(70, 87, 106), roughness:0.9)))
+    var index = 0
+    while index < 4 {
+        var hull = dynamic_hull(index)
+        var tint = Color.bytes(247, 192, 95)
+        var kind = Physics.BodyType3D.dynamic
+        if index == 1 { tint = Color.bytes(118, 191, 219) }
+        if index == 2 { tint = Color.bytes(217, 127, 103) }
+        if index == 3 {
+            hull = box_hull(Math.Vec3(2.0, 0.3, 2.0))
+            tint = Color.bytes(139, 179, 118); kind = Physics.BodyType3D.kinematic
+        } else { state.hulls.append(hull) }
+        let shape = Physics.Shape3D.convex(hull)
+        let mesh = hull_mesh(hull)
+        var body = physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = kind ..shape = shape
+            ..transform = Physics.Transform3D(position:start_position(index))
+            ..friction = 0.6 ..restitution = 0.1 ..angular_damping = 0.15 ..allow_sleep = false)
+        state.bodies.append(body); state.previous.append(body.transform())
+        state.visuals.append(world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:body.position()))
+            ..with(Components.Mesh3D(meshes.add(mesh)))
+            ..with(Components.Material3D(albedo:tint, roughness:0.45))))
+        index++
+    }
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.35)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4, -1.0, -0.3).normalized(), intensity:3.0) ..shadow_distance = 40.0))
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    reset(state)
+    print("A rotating tetrahedron hits a dynamic convex base. A kinematic convex platform lifts a convex cube. All contacts use convex hulls.")
+    print("Automatic restart every 4.5 seconds. Space: pause. R: restart. Escape: quit.")
+}
+func observe(state:&ConvexPairsState, physics:@Physics.World3D) {
+    var contacts:Physics.Contact3D[] = []
+    physics.write_contacts(contacts)
+    var paired = false
+    var index = 0
+    while index < 3 {
+        var touched = false
+        var rotated = false
+        {
+            let body = state.bodies[index]
+            assert(body.position().y > -1.0 && body.position().y < 4.1)
+            for contact in contacts {
+                if (contact.first_body().same_body(body) || contact.second_body().same_body(body)) && contact.normal_impulse() > 0.0 {
+                    touched = true
+                    if (contact.first_body().same_body(state.bodies[0]) && contact.second_body().same_body(state.bodies[1])) ||
+                        (contact.first_body().same_body(state.bodies[1]) && contact.second_body().same_body(state.bodies[0])) { paired = true }
+                }
+            }
+            if index < 3 {
+                rotated = Math.abs(body.rotation().w) < 0.95
+                let hull = state.hulls[index]
+                var face = 0
+                while face < hull.triangle_count() {
+                    let triangle = hull.triangle(face)
+                    assert(body.transform().point(triangle.first).y > -0.08)
+                    assert(body.transform().point(triangle.second).y > -0.08)
+                    assert(body.transform().point(triangle.third).y > -0.08)
+                    face++
+                }
+            }
+        }
+        if touched { state.touched[index] = true }
+        if rotated && index < 2 { state.rotated[index] = true }
+        index++
+    }
+    if paired { state.paired = true }
+    if state.bodies[2].position().y > 1.7 { state.lifted = true }
+}
+func control(input:@Resources.InputState, simulation:&Application.Simulation, physics:&Physics.World3D,
+    state:&ConvexPairsState, controller:&Application.Controller) {
+    if !state.smoke {
+        if input.is_pressed(Input.Key.escape) { controller.stop() }
+        if input.is_pressed(Input.Key.space) { if simulation.is_paused() { simulation.resume() } else { simulation.pause() } }
+        if input.is_pressed(Input.Key.r) { reset(state) }
+    }
+    state.accumulator += simulation.delta()
+    let delta = 1.0 / 120.0
+    while state.accumulator >= delta {
+        var index = 0
+        while index < state.bodies.count() { state.previous[index] = state.bodies[index].transform(); index++ }
+        let before = copy state.elapsed
+        physics.step(delta); state.elapsed += delta; state.accumulator -= delta; state.steps++
+        if before < 1.5 && state.elapsed >= 1.5 {
+            state.bodies[3].move_kinematic(Physics.Transform3D(position:Math.Vec3(4.0, 0.4, 0.0)), 1.5)
+        }
+        if state.smoke { observe(state, physics) }
+        if state.elapsed >= 4.5 {
+            state.cycles++
+            if state.smoke {
+                assert(state.touched[0] && state.touched[1] && state.touched[2])
+                assert(state.rotated[1] && state.paired && state.lifted)
+                assert(state.rendered[0] && state.rendered[1] && state.rendered[2] && state.rendered[3])
+                print("Convex pair smoke cycle=$(state.cycles) steps=$(state.steps): dynamic pair, rotation, convex lift and rendered poses verified")
+                if state.cycles == 2 { controller.stop() }
+            }
+            reset(state)
+        }
+    }
+}
+func sync_bodies(world:&Resources.World, state:&ConvexPairsState) {
+    var index = 0
+    while index < state.bodies.count() {
+        let alpha = Math.clamp(state.accumulator * 120.0, 0.0, 1.0)
+        let position = state.previous[index].position.lerp(state.bodies[index].position(), alpha)
+        let first = state.previous[index].rotation
+        var second = state.bodies[index].rotation()
+        if first.dot(second) < 0.0 { second = second.multiply(-1.0) }
+        let rotation = first.multiply(1.0 - alpha).add(second.multiply(alpha)).normalized()
+        world.update<Components.Transform3D>(state.visuals[index], func(transform:&Components.Transform3D) {
+            transform.position = position; transform.rotation = rotation
+        })
+        if state.smoke {
+            let rendered = world.get<Components.Transform3D>(state.visuals[index])
+            assert(rendered.position.nearly_equal(position, 0.0001) && Math.abs(rendered.rotation.dot(rotation)) > 0.99999)
+            if Math.abs(rendered.position.y - start_position(index).y) > 0.2 { state.rendered[index] = true }
+        }
+        index++
+    }
+}
+func main() {
+    Application() ..add_resource(ConvexPairsState()) ..add_resource(Physics.World3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = "Silex convex pair contacts | Space: pause, R: restart" ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target = Math.Vec3(0.3, 1.1, 0.0)
+            ..distance = 16.0 ..yaw = Math.radians(-15.0) ..pitch = Math.radians(-24.0)))
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, control, process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render, sync_bodies) ..run()
+}

@@ -190,6 +190,12 @@ runs in real time and restarts every 4.5 seconds. **Space** pauses, **R**
 restarts and **Escape** exits. Launch from the workspace root:
 `silex run Silex-Examples/Sources/Physics3D/MovingConvexScene.sx`.
 
+`Physics3D/ConvexPairsScene.sx` uses hulls for every physical shape: a rotating
+tetrahedron hits a dynamic convex base, while a kinematic platform lifts a
+convex cube. The scene repeats every 4.5 seconds; Space pauses, R restarts and
+Escape exits. From the workspace root, run
+`silex run Silex-Examples/Sources/Physics3D/ConvexPairsScene.sx`.
+
 `Physics3D/CharacterConvexScene.sx` walks an upright capsule up and down a
 fixed convex wedge. Tab switches to manual movement, WASD or arrows move
 relative to the camera's horizontal orientation,
