@@ -460,3 +460,9 @@ root, run `silex run Silex-Examples/Sources/Platformer2D/Main.sx`.
 Use arrows or physical A/D keys to move, Space to jump, R to restart and Escape
 to quit. This example exercises the locally linked Scene2D, Physics and Nodes
 package changes; use those workspace versions until their next publication.
+
+`Physics3D/ConvexTriangleScene.sx` shows three separate fixed triangles: a
+rotating tetrahedron lands, a cube with a shifted local origin rests, and a
+cube crosses the back face then lands on the front. Space pauses, R restarts,
+Escape exits; the sequence restarts every four seconds. From the workspace
+root, run `silex run Silex-Examples/Sources/Physics3D/ConvexTriangleScene.sx`.
