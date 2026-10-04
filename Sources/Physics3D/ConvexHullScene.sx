@@ -10,40 +10,52 @@ use GFX.Scene3D
 use STD.Math
 use STD.Process
 
-// Hulls and render meshes are built once; only two poses change each frame.
+// Hulls and render meshes are built once; only three poses change each frame.
 class ConvexState {
     var bodies:Physics.RigidBody3D[] = []
     var visuals:ECS.Entity[] = []
     var previous:Math.Vec3[] = []
+    var previous_rotations:Math.Quat[] = []
     var smoke:bool = false
     var accumulator:float = 0.0
     var elapsed:float = 0.0
     var cycles:int = 0
     var steps:int = 0
-    var hit_slope:bool[] = [false, false]
-    var left_slope:bool[] = [false, false]
-    var landed:bool[] = [false, false]
-    var rendered:bool[] = [false, false]
+    var hit_slope:bool[] = [false, false, false]
+    var left_slope:bool[] = [false, false, false]
+    var landed:bool[] = [false, false, false]
+    var rendered:bool[] = [false, false, false]
 }
 
 func start_position(index:int) Math.Vec3 {
+    if index == 2 { return Math.Vec3(-1.0, 4.0, 0.0) }
     return Math.Vec3(-1.5 + index as float, 4.0, -0.8 + index as float * 1.6)
+}
+func start_rotation(index:int) Math.Quat {
+    if index == 2 { return Math.Quat.angle_axis(-0.463647609, Math.Vec3(0.0, 0.0, 1.0)) }
+    return Math.Quat.identity()
+}
+func interpolated_rotation(first:Math.Quat, second:Math.Quat, alpha:float) Math.Quat {
+    var target = second
+    if first.dot(target) < 0.0 { target = target.multiply(-1.0) }
+    return first.multiply(1.0 - alpha).add(target.multiply(alpha)).normalized()
 }
 func reset(state:&ConvexState) {
     var index = 0
     while index < state.bodies.count() {
-        state.bodies[index].set_transform(Physics.Transform3D(position:start_position(index)))
+        state.bodies[index].set_transform(Physics.Transform3D(position:start_position(index), rotation:start_rotation(index)))
         state.bodies[index].set_linear_velocity(Math.Vec3())
         state.bodies[index].set_angular_velocity(Math.Vec3())
         state.previous[index] = start_position(index)
+        state.previous_rotations[index] = start_rotation(index)
         index++
     }
     state.accumulator = 0.0
     state.elapsed = 0.0
-    state.hit_slope = [false, false]
-    state.left_slope = [false, false]
-    state.landed = [false, false]
-    state.rendered = [false, false]
+    state.hit_slope = [false, false, false]
+    state.left_slope = [false, false, false]
+    state.landed = [false, false, false]
+    state.rendered = [false, false, false]
 }
 
 func triangle_mesh(triangle:Physics.Triangle3D) Scene3D.Geometry.Mesh {
@@ -127,18 +139,26 @@ func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
         ..with(Components.Mesh3D(meshes.add(Scene3D.Geometry.Cube.make(tray_size))))
         ..with(Components.Material3D(albedo:Color.bytes(81, 91, 120), roughness:0.9)))
     var index = 0
-    while index < 2 {
+    while index < 3 {
+        var shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.3))
+        var mesh = sphere_mesh(0.3)
+        if index == 2 {
+            shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.6)))
+            mesh = Scene3D.Geometry.Cube.make(Math.Vec3(0.6))
+        }
         var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
-            ..shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.3))
-            ..transform = Physics.Transform3D(position:start_position(index))
+            ..shape = shape
+            ..transform = Physics.Transform3D(position:start_position(index), rotation:start_rotation(index))
             ..continuous_collision = true ..allow_sleep = false ..friction = 0.0 ..restitution = 0.45)
         var tint = Color.bytes(242, 183, 82)
         if index == 1 { tint = Color.bytes(137, 158, 243) }
+        if index == 2 { tint = Color.bytes(236, 125, 91) }
         state.bodies.append(body)
         state.previous.append(body.position())
+        state.previous_rotations.append(body.rotation())
         state.visuals.append(world.spawn(ECS.EntityRecipe()
-            ..with(Components.Transform3D(position:body.position()))
-            ..with(Components.Mesh3D(meshes.add(sphere_mesh(0.3))))
+            ..with(Components.Transform3D(position:body.position(), rotation:body.rotation()))
+            ..with(Components.Mesh3D(meshes.add(mesh)))
             ..with(Components.Material3D(albedo:tint, roughness:0.45))))
         index++
     }
@@ -150,7 +170,7 @@ func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
         success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
         failure(error) => { panic(error.detail) }
     }
-    print("Convex hull built from six points. Both spheres fall, bounce on its slope, slide and land on the tray.")
+    print("Convex hull built from six points. Two spheres and a box fall, bounce on its slope, slide and land on the tray.")
     print("Real-time simulation, automatic restart every 3 seconds. Space: pause. R: restart. Escape: quit.")
 }
 
@@ -189,7 +209,11 @@ func control(input:@Resources.InputState, simulation:&Application.Simulation,
     let fixed_delta = 1.0 / 60.0
     while state.accumulator >= fixed_delta {
         var index = 0
-        while index < state.bodies.count() { state.previous[index] = state.bodies[index].position(); index++ }
+        while index < state.bodies.count() {
+            state.previous[index] = state.bodies[index].position()
+            state.previous_rotations[index] = state.bodies[index].rotation()
+            index++
+        }
         physics.step(fixed_delta)
         state.accumulator -= fixed_delta
         state.elapsed += fixed_delta
@@ -201,7 +225,7 @@ func control(input:@Resources.InputState, simulation:&Application.Simulation,
                 index = 0
                 while index < state.bodies.count() {
                     assert(state.hit_slope[index] && state.left_slope[index] && state.landed[index] && state.rendered[index])
-                    print("Convex smoke ball=$(index): slope, exit, tray and rendered motion verified")
+                    print("Convex smoke body=$(index): slope, exit, tray and rendered motion verified")
                     index++
                 }
                 print("Convex smoke cycle=$(state.cycles) steps=$(state.steps)")
@@ -217,11 +241,14 @@ func sync_bodies(world:&Resources.World, state:&ConvexState) {
     while index < state.bodies.count() {
         let alpha = Math.clamp(state.accumulator * 60.0, 0.0, 1.0)
         let position = state.previous[index].lerp(state.bodies[index].position(), alpha)
+        let rotation = interpolated_rotation(state.previous_rotations[index], state.bodies[index].rotation(), alpha)
         world.update<Components.Transform3D>(state.visuals[index],
-            func(transform:&Components.Transform3D) { transform.position = position })
+            func(transform:&Components.Transform3D) { transform.position = position; transform.rotation = rotation })
         if state.smoke {
             let rendered = world.get<Components.Transform3D>(state.visuals[index]).position
             assert(rendered.subtract(position).length() < 0.0001)
+            let rendered_rotation = world.get<Components.Transform3D>(state.visuals[index]).rotation
+            assert(Math.abs(rendered_rotation.dot(rotation)) > 0.99999)
             if rendered.x > start_position(index).x + 0.5 { state.rendered[index] = true }
         }
         index++

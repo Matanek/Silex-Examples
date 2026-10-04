@@ -184,8 +184,8 @@ Worktree group root, run
 `silex run Silex-Examples/Sources/Physics3D/CapsuleTerrainScene.sx`.
 
 `Physics3D/ConvexHullScene.sx` builds a solid wedge from six points using
-`ConvexHull3D`. Two spheres fall, bounce on the actual slope, slide off and
-land on a lower tray. Physics advances at 60 Hz in real time with interpolated
+`ConvexHull3D`. Two spheres and a box fall, bounce on the actual slope, slide
+off and land on a lower tray. Physics advances at 60 Hz in real time with interpolated
 render poses, matching restitution and shadows reaching the tray. The scene
 restarts automatically every three seconds; Space pauses, R restarts and
 Escape quits. `--smoke` verifies two complete cycles and rendered motion.
