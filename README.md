@@ -466,3 +466,10 @@ rotating tetrahedron lands, a cube with a shifted local origin rests, and a
 cube crosses the back face then lands on the front. Space pauses, R restarts,
 Escape exits; the sequence restarts every four seconds. From the workspace
 root, run `silex run Silex-Examples/Sources/Physics3D/ConvexTriangleScene.sx`.
+
+`Physics3D/ConvexMeshScene.sx` shows convex bodies on three fixed meshes:
+a shifted cube slides across planar seams, a cube rests on both valley
+slopes, and a rotating tetrahedron lands on the right. Alternating shades
+show the actual triangles. Space pauses, R restarts and Escape closes.
+From the workspace root, run
+`silex run Silex-Examples/Sources/Physics3D/ConvexMeshScene.sx`.
