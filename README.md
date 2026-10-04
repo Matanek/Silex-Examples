@@ -183,6 +183,13 @@ through all three rows in both directions. From the workspace root or Spec
 Worktree group root, run
 `silex run Silex-Examples/Sources/Physics3D/CapsuleTerrainScene.sx`.
 
+`Physics3D/MovingConvexScene.sx` shows two dynamic convex solids falling and
+rotating about their actual mass centers, and a kinematic convex platform
+carrying a sphere. The meshes use the physical hull boundaries. Simulation
+runs in real time and restarts every 4.5 seconds. **Space** pauses, **R**
+restarts and **Escape** exits. Launch from the workspace root:
+`silex run Silex-Examples/Sources/Physics3D/MovingConvexScene.sx`.
+
 `Physics3D/CharacterConvexScene.sx` walks an upright capsule up and down a
 fixed convex wedge. Tab switches to manual movement, WASD or arrows move
 relative to the camera's horizontal orientation,
