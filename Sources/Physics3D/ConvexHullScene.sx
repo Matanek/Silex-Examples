@@ -10,7 +10,7 @@ use GFX.Scene3D
 use STD.Math
 use STD.Process
 
-// Hulls and render meshes are built once; only three poses change each frame.
+// Hulls and render meshes are built once; only four poses change each frame.
 class ConvexState {
     var bodies:Physics.RigidBody3D[] = []
     var visuals:ECS.Entity[] = []
@@ -21,17 +21,19 @@ class ConvexState {
     var elapsed:float = 0.0
     var cycles:int = 0
     var steps:int = 0
-    var hit_slope:bool[] = [false, false, false]
-    var left_slope:bool[] = [false, false, false]
-    var landed:bool[] = [false, false, false]
-    var rendered:bool[] = [false, false, false]
+    var hit_slope:bool[] = [false, false, false, false]
+    var left_slope:bool[] = [false, false, false, false]
+    var landed:bool[] = [false, false, false, false]
+    var rendered:bool[] = [false, false, false, false]
 }
 
 func start_position(index:int) Math.Vec3 {
+    if index == 3 { return Math.Vec3(-1.0, 4.0, -1.55) }
     if index == 2 { return Math.Vec3(-1.0, 4.0, 0.0) }
     return Math.Vec3(-1.5 + index as float, 4.0, -0.8 + index as float * 1.6)
 }
 func start_rotation(index:int) Math.Quat {
+    if index == 3 { return Math.Quat.angle_axis(Math.half_pi() - 0.463647609, Math.Vec3(0.0, 0.0, 1.0)) }
     if index == 2 { return Math.Quat.angle_axis(-0.463647609, Math.Vec3(0.0, 0.0, 1.0)) }
     return Math.Quat.identity()
 }
@@ -52,10 +54,10 @@ func reset(state:&ConvexState) {
     }
     state.accumulator = 0.0
     state.elapsed = 0.0
-    state.hit_slope = [false, false, false]
-    state.left_slope = [false, false, false]
-    state.landed = [false, false, false]
-    state.rendered = [false, false, false]
+    state.hit_slope = [false, false, false, false]
+    state.left_slope = [false, false, false, false]
+    state.landed = [false, false, false, false]
+    state.rendered = [false, false, false, false]
 }
 
 func triangle_mesh(triangle:Physics.Triangle3D) Scene3D.Geometry.Mesh {
@@ -67,14 +69,24 @@ func triangle_mesh(triangle:Physics.Triangle3D) Scene3D.Geometry.Mesh {
     ], [0 as uint32, 1 as uint32, 2 as uint32])
 }
 
-func sphere_mesh(radius:float) Scene3D.Geometry.Mesh {
-    let rings = 12
+func rounded_mesh(radius:float, half_height:float = 0.0) Scene3D.Geometry.Mesh {
+    var rings = 12
+    if half_height > 0.0 { rings = 13 }
     let segments = 20
     var vertices:Scene3D.Geometry.Vertex[] = []
     var indices:uint32[] = []
     var ring = 0
     while ring <= rings {
-        let latitude = Math.pi() * ring as float / rings as float
+        var latitude = Math.pi() * ring as float / rings as float
+        var center = 0.0
+        if half_height > 0.0 {
+            latitude = Math.half_pi() * ring as float / 6.0
+            center = half_height
+            if ring >= 7 {
+                latitude = Math.half_pi() + Math.half_pi() * (ring - 7) as float / 6.0
+                center = -half_height
+            }
+        }
         let height = Math.cos(latitude)
         let spread = Math.sin(latitude)
         var segment = 0
@@ -84,7 +96,7 @@ func sphere_mesh(radius:float) Scene3D.Geometry.Mesh {
             let normal = Math.Vec3(spread * Math.cos(longitude), height,
                 spread * Math.sin(longitude))
             vertices.append(Scene3D.Geometry.Vertex(
-                position:normal.multiply(radius), normal:normal,
+                position:normal.multiply(radius).add(Math.Vec3(0.0, center, 0.0)), normal:normal,
                 uv:Math.Vec2(segment as float / segments as float,
                     ring as float / rings as float)))
             segment++
@@ -139,12 +151,16 @@ func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
         ..with(Components.Mesh3D(meshes.add(Scene3D.Geometry.Cube.make(tray_size))))
         ..with(Components.Material3D(albedo:Color.bytes(81, 91, 120), roughness:0.9)))
     var index = 0
-    while index < 3 {
+    while index < 4 {
         var shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.3))
-        var mesh = sphere_mesh(0.3)
+        var mesh = rounded_mesh(0.3)
         if index == 2 {
             shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.6)))
             mesh = Scene3D.Geometry.Cube.make(Math.Vec3(0.6))
+        }
+        if index == 3 {
+            shape = Physics.Shape3D.capsule(Physics.Capsule3D(0.25, 0.45))
+            mesh = rounded_mesh(0.25, 0.45)
         }
         var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
             ..shape = shape
@@ -153,6 +169,7 @@ func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
         var tint = Color.bytes(242, 183, 82)
         if index == 1 { tint = Color.bytes(137, 158, 243) }
         if index == 2 { tint = Color.bytes(236, 125, 91) }
+        if index == 3 { tint = Color.bytes(115, 213, 151) }
         state.bodies.append(body)
         state.previous.append(body.position())
         state.previous_rotations.append(body.rotation())
@@ -170,7 +187,7 @@ func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
         success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
         failure(error) => { panic(error.detail) }
     }
-    print("Convex hull built from six points. Two spheres and a box fall, bounce on its slope, slide and land on the tray.")
+    print("Convex hull built from six points. Two spheres, a box and a capsule fall, bounce on its slope, slide and land on the tray.")
     print("Real-time simulation, automatic restart every 3 seconds. Space: pause. R: restart. Escape: quit.")
 }
 
@@ -180,7 +197,9 @@ func observe(state:&ConvexState, physics:@Physics.World3D) {
     var index = 0
     while index < state.bodies.count() {
         let position = state.bodies[index].position()
-        assert(position.y > -1.06 && position.y < 4.01)
+        var minimum_height = -1.06
+        if index == 3 { minimum_height = -1.11 } // Tray top -1.35 plus radius 0.25, with 1 cm tolerance.
+        assert(position.y > minimum_height && position.y < 4.01, "body $(index) at $(position.y) outside its vertical bounds")
         assert(Math.abs(position.z - start_position(index).z) < 0.001)
         if position.x > 3.3 { state.left_slope[index] = true }
         for contact in contacts {
