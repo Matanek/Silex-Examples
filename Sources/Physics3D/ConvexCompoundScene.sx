@@ -1,0 +1,221 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+
+class ConvexCompoundState {
+    var bodies:Physics.RigidBody3D[] = []
+    var previous:Physics.Transform3D[] = []
+    var visuals:ECS.Entity[] = []
+    var hulls:Physics.ConvexHull3D[] = []
+    var children:Physics.Transform3D[] = []
+    var touched:bool[] = [false, false]
+    var rotated:bool[] = [false, false]
+    var rendered:bool[] = [false, false]
+    var left_foot:bool = false
+    var right_foot:bool = false
+    var smoke:bool = false
+    var elapsed:float = 0.0
+    var accumulator:float = 0.0
+    var cycles:int = 0
+    var steps:int = 0
+}
+func box_hull(size:Math.Vec3, offset:Math.Vec3 = Math.Vec3()) Physics.ConvexHull3D {
+    var points:Math.Vec3[] = []; var index = 0
+    while index < 8 {
+        var x = -0.5; var y = -0.5; var z = -0.5
+        if index % 2 == 1 { x = 0.5 }
+        if (index / 2) % 2 == 1 { y = 0.5 }
+        if index / 4 == 1 { z = 0.5 }
+        points.append(Math.Vec3(x, y, z).multiply(size).add(offset)); index++
+    }
+    return Physics.ConvexHull3D(points)
+}
+func hull_mesh(hull:Physics.ConvexHull3D) Scene3D.Geometry.Mesh {
+    var vertices:Scene3D.Geometry.Vertex[] = []; var indices:uint32[] = []; var index = 0
+    while index < hull.triangle_count() {
+        let triangle = hull.triangle(index); let normal = triangle.normal()
+        let first = vertices.count() as uint32
+        vertices.append(Scene3D.Geometry.Vertex(position:triangle.first, normal:normal))
+        vertices.append(Scene3D.Geometry.Vertex(position:triangle.second, normal:normal))
+        vertices.append(Scene3D.Geometry.Vertex(position:triangle.third, normal:normal))
+        indices.append(first); indices.append(first + 1); indices.append(first + 2); index++
+    }
+    return Scene3D.Geometry.Mesh(vertices, indices)
+}
+func start_pose(index:int) Physics.Transform3D {
+    var x = -2.0; if index == 1 { x = 2.0 }
+    return Physics.Transform3D(Math.Vec3(x, 3.0, 0.0), Math.Quat.angle_axis(0.32, Math.Vec3.back()))
+}
+func reset(state:&ConvexCompoundState) {
+    var index = 0
+    while index < state.bodies.count() {
+        let pose = start_pose(index)
+        state.bodies[index].set_transform(pose)
+        state.bodies[index].set_linear_velocity(Math.Vec3())
+        state.bodies[index].set_angular_velocity(Math.Vec3(0.35, 0.6, 0.4))
+        state.previous[index] = pose; index++
+    }
+    state.elapsed = 0.0; state.accumulator = 0.0
+    state.touched = [false, false]; state.rotated = [false, false]; state.rendered = [false, false]
+    state.left_foot = false; state.right_foot = false
+}
+func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D, physics:&Physics.World3D, state:&ConvexCompoundState) {
+    physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.mesh(Physics.TriangleMesh3D.from_height_grid(3, 3,
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 4.0, 4.0))
+        ..transform = Physics.Transform3D(Math.Vec3(-4.0, 0.0, -4.0)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:Math.Vec3(0.0, -0.12, 0.0)))
+        ..with(Components.Mesh3D(meshes.add(hull_mesh(box_hull(Math.Vec3(8.0, 0.24, 8.0))))))
+        ..with(Components.Material3D(albedo:Color.bytes(85, 114, 132), roughness:0.9)))
+    var body_index = 0
+    while body_index < 2 {
+        var children:Physics.CompoundChild3D[] = []; var child_index = 0
+        while child_index < 3 {
+            var offset = Math.Vec3(); if body_index == 0 { offset = Math.Vec3(3.0, -4.0, 2.0) }
+            var size = Math.Vec3(0.8); var position = Math.Vec3(-0.8, 0.0, 0.0)
+            if child_index == 1 { position = Math.Vec3(0.8, 0.0, 0.0) }
+            if child_index == 2 { size = Math.Vec3(1.6, 0.25, 0.5); position = Math.Vec3(0.0, 0.25, 0.0) }
+            var hull = box_hull(size, offset)
+            if body_index == 1 && child_index == 0 {
+                hull = Physics.ConvexHull3D([Math.Vec3(-0.5, -0.4, -0.5), Math.Vec3(0.7, -0.4, -0.5),
+                    Math.Vec3(-0.5, 0.9, -0.5), Math.Vec3(-0.5, -0.4, 0.7)])
+            }
+            var shape = Physics.Shape3D.convex(hull)
+            if body_index == 1 && child_index != 0 { shape = Physics.Shape3D.box(Physics.Box3D(size)) }
+            let pose = Physics.Transform3D(position.subtract(offset))
+            children.append(Physics.CompoundChild3D(11 + child_index * 11, shape, pose))
+            state.hulls.append(hull); state.children.append(pose)
+            var tint = Color.bytes(247, 192, 95)
+            if body_index == 1 { tint = Color.bytes(217, 127, 103) }
+            if child_index == 2 { tint = Color.bytes(118, 191, 219) }
+            state.visuals.append(world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
+                ..with(Components.Mesh3D(meshes.add(hull_mesh(hull))))
+                ..with(Components.Material3D(albedo:tint, roughness:0.45))))
+            child_index++
+        }
+        var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
+            ..shape = Physics.Shape3D.compound(Physics.Compound3D(children)) ..transform = start_pose(body_index)
+            ..angular_damping = 0.15 ..allow_sleep = false ..continuous_collision = true)
+        state.bodies.append(body); state.previous.append(body.transform()); body_index++
+    }
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.4)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4, -1.0, -0.3).normalized(), intensity:3.0) ..shadow_distance = 40.0))
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    reset(state)
+    print("Left: three convex leaves with shifted local vertices. Right: a tetrahedron and two box leaves. Each assembly is one rigid body.")
+    print("Automatic restart every 5 seconds. Space: pause. R: restart. Escape: quit.")
+}
+func observe(state:&ConvexCompoundState, physics:@Physics.World3D) {
+    var contacts:Physics.Contact3D[] = []; physics.write_contacts(contacts)
+    var index = 0
+    while index < 2 {
+        var rotated = false; var touched = false; var left = false; var right = false
+        {
+            let body = state.bodies[index]
+            assert(body.position().length() < 20.0 && body.linear_velocity().length() < 30.0)
+            if Math.abs(body.rotation().dot(start_pose(index).rotation)) < 0.99 { rotated = true }
+            for contact in contacts {
+                var child = -1
+                if contact.first_body().same_body(body) { child = contact.first_child_id() }
+                if contact.second_body().same_body(body) { child = contact.second_child_id() }
+                if child >= 0 && contact.normal_impulse() > 0.0 {
+                    assert(child == 11 || child == 22 || child == 33)
+                    touched = true
+                    if index == 0 && child == 11 { left = true }
+                    if index == 0 && child == 22 { right = true }
+                }
+            }
+            var child = 0
+            while child < 3 {
+                let hull = state.hulls[index * 3 + child]; let pose = state.children[index * 3 + child]
+                var vertex = 0
+                while vertex < hull.triangle_count() {
+                    let triangle = hull.triangle(vertex)
+                    assert(body.transform().point(pose.point(triangle.first)).y > -0.04)
+                    assert(body.transform().point(pose.point(triangle.second)).y > -0.04)
+                    assert(body.transform().point(pose.point(triangle.third)).y > -0.04)
+                    vertex++
+                }
+                child++
+            }
+        }
+        if rotated { state.rotated[index] = true }
+        if touched { state.touched[index] = true }
+        if left { state.left_foot = true }
+        if right { state.right_foot = true }
+        index++
+    }
+}
+func control(input:@Resources.InputState, simulation:&Application.Simulation, physics:&Physics.World3D,
+    state:&ConvexCompoundState, controller:&Application.Controller) {
+    if !state.smoke {
+        if input.is_pressed(Input.Key.escape) { controller.stop() }
+        if input.is_pressed(Input.Key.space) { if simulation.is_paused() { simulation.resume() } else { simulation.pause() } }
+        if input.is_pressed(Input.Key.r) { reset(state) }
+    }
+    state.accumulator += simulation.delta()
+    while state.accumulator >= 1.0 / 120.0 {
+        var index = 0
+        while index < 2 { state.previous[index] = state.bodies[index].transform(); index++ }
+        physics.step(1.0 / 120.0); state.elapsed += 1.0 / 120.0; state.accumulator -= 1.0 / 120.0; state.steps++
+        if state.smoke { observe(state, physics) }
+        if state.elapsed >= 5.0 {
+            state.cycles++
+            if state.smoke {
+                assert(state.touched[0] && state.touched[1] && state.rotated[0] && state.rotated[1])
+                assert(state.rendered[0] && state.rendered[1] && state.left_foot && state.right_foot)
+                print("Convex compound smoke cycle=$(state.cycles) steps=$(state.steps): leaf contacts, rigid rotation, shifted hulls and rendered poses verified")
+                if state.cycles == 2 { controller.stop() }
+            }
+            reset(state)
+        }
+    }
+}
+func sync_bodies(world:&Resources.World, state:&ConvexCompoundState) {
+    var index = 0
+    while index < 2 {
+        let alpha = Math.clamp(state.accumulator * 120.0, 0.0, 1.0)
+        let position = state.previous[index].position.lerp(state.bodies[index].position(), alpha)
+        let first = state.previous[index].rotation; var second = state.bodies[index].rotation()
+        if first.dot(second) < 0.0 { second = second.multiply(-1.0) }
+        let rotation = first.multiply(1.0 - alpha).add(second.multiply(alpha)).normalized()
+        let pose = Physics.Transform3D(position, rotation)
+        var child = 0
+        while child < 3 {
+            let child_index = index * 3 + child
+            let child_position = pose.point(state.children[child_index].position)
+            let child_rotation = rotation.multiply(state.children[child_index].rotation)
+            world.update<Components.Transform3D>(state.visuals[child_index], func(transform:&Components.Transform3D) {
+                transform.position = child_position; transform.rotation = child_rotation
+            })
+            if state.smoke {
+                let rendered = world.get<Components.Transform3D>(state.visuals[child_index])
+                assert(rendered.position.nearly_equal(child_position, 0.0001) && Math.abs(rendered.rotation.dot(child_rotation)) > 0.99999)
+            }
+            child++
+        }
+        if state.smoke && position.subtract(start_pose(index).position).length() > 0.2 { state.rendered[index] = true }
+        index++
+    }
+}
+func main() {
+    Application() ..add_resource(ConvexCompoundState()) ..add_resource(Physics.World3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = "Silex convex compounds | Space: pause, R: restart" ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target = Math.Vec3(0.0, 1.5, 0.0)
+            ..distance = 12.0 ..yaw = Math.radians(-15.0) ..pitch = Math.radians(-25.0)))
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, control, process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render, sync_bodies) ..run()
+}

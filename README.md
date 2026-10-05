@@ -473,3 +473,12 @@ slopes, and a rotating tetrahedron lands on the right. Alternating shades
 show the actual triangles. Space pauses, R restarts and Escape closes.
 From the workspace root, run
 `silex run Silex-Examples/Sources/Physics3D/ConvexMeshScene.sx`.
+
+`Physics3D/ConvexCompoundScene.sx` drops two rigid assemblies onto a fixed
+mesh: three convex leaves with compensated local offsets on the left, and
+a tetrahedron mixed with boxes on the right. The leaves rotate together and
+retain individual contact identities. Space pauses, R restarts and Escape
+closes the window; the scene restarts automatically every five seconds.
+`--smoke` verifies two cycles, contacts, rotation and rendered poses, then exits.
+Run from the workspace root:
+`silex run Silex-Examples/Sources/Physics3D/ConvexCompoundScene.sx`.
