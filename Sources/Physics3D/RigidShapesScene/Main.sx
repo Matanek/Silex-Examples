@@ -1,0 +1,207 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+use STD.Time.Clock
+use Module.Visuals
+
+class RigidShapesState {
+    var bodies:Physics.RigidBody3D[] = []
+    var supports:Physics.RigidBody3D[] = []
+    var visuals:ECS.Entity[] = []
+    var previous:Physics.Transform3D[] = []
+    var probes:ECS.Entity[] = []
+    var origins:Math.Vec3[] = []
+    var fractions:float[] = []
+    var rendered:bool[] = [false,false,false,false]
+    var stopped:bool[] = [false,false,false]
+    var smoke:bool = false
+    var elapsed:float = 0.0
+    var accumulator:float = 0.0
+    var cycles:int = 0
+    var crossed_hole:bool = false
+    var frame_clock:Clock = Clock()
+    var frame_count:int = 0
+    var report_time:float = 0.0
+    var reports:int = 0
+}
+func start_position(index:int) Math.Vec3 { return Math.Vec3(-6.0+4.0*index as float,3.5,2.0) }
+func spawn(world:&Resources.World, mesh:Scene3D.MeshHandle, position:Math.Vec3, tint:Color) ECS.Entity {
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:position))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:tint,roughness:0.55)))
+}
+func reset(state:&RigidShapesState) {
+    var index = 0
+    while index < 4 {
+        let pose = Physics.Transform3D(start_position(index))
+        state.bodies[index].set_transform(pose)
+        state.bodies[index].set_linear_velocity(Math.Vec3())
+        state.bodies[index].set_angular_velocity(Math.Vec3())
+        state.previous[index] = pose; index++
+    }
+    state.elapsed = 0.0; state.accumulator = 0.0
+    state.crossed_hole = false; state.rendered = [false,false,false,false]
+    state.stopped = [false,false,false]
+}
+func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D, physics:&Physics.World3D, state:&RigidShapesState) {
+    // Geometry and routes are invariant throughout a cycle; prepare them once.
+    var shapes:Physics.Shape3D[] = [Physics.Shape3D.cylinder(Physics.Cylinder3D(0.5,0.5)),
+        Physics.Shape3D.tapered_cylinder(Physics.TaperedCylinder3D(0.25,0.5,0.5)),
+        Physics.Shape3D.tapered_capsule(Physics.TaperedCapsule3D(0.25,0.5,0.5)),
+        Physics.Shape3D.sphere(Physics.Sphere3D(0.25))]
+    let colors:Color[] = [Color.bytes(246,183,77),Color.bytes(135,183,227),Color.bytes(224,133,111),Color.bytes(156,210,121)]
+    let models:Scene3D.MeshHandle[] = [meshes.add(Visuals.cylinder_mesh(0.5,0.5,0.5)),
+        meshes.add(Visuals.cylinder_mesh(0.25,0.5,0.5)), meshes.add(Visuals.round_mesh(0.25,0.5,0.5)),
+        meshes.add(Visuals.round_mesh(0.25,0.25,0.0))]
+    let platform = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(3.0,0.2,3.0)))
+    var index = 0
+    while index < 4 {
+        var body = physics.create_rigid_body(Physics.RigidBody3DSettings() ..shape = shapes[index]
+            ..transform = Physics.Transform3D(start_position(index)) ..continuous_collision = true ..friction = 0.6)
+        state.bodies.append(body); state.previous.append(body.transform())
+        state.visuals.append(spawn(world,models[index],body.position(),colors[index]))
+        if index < 3 {
+            let position = Math.Vec3(start_position(index).x,-0.1,2.0)
+            state.supports.append(physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+                ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(3.0,0.2,3.0))) ..transform = Physics.Transform3D(position)))
+            spawn(world,platform,position,Color.bytes(79,107,125))
+        }
+        index++
+    }
+    var heights:float[] = []; var holes:bool[] = []; index = 0
+    while index < 25 { heights.append(0.0); holes.append(index == 12); index++ }
+    var terrain = Physics.TriangleMesh3D.from_height_grid(5,5,heights,1.0,1.0,
+        holes:holes,diagonal:Physics.HeightGridDiagonal3D.first_to_opposite)
+    let terrain_position = Math.Vec3(4.0,0.0,0.0)
+    physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.mesh(terrain) ..transform = Physics.Transform3D(terrain_position))
+    spawn(world,meshes.add(Visuals.terrain_mesh(terrain)),terrain_position,Color.bytes(87,138,125))
+    state.supports.append(physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.plane(Physics.Plane3D(offset:-2.0))))
+    // A finite drawing displays the infinite plane; it is not a collision bound.
+    spawn(world,meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(22.0,0.2,14.0))),
+        Math.Vec3(0.0,-2.1,0.0),Color.bytes(57,76,94))
+    var hull = Visuals.hull()
+    var movers:Physics.Shape3D[] = [Physics.Shape3D.capsule(Physics.Capsule3D(0.3,0.3)),
+        Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.6))),Physics.Shape3D.convex(hull)]
+    let probe_models:Scene3D.MeshHandle[] = [meshes.add(Visuals.round_mesh(0.3,0.3,0.3)),
+        meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.6))),meshes.add(Visuals.hull_mesh(hull))]
+    let obstacle_model = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(1.0)))
+    let marker = meshes.add(Visuals.round_mesh(0.07,0.07,0.0))
+    let route = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(5.0,0.035,0.035)))
+    index = 0
+    while index < 3 {
+        let position = Math.Vec3(-6.0+6.0*index as float,1.5,-4.0)
+        var obstacle = physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+            ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.0))) ..transform = Physics.Transform3D(position)
+            ..collision_filter = Physics.CollisionFilter3D(category_bits:2))
+        spawn(world,obstacle_model,position,colors[index])
+        let origin = position.add(Math.Vec3(-2.5,0.0,0.0)); state.origins.append(origin)
+        state.probes.append(spawn(world,probe_models[index],origin,Color.bytes(92,200,239)))
+        spawn(world,route,position.add(Math.Vec3(0.0,-0.8,0.0)),Color.bytes(105,141,158))
+        let placement = Physics.ShapePlacement3D(movers[index],Physics.Transform3D(origin))
+        if let hit = physics.shape_cast(Physics.ShapeCast3D(placement,Math.Vec3(5.0,0.0,0.0)),filter:Physics.QueryFilter3D(mask_bits:2)) {
+            assert(hit.body().same_body(obstacle)); state.fractions.append(hit.fraction())
+            let stop = Physics.ShapePlacement3D(movers[index],Physics.Transform3D(origin.add(Math.Vec3(5.0*hit.fraction(),0.0,0.0))))
+            assert(Math.abs(Physics.Geometry3D.distance(stop,Physics.ShapePlacement3D(obstacle.shape(),obstacle.transform())).separation)<0.0001)
+            spawn(world,marker,hit.point(),Color.bytes(111,247,159))
+            print("Rigid sweep lane=$(index) fraction=$(hit.fraction())")
+        } else { panic("rigid sweep route missed its obstacle") }
+        index++
+    }
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.45)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance = 40.0))
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    state.frame_clock.tick()
+    print("Front: cylinder, tapered cylinder, tapered capsule; the green sphere falls through the terrain opening onto the lower floor.")
+    print("Back: capsule, box and convex sweeps stop at their green contact markers.")
+    print("Space: pause. R: restart. Escape: quit. Automatic restart every 4 seconds.")
+}
+func update(input:@Resources.InputState, simulation:&Application.Simulation, physics:&Physics.World3D,
+    state:&RigidShapesState, controller:&Application.Controller) {
+    if !state.smoke {
+        if input.is_pressed(Input.Key.escape) { controller.stop() }
+        if input.is_pressed(Input.Key.space) { if simulation.is_paused() { simulation.resume() } else { simulation.pause() } }
+        if input.is_pressed(Input.Key.r) { reset(state) }
+    }
+    state.accumulator += simulation.delta()
+    let delta = 1.0/120.0
+    while state.accumulator >= delta {
+        var index = 0
+        while index < 4 { state.previous[index] = state.bodies[index].transform(); index++ }
+        physics.step(delta); state.elapsed += delta; state.accumulator -= delta
+        if state.smoke && state.bodies[3].position().y < -0.5 { state.crossed_hole = true }
+        if state.elapsed >= 4.0 {
+            state.cycles++
+            if state.smoke {
+                assert(state.crossed_hole && state.stopped[0] && state.stopped[1] && state.stopped[2])
+                index = 0
+                while index < 4 {
+                    assert(state.rendered[index]); assert(state.bodies[index].linear_velocity().length()<0.02)
+                    let distance = Physics.Geometry3D.distance(
+                        Physics.ShapePlacement3D(state.bodies[index].shape(),state.bodies[index].transform()),
+                        Physics.ShapePlacement3D(state.supports[index].shape(),state.supports[index].transform()))
+                    assert(Math.abs(distance.separation)<0.025); index++
+                }
+                print("Rigid shapes smoke cycle=$(state.cycles): four rests, terrain opening, three sweep stops and rendered poses verified")
+                if state.cycles == 2 { controller.stop() }
+            }
+            reset(state)
+        }
+    }
+    state.frame_count++; state.report_time += state.frame_clock.tick()
+    if state.report_time >= 1.0 {
+        print("Rigid shapes FPS sample=$(state.reports) value=$(state.frame_count as float/state.report_time)")
+        state.frame_count = 0; state.report_time = 0.0; state.reports++
+    }
+}
+func render(world:&Resources.World, state:&RigidShapesState) {
+    var index = 0
+    while index < 4 {
+        let alpha = Math.clamp(state.accumulator*120.0,0.0,1.0)
+        let position = state.previous[index].position.lerp(state.bodies[index].position(),alpha)
+        let first = state.previous[index].rotation; var second = state.bodies[index].rotation()
+        if first.dot(second)<0.0 { second = second.multiply(-1.0) }
+        let rotation = first.multiply(1.0-alpha).add(second.multiply(alpha)).normalized()
+        world.update<Components.Transform3D>(state.visuals[index],func(transform:&Components.Transform3D) { transform.position = position; transform.rotation = rotation })
+        if state.smoke {
+            let drawn = world.get<Components.Transform3D>(state.visuals[index])
+            assert(drawn.position.nearly_equal(position,0.0001) && Math.abs(drawn.rotation.dot(rotation))>0.99999)
+            if position.subtract(start_position(index)).length()>0.2 { state.rendered[index] = true }
+        }
+        index++
+    }
+    index = 0
+    while index < 3 {
+        let fraction = Math.min(state.elapsed/2.0,state.fractions[index])
+        let position = state.origins[index].add(Math.Vec3(5.0*fraction,0.0,0.0))
+        if world.get<Components.Transform3D>(state.probes[index]).position != position {
+            world.update<Components.Transform3D>(state.probes[index],func(transform:&Components.Transform3D) { transform.position = position })
+        }
+        if state.smoke {
+            assert(world.get<Components.Transform3D>(state.probes[index]).position.nearly_equal(position,0.0001))
+            if fraction == state.fractions[index] { state.stopped[index] = true }
+        }
+        index++
+    }
+}
+func main() {
+    Application() ..add_resource(RigidShapesState()) ..add_resource(Physics.World3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = "Silex rigid shapes | Space: pause, R: restart" ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target = Math.Vec3(0.0,0.6,-0.8)
+            ..distance = 25.0 ..yaw = Math.radians(-12.0) ..pitch = Math.radians(-35.0)))
+        ..add_system(Application.Schedule.startup,create_scene)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render) ..run()
+}

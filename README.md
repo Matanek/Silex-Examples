@@ -9,6 +9,10 @@ owning package.
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.
 
+The [rigid shapes scene](Sources/Physics3D/RigidShapesScene/README.md) shows
+cylinders, tapered shapes, capsule/box/convex sweeps, a terrain opening and an
+infinite supporting plane in one window.
+
 ## Organization
 
 All demonstrations live under [`Sources/`](Sources/). Focused technical

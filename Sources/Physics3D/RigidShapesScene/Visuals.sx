@@ -1,0 +1,98 @@
+use GFX.Physics
+use GFX.Scene3D
+use STD.Math
+
+public func hull() Physics.ConvexHull3D {
+    return Physics.ConvexHull3D([Math.Vec3(-0.35,-0.3,-0.3), Math.Vec3(0.45,-0.3,-0.3),
+        Math.Vec3(-0.35,0.45,-0.3), Math.Vec3(-0.35,-0.3,0.45)])
+}
+public func hull_mesh(value:Physics.ConvexHull3D) Scene3D.Geometry.Mesh {
+    var triangles:Physics.Triangle3D[] = []; var face = 0
+    while face < value.triangle_count() { triangles.append(value.triangle(face)); face++ }
+    return surface_mesh(triangles)
+}
+public func terrain_mesh(value:Physics.TriangleMesh3D) Scene3D.Geometry.Mesh {
+    var triangles:Physics.Triangle3D[] = []; var face = 0
+    while face < value.triangle_count() { triangles.append(value.triangle(face)); face++ }
+    return surface_mesh(triangles)
+}
+func surface_mesh(triangles:Physics.Triangle3D[]) Scene3D.Geometry.Mesh {
+    var vertices:Scene3D.Geometry.Vertex[] = []; var indices:uint32[] = []
+    for triangle in triangles {
+        let normal = triangle.normal(); let first = vertices.count() as uint32
+        vertices.append(Scene3D.Geometry.Vertex(position:triangle.first, normal:normal))
+        vertices.append(Scene3D.Geometry.Vertex(position:triangle.second, normal:normal))
+        vertices.append(Scene3D.Geometry.Vertex(position:triangle.third, normal:normal))
+        indices.append(first); indices.append(first+1); indices.append(first+2)
+    }
+    return Scene3D.Geometry.Mesh(vertices,indices)
+}
+public func round_mesh(top:float, bottom:float, half_height:float) Scene3D.Geometry.Mesh {
+    // The two spherical caps meet their common tangent cone continuously.
+    var seam = 0.0
+    if half_height > 0.0 { seam = Math.asin((bottom-top)/(2.0*half_height)) }
+    var vertices:Scene3D.Geometry.Vertex[] = []; var indices:uint32[] = []; var ring = 0
+    while ring < 18 {
+        var angle = -Math.half_pi() + (seam+Math.half_pi()) * ring as float / 8.0
+        var center = -half_height; var radius = bottom
+        if ring >= 9 {
+            angle = seam + (Math.half_pi()-seam) * (ring-9) as float / 8.0
+            center = half_height; radius = top
+        }
+        var slice = 0
+        while slice <= 24 {
+            let longitude = slice as float * 2.0*Math.pi()/24.0
+            let normal = Math.Vec3(Math.cos(angle)*Math.cos(longitude),Math.sin(angle),Math.cos(angle)*Math.sin(longitude))
+            vertices.append(Scene3D.Geometry.Vertex(position:normal.multiply(radius).add(Math.Vec3(0.0,center,0.0)),normal:normal))
+            if ring < 17 && slice < 24 {
+                let a = (ring*25+slice) as uint32; let b = a+25
+                indices.append(a); indices.append(b); indices.append(b+1)
+                indices.append(a); indices.append(b+1); indices.append(a+1)
+            }
+            slice++
+        }
+        ring++
+    }
+    return Scene3D.Geometry.Mesh(vertices,indices)
+}
+public func cylinder_mesh(top:float, bottom:float, half_height:float) Scene3D.Geometry.Mesh {
+    var vertices:Scene3D.Geometry.Vertex[] = []; var indices:uint32[] = []; var ring = 0
+    while ring < 2 {
+        var radius = bottom; var height = -half_height
+        if ring == 1 { radius = top; height = half_height }
+        var slice = 0
+        while slice <= 24 {
+            let angle = slice as float * 2.0*Math.pi()/24.0
+            let normal = Math.Vec3(Math.cos(angle),(bottom-top)/(2.0*half_height),Math.sin(angle)).normalized()
+            vertices.append(Scene3D.Geometry.Vertex(position:Math.Vec3(radius*Math.cos(angle),height,radius*Math.sin(angle)),normal:normal))
+            if ring == 0 && slice < 24 {
+                let a = slice as uint32; let b = a+25
+                indices.append(a); indices.append(b); indices.append(b+1)
+                indices.append(a); indices.append(b+1); indices.append(a+1)
+            }
+            slice++
+        }
+        ring++
+    }
+    ring = 0
+    while ring < 2 {
+        var radius = bottom; var height = -half_height; var normal = Math.Vec3.up().negated()
+        if ring == 1 { radius = top; height = half_height; normal = Math.Vec3.up() }
+        let center = vertices.count() as uint32
+        vertices.append(Scene3D.Geometry.Vertex(position:Math.Vec3(0.0,height,0.0),normal:normal))
+        var slice = 0
+        while slice <= 24 {
+            let angle = slice as float * 2.0*Math.pi()/24.0
+            vertices.append(Scene3D.Geometry.Vertex(position:Math.Vec3(radius*Math.cos(angle),height,radius*Math.sin(angle)),normal:normal))
+            if slice < 24 {
+                let a = center+1+slice as uint32
+                indices.append(center)
+                if ring == 0 { indices.append(a); indices.append(a+1) }
+                else { indices.append(a+1); indices.append(a) }
+            }
+            slice++
+        }
+        ring++
+    }
+    return Scene3D.Geometry.Mesh(vertices,indices)
+}
