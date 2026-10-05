@@ -1,0 +1,210 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+use STD.Time.Clock
+
+class SphereCastState {
+    var bodies:Physics.RigidBody3D[] = []
+    var probes:ECS.Entity[] = []
+    var origins:Math.Vec3[] = []
+    var volume_hits:Physics.WorldSphereHit3D[] = []
+    var ray_fractions:float[] = []
+    var reached:bool[] = [false, false, false, false, false, false]
+    var rendered:bool[] = [false, false, false, false, false, false]
+    var volume:bool = true
+    var smoke:bool = false
+    var elapsed:float = 0.0
+    var cycles:int = 0
+    var frame_clock:Clock = Clock()
+    var frame_count:int = 0
+    var report_time:float = 0.0
+    var reports:int = 0
+}
+func hull() Physics.ConvexHull3D {
+    var points:Math.Vec3[] = []; var index = 0
+    while index < 8 {
+        var x = -0.5; var y = -0.5; var z = -0.5
+        if index % 2 == 1 { x = 0.5 }
+        if (index / 2) % 2 == 1 { y = 0.5 }
+        if index / 4 == 1 { z = 0.5 }
+        points.append(Math.Vec3(x, y, z)); index++
+    }
+    return Physics.ConvexHull3D(points)
+}
+func boundary_mesh(hull:Physics.ConvexHull3D) Scene3D.Geometry.Mesh {
+    var vertices:Scene3D.Geometry.Vertex[] = []; var indices:uint32[] = []; var index = 0
+    while index < hull.triangle_count() {
+        let triangle = hull.triangle(index); let normal = triangle.normal(); let first = vertices.count() as uint32
+        vertices.append(Scene3D.Geometry.Vertex(position:triangle.first, normal:normal))
+        vertices.append(Scene3D.Geometry.Vertex(position:triangle.second, normal:normal))
+        vertices.append(Scene3D.Geometry.Vertex(position:triangle.third, normal:normal))
+        indices.append(first); indices.append(first + 1); indices.append(first + 2); index++
+    }
+    return Scene3D.Geometry.Mesh(vertices, indices)
+}
+func round_mesh(radius:float, half_height:float = 0.0) Scene3D.Geometry.Mesh {
+    var vertices:Scene3D.Geometry.Vertex[] = []; var indices:uint32[] = []; var ring = 0
+    while ring < 18 {
+        var angle = -Math.pi() / 2.0 + ring as float * Math.pi() / 16.0
+        var center = -half_height
+        if ring >= 9 { angle = (ring - 9) as float * Math.pi() / 16.0; center = half_height }
+        var slice = 0
+        while slice <= 24 {
+            let longitude = slice as float * 2.0 * Math.pi() / 24.0
+            let normal = Math.Vec3(Math.cos(angle) * Math.cos(longitude), Math.sin(angle), Math.cos(angle) * Math.sin(longitude))
+            vertices.append(Scene3D.Geometry.Vertex(position:normal.multiply(radius).add(Math.Vec3(0.0, center, 0.0)), normal:normal))
+            if ring < 17 && slice < 24 {
+                let a = (ring * 25 + slice) as uint32; let b = a + 25
+                indices.append(a); indices.append(b); indices.append(b + 1)
+                indices.append(a); indices.append(b + 1); indices.append(a + 1)
+            }
+            slice++
+        }
+        ring++
+    }
+    return Scene3D.Geometry.Mesh(vertices, indices)
+}
+func triangle() Physics.Triangle3D {
+    return Physics.Triangle3D(Math.Vec3(0.0, -1.0, -1.0), Math.Vec3(0.0, 1.0, -1.0), Math.Vec3(0.0, 0.0, 1.0))
+}
+func triangle_mesh() Scene3D.Geometry.Mesh {
+    let face = triangle(); let n = face.normal()
+    return Scene3D.Geometry.Mesh([
+        Scene3D.Geometry.Vertex(position:face.first, normal:n), Scene3D.Geometry.Vertex(position:face.second, normal:n), Scene3D.Geometry.Vertex(position:face.third, normal:n),
+        Scene3D.Geometry.Vertex(position:face.first, normal:n.negated()), Scene3D.Geometry.Vertex(position:face.third, normal:n.negated()), Scene3D.Geometry.Vertex(position:face.second, normal:n.negated())], [0, 1, 2, 3, 4, 5])
+}
+func spawn(world:&Resources.World, mesh:Scene3D.MeshHandle, position:Math.Vec3, tint:Color) ECS.Entity {
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:position))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:tint, roughness:0.45)))
+}
+func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D, physics:&Physics.World3D, state:&SphereCastState) {
+    let cube = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(1.0)))
+    let probe = meshes.add(round_mesh(0.5)); let marker = meshes.add(round_mesh(0.06))
+    let colors:Color[] = [Color.bytes(241, 177, 75), Color.bytes(236, 140, 89), Color.bytes(188, 143, 228),
+        Color.bytes(230, 187, 97), Color.bytes(107, 177, 140), Color.bytes(232, 153, 126)]
+    var index = 0
+    while index < 6 {
+        let position = Math.Vec3(0.0, 1.2, index as float * 3.0 - 7.5)
+        var shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.0))); var visual = cube
+        var origin = position.add(Math.Vec3(-3.0, 0.0, 0.8))
+        if index == 1 { shape = Physics.Shape3D.convex(hull()); visual = meshes.add(boundary_mesh(hull())); origin = position.add(Math.Vec3(-3.0, 0.8, 0.8)) }
+        if index == 2 { shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.5)); visual = probe }
+        if index == 3 { shape = Physics.Shape3D.capsule(Physics.Capsule3D(0.5, 0.5)); visual = meshes.add(round_mesh(0.5, 0.5)); origin = position.add(Math.Vec3(-3.0, 0.8, 0.0)) }
+        if index == 4 { shape = Physics.Shape3D.triangle(triangle()); visual = meshes.add(triangle_mesh()); origin = position.add(Math.Vec3(-3.0, 0.0, 1.3)) }
+        if index == 5 {
+            shape = Physics.Shape3D.compound(Physics.Compound3D([
+                Physics.CompoundChild3D(71, Physics.Shape3D.convex(hull())),
+                Physics.CompoundChild3D(9, Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.0))), Physics.Transform3D(Math.Vec3(0.0, 1.2, 0.0)))]))
+            spawn(world, cube, position.add(Math.Vec3(0.0, 1.2, 0.0)), colors[index])
+        }
+        state.bodies.append(physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+            ..shape = shape ..transform = Physics.Transform3D(position)))
+        spawn(world, visual, position, colors[index]); state.origins.append(origin)
+        state.probes.append(spawn(world, probe, origin, Color.bytes(80, 189, 231)))
+        spawn(world, meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(6.0, 0.025, 0.025))),
+            Math.Vec3(0.0, 0.65, origin.z), Color.bytes(90, 124, 148))
+        index++
+    }
+    // A static route is queried once; rendering interpolates the saved result.
+    index = 0
+    while index < 6 {
+        let cast = Physics.SphereCast3D(Physics.Sphere3D(0.5), state.origins[index], Math.Vec3(6.0, 0.0, 0.0))
+        if let hit = physics.sphere_cast(cast) {
+            assert(hit.body().same_body(state.bodies[index]))
+            state.volume_hits.append(hit); spawn(world, marker, hit.point(), Color.bytes(100, 240, 158))
+            if index == 5 { assert(hit.child_id() == 71) }
+            print("Sphere lane=$(index) fraction=$(hit.fraction()) child=$(hit.child_id())")
+        } else { panic("sphere route missed its obstacle") }
+        var fraction = 1.0
+        if let hit = physics.ray_cast(Physics.Ray3D(cast.origin, cast.translation)) { fraction = hit.fraction() }
+        state.ray_fractions.append(fraction); index++
+    }
+    assert(state.ray_fractions[0] == 1.0 && state.ray_fractions[1] == 1.0 && state.ray_fractions[4] == 1.0)
+    spawn(world, meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(8.0, 0.12, 19.0))), Math.Vec3(0.0, -0.06, 0.0), Color.bytes(66, 88, 106))
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.45)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4, -1.0, -0.3).normalized(), intensity:2.5) ..shadow_distance = 40.0))
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    state.frame_clock.tick()
+    print("Six routes: box edge, convex corner, sphere, capsule cap, triangle vertex, compound child. Green dots mark contact points.")
+    print("C: sphere volume / center ray. Space: pause. R: restart. Escape: quit. Automatic restart every 4 seconds.")
+}
+func update(input:@Resources.InputState, simulation:&Application.Simulation, state:&SphereCastState, controller:&Application.Controller) {
+    if !state.smoke {
+        if input.is_pressed(Input.Key.escape) { controller.stop() }
+        if input.is_pressed(Input.Key.space) { if simulation.is_paused() { simulation.resume() } else { simulation.pause() } }
+        if input.is_pressed(Input.Key.r) { state.elapsed = 0.0 }
+        if input.is_pressed(Input.Key.c) { state.volume = !state.volume; state.elapsed = 0.0; print("Sphere volume mode=$(state.volume)") }
+    }
+    state.elapsed += simulation.delta()
+    if state.elapsed >= 4.0 {
+        state.cycles++
+        if state.smoke {
+            var index = 0
+            while index < 6 { assert(state.reached[index] && state.rendered[index]); index++ }
+            print("Sphere cast smoke cycle=$(state.cycles): six volume stops and rendered poses verified")
+            if state.cycles == 2 { controller.stop() }
+        }
+        state.elapsed = 0.0
+        state.reached = [false, false, false, false, false, false]
+        state.rendered = [false, false, false, false, false, false]
+    }
+    if state.smoke {
+        state.frame_count++
+        let elapsed = state.report_time + state.frame_clock.tick()
+        state.report_time = elapsed
+        if state.report_time >= 1.0 {
+            let fps = state.frame_count as float / state.report_time
+            print("Sphere cast FPS sample=$(state.reports) value=$(fps)")
+            state.frame_count = 0; state.report_time = 0.0; state.reports++
+        }
+    }
+}
+func render(world:&Resources.World, state:&SphereCastState) {
+    var index = 0
+    while index < 6 {
+        var fraction = state.volume_hits[index].fraction()
+        if !state.volume { fraction = state.ray_fractions[index] }
+        let progress = Math.min(state.elapsed / 2.0, fraction)
+        let position = state.origins[index].add(Math.Vec3(6.0 * progress, 0.0, 0.0))
+        if world.get<Components.Transform3D>(state.probes[index]).position != position {
+            world.update<Components.Transform3D>(state.probes[index], func(transform:&Components.Transform3D) { transform.position = position })
+        }
+        if state.smoke {
+            assert(world.get<Components.Transform3D>(state.probes[index]).position.nearly_equal(position, 0.0001))
+            if progress >= fraction && !state.reached[index] {
+                {
+                    let hit = state.volume_hits[index]
+                    assert(position.subtract(hit.normal().multiply(0.5)).nearly_equal(hit.point(), 0.0005))
+                    let distance = Physics.Geometry3D.distance(Physics.ShapePlacement3D(Physics.Shape3D.sphere(Physics.Sphere3D(0.5)), Physics.Transform3D(position)),
+                        Physics.ShapePlacement3D(state.bodies[index].shape(), state.bodies[index].transform()))
+                    assert(Math.abs(distance.separation) < 0.0005)
+                    if index == 5 { assert(distance.second_child_id == 71) }
+                }
+                state.reached[index] = true
+            }
+            if progress > 0.05 { state.rendered[index] = true }
+        }
+        index++
+    }
+}
+func main() {
+    Application() ..add_resource(SphereCastState()) ..add_resource(Physics.World3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = "Silex sphere sweep | C: sphere/ray, Space: pause" ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target = Math.Vec3(0.0, 1.0, 0.0)
+            ..distance = 22.0 ..yaw = Math.radians(-25.0) ..pitch = Math.radians(-38.0)))
+        ..add_system(Application.Schedule.startup, create_scene)
+        ..add_system(Application.Schedule.update, update, process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render, render) ..run()
+}

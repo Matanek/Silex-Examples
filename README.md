@@ -482,3 +482,10 @@ closes the window; the scene restarts automatically every five seconds.
 `--smoke` verifies two cycles, contacts, rotation and rendered poses, then exits.
 Run from the workspace root:
 `silex run Silex-Examples/Sources/Physics3D/ConvexCompoundScene.sx`.
+
+`Physics3D/SphereCastScene.sx` animates six spherical probes against a box edge,
+convex corner, sphere, capsule cap, triangle vertex and compound child. The
+blue spheres stop at the swept volume's first contact; green dots mark points
+on the obstacles. Press **C** to compare a center ray, **Space** to pause,
+**R** to restart and **Escape** to quit. From SilexProject, run
+`silex run Silex-Examples/Sources/Physics3D/SphereCastScene.sx`.
