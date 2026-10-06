@@ -1,0 +1,168 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+use STD.Time.Clock
+
+class FixedSceneState {
+    var bodies:Physics.RigidBody3D[] = []
+    var joints:Physics.FixedConstraint3D[] = []
+    var visuals:ECS.Entity[] = []
+    var initial:Physics.Transform3D[] = []
+    var previous:Physics.Transform3D[] = []
+    var accumulator:float = 0.0
+    var elapsed:float = 0.0
+    var smoke:bool = false
+    var phase:int = 0
+    var cycles:int = 0
+    var frame_clock:Clock = Clock()
+    var frames:int = 0
+    var report_time:float = 0.0
+}
+func fixed_visual(world:&Resources.World, meshes:&Resources.Meshes3D, size:Math.Vec3,
+    position:Math.Vec3, tint:Color) ECS.Entity
+{
+    let mesh = meshes.add(Scene3D.Geometry.Cube.make(size))
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:position))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:tint,roughness:0.5)))
+}
+func attach_fixed(physics:&Physics.World3D, state:&FixedSceneState) {
+    if !state.joints[2].is_valid() {
+        state.joints[2] = physics.create_fixed_constraint(state.bodies[1],state.bodies[3])
+        print("Blue weight attached at its current relative pose")
+    }
+}
+func detach_fixed(physics:&Physics.World3D, state:&FixedSceneState) {
+    if state.joints[2].is_valid() {
+        physics.destroy_fixed_constraint(state.joints[2])
+        assert(!state.joints[2].is_valid())
+        print("Blue weight detached")
+    }
+}
+func reset_fixed(physics:&Physics.World3D, state:&FixedSceneState) {
+    for joint in state.joints { if joint.is_valid() { physics.destroy_fixed_constraint(joint) } }
+    state.joints = []
+    var index = 0
+    while index < state.bodies.count() {
+        state.bodies[index].set_transform(state.initial[index])
+        state.bodies[index].set_linear_velocity(Math.Vec3())
+        state.bodies[index].set_angular_velocity(Math.Vec3())
+        state.previous[index] = state.initial[index]
+        index++
+    }
+    state.joints.append(physics.create_fixed_constraint(state.bodies[0],state.bodies[1]))
+    state.joints.append(physics.create_fixed_constraint(state.bodies[1],state.bodies[2]))
+    state.joints.append(physics.create_fixed_constraint(state.bodies[1],state.bodies[3]))
+    state.elapsed = 0.0; state.accumulator = 0.0; state.phase = 0
+}
+func create_fixed_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&FixedSceneState)
+{
+    let positions:Math.Vec3[] = [Math.Vec3(0.0,4.0,0.0),Math.Vec3(0.0,3.0,0.0),
+        Math.Vec3(-1.5,2.3,0.0),Math.Vec3(1.5,2.3,0.0)]
+    let sizes:Math.Vec3[] = [Math.Vec3(0.5),Math.Vec3(4.0,0.3,0.4),Math.Vec3(0.6),Math.Vec3(0.8)]
+    let colors:Color[] = [Color.bytes(110,132,156),Color.bytes(120,212,146),
+        Color.bytes(245,186,82),Color.bytes(89,184,237)]
+    var index = 0
+    while index < positions.count() {
+        let pose = Physics.Transform3D(positions[index])
+        var settings = Physics.RigidBody3DSettings() ..transform = pose
+            ..shape = Physics.Shape3D.box(Physics.Box3D(sizes[index]))
+            ..collision_filter = Physics.CollisionFilter3D(group_index:-1) ..allow_sleep = false
+        if index == 0 { settings.body_type = Physics.BodyType3D.kinematic }
+        else { settings.mass_properties = Physics.MassProperties3D(2.0 + index as float,Math.Vec3(0.5 + index as float)) }
+        state.bodies.append(physics.create_rigid_body(settings))
+        state.initial.append(pose); state.previous.append(pose)
+        state.visuals.append(fixed_visual(world,meshes,sizes[index],positions[index],colors[index]))
+        index++
+    }
+    reset_fixed(physics,state)
+    physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.plane(Physics.Plane3D()))
+    fixed_visual(world,meshes,Math.Vec3(14.0,0.2,10.0),Math.Vec3(0.0,-0.1,0.0),Color.bytes(52,70,87))
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.45)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance = 40.0))
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    state.frame_clock.tick()
+    print("Rigid assembly: moving support, green beam, gold and blue weights. Blue can be detached and attached at its current pose.")
+    print("D: detach blue. C: attach blue. R: restart. Space: pause. Escape: quit.")
+}
+func update_fixed_scene(input:@Resources.InputState, simulation:&Application.Simulation,
+    physics:&Physics.World3D, state:&FixedSceneState, controller:&Application.Controller)
+{
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if input.is_pressed(Input.Key.space) { if simulation.is_paused() { simulation.resume() } else { simulation.pause() } }
+    if !state.smoke {
+        if input.is_pressed(Input.Key.r) { reset_fixed(physics,state) }
+        if input.is_pressed(Input.Key.d) { detach_fixed(physics,state) }
+        if input.is_pressed(Input.Key.c) { attach_fixed(physics,state) }
+    }
+    state.accumulator += simulation.delta()
+    let delta = 1.0 / 120.0
+    while state.accumulator >= delta {
+        var index = 0
+        while index < state.bodies.count() { state.previous[index] = state.bodies[index].transform(); index++ }
+        let t = state.elapsed + delta
+        state.bodies[0].move_kinematic(Physics.Transform3D(Math.Vec3(Math.sin(t*0.7),4.0,0.5*Math.sin(t*0.5)),
+            Math.Quat.angle_axis(0.35*Math.sin(t*0.8),Math.Vec3(0.0,1.0,0.0))),delta)
+        physics.step(delta); state.elapsed += delta; state.accumulator -= delta
+        if state.smoke {
+            for joint in state.joints {
+                if joint.is_valid() { assert(joint.anchor_error().length() < 0.01 && joint.angular_error().length() < 0.01) }
+            }
+            if state.phase == 0 && state.elapsed >= 1.0 { detach_fixed(physics,state); state.phase = 1 }
+            if state.phase == 1 && state.elapsed >= 2.0 {
+                assert(state.bodies[3].position().y < 0.6 && physics.contact_count() > 0)
+                attach_fixed(physics,state); assert(physics.fixed_constraint_count() == 3)
+                state.bodies[3].apply_impulse(Math.Vec3(2.0,3.0,1.0)); state.phase = 2
+            }
+            if state.elapsed >= 3.0 {
+                state.cycles++
+                print("Fixed smoke cycle=$(state.cycles): rigid poses, detached floor contact, current-pose reattachment, impulse and rendered transforms verified")
+                if state.cycles == 2 { controller.stop() }
+                reset_fixed(physics,state)
+            }
+        }
+    }
+    state.frames++; state.report_time += state.frame_clock.tick()
+    if state.report_time >= 1.0 {
+        print("Fixed scene FPS=$(state.frames as float/state.report_time)")
+        state.frames = 0; state.report_time = 0.0
+    }
+}
+func render_fixed_scene(world:&Resources.World, state:&FixedSceneState) {
+    let alpha = Math.clamp(state.accumulator*120.0,0.0,1.0)
+    var index = 0
+    while index < state.bodies.count() {
+        let position = state.previous[index].position.lerp(state.bodies[index].position(),alpha)
+        let first = state.previous[index].rotation; var second = state.bodies[index].rotation()
+        if first.dot(second) < 0.0 { second = second.multiply(-1.0) }
+        let rotation = first.multiply(1.0-alpha).add(second.multiply(alpha)).normalized()
+        world.update<Components.Transform3D>(state.visuals[index],func(transform:&Components.Transform3D) { transform.position = position; transform.rotation = rotation })
+        if state.smoke {
+            let pose = world.get<Components.Transform3D>(state.visuals[index])
+            assert(pose.position.nearly_equal(position,0.0001) && Math.abs(pose.rotation.dot(rotation)) > 0.99999)
+        }
+        index++
+    }
+}
+func main() {
+    Application() ..add_resource(FixedSceneState()) ..add_resource(Physics.World3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = "Silex fixed assembly | D detach, C attach, R restart" ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target = Math.Vec3(0.0,2.5,0.0)
+            ..distance = 13.0 ..yaw = Math.radians(-12.0) ..pitch = Math.radians(-20.0)))
+        ..add_system(Application.Schedule.startup,create_fixed_scene)
+        ..add_system(Application.Schedule.update,update_fixed_scene,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render_fixed_scene) ..run()
+}
