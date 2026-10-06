@@ -100,9 +100,9 @@ func create_fixed_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
 func update_fixed_scene(input:@Resources.InputState, simulation:&Application.Simulation,
     physics:&Physics.World3D, state:&FixedSceneState, controller:&Application.Controller)
 {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if input.is_pressed(Input.Key.space) { if simulation.is_paused() { simulation.resume() } else { simulation.pause() } }
     if !state.smoke {
-        if input.is_pressed(Input.Key.escape) { controller.stop() }
-        if input.is_pressed(Input.Key.space) { if simulation.is_paused() { simulation.resume() } else { simulation.pause() } }
         if input.is_pressed(Input.Key.r) { reset_fixed(physics,state) }
         if input.is_pressed(Input.Key.d) { detach_fixed(physics,state) }
         if input.is_pressed(Input.Key.c) { attach_fixed(physics,state) }
