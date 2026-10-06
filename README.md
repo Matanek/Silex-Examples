@@ -547,3 +547,13 @@ pauses and Escape exits. From the workspace or Spec group root, run
 Its `--smoke` mode checks two eight-second cycles, target reversal, overshoot,
 anchor/axis errors, torque bounds, a twelve-frame pause/resume and interpolated
 rendered transforms. Space and Escape remain available in both modes.
+
+
+`Physics3D/HingeFrictionScene.sx` starts two rotors at 2 rad/s without gravity.
+Gold brakes to rest while blue rotates freely. F toggles gold friction; R
+spins both again with the chosen friction setting. Removing friction from
+a stopped rotor leaves it stopped until R provides a new initial velocity.
+Space pauses/resumes and Escape exits. From the workspace or Spec group root:
+`silex run Silex-Examples/Sources/Physics3D/HingeFrictionScene.sx --release`.
+The `--smoke` mode checks two six-second cycles, mutable braking, free
+rotation, torque bounds, twelve-frame pause/resume and rendered poses.
