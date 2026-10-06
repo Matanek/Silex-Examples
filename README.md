@@ -493,3 +493,11 @@ blue spheres stop at the swept volume's first contact; green dots mark points
 on the obstacles. Press **C** to compare a center ray, **Space** to pause,
 **R** to restart and **Escape** to quit. From SilexProject, run
 `silex run Silex-Examples/Sources/Physics3D/SphereCastScene.sx`.
+
+`Physics3D/HingeScene.sx` shows a gold free pendulum, a blue pendulum limited
+to ±0.35 radians with red stop markers, and a green two-link chain with masses
+2 and 8 kg. Space pauses, R restarts, L toggles the blue stops, I applies an
+impulse with an off-axis component, and Escape closes. From the workspace or
+Spec group root, run `silex run Silex-Examples/Sources/Physics3D/HingeScene.sx`.
+The compiled binary accepts `--smoke` for two four-second cycles checking
+anchors, axes, hard stops, movement and interpolated render transforms.

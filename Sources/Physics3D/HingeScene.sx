@@ -1,0 +1,179 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+use STD.Time.Clock
+
+class HingeSceneState {
+    var bodies:Physics.RigidBody3D[] = []
+    var joints:Physics.HingeConstraint3D[] = []
+    var visuals:ECS.Entity[] = []
+    var initial:Physics.Transform3D[] = []
+    var previous:Physics.Transform3D[] = []
+    var accumulator:float = 0.0
+    var elapsed:float = 0.0
+    var cycles:int = 0
+    var limits:bool = true
+    var smoke:bool = false
+    var moved:bool[] = [false,false,false,false]
+    var reached_limit:bool = false
+    var frame_clock:Clock = Clock()
+    var frames:int = 0
+    var report_time:float = 0.0
+}
+func hinge_visual(world:&Resources.World, mesh:Scene3D.MeshHandle, position:Math.Vec3,
+    tint:Color, rotation:Math.Quat = Math.Quat.identity()) ECS.Entity
+{
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:position,rotation:rotation))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:tint,roughness:0.5)))
+}
+func hinge_body(physics:&Physics.World3D, state:&HingeSceneState, pose:Physics.Transform3D,
+    mass:float) Physics.RigidBody3D
+{
+    var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
+        ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.3,2.0,0.3)))
+        ..mass_properties = Physics.MassProperties3D(mass,Math.Vec3(0.34*mass,0.015*mass,0.34*mass))
+        ..transform = pose ..allow_sleep = false ..collision_filter = Physics.CollisionFilter3D(mask_bits:0))
+    state.bodies.append(body); state.initial.append(pose); state.previous.append(pose)
+    return body
+}
+func reset_hinges(state:&HingeSceneState) {
+    var index = 0
+    while index < state.bodies.count() {
+        state.bodies[index].set_transform(state.initial[index])
+        state.bodies[index].set_linear_velocity(Math.Vec3())
+        state.bodies[index].set_angular_velocity(Math.Vec3())
+        state.previous[index] = state.initial[index]
+        index++
+    }
+    state.joints[1].set_limits(-0.35,0.35)
+    if !state.limits { state.joints[1].set_limits(-Math.pi(),Math.pi()) }
+    state.elapsed = 0.0; state.accumulator = 0.0
+    state.moved = [false,false,false,false]; state.reached_limit = false
+}
+func create_hinges(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&HingeSceneState)
+{
+    // Meshes, anchors and frame definitions are invariant until restart.
+    let rod = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.3,2.0,0.3)))
+    let pivot_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.6,0.3,0.6)))
+    let stop_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.12,0.35,0.5)))
+    let colors:Color[] = [Color.bytes(245,186,82),Color.bytes(89,184,237),Color.bytes(120,212,146),Color.bytes(75,161,106)]
+    var index = 0
+    while index < 3 {
+        let pivot_position = Math.Vec3(-4.5+4.5*index as float,5.0,0.0)
+        var pivot = physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+            ..transform = Physics.Transform3D(pivot_position) ..collision_filter = Physics.CollisionFilter3D(mask_bits:0))
+        hinge_visual(world,pivot_mesh,pivot_position,Color.bytes(110,132,156))
+        let rotation = Math.Quat.angle_axis(0.65,Math.Vec3(0.0,0.0,1.0))
+        let pose = Physics.Transform3D(pivot_position.add(rotation.rotate(Math.Vec3(0.0,-1.0,0.0))),rotation)
+        var body = hinge_body(physics,state,pose,2.0)
+        var settings = Physics.HingeConstraint3DSettings() ..second_local_anchor = Math.Vec3(0.0,1.0,0.0)
+        if index == 1 { settings.minimum_angle = -0.35; settings.maximum_angle = 0.35 }
+        state.joints.append(physics.create_hinge_constraint(pivot,body,settings))
+        state.visuals.append(hinge_visual(world,rod,pose.position,colors[index],pose.rotation))
+        if index == 1 {
+            hinge_visual(world,stop_mesh,pivot_position.add(Math.Vec3(-2.0*Math.sin(0.35),-2.0*Math.cos(0.35),0.0)),Color.bytes(237,109,99))
+            hinge_visual(world,stop_mesh,pivot_position.add(Math.Vec3(2.0*Math.sin(0.35),-2.0*Math.cos(0.35),0.0)),Color.bytes(237,109,99))
+        }
+        if index == 2 {
+            let lower_rotation = Math.Quat.angle_axis(-0.2,Math.Vec3(0.0,0.0,1.0))
+            let attachment = pose.point(Math.Vec3(0.0,-1.0,0.0))
+            let lower_pose = Physics.Transform3D(attachment.subtract(lower_rotation.rotate(Math.Vec3(0.0,1.0,0.0))),lower_rotation)
+            var lower = hinge_body(physics,state,lower_pose,8.0)
+            state.joints.append(physics.create_hinge_constraint(body,lower,Physics.HingeConstraint3DSettings()
+                ..first_local_anchor = Math.Vec3(0.0,-1.0,0.0) ..second_local_anchor = Math.Vec3(0.0,1.0,0.0)))
+            state.visuals.append(hinge_visual(world,rod,lower_pose.position,colors[3],lower_pose.rotation))
+        }
+        index++
+    }
+    hinge_visual(world,meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(16.0,0.2,8.0))),Math.Vec3(0.0,-0.2,0.0),Color.bytes(52,70,87))
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.45)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance = 40.0))
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    state.frame_clock.tick()
+    print("Gold: free hinge. Blue: hard stops at +/-0.35 rad (red markers). Green: two hinges, masses 2 and 8 kg.")
+    print("Space: pause. R: restart. L: toggle blue stops. I: impulse including off-axis force. Escape: quit.")
+}
+func update_hinges(input:@Resources.InputState, simulation:&Application.Simulation,
+    physics:&Physics.World3D, state:&HingeSceneState, controller:&Application.Controller)
+{
+    if !state.smoke {
+        if input.is_pressed(Input.Key.escape) { controller.stop() }
+        if input.is_pressed(Input.Key.space) { if simulation.is_paused() { simulation.resume() } else { simulation.pause() } }
+        if input.is_pressed(Input.Key.r) { reset_hinges(state) }
+        if input.is_pressed(Input.Key.l) {
+            state.limits = !state.limits
+            if state.limits { state.joints[1].set_limits(-0.35,0.35) }
+            else { state.joints[1].set_limits(-Math.pi(),Math.pi()) }
+        }
+        if input.is_pressed(Input.Key.i) { for body in state.bodies { body.apply_impulse(Math.Vec3(1.0,0.0,1.0)) } }
+    }
+    state.accumulator += simulation.delta()
+    let delta = 1.0 / 120.0
+    while state.accumulator >= delta {
+        var index = 0
+        while index < state.bodies.count() { state.previous[index] = state.bodies[index].transform(); index++ }
+        physics.step(delta); state.elapsed += delta; state.accumulator -= delta
+        if state.smoke {
+            index = 0
+            while index < state.joints.count() {
+                assert(state.joints[index].anchor_error().length() < 0.02)
+                assert(state.joints[index].axis_error() < 0.005)
+                if state.bodies[index].position().distance(state.initial[index].position) > 0.05 { state.moved[index] = true }
+                index++
+            }
+            if state.elapsed > 0.15 { assert(Math.abs(state.joints[1].angle()) <= 0.351) }
+            if Math.abs(state.joints[1].angle()) >= 0.349 { state.reached_limit = true }
+            if state.elapsed >= 4.0 {
+                for moved in state.moved { assert(moved) }
+                assert(state.reached_limit)
+                state.cycles++
+                print("Hinge smoke cycle=$(state.cycles): four moving rods, anchors, axes, hard stops and rendered poses verified")
+                if state.cycles == 2 { controller.stop() }
+                reset_hinges(state)
+            }
+        }
+    }
+    state.frames++; state.report_time += state.frame_clock.tick()
+    if state.report_time >= 1.0 {
+        print("Hinge scene FPS=$(state.frames as float/state.report_time)")
+        state.frames = 0; state.report_time = 0.0
+    }
+}
+func render_hinges(world:&Resources.World, state:&HingeSceneState) {
+    var index = 0
+    let alpha = Math.clamp(state.accumulator*120.0,0.0,1.0)
+    while index < state.bodies.count() {
+        let position = state.previous[index].position.lerp(state.bodies[index].position(),alpha)
+        let first = state.previous[index].rotation; var second = state.bodies[index].rotation()
+        if first.dot(second) < 0.0 { second = second.multiply(-1.0) }
+        let rotation = first.multiply(1.0-alpha).add(second.multiply(alpha)).normalized()
+        world.update<Components.Transform3D>(state.visuals[index],func(transform:&Components.Transform3D) { transform.position = position; transform.rotation = rotation })
+        if state.smoke {
+            let pose = world.get<Components.Transform3D>(state.visuals[index])
+            assert(pose.position.nearly_equal(position,0.0001) && Math.abs(pose.rotation.dot(rotation)) > 0.99999)
+        }
+        index++
+    }
+}
+func main() {
+    Application() ..add_resource(HingeSceneState()) ..add_resource(Physics.World3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = "Silex hinges | Space pause, R restart, L stops, I impulse" ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target = Math.Vec3(0.0,2.5,0.0)
+            ..distance = 20.0 ..yaw = Math.radians(-8.0) ..pitch = Math.radians(-20.0)))
+        ..add_system(Application.Schedule.startup,create_hinges)
+        ..add_system(Application.Schedule.update,update_hinges,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render_hinges) ..run()
+}
