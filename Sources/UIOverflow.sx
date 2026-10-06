@@ -12,6 +12,7 @@ func caption(value:str, size:float = 16.0) UI.Text {
 
 class OverflowDemo {
     var hidden:UI.State<bool> = UI.State<bool>(true)
+    var wrapping:UI.State<bool> = UI.State<bool>(true)
     var actions:UI.State<int> = UI.State<int>(0)
 
     func activate() { self.actions.set(self.actions.value() + 1) }
@@ -27,27 +28,25 @@ class OverflowDemo {
     }
 
     func panel(reads:UI.Reads) UI.View {
-        var row = UI.Row([self.action("Premier"), self.action("Deuxième"), self.action("Troisième")])
+        var row = UI.Row([self.action("Premier"), self.action("Deuxième"), self.action("Troisième")],
+            wrap:reads.read(self.wrapping))
         row.style.gap = 14.0
         var field = UI.TextField("Éditez, sélectionnez, puis redimensionnez")
         field.style.padding = UI.Insets(8.0)
         field.style.background = Color.slate_900()
         field.style.border = UI.Border(1.0, Color.slate_600())
-        var content = UI.Column([
-            caption("Zone intérieure de découpage"),
+        var panel = UI.Column([
+            caption("Trois actions de largeur fixe"),
             row,
             field
         ])
-        content.style.gap = 10.0
-        let clipped = reads.read(self.hidden)
-        if clipped { content.style.overflow = UI.Overflow.hidden }
-        var panel = UI.Column([content])
-        panel.style.width = 300.0
-        panel.style.height = 180.0
+        panel.style.gap = 10.0
+        panel.style.width = 340.0
+        panel.style.height = 280.0
         panel.style.padding = UI.Insets(16.0)
         panel.style.background = Color.slate_800()
         panel.style.border = UI.Border(1.0, Color.cyan_400())
-        if clipped { panel.style.overflow = UI.Overflow.hidden }
+        if reads.read(self.hidden) { panel.style.overflow = UI.Overflow.hidden }
         return panel
     }
 
@@ -57,9 +56,10 @@ class OverflowDemo {
 
     func describe() UI.View {
         var root = UI.Column([
-            caption("Débordement des conteneurs — J2", 24.0),
-            caption("Masqué : le découpage laisse une marge à l’intérieur du cadre."),
-            caption("Le deuxième bouton est coupé ; décochez pour voir toute la rangée."),
+            caption("Débordement et retour à la ligne — J2", 24.0),
+            caption("Retour à la ligne : les boutons restent entiers."),
+            caption("Sans retour à la ligne, masquer coupe ce qui dépasse."),
+            UI.Checkbox("Retour à la ligne", self.wrapping),
             UI.Checkbox("Masquer le débordement", self.hidden),
             UI.Reactive(self.panel),
             UI.Reactive(self.status),
@@ -78,6 +78,6 @@ func main() {
     var model = OverflowDemo()
     var session = UI.Session(model.describe())
     let result = Viewer.show(session,
-        Viewer.CanvasSettings(width:760, height:520, title:"Silex — Débordement J2"))
+        Viewer.CanvasSettings(width:760, height:680, title:"Silex — Débordement et adaptation J2"))
     if result != 0 { panic("overflow viewer failed") }
 }

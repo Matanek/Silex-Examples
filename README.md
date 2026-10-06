@@ -32,12 +32,12 @@ a separate upcoming capability.
 Its compiled executable accepts `--smoke` to check all three geometries and
 render the changing layouts through SDL/Metal for one second.
 
-[UIOverflow](Sources/UIOverflow.sx) compares visible and hidden overflow in a fixed
-container. Toggle the checkbox, click the overflowing buttons, then resize while
-editing the field. A clipped inner container preserves the surrounding panel’s
-padding, while the partially visible second button makes the cutoff explicit.
-Rendering and pointer limits follow the same rectangle; the action counter makes
-clipped clicks observable.
+[UIOverflow](Sources/UIOverflow.sx) compares wrapping and clipping independently
+in a fixed container. Wrapping starts enabled and keeps buttons whole. Disable
+wrapping to force overflow, then toggle hidden overflow: it clips the drawing
+and pointer targets without moving or shrinking the buttons. Resize while editing
+the field; the action counter makes clipped clicks observable. Panel padding
+places the normal content and does not add a second clipping rectangle.
 
 ## Organization
 
