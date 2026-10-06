@@ -1,0 +1,184 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+use STD.Time.Clock
+
+class HingeMotorSceneState {
+    var bodies:Physics.RigidBody3D[] = []
+    var joints:Physics.HingeConstraint3D[] = []
+    var visuals:ECS.Entity[] = []
+    var initial:Physics.Transform3D[] = []
+    var previous:Physics.Transform3D[] = []
+    var accumulator:float = 0.0
+    var elapsed:float = 0.0
+    var cycles:int = 0
+    var direction:float = 1.0
+    var motors:bool = true
+    var limits:bool = true
+    var strong_green:bool = false
+    var smoke:bool = false
+    var smoke_phase:int = 0
+    var reached_upper:bool = false
+    var reached_lower:bool = false
+    var frame_clock:Clock = Clock()
+    var frames:int = 0
+    var report_time:float = 0.0
+}
+func motor_visual(world:&Resources.World, mesh:Scene3D.MeshHandle, position:Math.Vec3,
+    tint:Color, rotation:Math.Quat = Math.Quat.identity()) ECS.Entity
+{
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:position,rotation:rotation))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:tint,roughness:0.5)))
+}
+func configure_motors(state:&HingeMotorSceneState) {
+    var index = 0
+    while index < state.joints.count() {
+        var torque = 40.0
+        if index == 2 && !state.strong_green { torque = 2.0 }
+        if state.motors { state.joints[index].set_motor(Physics.HingeMotor3D(state.direction,torque)) }
+        else { state.joints[index].set_motor(null) }
+        index++
+    }
+    if state.limits { state.joints[1].set_limits(-0.65,0.65) }
+    else { state.joints[1].set_limits(-Math.pi(),Math.pi()) }
+}
+func reset_motors(state:&HingeMotorSceneState) {
+    var index = 0
+    while index < state.bodies.count() {
+        state.bodies[index].set_transform(state.initial[index])
+        state.bodies[index].set_linear_velocity(Math.Vec3())
+        state.bodies[index].set_angular_velocity(Math.Vec3())
+        state.previous[index] = state.initial[index]
+        index++
+    }
+    configure_motors(state)
+    state.elapsed = 0.0; state.accumulator = 0.0; state.smoke_phase = 0
+    state.reached_upper = false; state.reached_lower = false
+}
+func create_motors(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&HingeMotorSceneState)
+{
+    let rod = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.3,2.0,0.3)))
+    let pivot_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.6,0.3,0.6)))
+    let stop_mesh = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(0.12,0.35,0.5)))
+    let colors:Color[] = [Color.bytes(245,186,82),Color.bytes(89,184,237),Color.bytes(120,212,146)]
+    var index = 0
+    while index < 3 {
+        let pivot_position = Math.Vec3(-4.5+4.5*index as float,5.0,0.0)
+        var pivot = physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+            ..transform = Physics.Transform3D(pivot_position) ..collision_filter = Physics.CollisionFilter3D(mask_bits:0))
+        motor_visual(world,pivot_mesh,pivot_position,Color.bytes(110,132,156))
+        let pose = Physics.Transform3D(pivot_position.add(Math.Vec3(0.0,-1.0,0.0)))
+        var body = physics.create_rigid_body(Physics.RigidBody3DSettings()
+            ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.3,2.0,0.3)))
+            ..mass_properties = Physics.MassProperties3D(2.0,Math.Vec3(0.68,0.03,0.68))
+            ..transform = pose ..allow_sleep = false ..collision_filter = Physics.CollisionFilter3D(mask_bits:0))
+        state.bodies.append(body); state.initial.append(pose); state.previous.append(pose)
+        state.joints.append(physics.create_hinge_constraint(pivot,body,
+            Physics.HingeConstraint3DSettings() ..second_local_anchor = Math.Vec3(0.0,1.0,0.0)))
+        state.visuals.append(motor_visual(world,rod,pose.position,colors[index],pose.rotation))
+        if index == 1 {
+            motor_visual(world,stop_mesh,pivot_position.add(Math.Vec3(-2.0*Math.sin(0.65),-2.0*Math.cos(0.65),0.0)),Color.bytes(237,109,99))
+            motor_visual(world,stop_mesh,pivot_position.add(Math.Vec3(2.0*Math.sin(0.65),-2.0*Math.cos(0.65),0.0)),Color.bytes(237,109,99))
+        }
+        index++
+    }
+    configure_motors(state)
+    motor_visual(world,meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(16.0,0.2,8.0))),Math.Vec3(0.0,-0.2,0.0),Color.bytes(52,70,87))
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.45)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance = 40.0))
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    state.frame_clock.tick()
+    print("Gold: 1 rad/s, 40 Nm. Blue: same motor, stops +/-0.65 rad. Green: weak 2 Nm motor under gravity.")
+    print("Space: pause. R: restart. V: reverse. M: motor on/off. T: green torque 2/40 Nm. L: blue stops. Escape: quit.")
+}
+func update_motors(input:@Resources.InputState, simulation:&Application.Simulation,
+    physics:&Physics.World3D, state:&HingeMotorSceneState, controller:&Application.Controller)
+{
+    if !state.smoke {
+        if input.is_pressed(Input.Key.escape) { controller.stop() }
+        if input.is_pressed(Input.Key.space) { if simulation.is_paused() { simulation.resume() } else { simulation.pause() } }
+        if input.is_pressed(Input.Key.r) { reset_motors(state) }
+        var changed = false
+        if input.is_pressed(Input.Key.v) { state.direction = -state.direction; changed = true }
+        if input.is_pressed(Input.Key.m) { state.motors = !state.motors; changed = true }
+        if input.is_pressed(Input.Key.t) { state.strong_green = !state.strong_green; changed = true }
+        if input.is_pressed(Input.Key.l) { state.limits = !state.limits; changed = true }
+        if changed { configure_motors(state) }
+    }
+    state.accumulator += simulation.delta()
+    let delta = 1.0 / 120.0
+    while state.accumulator >= delta {
+        var index = 0
+        while index < state.bodies.count() { state.previous[index] = state.bodies[index].transform(); index++ }
+        physics.step(delta); state.elapsed += delta; state.accumulator -= delta
+        if state.smoke {
+            for joint in state.joints {
+                assert(joint.anchor_error().length() < 0.015 && joint.axis_error() < 0.003)
+                if let motor = joint.motor() { assert(Math.abs(joint.motor_torque()) <= motor.maximum_torque+0.0001) }
+                else { assert(joint.motor_torque() == 0.0) }
+            }
+            assert(Math.abs(state.joints[1].angle()) <= 0.651)
+            if state.joints[1].angle() >= 0.649 { state.reached_upper = true }
+            if state.joints[1].angle() <= -0.649 { state.reached_lower = true }
+            if state.smoke_phase == 0 && state.elapsed >= 1.5 {
+                assert(Math.abs(state.joints[0].angular_speed()-1.0) < 0.01)
+                assert(Math.abs(state.joints[2].angular_speed()) < 0.5 && Math.abs(state.joints[2].angle()) < 0.3)
+                assert(state.reached_upper)
+                state.direction = -1.0; configure_motors(state); state.smoke_phase = 1
+            }
+            if state.smoke_phase == 1 && state.elapsed >= 3.0 {
+                assert(Math.abs(state.joints[0].angular_speed()+1.0) < 0.01 && state.reached_lower)
+                state.motors = false; configure_motors(state); state.smoke_phase = 2
+            }
+            if state.elapsed >= 4.0 {
+                state.cycles++
+                print("Motor smoke cycle=$(state.cycles): target speed, reversal, limited effort, both stops, motor off and rendered poses verified")
+                if state.cycles == 2 { controller.stop() }
+                state.direction = 1.0; state.motors = true; reset_motors(state)
+            }
+        }
+    }
+    state.frames++; state.report_time += state.frame_clock.tick()
+    if state.report_time >= 1.0 {
+        print("Motor scene FPS=$(state.frames as float/state.report_time)")
+        state.frames = 0; state.report_time = 0.0
+    }
+}
+func render_motors(world:&Resources.World, state:&HingeMotorSceneState) {
+    var index = 0
+    let alpha = Math.clamp(state.accumulator*120.0,0.0,1.0)
+    while index < state.bodies.count() {
+        let position = state.previous[index].position.lerp(state.bodies[index].position(),alpha)
+        let first = state.previous[index].rotation; var second = state.bodies[index].rotation()
+        if first.dot(second) < 0.0 { second = second.multiply(-1.0) }
+        let rotation = first.multiply(1.0-alpha).add(second.multiply(alpha)).normalized()
+        world.update<Components.Transform3D>(state.visuals[index],func(transform:&Components.Transform3D) { transform.position = position; transform.rotation = rotation })
+        if state.smoke {
+            let pose = world.get<Components.Transform3D>(state.visuals[index])
+            assert(pose.position.nearly_equal(position,0.0001) && Math.abs(pose.rotation.dot(rotation)) > 0.99999)
+        }
+        index++
+    }
+}
+func main() {
+    Application() ..add_resource(HingeMotorSceneState()) ..add_resource(Physics.World3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = "Silex hinge motors | V reverse, M motors, T torque, L stops, R restart" ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target = Math.Vec3(0.0,3.0,0.0)
+            ..distance = 20.0 ..yaw = Math.radians(-8.0) ..pitch = Math.radians(-20.0)))
+        ..add_system(Application.Schedule.startup,create_motors)
+        ..add_system(Application.Schedule.update,update_motors,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render_motors) ..run()
+}

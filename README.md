@@ -501,3 +501,14 @@ impulse with an off-axis component, and Escape closes. From the workspace or
 Spec group root, run `silex run Silex-Examples/Sources/Physics3D/HingeScene.sx`.
 The compiled binary accepts `--smoke` for two four-second cycles checking
 anchors, axes, hard stops, movement and interpolated render transforms.
+
+
+`Physics3D/HingeMotorScene.sx` shows a gold pendulum driven at 1 rad/s with
+40 N·m, a blue one with the same motor and ±0.65 rad stops, and a green one
+whose 2 N·m motor cannot overcome gravity to maintain the target speed.
+**V** reverses, **M** switches motors on/off, **T** changes the green torque
+between 2 and 40 N·m, **L** toggles blue stops, **R** restarts, **Space** pauses,
+and **Escape** closes. From the workspace or Spec group root, run
+`silex run Silex-Examples/Sources/Physics3D/HingeMotorScene.sx --release`.
+The compiled binary accepts `--smoke`: two four-second cycles check target
+speed, reversal, insufficient effort, both stops, motor off and rendered poses.
