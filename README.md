@@ -538,3 +538,12 @@ Spec group root, run
 `silex run Silex-Examples/Sources/Physics3D/FixedScene.sx --release`.
 Its `--smoke` mode checks two complete detach/contact/reattach cycles and
 rendered transforms.
+
+`Physics3D/HingePositionScene.sx` compares two torque-limited position motors
+without gravity: gold is strongly damped, blue overshoots and oscillates.
+Red cubes mark the target of each tip. T reverses targets, R resets, Space
+pauses and Escape exits. From the workspace or Spec group root, run
+`silex run Silex-Examples/Sources/Physics3D/HingePositionScene.sx --release`.
+Its `--smoke` mode checks two eight-second cycles, target reversal, overshoot,
+anchor/axis errors, torque bounds, a twelve-frame pause/resume and interpolated
+rendered transforms. Space and Escape remain available in both modes.
