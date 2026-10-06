@@ -1,0 +1,224 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.UI
+use GFX.Viewer
+use STD.Math
+use STD.Process
+
+func caption(value:str, size:float = 14.0) UI.Text {
+    var text = UI.Text(value)
+    text.style.font_size = size
+    text.style.foreground = Color.slate_300()
+    return text
+}
+
+func field(value:UI.State<str>) UI.TextField {
+    var result = UI.TextField(value)
+    result.style.height = 40.0
+    result.style.padding = UI.Insets(vertical:10.0, horizontal:12.0)
+    result.style.background = Color.slate_900()
+    result.style.foreground = Color.slate_100()
+    result.style.border = UI.Border(1.0, Color.slate_700())
+    result.style.accent = Color.cyan_400()
+    result.style.radius = 6.0
+    return result
+}
+
+func action(label:str, callback:func()) UI.Button {
+    var result = UI.Button(label, callback)
+    result.style.height = 38.0
+    result.style.padding = UI.Insets(vertical:0.0, horizontal:14.0)
+    result.style.background = Color.slate_800()
+    result.style.foreground = Color.slate_100()
+    result.style.accent = Color.cyan_400()
+    result.style.radius = 6.0
+    return result
+}
+
+class Person {
+    let id:int
+    var name:UI.State<str>
+    var focus:UI.Focus = UI.Focus()
+    init(id:int, name:str) { self.id = id; self.name = UI.State<str>(name) }
+}
+
+// A persistent custom keyboard control, deliberately accepting no text.
+class Counter:UI.Content {
+    var value:UI.State<int> = UI.State<int>(0)
+    func measure(maximum:Math.Vec2) Math.Vec2 { return Math.Vec2(260.0, 48.0) }
+    func paint(painter:&Canvas.Painter, frame:Canvas.Rect, opacity:float) {
+        var color = Color.slate_200()
+        color.a *= opacity
+        painter.text("CustomView : $(self.value.value()) — Espace / Entrée", frame.position,
+            Canvas.TextStyle(size:14.0, color:color))
+    }
+    func focusable() bool { return true }
+    func accepts_text_input() bool { return false }
+    func focus_changed(focused:bool) bool { return true }
+    func update(delta:float) bool { return false }
+    func pointer_scrolled(delta:Math.Vec2) bool { return false }
+    func insert_text(value:str) bool { return false }
+    func key_pressed(key:Keyboard.Key, modifiers:Keyboard.Modifiers) bool {
+        if key != Keyboard.Key.space && key != Keyboard.Key.enter { return false }
+        self.value.set(self.value.value() + 1)
+        return true
+    }
+}
+
+class Form {
+    var title:UI.State<str> = UI.State<str>("Atelier Silex")
+    var note:UI.State<str> = UI.State<str>("Une édition reste attachée à sa ligne.")
+    var automatic:UI.State<bool> = UI.State<bool>(false)
+    var enabled:UI.State<bool> = UI.State<bool>(true)
+    var visible:UI.State<bool> = UI.State<bool>(true)
+    var strength:UI.State<float> = UI.State<float>(0.5)
+    var people:UI.State<Person[]> = UI.State<Person[]>([
+        Person(1, "Alice"), Person(2, "Benoît"), Person(3, "Chloé")
+    ])
+    var next_id:int = 4
+    var reversals:UI.State<int> = UI.State<int>(0)
+    var saved:UI.State<str> = UI.State<str>("Aucune validation")
+    var counter:Counter = Counter()
+    var counter_view:UI.CustomView
+    init() {
+        var custom = UI.CustomView(self.counter)
+        custom.style.height = 48.0
+        custom.style.padding = UI.Insets(12.0)
+        custom.style.background = Color.slate_800()
+        custom.style.accent = Color.cyan_400()
+        custom.style.radius = 6.0
+        self.counter_view = custom
+    }
+    func reverse() {
+        var values = self.people.value()
+        var reversed:Person[] = []
+        var index = values.count() - 1
+        while index >= 0 { reversed.append(values[index]); index-- }
+        self.people.set(reversed)
+        self.reversals.set(self.reversals.value() + 1)
+    }
+    func add() {
+        var values = self.people.value()
+        if values.count() >= 4 { return }
+        values.append(Person(self.next_id, "Personne $(self.next_id)"))
+        self.next_id++
+        self.people.set(values)
+    }
+    func remove() {
+        var values = self.people.value()
+        if values.count() == 0 { return }
+        var removed = values.take(values.count() - 1)
+        self.people.set(values)
+    }
+    func focus_first() {
+        var values = self.people.value()
+        if values.count() > 0 { values[0].focus.request() }
+    }
+    func save() { self.saved.set("Validé : " + self.title.value()) }
+    func describe(reads:UI.Reads) UI.View {
+        var optional = field(self.note)
+        optional.style.disabled = !reads.read(self.enabled)
+        optional.style.hidden = !reads.read(self.visible)
+        var slider = UI.Slider(self.strength)
+        slider.style.height = 32.0
+        slider.style.accent = Color.cyan_400()
+        var controls = UI.Column([
+            caption("FORMULAIRE", 18.0), caption("Nom du projet"), field(self.title),
+            UI.Checkbox("Activer la note", self.enabled),
+            UI.Checkbox("Afficher la note", self.visible), optional,
+            caption("Intensité : $(Math.round(reads.read(self.strength) * 100.0) as int)%"),
+            slider, action("Valider (Espace / Entrée)", self.save),
+            caption(reads.read(self.saved)), self.counter_view
+        ])
+        controls.style.gap = 10.0
+        controls.style.grow = 1.0
+        var rows:UI.View[] = []
+        var preview = ""
+        for person in reads.read(self.people) {
+            var row = UI.Column([
+                caption("Ligne #$(person.id)", 12.0), UI.FocusTarget(person.focus, field(person.name))
+            ])
+            row.style.gap = 3.0
+            rows.append(UI.Keyed(person.id, row))
+            if preview != "" { preview += " · " }
+            preview += reads.read(person.name)
+        }
+        var listing = UI.Column(rows)
+        listing.style.gap = 8.0
+        var buttons = UI.Row([action("Ajouter", self.add), action("Retirer la dernière", self.remove)])
+        buttons.style.gap = 8.0
+        var collection = UI.Column([
+            caption("COLLECTION À CLÉS", 18.0),
+            UI.Checkbox("Inverser toutes les 3 secondes", self.automatic),
+            caption("Inversions : $(reads.read(self.reversals))"), listing,
+            buttons, action("Inverser maintenant", self.reverse),
+            action("Focus sur la première ligne", self.focus_first),
+            caption("Aperçu : " + preview)
+        ])
+        collection.style.gap = 10.0
+        collection.style.grow = 1.0
+        var columns = UI.Row([controls, collection])
+        columns.style.gap = 36.0
+        var root = UI.Column([
+            caption("UI réactive — jalon J1", 26.0),
+            caption("Tab / Maj+Tab : naviguer · Bleu : focus · Curseur : flèches / Début / Fin"),
+            caption("Activez les inversions, sélectionnez du texte dans une ligne, puis continuez à écrire."),
+            columns
+        ])
+        root.style.padding = UI.Insets(24.0)
+        root.style.gap = 12.0
+        root.style.background = Color.slate_950()
+        return root
+    }
+}
+
+class FormSession:Canvas.Session {
+    var model:Form
+    var ui:UI.Session
+    let smoke:bool
+    var elapsed:float = 0.0
+    var reorder_elapsed:float = 0.0
+    var drawings:int = 0
+    init(smoke:bool) {
+        self.model = Form()
+        self.ui = UI.Session(UI.Reactive(self.model.describe))
+        self.smoke = smoke
+        if smoke { self.model.automatic.set(true) }
+    }
+    func drawing(width:int, height:int) Canvas {
+        self.drawings++
+        return self.ui.drawing(width, height)
+    }
+    func update(delta:float) bool {
+        self.elapsed += delta
+        self.reorder_elapsed += delta
+        var interval = 3.0
+        if self.smoke { interval = 0.1 }
+        if self.model.automatic.value() && self.reorder_elapsed >= interval {
+            self.reorder_elapsed = 0.0
+            self.model.reverse()
+        }
+        return self.ui.update(delta)
+    }
+    func handle(event:@Events.Event) bool { return self.ui.handle(event) }
+    func accepts_text_input() bool { return self.ui.accepts_text_input() }
+    func finished() bool { return self.smoke && self.elapsed >= 1.0 }
+}
+
+func main() {
+    var smoke = false
+    match Process.arguments() {
+        success(args) => { for arg in args { if arg == "--smoke" { smoke = true } } }
+        failure(error) => { panic("Cannot read process arguments") }
+    }
+    var session = FormSession(smoke)
+    let result = Viewer.show_until(session, session.finished,
+        Viewer.CanvasSettings(width:1060, height:800, title:"Silex — UI réactive J1", hidden:smoke))
+    if smoke && result == 0 {
+        assert(session.drawings > 1 && session.model.reversals.value() > 0)
+        print("UI J1 smoke : $(session.drawings) dessins, $(session.model.reversals.value()) inversions")
+    }
+    if result != 0 { panic("Viewer failed") }
+}

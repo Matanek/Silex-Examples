@@ -13,6 +13,14 @@ The [rigid shapes scene](Sources/Physics3D/RigidShapesScene/README.md) shows
 cylinders, tapered shapes, capsule/box/convex sweeps, a terrain opening and an
 infinite supporting plane in one window.
 
+The [reactive UI form](Sources/UIReactiveForm.sx) demonstrates shared state,
+keyed editable rows, keyboard focus and hidden/disabled controls. Enable automatic
+reordering, select text in a row, and keep typing: the edit stays with that row.
+Tab/Shift+Tab navigate, Space/Enter activate buttons and checkboxes, and arrows
+adjust the slider. The custom counter accepts keyboard input without text input.
+The form permits up to four rows. `--smoke` on the compiled executable runs a
+hidden one-second SDL/Metal rendering check with repeated reordering.
+
 ## Organization
 
 All demonstrations live under [`Sources/`](Sources/). Focused technical
