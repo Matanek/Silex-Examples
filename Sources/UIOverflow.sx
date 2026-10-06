@@ -1,0 +1,83 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.UI
+use GFX.Viewer
+use STD.Math
+
+func caption(value:str, size:float = 16.0) UI.Text {
+    var text = UI.Text(value)
+    text.style.font_size = size
+    return text
+}
+
+class OverflowDemo {
+    var hidden:UI.State<bool> = UI.State<bool>(true)
+    var wrapping:UI.State<bool> = UI.State<bool>(true)
+    var actions:UI.State<int> = UI.State<int>(0)
+
+    func activate() { self.actions.set(self.actions.value() + 1) }
+
+    func action(label:str) UI.Button {
+        var button = UI.Button(label, self.activate)
+        button.style.width = 140.0
+        button.style.height = 42.0
+        button.style.background = Color.cyan_700()
+        button.style.radius = 6.0
+        button.style.shadow = UI.BoxShadow(offset:Math.Vec2(3.0), radius:6.0, color:Color.black().with_alpha(0.7))
+        return button
+    }
+
+    func panel(reads:UI.Reads) UI.View {
+        var row = UI.Row([self.action("Premier"), self.action("Deuxième"), self.action("Troisième")],
+            wrap:reads.read(self.wrapping))
+        row.style.gap = 14.0
+        var field = UI.TextField("Éditez, sélectionnez, puis redimensionnez")
+        field.style.padding = UI.Insets(8.0)
+        field.style.background = Color.slate_900()
+        field.style.border = UI.Border(1.0, Color.slate_600())
+        var panel = UI.Column([
+            caption("Trois actions de largeur fixe"),
+            row,
+            field
+        ])
+        panel.style.gap = 10.0
+        panel.style.width = 340.0
+        panel.style.height = 280.0
+        panel.style.padding = UI.Insets(16.0)
+        panel.style.background = Color.slate_800()
+        panel.style.border = UI.Border(1.0, Color.cyan_400())
+        if reads.read(self.hidden) { panel.style.overflow = UI.Overflow.hidden }
+        return panel
+    }
+
+    func status(reads:UI.Reads) UI.View {
+        return caption("Actions déclenchées : $(reads.read(self.actions))")
+    }
+
+    func describe() UI.View {
+        var root = UI.Column([
+            caption("Débordement et retour à la ligne — J2", 24.0),
+            caption("Retour à la ligne : les boutons restent entiers."),
+            caption("Sans retour à la ligne, masquer coupe ce qui dépasse."),
+            UI.Checkbox("Retour à la ligne", self.wrapping),
+            UI.Checkbox("Masquer le débordement", self.hidden),
+            UI.Reactive(self.panel),
+            UI.Reactive(self.status),
+            caption("Réduisez puis agrandissez la fenêtre pendant la saisie.")
+        ])
+        root.style.padding = UI.Insets(24.0)
+        root.style.gap = 18.0
+        root.style.background = Color.slate_950()
+        root.style.foreground = Color.slate_100()
+        root.style.accent = Color.cyan_400()
+        return root
+    }
+}
+
+func main() {
+    var model = OverflowDemo()
+    var session = UI.Session(model.describe())
+    let result = Viewer.show(session,
+        Viewer.CanvasSettings(width:760, height:680, title:"Silex — Débordement et adaptation J2"))
+    if result != 0 { panic("overflow viewer failed") }
+}
