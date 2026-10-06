@@ -27,9 +27,15 @@ hidden one-second SDL/Metal rendering check with repeated reordering.
 of actions. Resize the window from 900 to 540 and 340 logical pixels to see
 three, two and one panels per row. Editing, selection and keyboard focus remain
 attached to their field. Keep enough height (820 pixels) for the three rows;
-general container clipping and scrolling are separate upcoming capabilities.
+use `UIOverflow.sx` to explore container clipping. Container scrolling remains
+a separate upcoming capability.
 Its compiled executable accepts `--smoke` to check all three geometries and
 render the changing layouts through SDL/Metal for one second.
+
+[UIOverflow](Sources/UIOverflow.sx) compares visible and hidden overflow in a fixed
+container. Toggle the checkbox, click the overflowing buttons, then resize while
+editing the field. Rendering and pointer limits follow the same rectangle;
+the action counter makes clipped clicks observable.
 
 ## Organization
 
