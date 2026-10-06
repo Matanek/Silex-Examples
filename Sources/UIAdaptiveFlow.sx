@@ -1,0 +1,143 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.UI
+use GFX.Viewer
+use STD.Process
+
+func flow_caption(value:str, size:float = 14.0) UI.Text {
+    var text = UI.Text(value)
+    text.style.font_size = size
+    return text
+}
+
+class AdaptiveForm {
+    var names:UI.State<str>[] = [UI.State<str>("Alpha"), UI.State<str>("Bêta"), UI.State<str>("Gamma")]
+    var actions:UI.State<int> = UI.State<int>(0)
+
+    func act() { self.actions.set(self.actions.value() + 1) }
+    func status(reads:UI.Reads) UI.View {
+        return flow_caption("Actions : $(reads.read(self.actions))")
+    }
+    func panel(index:int) UI.View {
+        var field = UI.TextField(self.names[index])
+        field.style.height = 38.0
+        field.style.padding = UI.Insets(8.0)
+        field.style.background = Color.slate_900()
+        field.style.foreground = Color.slate_100()
+        field.style.border = UI.Border(1.0, Color.slate_600())
+        field.style.radius = 5.0
+        var button = UI.Button("Activer", self.act)
+        button.style.height = 32.0
+        button.style.background = Color.slate_700()
+        button.style.radius = 5.0
+        var card = UI.Column([flow_caption("Projet $(index + 1)", 18.0), field, button])
+        card.style.padding = UI.Insets(12.0)
+        card.style.gap = 6.0
+        card.style.height = 130.0
+        card.style.minimum_width = 220.0
+        card.style.flex = 1.0
+        card.style.background = Color.slate_800()
+        card.style.radius = 8.0
+        return card
+    }
+    func shrinking_action(label:str, width:float, weight:float) UI.Button {
+        var result = UI.Button(label, self.act)
+        result.style.width = width
+        result.style.shrink = weight
+        result.style.minimum_width = 100.0
+        result.style.height = 38.0
+        result.style.background = Color.slate_700()
+        result.style.radius = 5.0
+        return result
+    }
+    func describe() UI.View {
+        var panels = UI.Row([self.panel(0), self.panel(1), self.panel(2)], wrap:true)
+        panels.style.gap = 12.0
+        var actions = UI.Row([
+            self.shrinking_action("Action A", 260.0, 1.0),
+            self.shrinking_action("Action B", 180.0, 2.0)
+        ])
+        actions.style.gap = 12.0
+        var root = UI.Column([
+            flow_caption("Layout adaptable — J2", 22.0),
+            flow_caption("Réduisez la fenêtre : 3 → 2 → 1."),
+            flow_caption("Tab : focus · Éditez puis redimensionnez."),
+            panels,
+            flow_caption("Réduction pondérée · minimum 100 px"),
+            actions,
+            UI.Reactive(self.status)
+        ])
+        root.style.padding = UI.Insets(20.0)
+        root.style.gap = 10.0
+        root.style.foreground = Color.slate_100()
+        root.style.background = Color.slate_950()
+        root.style.accent = Color.cyan_400()
+        return root
+    }
+}
+
+func panel_clip(drawing:@Canvas, value:str) Canvas.Rect {
+    for command in drawing.commands() {
+        match command {
+            text(text) => { if text.value == value { if let clip = text.clip { return clip } } }
+            else => {}
+        }
+    }
+    panic("missing adaptive field")
+}
+
+class AdaptiveSession:Canvas.Session {
+    var model:AdaptiveForm = AdaptiveForm()
+    var ui:UI.Session
+    var elapsed:float = 0.0
+    var drawings:int = 0
+    let smoke:bool
+
+    init(smoke:bool) {
+        self.smoke = smoke
+        self.ui = UI.Session(self.model.describe())
+        if smoke {
+            var drawing = self.ui.drawing(900, 820)
+            let wide = panel_clip(drawing, self.model.names[2].value())
+            drawing = self.ui.drawing(540, 820)
+            let medium = panel_clip(drawing, self.model.names[2].value())
+            drawing = self.ui.drawing(340, 820)
+            let narrow = panel_clip(drawing, self.model.names[2].value())
+            assert(wide.position.y < medium.position.y && medium.position.y < narrow.position.y)
+            assert(medium.position.x == narrow.position.x)
+        }
+    }
+    func drawing(width:int, height:int) Canvas {
+        self.drawings++
+        if self.smoke {
+            if self.elapsed < 0.33 { return self.ui.drawing(340, height) }
+            if self.elapsed < 0.66 { return self.ui.drawing(540, height) }
+        }
+        return self.ui.drawing(width, height)
+    }
+    func update(delta:float) bool {
+        self.elapsed += delta
+        if self.smoke { self.model.act() }
+        return self.ui.update(delta) || self.smoke
+    }
+    func handle(event:@Events.Event) bool { return self.ui.handle(event) }
+    func accepts_text_input() bool { return self.ui.accepts_text_input() }
+    func finished() bool { return self.smoke && self.elapsed >= 1.0 }
+}
+
+func main() {
+    var smoke = false
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--smoke" { smoke = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var session = AdaptiveSession(smoke)
+    let result = Viewer.show_until(session, session.finished,
+        Viewer.CanvasSettings(width:900, height:820, title:"Silex — Layout adaptable J2 (wrap et shrink)", hidden:smoke))
+    if result != 0 { panic("adaptive layout viewer failed") }
+    if smoke {
+        assert(session.drawings > 2)
+        print("UI J2 smoke : $(session.drawings) dessins, modes 3/2/1 vérifiés")
+    }
+}

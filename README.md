@@ -23,6 +23,14 @@ keeps the form at 400 logical pixels. Long field text scrolls internally, follow
 the caret, and supports wheel scrolling. The form permits up to four rows. `--smoke` on the compiled executable runs a
 hidden one-second SDL/Metal rendering check with repeated reordering.
 
+`UIAdaptiveFlow.sx` demonstrates wrapping fractional panels and weighted shrinking
+of actions. Resize the window from 900 to 540 and 340 logical pixels to see
+three, two and one panels per row. Editing, selection and keyboard focus remain
+attached to their field. Keep enough height (820 pixels) for the three rows;
+general container clipping and scrolling are separate upcoming capabilities.
+Its compiled executable accepts `--smoke` to check all three geometries and
+render the changing layouts through SDL/Metal for one second.
+
 ## Organization
 
 All demonstrations live under [`Sources/`](Sources/). Focused technical
