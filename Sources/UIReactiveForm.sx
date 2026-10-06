@@ -72,6 +72,7 @@ class Form {
     var note:UI.State<str> = UI.State<str>("Une édition reste attachée à sa ligne.")
     var automatic:UI.State<bool> = UI.State<bool>(false)
     var enabled:UI.State<bool> = UI.State<bool>(true)
+    var fixed_column:UI.State<bool> = UI.State<bool>(false)
     var visible:UI.State<bool> = UI.State<bool>(true)
     var strength:UI.State<float> = UI.State<float>(0.5)
     var people:UI.State<Person[]> = UI.State<Person[]>([
@@ -133,7 +134,11 @@ class Form {
             caption(reads.read(self.saved)), self.counter_view
         ])
         controls.style.gap = 10.0
-        controls.style.grow = 1.0
+        controls.style.flex = 1.0
+        if reads.read(self.fixed_column) {
+            controls.style.flex = 0.0
+            controls.style.width = 400.0
+        }
         var rows:UI.View[] = []
         var preview = ""
         for person in reads.read(self.people) {
@@ -158,13 +163,14 @@ class Form {
             caption("Aperçu : " + preview)
         ])
         collection.style.gap = 10.0
-        collection.style.grow = 1.0
+        collection.style.flex = 1.0
         var columns = UI.Row([controls, collection])
         columns.style.gap = 36.0
         var root = UI.Column([
             caption("UI réactive — jalon J1", 26.0),
             caption("Tab / Maj+Tab : naviguer · Bleu : focus · Curseur : flèches / Début / Fin"),
             caption("Activez les inversions, sélectionnez du texte dans une ligne, puis continuez à écrire."),
+            UI.Checkbox("Colonne du formulaire fixe (400 px)", self.fixed_column),
             columns
         ])
         root.style.padding = UI.Insets(24.0)
@@ -184,9 +190,15 @@ class FormSession:Canvas.Session {
     var drawings:int = 0
     init(smoke:bool) {
         self.model = Form()
+        if smoke {
+            self.model.automatic.set(true)
+            self.model.note.set("Texte long — texte long — texte long — texte long — texte long — texte long — texte long — texte long")
+            var people = self.model.people.value()
+            people[0].name.set("Alice — texte long — texte long — texte long — texte long — texte long — texte long — texte long")
+        }
         self.ui = UI.Session(UI.Reactive(self.model.describe))
         self.smoke = smoke
-        if smoke { self.model.automatic.set(true) }
+        if smoke { self.model.focus_first() }
     }
     func drawing(width:int, height:int) Canvas {
         self.drawings++
@@ -194,6 +206,9 @@ class FormSession:Canvas.Session {
     }
     func update(delta:float) bool {
         self.elapsed += delta
+        if self.smoke && self.elapsed >= 0.5 && !self.model.fixed_column.value() {
+            self.model.fixed_column.set(true)
+        }
         self.reorder_elapsed += delta
         var interval = 3.0
         if self.smoke { interval = 0.1 }
@@ -216,7 +231,7 @@ func main() {
     }
     var session = FormSession(smoke)
     let result = Viewer.show_until(session, session.finished,
-        Viewer.CanvasSettings(width:1060, height:800, title:"Silex — UI réactive J1", hidden:smoke))
+        Viewer.CanvasSettings(width:1060, height:800, title:"Silex — UI réactive J1 (colonnes et viewport)", hidden:smoke))
     if smoke && result == 0 {
         assert(session.drawings > 1 && session.model.reversals.value() > 0)
         print("UI J1 smoke : $(session.drawings) dessins, $(session.model.reversals.value()) inversions")

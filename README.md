@@ -18,7 +18,9 @@ keyed editable rows, keyboard focus and hidden/disabled controls. Enable automat
 reordering, select text in a row, and keep typing: the edit stays with that row.
 Tab/Shift+Tab navigate, Space/Enter activate buttons and checkboxes, and arrows
 adjust the slider. The custom counter accepts keyboard input without text input.
-The form permits up to four rows. `--smoke` on the compiled executable runs a
+Columns share offered space independently of text length; the fixed-column toggle
+keeps the form at 400 logical pixels. Long field text scrolls internally, following
+the caret, and supports wheel scrolling. The form permits up to four rows. `--smoke` on the compiled executable runs a
 hidden one-second SDL/Metal rendering check with repeated reordering.
 
 ## Organization
