@@ -170,6 +170,7 @@ class Form {
         root.style.padding = UI.Insets(24.0)
         root.style.gap = 12.0
         root.style.background = Color.slate_950()
+        root.style.foreground = Color.slate_100()
         return root
     }
 }
