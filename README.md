@@ -34,8 +34,10 @@ render the changing layouts through SDL/Metal for one second.
 
 [UIOverflow](Sources/UIOverflow.sx) compares visible and hidden overflow in a fixed
 container. Toggle the checkbox, click the overflowing buttons, then resize while
-editing the field. Rendering and pointer limits follow the same rectangle;
-the action counter makes clipped clicks observable.
+editing the field. A clipped inner container preserves the surrounding panel’s
+padding, while the partially visible second button makes the cutoff explicit.
+Rendering and pointer limits follow the same rectangle; the action counter makes
+clipped clicks observable.
 
 ## Organization
 
