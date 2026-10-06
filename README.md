@@ -530,3 +530,11 @@ and **Escape** closes. From the workspace or Spec group root, run
 `silex run Silex-Examples/Sources/Physics3D/HingeMotorScene.sx --release`.
 The compiled binary accepts `--smoke`: two four-second cycles check target
 speed, reversal, insufficient effort, both stops, motor off and rendered poses.
+
+`Physics3D/FixedScene.sx` shows a rigid beam and two loads carried by a
+translating and rotating support. D detaches the blue load, C captures its
+current pose to reattach it, M toggles support motion, I applies an impulse,
+R resets and Space pauses. From the workspace or Spec group root, run
+`silex run Silex-Examples/Sources/Physics3D/FixedScene.sx --release`.
+Its `--smoke` mode checks two complete detach/contact/reattach cycles and
+rendered transforms.
