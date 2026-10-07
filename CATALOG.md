@@ -52,6 +52,7 @@ synchronisation automatique.
 | UI control gallery | `Sources/UIControlGallery.sx` | `GFX.UI/Examples/VisualShowcase.sx` |
 | 3D viewport axis | `Sources/ViewportAxis3D.sx` | `GFX.Scene3D/Examples/ViewportAxis.sx` |
 | WebView bridge | `Sources/WebViewBridge.sx` | `GFX.WebView/Examples/BridgeWebPage.sx` |
+| Seven manual 3D articulations | `Sources/Physics3D/Articulations/Main.sx` | création propre au catalogue : cône, swing/twist, six degrés, engrenage, crémaillère, poulie et chemin, avec boutons et mesures |
 | 3D world | `Sources/World3D/Main.sx` | `GFX.Scene3D/Examples/World.sx` |
 
 Les chemins d'origine ci-dessus sont historiques. Après promotion, les copies

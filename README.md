@@ -741,3 +741,18 @@ group; the whole form scrolls when height is limited. From the workspace or Spec
 root run `silex run Silex-Examples/Sources/UIRadioGroup.sx`. The compiled executable
 accepts `--cpu-check` and exits before creating a Viewer or GPU device. Check both
 Debug and Release startup before trying the graphical demo.
+
+
+### Seven manual 3D articulations
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/Articulations/Main.sx --release
+```
+
+A single window selects cone, swing/twist, six DOF, gear, rack/pinion, pulley
+and curved path. Start each paused mechanism with its action button. The
+counter, status and live measurements confirm actions. Previous / Next and
+Reset restore the initial paused pose; actions resume from pause. Space and
+the Pause / Resume button share pause; R resets; Escape closes.
+[Controls and scope](Sources/Physics3D/Articulations/README.md) ·
+[Guide français](Sources/Physics3D/Articulations/README.fr.md).
