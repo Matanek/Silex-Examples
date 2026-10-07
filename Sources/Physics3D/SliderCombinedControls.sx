@@ -1,0 +1,142 @@
+use GFX.Color
+use GFX.Canvas
+use GFX.Input
+use GFX.Input.Events
+use GFX.Window
+use STD.Math
+use GFX.UI
+
+package class SliderCombinedControls {
+    var automatic:bool = false
+    var launch_requests:int = 0
+    var reset_requested:bool = false
+    var pause_requests:int = 0
+    var message:UI.State<str> = UI.State<str>("Doré : position + vitesse. Bleu : position seule.")
+    var pause_label:UI.State<str> = UI.State<str>("Pause (Espace)")
+
+    func describe() UI.View {
+        if self.automatic {
+            var root = UI.Column([UI.Text("TEST AUTOMATIQUE — fermeture à la fin"),
+                UI.Text("Le scénario pilote les chariots. Commandes clavier désactivées."),
+                UI.Text("La démo interactive sera lancée séparément.")])
+            root.style.padding = UI.Insets(16.0)
+            root.style.gap = 10.0
+            root.style.background = Color.slate_900().with_alpha(0.94)
+            root.style.foreground = Color.slate_100()
+            return root
+        }
+        var launch = self.button("Inverser (T)",self.launch)
+        var reset = self.button("Repartir (R)",self.reset)
+        var pause = UI.Reactive(self.pause_button)
+        var buttons = UI.Row([launch,reset,pause])
+        buttons.style.gap = 10.0
+        var root = UI.Column([buttons,UI.Text("T inverse et reprend, même en pause. Échap ferme."),UI.Reactive(self.status)])
+        root.style.padding = UI.Insets(16.0)
+        root.style.gap = 10.0
+        root.style.background = Color.slate_900().with_alpha(0.94)
+        root.style.foreground = Color.slate_100()
+        root.style.radius = 8.0
+        return root
+    }
+    func launch() { self.launch_requests++ }
+    func reset() { self.reset_requested = true }
+    func pause() { self.pause_requests++ }
+    func button(text:str,action:func()) UI.Button {
+        var button = UI.Button(text,action)
+        button.style.width = 162.0
+        button.style.height = 38.0
+        button.style.background = Color.slate_700()
+        button.style.radius = 5.0
+        return button
+    }
+    func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_label),self.pause) }
+    func status(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.message)) }
+    func handle(event:@Events.Event) bool {
+        match event {
+            key_pressed(key) => {
+                if key.repeated {
+                    return key.key==Input.Key.t || key.key==Input.Key.r || key.key==Input.Key.space ||
+                        key.keycode==116 as uint32 || key.keycode==84 as uint32 || key.keycode==114 as uint32 || key.keycode==82 as uint32
+                }
+                // Letter shortcuts follow the label on the keyboard. Physical
+                // fallbacks also support synthetic events without a keycode.
+                if key.keycode==116 as uint32 || key.keycode==84 as uint32 || (key.keycode==0 as uint32 && key.key==Input.Key.t) {
+                    self.launch();return true
+                }
+                if key.keycode==114 as uint32 || key.keycode==82 as uint32 || (key.keycode==0 as uint32 && key.key==Input.Key.r) {
+                    self.reset();return true
+                }
+                if key.key==Input.Key.space { self.pause();return true }
+            }
+            else => {}
+        }
+        return false
+    }
+    func feedback(message:str,paused:bool) {
+        self.message.set(message)
+        var label = "Pause (Espace)"
+        if paused { label = "Reprendre (Espace)" }
+        self.pause_label.set(label)
+    }
+}
+
+package func combined_key_event(key:Input.Key,code:uint32 = 0 as uint32,repeated:bool = false) Events.Event {
+    let modifiers = Input.Modifiers(shift:false,control:false,alt:false,system:false,
+        left_shift:false,right_shift:false,level5:false,left_control:false,right_control:false,
+        left_alt:false,right_alt:false,left_system:false,right_system:false,mode:false,
+        caps_lock:false,num_lock:false,scroll_lock:false)
+    return Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:0 as uint32),
+        keyboard:Input.KeyboardId(value:0 as uint32),key:key,keycode:code,raw:0 as uint16,
+        repeated:repeated,modifiers:modifiers,timestamp:Input.Timestamp(nanoseconds:0 as uint)))
+}
+func click_combined_button(session:&UI.Session,x:float) {
+    let value = Events.MouseButtonEvent(window:Window.Id(value:0 as uint32),mouse:Input.MouseId(value:0 as uint32),
+        button:Input.MouseButton.left,down:true,clicks:1 as uint8,position:Math.Vec2(x,32.0),timestamp:Input.Timestamp(nanoseconds:0 as uint))
+    let press = Events.Event.mouse_button_pressed(value)
+    let release = Events.Event.mouse_button_released(value)
+    let pressed = session.handle(press);let released = session.handle(release)
+    assert(pressed && released)
+}
+package func verify_combined_shortcuts() {
+    var controls = SliderCombinedControls()
+    let first = combined_key_event(Input.Key.f,116 as uint32)
+    assert(controls.handle(first) && controls.launch_requests==1)
+    let upper = combined_key_event(Input.Key.f,84 as uint32)
+    assert(controls.handle(upper) && controls.launch_requests==2)
+    let physical = combined_key_event(Input.Key.t)
+    assert(controls.handle(physical) && controls.launch_requests==3)
+    let repeat = combined_key_event(Input.Key.t,116 as uint32,true)
+    let ignored = controls.handle(repeat)
+    assert(controls.launch_requests==3)
+    let reset = combined_key_event(Input.Key.p,114 as uint32)
+    assert(controls.handle(reset) && controls.reset_requested)
+    let pause = combined_key_event(Input.Key.space,32 as uint32)
+    assert(controls.handle(pause) && controls.pause_requests==1)
+}
+package func verify_combined_buttons() {
+    var controls = SliderCombinedControls()
+    var session = UI.Session(controls.describe())
+    var drawing = session.drawing(538,142);assert(drawing.command_count()>0)
+    click_combined_button(session,80.0);assert(controls.launch_requests==1)
+    click_combined_button(session,250.0);assert(controls.reset_requested)
+    click_combined_button(session,420.0);assert(controls.pause_requests==1)
+    controls.feedback("Inversion n°1 vers la gauche — en cours",false)
+    assert(session.update(0.0))
+    drawing = session.drawing(538,142);assert(drawing.command_count()>0)
+    assert(controls.message.value()=="Inversion n°1 vers la gauche — en cours")
+}
+
+test "letter shortcuts follow logical T and R and preserve separate presses" { verify_combined_shortcuts() }
+test "visible buttons trigger the same launch reset and pause actions" { verify_combined_buttons() }
+
+package func verify_combined_automatic_panel() {
+    var controls = SliderCombinedControls();controls.automatic = true
+    var session = UI.Session(controls.describe())
+    var drawing = session.drawing(538,142);assert(drawing.command_count()>0)
+    let value = Events.MouseButtonEvent(window:Window.Id(value:0 as uint32),mouse:Input.MouseId(value:0 as uint32),
+        button:Input.MouseButton.left,down:true,clicks:1 as uint8,position:Math.Vec2(80.0,32.0),timestamp:Input.Timestamp(nanoseconds:0 as uint))
+    let press = Events.Event.mouse_button_pressed(value);let release = Events.Event.mouse_button_released(value)
+    let pressed = session.handle(press);let released = session.handle(release)
+    assert(controls.launch_requests==0 && !controls.reset_requested && controls.pause_requests==0)
+}
+test "automatic panel exposes no inert action buttons" { verify_combined_automatic_panel() }
