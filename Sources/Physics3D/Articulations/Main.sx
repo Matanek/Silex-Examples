@@ -1,0 +1,267 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use GFX.Scene2D
+use GFX.UI
+use Physics3D.Articulations.Model
+use Physics3D.Articulations.Controls
+use STD.Math
+use STD.Process
+
+class ArticulationScene {
+    var model:Model.ArticulationModel=Model.ArticulationModel()
+    var controls:Controls.ArticulationControls=Controls.ArticulationControls()
+    var ui:UI.Session
+    var panel:ECS.Entity=ECS.Entity()
+    var dynamic:ECS.Entity[]=[]
+    var scenery:ECS.Entity[]=[]
+    var cables:ECS.Entity[]=[]
+    var teeth:ECS.Entity[]=[]
+    var previous:Physics.Transform3D[]=[]
+    var accumulator:float=0.0
+    var telemetry:float=0.0
+    var smoke:bool=false
+    var smoke_started:bool=false
+    var smoke_time:float=0.0
+    var smoke_pauses:int=0
+    var smoke_pose:Physics.Transform3D=Physics.Transform3D()
+    init() { self.ui=UI.Session(self.controls.describe()) }
+}
+func visual(world:&Resources.World,meshes:&Resources.Meshes3D,position:Math.Vec3,size:Math.Vec3,color:Color) ECS.Entity {
+    let mesh=meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(1.0)))
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:position,scale:size))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.45)))
+}
+func set_decoration(world:&Resources.World,state:&ArticulationScene,index:int,position:Math.Vec3,size:Math.Vec3,rotation:Math.Quat=Math.Quat()) {
+    world.update<Components.Transform3D>(state.scenery[index],func(t:&Components.Transform3D) { t.position=position;t.scale=size;t.rotation=rotation })
+}
+func rebuild(world:&Resources.World,state:&ArticulationScene,simulation:&Application.Simulation) {
+    state.model.reset();state.previous=[]
+    for body in state.model.bodies { state.previous.append(body.transform()) }
+    state.accumulator=0.0;state.telemetry=0.0
+    simulation.pause()
+    state.controls.heading.set(state.model.name());state.controls.help.set(state.model.instruction())
+    state.controls.action_text.set(state.model.action_label());state.controls.pause_text.set("Reprendre (Espace)")
+    state.controls.feedback.set("Prêt — en pause ; cliquez sur l'action pour démarrer.")
+    state.controls.measure.set(state.model.measurement())
+    var i=0
+    while i<64 { set_decoration(world,state,i,Math.Vec3(),Math.Vec3());i++ }
+    i=0;while i<24 { world.update<Components.Transform3D>(state.teeth[i],func(t:&Components.Transform3D) { t.scale=Math.Vec3() });i++ }
+    let family=copy state.model.family
+    if family==0 {
+        set_decoration(world,state,0,Math.Vec3(0.0,2.0,-0.4),Math.Vec3(2.2,0.04,0.06))
+        set_decoration(world,state,1,Math.Vec3(0.0,2.0,-0.4),Math.Vec3(2.2,0.04,0.06),Math.Quat.angle_axis(0.65,Math.Vec3(0.0,0.0,1.0)))
+        set_decoration(world,state,2,Math.Vec3(0.0,2.0,-0.4),Math.Vec3(2.2,0.04,0.06),Math.Quat.angle_axis(-0.65,Math.Vec3(0.0,0.0,1.0)))
+    } else if family==2 || family==4 {
+        var y=1.6;if family==4 { y=1.45 }
+        set_decoration(world,state,0,Math.Vec3(0.0,y,-0.25),Math.Vec3(5.3,0.08,0.1))
+        set_decoration(world,state,1,Math.Vec3(-1.2,y,0.0),Math.Vec3(0.08,0.35,0.5))
+        set_decoration(world,state,2,Math.Vec3(1.2,y,0.0),Math.Vec3(0.08,0.35,0.5))
+    } else if family==5 {
+        set_decoration(world,state,0,Math.Vec3(0.0,4.0,0.0),Math.Vec3(2.2,0.08,0.08))
+    } else if family==6 {
+        var route=state.model.path!.path()
+        i=0;while i<64 {
+            let frame=route.frame(route.length()*(i as float)/64.0)
+            set_decoration(world,state,i,frame.position,Math.Vec3(0.08));i++
+        }
+    }
+}
+func perform(world:&Resources.World,state:&ArticulationScene,simulation:&Application.Simulation) {
+    if state.controls.selection!=0 {
+        state.model.family=((state.model.family+state.controls.selection)%7+7)%7
+        state.controls.selection=0;rebuild(world,state,simulation)
+    }
+    if state.controls.resets>0 { state.controls.resets=0;rebuild(world,state,simulation) }
+    while state.controls.pauses>0 {
+        state.controls.pauses--
+        if simulation.is_paused() { simulation.resume();state.controls.feedback.set("En cours") }
+        else { simulation.pause();state.controls.feedback.set("En pause — l'action reprend la simulation") }
+    }
+    while state.controls.actions>0 {
+        state.controls.actions--;state.model.act();simulation.resume()
+        state.controls.feedback.set("Action n°$(state.model.actions) — $(state.model.action_description()) — en cours")
+    }
+    var label="Pause (Espace)";if simulation.is_paused() { label="Reprendre (Espace)" }
+    state.controls.pause_text.set(label)
+}
+func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&ArticulationScene,simulation:&Application.Simulation) {
+    var i=0
+    while i<2 {
+        var color=Color.bytes(245,186,82);if i==1 { color=Color.bytes(75,163,245) }
+        state.dynamic.append(visual(world,meshes,Math.Vec3(),Math.Vec3(),color))
+        state.cables.append(visual(world,meshes,Math.Vec3(),Math.Vec3(),Color.bytes(100,235,160)))
+        i++
+    }
+    i=0;while i<64 { state.scenery.append(visual(world,meshes,Math.Vec3(),Math.Vec3(),Color.bytes(100,235,160)));i++ }
+    i=0;while i<24 {
+        var color=Color.bytes(245,186,82);if i>=8 { color=Color.bytes(75,163,245) }
+        state.teeth.append(visual(world,meshes,Math.Vec3(),Math.Vec3(),color));i++
+    }
+    visual(world,meshes,Math.Vec3(0.0,-0.15,0.0),Math.Vec3(12.0,0.2,8.0),Color.bytes(52,70,87))
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.5)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance=40.0))
+    rebuild(world,state,simulation)
+    state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform(position:Math.Vec2()))
+        ..with(Scene2D.Canvas(state.ui.drawing(860,255),860,255) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+            ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+}
+func update(world:&Resources.World,input:@Resources.InputState,state:&ArticulationScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if !state.smoke {
+        for event in input.events() { if !state.controls.handle(event) { let handled=state.ui.handle(event) } }
+        perform(world,state,simulation)
+    } else {
+        if !state.smoke_started { state.controls.actions++;perform(world,state,simulation);state.smoke_started=true }
+        if state.smoke_time>=0.5 && state.smoke_pauses==0 {
+            state.controls.pauses++;perform(world,state,simulation)
+            state.smoke_pose=state.model.bodies[0].transform();state.smoke_pauses=1
+        } else if state.smoke_pauses>0 && state.smoke_pauses<8 {
+            assert(simulation.is_paused() && simulation.delta()==0.0)
+            assert(state.model.bodies[0].transform()==state.smoke_pose);state.smoke_pauses++
+        } else if state.smoke_pauses==8 {
+            state.controls.actions++;perform(world,state,simulation)
+            assert(!simulation.is_paused() && state.model.actions==2);state.smoke_pauses++
+        }
+    }
+    state.accumulator+=simulation.delta()
+    let delta=1.0/120.0
+    while state.accumulator>=delta {
+        var i=0;while i<state.model.bodies.count() { state.previous[i]=state.model.bodies[i].transform();i++ }
+        state.model.world.step(delta);state.accumulator-=delta
+        if state.smoke { state.model.verify();state.smoke_time+=delta }
+    }
+    state.telemetry+=simulation.delta()
+    if state.telemetry>=0.1 { state.telemetry=0.0;state.controls.measure.set(state.model.measurement()) }
+    if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(p:&Scene2D.Canvas) { p.replace(state.ui.drawing(860,255)) }) }
+    if state.smoke && state.smoke_time>=3.0 {
+        state.model.verify_settled()
+        print("Articulation smoke $(state.model.name()): poses, bounds, reversal and pause/resume verified")
+        if state.model.family==6 { controller.stop() }
+        else { state.controls.selection=1;perform(world,state,simulation);state.smoke_time=0.0;state.smoke_pauses=0;state.smoke_started=false }
+    }
+}
+func render(world:&Resources.World,state:&ArticulationScene) {
+    let alpha=Math.clamp(state.accumulator*120.0,0.0,1.0)
+    var i=0;while i<2 {
+        var position=Math.Vec3();var rotation=Math.Quat();var size=Math.Vec3()
+        if i<state.model.bodies.count() {
+            position=state.previous[i].position.lerp(state.model.bodies[i].position(),alpha)
+            let first=state.previous[i].rotation;var second=state.model.bodies[i].rotation()
+            if first.dot(second)<0.0 { second=second.multiply(-1.0) }
+            rotation=first.multiply(1.0-alpha).add(second.multiply(alpha)).normalized();size=state.model.sizes[i]
+        }
+        world.update<Components.Transform3D>(state.dynamic[i],func(t:&Components.Transform3D) { t.position=position;t.rotation=rotation;t.scale=size })
+        var cable_size=Math.Vec3();var cable_position=Math.Vec3()
+        if state.model.family==5 { cable_size=Math.Vec3(0.06,4.0-position.y,0.06);cable_position=Math.Vec3(position.x,(4.0+position.y)/2.0,0.0) }
+        world.update<Components.Transform3D>(state.cables[i],func(t:&Components.Transform3D) { t.position=cable_position;t.scale=cable_size })
+        if state.smoke { let t=world.get<Components.Transform3D>(state.dynamic[i]);assert(t.position.nearly_equal(position,0.0001) && t.scale==size) }
+        if state.model.family==3 || state.model.family==4 {
+            var count=8;var start=0;var radius=0.46
+            if i==1 { start=8;count=16;radius=0.92 }
+            if state.model.family==4 && i==1 { count=8 }
+            var tooth=0;while tooth<count {
+                var angle=2.0*Math.pi()*(tooth as float)/(count as float)
+                var local_position=Math.Vec3(radius*Math.cos(angle),radius*Math.sin(angle),0.0)
+                var local_size=Math.Vec3(0.18,0.22,0.3)
+                if state.model.family==4 && i==1 {
+                    angle=0.0;local_position=Math.Vec3(-1.33+0.38*(tooth as float),0.17,0.0)
+                    local_size=Math.Vec3(0.15,0.2,0.3)
+                }
+                let tooth_position=position.add(rotation.rotate(local_position))
+                let tooth_rotation=rotation.multiply(Math.Quat.angle_axis(angle,Math.Vec3(0.0,0.0,1.0)))
+                world.update<Components.Transform3D>(state.teeth[start+tooth],func(t:&Components.Transform3D) {
+                    t.position=tooth_position;t.rotation=tooth_rotation;t.scale=local_size
+                })
+                tooth++
+            }
+        }
+        i++
+    }
+}
+func main() {
+    var state=ArticulationScene()
+    match Process.arguments() {
+        success(arguments)=> { for argument in arguments {
+            if argument=="--controls-check" { verify_interactions();print("Seven mechanisms: buttons, shortcuts, pause, visible movement and reset verified");return }
+            if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
+        } }
+        failure(error)=> { panic(error.detail) }
+    }
+    var title="Articulations — sept mécanismes manuels"
+    if state.smoke { title="TEST AUTOMATIQUE — articulations — fermeture à la fin" }
+    Application() ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,2.8,0.0)
+            ..vertical_fov=0.9 ..distance=8.5 ..yaw=Math.radians(-10.0) ..pitch=Math.radians(-8.0)))
+        ..add_system(Application.Schedule.startup,startup)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}
+
+func step_for_check(state:&ArticulationScene) {
+    var i=0;while i<360 { state.model.world.step(1.0/120.0);state.model.verify();i++ }
+    state.model.verify_settled()
+}
+func verify_interactions() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=ArticulationScene();var simulation=Application.Simulation()
+    startup(world,meshes,state,simulation)
+    var family=0
+    while family<7 {
+        assert(state.model.family==family && simulation.is_paused())
+        let initial=state.model.bodies[0].transform()
+        render(world,state)
+        {
+            let displayed=world.get<Components.Transform3D>(state.dynamic[0])
+            assert(displayed.position==initial.position && displayed.scale==state.model.sizes[0])
+        }
+        var drawing=state.ui.drawing(860,255);assert(drawing.command_count()>0)
+        Controls.click(state.ui,100.0,110.0);perform(world,state,simulation)
+        assert(state.model.actions==1 && !simulation.is_paused())
+        step_for_check(state)
+        let positive=state.model.bodies[0].transform()
+        assert(positive.position.subtract(initial.position).length()>0.2 || Math.abs(positive.rotation.dot(initial.rotation))<0.99)
+        let pause=Controls.key_event(Input.Key.space,32 as uint32)
+        assert(state.controls.handle(pause));perform(world,state,simulation)
+        assert(simulation.is_paused() && state.controls.pause_text.value()=="Reprendre (Espace)")
+        let repeat=Controls.key_event(Input.Key.space,32 as uint32,true)
+        assert(state.controls.handle(repeat));perform(world,state,simulation);assert(simulation.is_paused())
+        let changed=state.ui.update(0.0);var refreshed=state.ui.drawing(860,255)
+        Controls.click(state.ui,100.0,110.0);perform(world,state,simulation)
+        assert(!simulation.is_paused() && state.model.actions==2)
+        step_for_check(state)
+        let negative=state.model.bodies[0].transform()
+        assert(negative.position.subtract(positive.position).length()>0.3 || Math.abs(negative.rotation.dot(positive.rotation))<0.98)
+        Controls.click(state.ui,560.0,110.0);perform(world,state,simulation);assert(simulation.is_paused())
+        Controls.click(state.ui,350.0,110.0);perform(world,state,simulation)
+        assert(state.model.actions==0 && simulation.is_paused() && state.model.bodies[0].transform()==initial)
+        render(world,state)
+        {
+            let restored=world.get<Components.Transform3D>(state.dynamic[0])
+            assert(restored.position==initial.position && Math.abs(restored.rotation.dot(initial.rotation))>0.99999)
+        }
+        let reset=Controls.key_event(Input.Key.p,114 as uint32)
+        assert(state.controls.handle(reset));perform(world,state,simulation);assert(simulation.is_paused())
+        print("Interaction $(state.model.name()): two button actions visibly move, Space and pause button work, reset returns to initial pose")
+        if family<6 {
+            let updated=state.ui.update(0.0);var layout=state.ui.drawing(860,255)
+            Controls.click(state.ui,650.0,32.0);perform(world,state,simulation)
+            assert(state.model.family==family+1)
+        }
+        family++
+    }
+    let updated=state.ui.update(0.0);var layout=state.ui.drawing(860,255)
+    Controls.click(state.ui,80.0,32.0);perform(world,state,simulation);assert(state.model.family==5)
+    state.controls.automatic=true
+    var automatic=UI.Session(state.controls.describe());var drawing=automatic.drawing(860,255)
+    assert(!state.controls.handle(Controls.key_event(Input.Key.space,32 as uint32)))
+    assert(state.controls.actions==0 && state.controls.pauses==0)
+}
+test "seven mechanisms expose working buttons and pause with measurable motion" { verify_interactions() }

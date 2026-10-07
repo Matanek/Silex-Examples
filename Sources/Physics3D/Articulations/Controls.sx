@@ -1,0 +1,86 @@
+use GFX.Color
+use GFX.Input
+use GFX.Input.Events
+use GFX.Window
+use GFX.UI
+use STD.Math
+
+package class ArticulationControls {
+    var automatic:bool=false
+    var selection:int=0
+    var actions:int=0
+    var resets:int=0
+    var pauses:int=0
+    var heading:UI.State<str> = UI.State<str>("Articulations")
+    var help:UI.State<str> = UI.State<str>("")
+    var action_text:UI.State<str> = UI.State<str>("Lancer")
+    var pause_text:UI.State<str> = UI.State<str>("Reprendre (Espace)")
+    var feedback:UI.State<str> = UI.State<str>("Prêt — en pause ; cliquez sur l'action pour démarrer.")
+    var measure:UI.State<str> = UI.State<str>("")
+    func previous() { self.selection-- }
+    func next() { self.selection++ }
+    func act() { self.actions++ }
+    func reset() { self.resets++ }
+    func pause() { self.pauses++ }
+    func button(text:str,action:func(),width:float) UI.Button {
+        var button=UI.Button(text,action)
+        button.style.width=width;button.style.height=38.0
+        button.style.background=Color.slate_700();button.style.radius=5.0
+        return button
+    }
+    func title(reads:UI.Reads) UI.View {
+        var title=UI.Text(reads.read(self.heading));title.style.width=380.0;title.style.height=38.0;return title
+    }
+    func instruction(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.help)) }
+    func action_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.action_text),self.act,240.0) }
+    func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause,180.0) }
+    func status(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.feedback)) }
+    func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
+    func describe() UI.View {
+        var rows:UI.View[]=[]
+        if self.automatic {
+            rows=[UI.Text("TEST AUTOMATIQUE — sept articulations"),UI.Reactive(self.title),UI.Reactive(self.metrics)]
+        } else {
+            var navigation=UI.Row([self.button("Précédente",self.previous,140.0),UI.Reactive(self.title),self.button("Suivante",self.next,140.0)])
+            navigation.style.gap=16.0
+            var actions=UI.Row([UI.Reactive(self.action_button),self.button("Remettre à zéro (R)",self.reset,190.0),UI.Reactive(self.pause_button)])
+            actions.style.gap=10.0
+            rows=[navigation,UI.Reactive(self.instruction),actions,UI.Reactive(self.status),UI.Reactive(self.metrics),UI.Text("Boutons pour agir · Espace : pause · R : remettre à zéro · Échap : fermer")]
+        }
+        var root=UI.Column(rows)
+        root.style.padding=UI.Insets(16.0);root.style.gap=10.0
+        root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100()
+        root.style.radius=8.0
+        return root
+    }
+    func handle(event:@Events.Event) bool {
+        if self.automatic { return false }
+        match event {
+            key_pressed(key)=> {
+                let reset=key.keycode==114 as uint32 || key.keycode==82 as uint32 || (key.keycode==0 as uint32 && key.key==Input.Key.r)
+                if key.key==Input.Key.space || reset {
+                    if !key.repeated { if reset { self.reset() } else { self.pause() } }
+                    return true
+                }
+            }
+            else=>{}
+        }
+        return false
+    }
+}
+package func key_event(key:Input.Key,code:uint32=0 as uint32,repeated:bool=false) Events.Event {
+    let modifiers=Input.Modifiers(shift:false,control:false,alt:false,system:false,
+        left_shift:false,right_shift:false,level5:false,left_control:false,right_control:false,
+        left_alt:false,right_alt:false,left_system:false,right_system:false,mode:false,
+        caps_lock:false,num_lock:false,scroll_lock:false)
+    return Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:0 as uint32),
+        keyboard:Input.KeyboardId(value:0 as uint32),key:key,keycode:code,raw:0 as uint16,
+        repeated:repeated,modifiers:modifiers,timestamp:Input.Timestamp(nanoseconds:0 as uint)))
+}
+package func click(session:&UI.Session,x:float,y:float) {
+    let value=Events.MouseButtonEvent(window:Window.Id(value:0 as uint32),mouse:Input.MouseId(value:0 as uint32),
+        button:Input.MouseButton.left,down:true,clicks:1 as uint8,position:Math.Vec2(x,y),timestamp:Input.Timestamp(nanoseconds:0 as uint))
+    let pressed=session.handle(Events.Event.mouse_button_pressed(value))
+    let released=session.handle(Events.Event.mouse_button_released(value))
+    assert(pressed && released)
+}
