@@ -1,0 +1,169 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+use STD.Time.Clock
+
+class SliderFrictionSceneState {
+    var body:Physics.RigidBody3D? = null
+    var joint:Physics.SliderConstraint3D? = null
+    var visual:ECS.Entity? = null
+    let initial:Physics.Transform3D = Physics.Transform3D(Math.Vec3(0.0,3.0,0.0),Math.Quat.angle_axis(-0.28,Math.Vec3(0.0,0.0,1.0)))
+    var previous:Physics.Transform3D = Physics.Transform3D()
+    var elapsed:float = 0.0
+    var accumulator:float = 0.0
+    var direction:float = -1.0
+    var smoke:bool = false
+    var launched:bool = false
+    var brake_released:bool = false
+    var brake_restored:bool = false
+    var cycles:int = 0
+    var pause_frames:int = 0
+    var pause_elapsed:float = 0.0
+    var pause_pose:Physics.Transform3D = Physics.Transform3D()
+    var frame_clock:Clock = Clock()
+    var frames:int = 0
+    var report_time:float = 0.0
+}
+func friction_visual(world:&Resources.World, meshes:&Resources.Meshes3D,
+    size:Math.Vec3, pose:Physics.Transform3D, color:Color) ECS.Entity
+{
+    let mesh = meshes.add(Scene3D.Geometry.Cube.make(size))
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:pose.position,rotation:pose.rotation))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.5)))
+}
+func reset_slider_friction(state:&SliderFrictionSceneState) {
+    state.body!.set_transform(state.initial)
+    state.body!.set_linear_velocity(Math.Vec3());state.body!.set_angular_velocity(Math.Vec3())
+    state.joint!.set_limits(-2.5,2.5)
+    state.previous = state.initial;state.elapsed = 0.0;state.accumulator = 0.0
+    state.direction = 1.0;state.launched = false;state.brake_released = false;state.brake_restored = false
+    state.joint!.set_maximum_friction_force(15.0)
+    launch_slider_friction(state)
+}
+func launch_slider_friction(state:&SliderFrictionSceneState) {
+    let axis = state.initial.vector(Math.Vec3(1.0,0.0,0.0))
+    state.body!.apply_impulse(axis.multiply(3.0*(state.direction*2.0-state.joint!.speed())))
+    state.direction = -state.direction
+}
+func toggle_slider_friction(state:&SliderFrictionSceneState) {
+    var force = 15.0
+    if state.joint!.maximum_friction_force()>0.0 { force = 0.0 }
+    state.joint!.set_maximum_friction_force(force)
+    print("Brake capacity=$(force) N. T: launch uphill/downhill. F: toggle brake.")
+}
+func create_slider_friction(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&SliderFrictionSceneState)
+{
+    var rail = physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+        ..transform = state.initial ..collision_filter = Physics.CollisionFilter3D(mask_bits:0))
+    state.body = physics.create_rigid_body(Physics.RigidBody3DSettings() ..transform = state.initial
+        ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.8,0.65,0.8)))
+        ..mass_properties = Physics.MassProperties3D(3.0,Math.Vec3(0.3))
+        ..collision_filter = Physics.CollisionFilter3D(mask_bits:0) ..allow_sleep = false)
+    state.joint = physics.create_slider_constraint(rail,state.body!,
+        Physics.SliderConstraint3DSettings() ..minimum_position = -2.5 ..maximum_position = 2.5 ..maximum_friction_force = 15.0)
+    state.visual = friction_visual(world,meshes,Math.Vec3(0.8,0.65,0.8),state.initial,Color.bytes(245,186,82))
+    friction_visual(world,meshes,Math.Vec3(6.6,0.13,0.45),Physics.Transform3D(state.initial.point(Math.Vec3(0.0,-0.4,0.0)),state.initial.rotation),Color.bytes(89,184,237))
+    let stops:float[] = [-3.0,3.0]
+    for end in stops {
+        friction_visual(world,meshes,Math.Vec3(0.2,0.8,0.9),Physics.Transform3D(state.initial.point(Math.Vec3(end,0.0,0.0)),state.initial.rotation),Color.bytes(205,105,90))
+    }
+    friction_visual(world,meshes,Math.Vec3(14.0,0.2,10.0),Physics.Transform3D(Math.Vec3(0.0,-0.1,0.0)),Color.bytes(52,70,87))
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.45)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance = 40.0))
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    reset_slider_friction(state);state.frame_clock.tick()
+    print("Gold carriage: 15 N brake stops and holds it on an inclined blue rail. F: release/restore brake. T: alternating uphill/downhill launch. R: restart. Space: pause/resume. Escape: quit.")
+}
+func toggle_slider_friction_pause(simulation:&Application.Simulation) {
+    if simulation.is_paused() { simulation.resume() } else { simulation.pause() }
+}
+func update_slider_friction(world:&Resources.World, input:@Resources.InputState, simulation:&Application.Simulation,
+    physics:&Physics.World3D, state:&SliderFrictionSceneState, controller:&Application.Controller)
+{
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if input.is_pressed(Input.Key.space) { toggle_slider_friction_pause(simulation) }
+    if !state.smoke {
+        if input.is_pressed(Input.Key.r) { reset_slider_friction(state) }
+        if input.is_pressed(Input.Key.t) { launch_slider_friction(state) }
+        if input.is_pressed(Input.Key.f) { toggle_slider_friction(state) }
+    }
+    if state.smoke && state.cycles==0 {
+        if state.pause_frames==0 && state.elapsed>=0.5 {
+            toggle_slider_friction_pause(simulation);assert(simulation.is_paused())
+            state.pause_elapsed = state.elapsed;state.pause_pose = state.body!.transform();state.pause_frames = 1
+        } else if state.pause_frames>0 && state.pause_frames<=12 {
+            assert(simulation.is_paused() && simulation.delta()==0.0 && state.elapsed==state.pause_elapsed)
+            assert(state.body!.transform()==state.pause_pose)
+            state.pause_frames++
+            if state.pause_frames==13 { toggle_slider_friction_pause(simulation);assert(!simulation.is_paused()) }
+        }
+    }
+    state.accumulator += simulation.delta()
+    let delta = 1.0/120.0
+    while state.accumulator>=delta {
+        state.previous = state.body!.transform()
+        physics.step(delta);state.elapsed += delta;state.accumulator -= delta
+        if state.smoke {
+            assert(state.joint!.anchor_error().length()<0.001 && state.joint!.angular_error().length()<0.001)
+            let position = state.joint!.position()
+            assert(position>=-2.5001 && position<=2.5001)
+            let capacity = state.joint!.maximum_friction_force()
+            assert(Math.abs(state.joint!.friction_force())<=capacity+0.001 && state.joint!.motor_force()==0.0)
+            if (state.elapsed>1.2 && state.elapsed<2.0) || (state.elapsed>3.0 && state.elapsed<4.0) || state.elapsed>5.3 {
+                assert(Math.abs(state.joint!.speed())<0.001)
+                let load = Math.Vec3(0.0,-9.81,0.0).dot(state.initial.vector(Math.Vec3(1.0,0.0,0.0)))*3.0
+                assert(Math.abs(state.joint!.friction_force()+load)<0.001)
+            }
+            if state.brake_released && !state.brake_restored {
+                assert(state.joint!.friction_force()==0.0 && state.joint!.speed()>0.0)
+            }
+            if !state.launched && state.elapsed>=2.0 { launch_slider_friction(state);state.launched = true }
+            if !state.brake_released && state.elapsed>=4.0 { toggle_slider_friction(state);state.brake_released = true }
+            if !state.brake_restored && state.elapsed>=4.5 { toggle_slider_friction(state);state.brake_restored = true }
+            if state.elapsed>=8.0 {
+                assert(state.launched && state.brake_released && state.brake_restored)
+                if state.cycles==0 { assert(state.pause_frames==13) }
+                state.cycles++
+                print("Slider friction smoke cycle=$(state.cycles): braking both ways, holding gravity, release/restore, reset, pause/resume and rendered poses verified")
+                if state.cycles==2 { controller.stop() }
+                reset_slider_friction(state)
+            }
+        }
+    }
+    state.frames++;state.report_time += state.frame_clock.tick()
+    if state.report_time>=1.0 { print("Slider friction FPS=$(state.frames as float/state.report_time)");state.frames = 0;state.report_time = 0.0 }
+}
+func render_slider_friction(world:&Resources.World, state:&SliderFrictionSceneState) {
+    let alpha = Math.clamp(state.accumulator*120.0,0.0,1.0)
+    let position = state.previous.position.lerp(state.body!.position(),alpha)
+    let first = state.previous.rotation;var second = state.body!.rotation()
+    if first.dot(second)<0.0 { second = second.multiply(-1.0) }
+    let rotation = first.multiply(1.0-alpha).add(second.multiply(alpha)).normalized()
+    world.update<Components.Transform3D>(state.visual!,func(transform:&Components.Transform3D) { transform.position = position;transform.rotation = rotation })
+    if state.smoke {
+        let pose = world.get<Components.Transform3D>(state.visual!)
+        assert(pose.position.nearly_equal(position,0.0001) && Math.abs(pose.rotation.dot(rotation))>0.99999)
+    }
+}
+func main() {
+    Application() ..add_resource(SliderFrictionSceneState()) ..add_resource(Physics.World3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = "Silex slider brake | T launch, F brake, R restart, Space pause" ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target = Math.Vec3(0.0,3.0,0.0)
+            ..distance = 12.0 ..yaw = Math.radians(-8.0) ..pitch = Math.radians(-20.0)))
+        ..add_system(Application.Schedule.startup,create_slider_friction)
+        ..add_system(Application.Schedule.update,update_slider_friction,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render_slider_friction) ..run()
+}

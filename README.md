@@ -648,3 +648,12 @@ on parallel rails. Green markers show the target. T reverses the target,
 R resets, Space pauses/resumes and Escape quits. Native `--smoke` verifies
 two eight-second cycles, overshoot versus monotonic travel, target reversal,
 force bounds, alignment, reset, pause/resume and interpolated ECS poses.
+
+### Slider axial friction
+
+`silex run Silex-Examples/Sources/Physics3D/SliderFrictionScene.sx --release`
+shows a gold carriage on an inclined rail. F toggles a 15 N brake, sufficient
+to hold the gravity load; T launches alternately uphill/downhill, R restarts,
+Space pauses/resumes and Escape quits. Native `--smoke` checks two eight-second
+cycles of launch/braking, resting under load, free travel, re-enabling the brake,
+reset, force bounds, alignment, pause/resume and interpolated ECS poses.
