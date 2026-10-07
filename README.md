@@ -27,8 +27,7 @@ hidden one-second SDL/Metal rendering check with repeated reordering.
 of actions. Resize the window from 900 to 540 and 340 logical pixels to see
 three, two and one panels per row. Editing, selection and keyboard focus remain
 attached to their field. Keep enough height (820 pixels) for the three rows;
-use `UIOverflow.sx` to explore container clipping. Container scrolling remains
-a separate upcoming capability.
+use `UIOverflow.sx` to explore container clipping and `UIScrollView.sx` for scrolling containers.
 Its compiled executable accepts `--smoke` to check all three geometries and
 render the changing layouts through SDL/Metal for one second.
 
@@ -42,6 +41,16 @@ tracks do not wrap automatically. From the workspace or Spec group root, run
 The compiled executable accepts `--cpu-check` to construct the actual session,
 draw both column configurations and exit without opening a window. Run this
 check on both Debug and Release builds before testing the graphical demo.
+
+`UIScrollView.sx` combines a vertical document, a nested horizontal card strip,
+a nested vertical action panel and editable rows. Scroll with the wheel or drag
+the bars, use **Tab**, and try **Voir la dernière ligne** (reveal only) versus
+**Éditer la dernière** (reveal and focus). Resize while editing. The inner wheel
+scroll bubbles to the document at its limit. Run from the workspace or Spec root:
+`silex run Silex-Examples/Sources/UIScrollView.sx`.
+Its compiled executable accepts `--cpu-check` to construct, scroll, resize,
+reveal and edit the actual session without creating a window or GPU device.
+Verify that startup on both Debug and Release builds before the visual test.
 
 [UIOverflow](Sources/UIOverflow.sx) compares wrapping and clipping independently
 in a fixed container. Wrapping starts enabled and keeps buttons whole. Disable
