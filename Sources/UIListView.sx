@@ -1,0 +1,290 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.UI
+use GFX.UI.Input as UIInput
+use GFX.Viewer
+use STD.Math
+use STD.Process
+use STD.Text
+
+func project_key(index:int) str { return "project-$(index)" }
+func first_painted_project(commands:Canvas.Command[]) str? {
+    for command in commands {
+        match command {
+            text(value) => { if Text.starts_with(value.value, "Projet ") { return value.value } }
+            layer(value) => {
+                if let project = first_painted_project(value.commands()) { return project }
+            }
+            else => {}
+        }
+    }
+    return null
+}
+func list_caption(value:str, size:float = 16.0) UI.Text {
+    var text = UI.Text(value)
+    text.style.font_size = size
+    return text
+}
+func list_action(value:str, action:func()) UI.Button {
+    var button = UI.Button(value, action)
+    button.style.padding = UI.Insets(8.0)
+    button.style.background = Color.slate_700()
+    button.style.radius = 6.0
+    return button
+}
+
+class ProjectList {
+    var items:UI.State<int[]> = UI.State<int[]>([])
+    var selected:UI.State<str?> = UI.State<str?>(null)
+    var selections:UI.State<str[]> = UI.State<str[]>([])
+    var multiple:UI.State<bool> = UI.State<bool>(false)
+    var summary:UI.State<str> = UI.State<str>("")
+    var scroll:UI.ScrollState = UI.ScrollState(0.0)
+    var focus:UI.Focus = UI.Focus()
+    var built:int = 0
+    var last_batch:int = 0
+
+    init() { self.all() }
+    func all() {
+        var values:int[] = []
+        var index = 0
+        while index < 50000 { values.append(index); index++ }
+        self.items.set(values)
+    }
+    func filter() {
+        var values:int[] = []
+        var index = 0
+        while index < 50000 { values.append(index); index += 2 }
+        self.items.set(values)
+    }
+    func reverse() {
+        var values:int[] = []
+        var current = self.items.value()
+        var index = current.count() - 1
+        while index >= 0 { values.append(current[index]); index-- }
+        self.items.set(values)
+    }
+    func empty() { self.items.set([]) }
+    func last() {
+        var values = self.items.value()
+        if values.is_empty() { return }
+        let key = project_key(values[-1])
+        self.selected.set(key)
+        self.selections.set([key])
+        self.focus.request()
+    }
+    func row(index:int) UI.View {
+        self.built++
+        var line = UI.Row([list_caption("Projet $(index + 1)", 18.0),
+            list_caption("clé $(index)")])
+        line.style.padding = UI.Insets(8.0)
+        line.style.gap = 24.0
+        return line
+    }
+    func list(reads:UI.Reads) UI.View {
+        var values = reads.read(self.items)
+        let multiple = reads.read(self.multiple)
+        var style = UI.Style()
+        style.flex = 1.0
+        style.background = Color.slate_900()
+        style.padding = UI.Insets(8.0)
+        style.radius = 8.0
+        var view:UI.View = UI.Text("")
+        if multiple {
+            view = UI.ListView<int>(values, project_key, self.row,
+                selection:self.selections, row_height:44.0,
+                empty:list_caption("Aucun projet — cliquez sur Tous"),
+                state:self.scroll, style:style, smooth_scroll:true)
+        } else {
+            view = UI.ListView<int>(values, project_key, self.row,
+                selection:self.selected, row_height:44.0,
+                empty:list_caption("Aucun projet — cliquez sur Tous"),
+                state:self.scroll, style:style, smooth_scroll:true)
+        }
+        return UI.FocusTarget(self.focus, view)
+    }
+    func status(reads:UI.Reads) UI.View { return list_caption(reads.read(self.summary), 14.0) }
+    func describe() UI.View {
+        var controls = UI.Row([
+            list_action("Tous", self.all), list_action("Pairs", self.filter),
+            list_action("Inverser", self.reverse), list_action("Vider", self.empty),
+            list_action("Voir le dernier", self.last)
+        ], wrap:true)
+        controls.style.gap = 8.0
+        var root = UI.Column([
+            list_caption("50 000 projets — ListView J2", 26.0),
+            list_caption("Trackpad · Tab puis flèches, Début / Fin · Maj pour étendre"),
+            controls, UI.Checkbox("Sélection multiple (clic : basculer)", self.multiple),
+            UI.Reactive(self.list), UI.Reactive(self.status)
+        ])
+        root.style.padding = UI.Insets(20.0)
+        root.style.gap = 12.0
+        root.style.background = Color.slate_950()
+        root.style.foreground = Color.slate_100()
+        return root
+    }
+    func update_summary() bool {
+        var selection = self.selected.value() ?? "aucune"
+        if self.multiple.value() { selection = "$(self.selections.value().count()) clés" }
+        let text = "$(self.items.value().count()) projets · sélection : $(selection) · lignes construites : $(self.built) (dernier lot : $(self.last_batch))"
+        if self.summary.value() == text { return false }
+        self.summary.set(text)
+        return true
+    }
+}
+
+class ProjectListSession:Canvas.Session {
+    var model:ProjectList = ProjectList()
+    var runtime:UI.Runtime?
+    init() { self.runtime = UI.Runtime(self.model.describe()) }
+    func ui() UI.Runtime {
+        if var runtime = self.runtime { return runtime }
+        panic("missing list runtime")
+    }
+    func drawing(width:int, height:int) Canvas {
+        let before = self.model.built
+        var drawing = self.ui().drawing(width, height)
+        if self.model.built > before { self.model.last_batch = self.model.built - before }
+        return drawing
+    }
+    func update(delta:float) bool {
+        let changed = self.ui().update(delta)
+        return self.model.update_summary() || changed
+    }
+    func handle(event:@Events.Event) bool {
+        var runtime = self.ui()
+        return UIInput.handle(runtime, event)
+    }
+    func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func check_cpu() {
+        for width in [960, 420, 100, 1] {
+            var first = self.drawing(width, 720)
+            let before = self.model.built
+            var idle = self.drawing(width, 720)
+            assert(self.model.built == before)
+            self.model.scroll.set_offset(1000000.0)
+            var middle = self.drawing(width, 720)
+            assert(self.model.built - before <= 25)
+            self.model.last()
+            var last = self.drawing(width, 720)
+            assert(self.model.scroll.offset() == self.model.scroll.maximum_offset())
+            self.model.reverse()
+            var reversed = self.drawing(width, 720)
+            assert(self.model.selected.value() == "project-49999")
+            self.model.filter()
+            var filtered = self.drawing(width, 720)
+            assert(self.model.items.value().count() == 25000)
+            self.model.empty()
+            var empty = self.drawing(width, 720)
+            assert(self.model.scroll.offset() == 0.0)
+            self.model.all()
+            var restored = self.drawing(width, 720)
+            self.model.scroll.set_offset(0.0)
+            self.model.multiple.set(true)
+            var multiple = self.drawing(width, 720)
+            self.model.multiple.set(false)
+            var single = self.drawing(width, 720)
+            print("LIST width=$(width) source=50000 last_batch=$(self.model.last_batch) total_built=$(self.model.built)")
+        }
+    }
+    func check_frame_loop() {
+        for width in [960, 420] {
+            self.model.all()
+            self.model.scroll.set_offset(0.0)
+            var initial = self.drawing(width, 720)
+            var previous = self.model.scroll.offset()
+            var frame = 0
+            while frame < 120 {
+                let before = self.model.built
+                assert(self.ui().pointer_scrolled(Math.Vec2(80.0, 400.0), Math.Vec2(0.0, -1.0)))
+                self.update(1.0 / 120.0)
+                var drawing = self.drawing(width, 720)
+                let offset = self.model.scroll.offset()
+                assert(offset >= previous)
+                assert(self.model.built - before <= 25)
+                let expected = "Projet $(Math.floor(offset / 44.0) as int + 1)"
+                assert(first_painted_project(drawing.commands()) == expected)
+                previous = offset
+                frame++
+            }
+            assert(previous > 4000.0)
+            self.model.last()
+            self.update(1.0 / 120.0)
+            var last = self.drawing(width, 720)
+            assert(self.model.scroll.offset() == self.model.scroll.maximum_offset())
+            print("LIST frames width=$(width) frames=120 offset=$(previous) last=$(self.model.scroll.offset())")
+        }
+    }
+}
+func main() {
+    var cpu = false
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var session = ProjectListSession()
+    if cpu { session.check_cpu(); session.check_frame_loop(); check_interactions(session); print("UIListView CPU : OK"); return }
+    let code = Viewer.show(session,
+        Viewer.CanvasSettings(width:960, height:720, title:"Silex — Listes virtualisées J2"))
+    if code != 0 { panic("list viewer failed") }
+}
+
+test "actual list session traverses filters reverses and resizes without a window" {
+    var session = ProjectListSession()
+    session.check_cpu()
+}
+
+test "actual list update and drawing keep wheel offset and painted rows coherent" {
+    var session = ProjectListSession()
+    session.check_frame_loop()
+}
+
+func painted_projects(commands:Canvas.Command[]) str[] {
+    var result:str[] = []
+    for command in commands {
+        match command {
+            text(value) => {
+                if Text.starts_with(value.value, "Projet ") { result.append(value.value) }
+            }
+            layer(value) => {
+                for project in painted_projects(value.commands()) { result.append(project) }
+            }
+            else => {}
+        }
+    }
+    return result
+}
+func assert_projects_unchanged(drawing:Canvas, expected:str[], phase:str) {
+    let actual = painted_projects(drawing.commands())
+    print("LIST interaction $(phase) expected=$(expected.count()) actual=$(actual.count())")
+    assert(actual.count() == expected.count())
+    for index, project in actual.indexed() { assert(project == expected[index]) }
+}
+func check_interactions(session:ProjectListSession) {
+    var initial = session.drawing(960, 720)
+    session.model.scroll.set_offset(8096.0)
+    var moved = session.drawing(960, 720)
+    let expected = painted_projects(moved.commands())
+    assert(expected.count() >= 9)
+    var frame = 0
+    while frame < 24 {
+        let y = 230.0 + (frame % 9) as float * 44.0
+        session.ui().pointer_moved(Math.Vec2(70.0, y))
+        session.update(1.0 / 120.0)
+        var hovered = session.drawing(960, 720)
+        assert_projects_unchanged(hovered, expected, "hover $(frame)")
+        session.ui().pointer_pressed(Math.Vec2(70.0, y))
+        session.ui().pointer_released(Math.Vec2(70.0, y))
+        session.update(1.0 / 120.0)
+        var selected = session.drawing(960, 720)
+        assert_projects_unchanged(selected, expected, "select $(frame)")
+        frame++
+    }
+}
+
+test "actual list keeps all painted projects during hover and selection" {
+    var session = ProjectListSession()
+    check_interactions(session)
+}

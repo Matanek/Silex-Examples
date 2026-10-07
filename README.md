@@ -64,6 +64,15 @@ and pointer targets without moving or shrinking the buttons. Resize while editin
 the field; the action counter makes clipped clicks observable. Panel padding
 places the normal content and does not add a second clipping rectangle.
 
+### Virtualized project list
+
+`silex run Silex-Examples/Sources/UIListView.sx --release` browses 50,000 projects
+with uniform-height composable rows, filtering, reordering, single/multiple
+selection and programmatic reveal. Use Tab then arrows, Home/End or Page Up/Down;
+Shift extends multiple selection. The builder counter demonstrates bounded row
+descriptions while scrolling. `--cpu-check` validates the actual session without
+creating a window.
+
 ## Organization
 
 All demonstrations live under [`Sources/`](Sources/). Focused technical
