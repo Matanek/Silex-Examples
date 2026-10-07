@@ -32,6 +32,17 @@ a separate upcoming capability.
 Its compiled executable accepts `--smoke` to check all three geometries and
 render the changing layouts through SDL/Metal for one second.
 
+`UIGrid.sx` compares a 230 px fixed column, an intrinsic content column and a
+column sharing the remaining space. Resize the window, edit the fields and use
+**Tab** to navigate. **Une seule colonne** switches all three cards to one track
+while preserving editing identities. The fields below use 25% and 50% of their
+parent's inner width. Fixed tracks may overflow in a very narrow window; grid
+tracks do not wrap automatically. From the workspace or Spec group root, run
+`silex run Silex-Examples/Sources/UIGrid.sx`.
+The compiled executable accepts `--cpu-check` to construct the actual session,
+draw both column configurations and exit without opening a window. Run this
+check on both Debug and Release builds before testing the graphical demo.
+
 [UIOverflow](Sources/UIOverflow.sx) compares wrapping and clipping independently
 in a fixed container. Wrapping starts enabled and keeps buttons whole. Disable
 wrapping to force overflow, then toggle hidden overflow: it clips the drawing

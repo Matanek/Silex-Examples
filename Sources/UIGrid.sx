@@ -1,0 +1,121 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.UI
+use GFX.Viewer
+use STD.Process
+
+func grid_caption(value:str, size:float = 14.0) UI.Text {
+    var text = UI.Text(value)
+    text.style.font_size = size
+    return text
+}
+
+class GridForm {
+    var names:UI.State<str>[] = [UI.State<str>("Alpha"), UI.State<str>("Bêta"), UI.State<str>("Gamma")]
+    var compact:UI.State<bool> = UI.State<bool>(false)
+    var actions:UI.State<int> = UI.State<int>(0)
+
+    func act() { self.actions.set(self.actions.value() + 1) }
+    func status(reads:UI.Reads) UI.View {
+        return grid_caption("Actions : $(reads.read(self.actions))")
+    }
+    func field(value:UI.State<str>) UI.TextField {
+        var field = UI.TextField(value)
+        field.style.height = 38.0
+        field.style.padding = UI.Insets(8.0)
+        field.style.background = Color.slate_900()
+        field.style.foreground = Color.slate_100()
+        field.style.border = UI.Border(1.0, Color.slate_600())
+        field.style.radius = 5.0
+        return field
+    }
+    func card(index:int, label:str) UI.View {
+        var button = UI.Button("Activer", self.act)
+        button.style.height = 32.0
+        button.style.background = Color.slate_700()
+        button.style.radius = 5.0
+        var card = UI.Column([grid_caption(label, 18.0), self.field(self.names[index]), button])
+        card.style.padding = UI.Insets(12.0)
+        card.style.gap = 8.0
+        card.style.height = 138.0
+        if index == 1 { card.style.maximum_width = 400.0 }
+        card.style.background = Color.slate_800()
+        card.style.radius = 8.0
+        return card
+    }
+    func projects(reads:UI.Reads) UI.View {
+        var tracks:UI.GridTrack[] = [UI.GridTrack.fixed(230.0), UI.GridTrack.content, UI.GridTrack.flex(1.0)]
+        if reads.read(self.compact) { tracks = [UI.GridTrack.flex(1.0)] }
+        var grid = UI.Grid(tracks, [self.card(0, "Fixe : 230 px"),
+            self.card(1, "Contenu"), self.card(2, "Espace restant")])
+        grid.style.gap = 12.0
+        return grid
+    }
+    func describe() UI.View {
+        var quarter = self.field(UI.State<str>("25 %"))
+        quarter.style.relative_width = 0.25
+        var half = self.field(UI.State<str>("50 %"))
+        half.style.relative_width = 0.5
+        var remaining = grid_caption("Reste")
+        remaining.style.flex = 1.0
+        var relative = UI.Row([quarter, half, remaining], alignment:UI.Alignment.center)
+        relative.style.gap = 8.0
+        var root = UI.Column([
+            grid_caption("Grilles et dimensions relatives — J2", 22.0),
+            grid_caption("Redimensionnez : la piste fixe reste à 230 px."),
+            grid_caption("Tab : focus · Éditez puis changez le nombre de colonnes."),
+            UI.Checkbox("Une seule colonne", self.compact),
+            UI.Reactive(self.projects),
+            grid_caption("Largeurs relatives : 25 % et 50 % de l’espace du parent"),
+            relative,
+            UI.Reactive(self.status)
+        ])
+        root.style.padding = UI.Insets(20.0)
+        root.style.gap = 12.0
+        root.style.foreground = Color.slate_100()
+        root.style.background = Color.slate_950()
+        root.style.accent = Color.cyan_400()
+        return root
+    }
+}
+
+class GridSession:Canvas.Session {
+    var model:GridForm = GridForm()
+    var ui:UI.Session
+    init() { self.ui = UI.Session(self.model.describe()) }
+    func drawing(width:int, height:int) Canvas { return self.ui.drawing(width, height) }
+    func update(delta:float) bool { return self.ui.update(delta) }
+    func handle(event:@Events.Event) bool { return self.ui.handle(event) }
+    func accepts_text_input() bool { return self.ui.accepts_text_input() }
+}
+
+func main() {
+    var cpu_check = false
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments { if argument == "--cpu-check" { cpu_check = true } }
+        }
+    }
+    var session = GridSession()
+    if cpu_check {
+        var drawing = session.drawing(980, 780)
+        assert(drawing.command_count() > 0)
+        session.model.compact.set(true)
+        assert(session.update(0.0))
+        drawing = session.drawing(400, 780)
+        assert(drawing.command_count() > 0)
+        print("UIGrid CPU : OK")
+        return
+    }
+    let result = Viewer.show(session,
+        Viewer.CanvasSettings(width:980, height:780, title:"Silex — Grilles J2"))
+    if result != 0 { panic("grid viewer failed") }
+}
+
+test "grid demo constructs and draws without a native window" {
+    var session = GridSession()
+    var drawing = session.drawing(980, 780)
+    assert(drawing.command_count() > 0)
+}
