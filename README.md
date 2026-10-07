@@ -612,3 +612,22 @@ angles. Both motors have the same speed and effort. T reverses the target,
 R restarts from rest with the current target, Space pauses/resumes, Escape exits.
 `--smoke` checks soft deflection, rigid bounds, effort, anchors, reversal, reset,
 pause/resume and rendered poses through two cycles.
+
+### Combined hinge angle and velocity
+
+`Sources/Physics3D/HingeCombinedScene.sx` compares two identical servos
+(k=8 N·m/rad, c=4 N·m·s/rad, torque ±10 N·m) following thin gray target arms.
+Gold receives the sinusoidal trajectory’s angle and velocity, blue only its
+angle; gold reduces damping lag. T reverses motion without jumping the target,
+R restarts from rest, Space pauses/resumes and Escape exits.
+
+Run from the workspace or Spec group root:
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/HingeCombinedScene.sx --release
+```
+
+The binary accepts `--smoke`: two eight-second cycles, reversal and reset,
+a twelve-frame pause, bounded torque, anchors/axes and rendered poses checked.
+Mean tracking error is compared over settled intervals 2–4 and 6–8 seconds,
+excluding startup and reversal.
