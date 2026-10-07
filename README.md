@@ -667,3 +667,9 @@ Gold accelerates quickly toward positive speed and reverses more slowly when
 negative effort is needed. Native `--smoke` verifies two eight-second cycles,
 independent clamped trajectories, signed budgets, alignment, target reversal,
 reset, pause/resume and interpolated ECS poses.
+
+Soft slider stops: `Sources/Physics3D/SliderSoftLimitsScene.sx` compares a gold damped carriage with a blue undamped one around equal soft bounds. T kicks in alternating directions, R resets, Space pauses/resumes, Escape quits.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/SliderSoftLimitsScene.sx --release
+```
