@@ -215,26 +215,28 @@ class ScrollSession:Canvas.Session {
         drawing = self.drawing(960, 740)
         assert(drawing.command_count() > 0)
         self.runtime.focus_lost()
-        self.model.beginning()
-        self.model.inner.set_offset(0.0)
-        drawing = self.drawing(960, 740)
-        let point = button_label_position(drawing.commands(), "Action interne 1") ?? Math.Vec2()
-        assert(point.y > 0.0)
-        let motion = Events.Event.mouse_moved(Events.MouseMotionEvent(
-            window:Window.Id(value:1 as uint32), mouse:Pointer.MouseId(value:1 as uint32),
-            buttons:0 as uint32, position:point, delta:Math.Vec2(), relative:false,
-            timestamp:Events.Timestamp(nanoseconds:1 as uint)))
-        self.handle(motion)
-        let wheel = Events.Event.mouse_wheel(Events.MouseWheelEvent(
-            window:Window.Id(value:1 as uint32), mouse:Pointer.MouseId(value:1 as uint32),
-            delta:Math.Vec2(0.0, -1.0), integer_delta:Math.Vec2(0.0, -1.0),
-            position:point, flipped:false, timestamp:Events.Timestamp(nanoseconds:2 as uint)))
-        assert(self.handle(wheel))
-        self.update(1.0 / 120.0)
-        assert(self.model.inner.offset() > 0.0 && self.model.vertical.offset() == 0.0)
-        drawing = self.drawing(960, 740)
-        let moved = button_label_position(drawing.commands(), "Action interne 1") ?? Math.Vec2()
-        assert(Math.abs(moved.y - point.y + self.model.inner.offset()) < 0.001)
+        for flipped in [false, true] {
+            self.model.beginning()
+            self.model.inner.set_offset(0.0)
+            drawing = self.drawing(960, 740)
+            let point = button_label_position(drawing.commands(), "Action interne 1") ?? Math.Vec2()
+            assert(point.y > 0.0)
+            let motion = Events.Event.mouse_moved(Events.MouseMotionEvent(
+                window:Window.Id(value:1 as uint32), mouse:Pointer.MouseId(value:1 as uint32),
+                buttons:0 as uint32, position:point, delta:Math.Vec2(), relative:false,
+                timestamp:Events.Timestamp(nanoseconds:1 as uint)))
+            self.handle(motion)
+            let wheel = Events.Event.mouse_wheel(Events.MouseWheelEvent(
+                window:Window.Id(value:1 as uint32), mouse:Pointer.MouseId(value:1 as uint32),
+                delta:Math.Vec2(0.0, -1.0), integer_delta:Math.Vec2(0.0, -1.0),
+                position:point, flipped:flipped, timestamp:Events.Timestamp(nanoseconds:2 as uint)))
+            assert(self.handle(wheel))
+            self.update(1.0 / 120.0)
+            assert(self.model.inner.offset() > 0.0 && self.model.vertical.offset() == 0.0)
+            drawing = self.drawing(960, 740)
+            let moved = button_label_position(drawing.commands(), "Action interne 1") ?? Math.Vec2()
+            assert(Math.abs(moved.y - point.y + self.model.inner.offset()) < 0.001)
+        }
     }
 }
 
@@ -294,7 +296,7 @@ func button_label_position(commands:@Canvas.Command[], label:str) Math.Vec2? {
     return null
 }
 
-test "scroll event over the rendered hovered button reaches its nested viewport" {
+test "system wheel direction over the rendered button reaches its nested viewport" {
     for width in [960, 420] {
         for flipped in [false, true] {
             var session = ScrollSession()
@@ -306,8 +308,7 @@ test "scroll event over the rendered hovered button reaches its nested viewport"
                 buttons:0 as uint32, position:point, delta:Math.Vec2(), relative:false,
                 timestamp:Events.Timestamp(nanoseconds:1 as uint)))
             assert(session.handle(motion))
-            var delta = -1.0
-            if flipped { delta = 1.0 }
+            let delta = -1.0
             let wheel = Events.Event.mouse_wheel(Events.MouseWheelEvent(
                 window:Window.Id(value:1 as uint32), mouse:Pointer.MouseId(value:1 as uint32),
                 delta:Math.Vec2(0.0, delta), integer_delta:Math.Vec2(0.0, delta),
