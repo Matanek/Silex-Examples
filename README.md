@@ -639,3 +639,12 @@ F toggles 30/6 N (6 N cannot climb), D enables/disables the drive, R resets,
 Space pauses/resumes and Escape quits. Native `--smoke` runs two 12-second
 cycles checking both stops, reversal, braking, insufficient capacity,
 disable/re-enable, reset, pause/resume and interpolated ECS poses.
+
+### Slider position servo
+
+`silex run Silex-Examples/Sources/Physics3D/SliderPositionScene.sx --release`
+compares a critically damped gold carriage and an underdamped blue carriage
+on parallel rails. Green markers show the target. T reverses the target,
+R resets, Space pauses/resumes and Escape quits. Native `--smoke` verifies
+two eight-second cycles, overshoot versus monotonic travel, target reversal,
+force bounds, alignment, reset, pause/resume and interpolated ECS poses.
