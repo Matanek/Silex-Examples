@@ -3,6 +3,7 @@ use GFX.Color
 use GFX.Input.Events
 use GFX.UI
 use GFX.Viewer
+use STD.Process
 
 func grid_caption(value:str, size:float = 14.0) UI.Text {
     var text = UI.Text(value)
@@ -90,8 +91,31 @@ class GridSession:Canvas.Session {
 }
 
 func main() {
+    var cpu_check = false
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            for argument in arguments { if argument == "--cpu-check" { cpu_check = true } }
+        }
+    }
     var session = GridSession()
+    if cpu_check {
+        var drawing = session.drawing(980, 780)
+        assert(drawing.command_count() > 0)
+        session.model.compact.set(true)
+        assert(session.update(0.0))
+        drawing = session.drawing(400, 780)
+        assert(drawing.command_count() > 0)
+        print("UIGrid CPU : OK")
+        return
+    }
     let result = Viewer.show(session,
         Viewer.CanvasSettings(width:980, height:780, title:"Silex — Grilles J2"))
     if result != 0 { panic("grid viewer failed") }
+}
+
+test "grid demo constructs and draws without a native window" {
+    var session = GridSession()
+    var drawing = session.drawing(980, 780)
+    assert(drawing.command_count() > 0)
 }
