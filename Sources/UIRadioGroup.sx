@@ -1,0 +1,183 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.UI
+use GFX.UI.Input as UIInput
+use GFX.Viewer
+use STD.Process
+
+enum Destination { atelier; domicile; relais }
+func destination_name(value:Destination?) str {
+    if let selected = value {
+        match selected {
+            atelier => { return "Atelier" }
+            domicile => { return "Domicile" }
+            relais => { return "Point relais" }
+        }
+    }
+    return "aucune"
+}
+func caption(value:str, size:float = 16.0) UI.Text {
+    var text = UI.Text(value)
+    text.style.font_size = size
+    return text
+}
+func action(label:str, callback:func()) UI.Button {
+    var button = UI.Button(label, callback)
+    button.style.padding = UI.Insets(8.0)
+    button.style.background = Color.slate_700()
+    button.style.radius = 6.0
+    return button
+}
+
+class DeliveryForm {
+    var selected:UI.State<Destination?> = UI.State<Destination?>(null)
+    var allow_home:UI.State<bool> = UI.State<bool>(false)
+    var remove_workshop:UI.State<bool> = UI.State<bool>(false)
+    var empty:UI.State<bool> = UI.State<bool>(false)
+    var calls:UI.State<int> = UI.State<int>(0)
+    var focus:UI.Focus = UI.Focus()
+
+    func changed(value:Destination) { self.calls.set(self.calls.value() + 1) }
+    func clear() { self.selected.set(null) }
+    func home() { self.selected.set(Destination.domicile) }
+    func workshop() { self.selected.set(Destination.atelier) }
+    func focus_group() { self.focus.request() }
+    func options(reads:UI.Reads) UI.RadioOption<Destination>[] {
+        let allow = reads.read(self.allow_home)
+        let removed = reads.read(self.remove_workshop)
+        let empty = reads.read(self.empty)
+        var values:UI.RadioOption<Destination>[] = []
+        if empty { return values }
+        if !removed { values.append(UI.RadioOption<Destination>(Destination.atelier, "Atelier")) }
+        values.append(UI.RadioOption<Destination>(Destination.domicile, "Domicile", disabled:!allow))
+        values.append(UI.RadioOption<Destination>(Destination.relais, "Point relais"))
+        return values
+    }
+    func vertical(reads:UI.Reads) UI.View {
+        var group = UI.RadioGroup<Destination>(self.options(reads), self.selected, self.changed)
+        group.style.font_size = 20.0
+        group.style.gap = 14.0
+        return UI.FocusTarget(self.focus, group)
+    }
+    func horizontal(reads:UI.Reads) UI.View {
+        var group = UI.RadioGroup<Destination>(self.options(reads), self.selected, self.changed,
+            flow:UI.Flow.horizontal)
+        group.style.font_size = 20.0
+        group.style.gap = 24.0
+        return group
+    }
+    func status(reads:UI.Reads) UI.View {
+        let selected = reads.read(self.selected)
+        let count = reads.read(self.calls)
+        return caption("Valeur : $(destination_name(selected)) · changements utilisateur : $(count)")
+    }
+    func panel(title:str, content:UI.View) UI.View {
+        var panel = UI.Column([caption(title, 20.0), content])
+        panel.style.padding = UI.Insets(16.0)
+        panel.style.gap = 18.0
+        panel.style.background = Color.slate_800()
+        panel.style.radius = 8.0
+        return panel
+    }
+    func describe() UI.View {
+        var controls = UI.Row([
+            action("Effacer", self.clear), action("Atelier par code", self.workshop),
+            action("Domicile par code", self.home), action("Focus groupe", self.focus_group)
+        ], wrap:true)
+        controls.style.gap = 8.0
+        var content = UI.Column([
+            caption("Choix exclusif typé — RadioGroup J2", 26.0),
+            caption("Tab / Maj+Tab : un arrêt par groupe · flèches, Début / Fin · Espace / Entrée"),
+            caption("Clic maintenu : focus seul ; relâchement : sélection. Échap libère le focus."),
+            controls,
+            UI.Checkbox("Autoriser Domicile", self.allow_home),
+            UI.Checkbox("Retirer Atelier des options", self.remove_workshop),
+            UI.Checkbox("Vider les options", self.empty),
+            self.panel("Disposition verticale", UI.Reactive(self.vertical)),
+            self.panel("Même valeur, disposition horizontale adaptable", UI.Reactive(self.horizontal)),
+            UI.Reactive(self.status),
+            caption("Les choix par code ne déclenchent pas le compteur. Une valeur retirée ne coche rien.")
+        ])
+        content.style.gap = 16.0
+        content.style.padding = UI.Insets(20.0)
+        content.style.foreground = Color.slate_100()
+        var viewport = UI.ScrollView(content, smooth_scroll:true)
+        viewport.style.background = Color.slate_950()
+        return viewport
+    }
+}
+
+class RadioSession:Canvas.Session {
+    var model:DeliveryForm = DeliveryForm()
+    private var runtime:UI.Runtime?
+    init() { self.runtime = UI.Runtime(self.model.describe()) }
+    func ui() UI.Runtime {
+        if var runtime = self.runtime { return runtime }
+        panic("radio session has no runtime")
+    }
+    func drawing(width:int, height:int) Canvas { return self.ui().drawing(width, height) }
+    func update(delta:float) bool { return self.ui().update(delta) }
+    func handle(event:@Events.Event) bool {
+        var runtime = self.ui()
+        return UIInput.handle(runtime, event)
+    }
+    func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func check_cpu() {
+        for width in [960, 420, 100, 1] {
+            self.model.clear()
+            self.model.empty.set(false)
+            self.model.remove_workshop.set(false)
+            self.model.allow_home.set(false)
+            var drawing = self.drawing(width, 760)
+            let before = self.model.calls.value()
+            self.model.focus_group()
+            self.update(0.0)
+            assert(self.ui().key_pressed(Keyboard.Key.space))
+            assert(self.model.selected.value() == Destination.atelier)
+            assert(self.ui().key_pressed(Keyboard.Key.down))
+            assert(self.model.selected.value() == Destination.relais)
+            assert(self.model.calls.value() == before + 2)
+            self.model.workshop()
+            self.model.remove_workshop.set(true)
+            drawing = self.drawing(width, 760)
+            assert(self.model.selected.value() == Destination.atelier)
+            assert(self.model.calls.value() == before + 2)
+            assert(self.ui().key_pressed(Keyboard.Key.space))
+            assert(self.model.selected.value() == Destination.relais)
+            self.model.empty.set(true)
+            drawing = self.drawing(width, 760)
+            let ignored = self.ui().key_pressed(Keyboard.Key.enter)
+            assert(self.model.calls.value() == before + 3)
+            self.model.empty.set(false)
+            self.model.remove_workshop.set(false)
+            self.model.home()
+            drawing = self.drawing(width, 760)
+            assert(self.model.selected.value() == Destination.domicile)
+            assert(self.model.calls.value() == before + 3)
+            // A resized viewport may discover its scrollbar range after layout.
+            // Process that pending paint, then require the actual idle frame to settle.
+            if self.update(0.0) { drawing = self.drawing(width, 760) }
+            assert(!self.update(0.0))
+            print("RADIO width=$(width) : OK")
+        }
+    }
+}
+func main() {
+    var cpu = false
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var session = RadioSession()
+    if cpu { session.check_cpu(); print("UIRadioGroup CPU : OK"); return }
+    let code = Viewer.show(session,
+        Viewer.CanvasSettings(width:960, height:760, title:"Silex — Choix exclusifs J2"))
+    if code != 0 { panic("radio viewer failed") }
+}
+
+test "actual radio session shares typed selection through options and resizes without a window" {
+    var session = RadioSession()
+    session.check_cpu()
+}

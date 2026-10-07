@@ -736,6 +736,18 @@ cycles and independent physics checks. `--controls-check` runs public event/
 button and paused-reversal assertions without a window in Debug/Release.
 
 
+[UIRadioGroup](Sources/UIRadioGroup.sx) shares a typed exclusive value between
+vertical and wrapping horizontal radio groups. Tab visits each group once;
+arrows skip disabled options and Space/Enter choose the focused option. Hold a
+click to see focus before selection commits on release. Try disabling Domicile,
+removing Atelier, clearing the options, and setting the value programmatically:
+the user-change counter only records user choices. Resize to wrap the horizontal
+group; the whole form scrolls when height is limited. From the workspace or Spec
+root run `silex run Silex-Examples/Sources/UIRadioGroup.sx`. The compiled executable
+accepts `--cpu-check` and exits before creating a Viewer or GPU device. Check both
+Debug and Release startup before trying the graphical demo.
+
+
 ### Seven manual 3D articulations
 
 ```sh
