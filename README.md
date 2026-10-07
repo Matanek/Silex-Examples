@@ -573,3 +573,16 @@ Space pauses/resumes and Escape exits. From the workspace or Spec group root:
 `silex run Silex-Examples/Sources/Physics3D/HingeFrictionScene.sx --release`.
 The `--smoke` mode checks two six-second cycles, mutable braking, free
 rotation, torque bounds, twelve-frame pause/resume and rendered poses.
+
+## Hinge motors with different directional effort
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/HingeTorqueBoundsScene.sx --release
+```
+
+Gold and blue rotors start toward +1 rad/s. Press **T** to reverse the target:
+gold brakes and reverses more slowly because its negative torque is four
+times weaker; blue has equal capacity in both directions. **R** restarts from
+rest toward the current target, **Space** pauses/resumes, and **Escape** quits.
+The executable's `--smoke` verifies signed acceleration, reversal, reset,
+rendered poses and twelve frozen frames followed by resumption in two cycles.
