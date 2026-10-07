@@ -46,6 +46,7 @@ synchronisation automatique.
 | Bundle multiple windows | `Sources/Bundle/MultipleWindows.sx` | création propre au catalogue |
 | 2D shape gallery | `Sources/ShapeGallery2D/Main.sx` | `GFX.Canvas/Examples/ShapeGallery2D.sx` |
 | Silex logo | `Sources/SilexLogo.sx` | création propre au catalogue |
+| Procedural audio | `Sources/ProceduralAudio/Main.sx` | composition des parcours publics de GFX.Audio ; générateurs propres à l’application et partition MIDI de 218 octets, sans banque de sons |
 | Spatial audio | `Sources/SpatialAudio.sx` | `GFX.Audio/Examples/PlaySpatialSound.sx` |
 | 2D timeline | `Sources/Timeline2D.sx` | `GFX.Animation/Examples/Timeline2D.sx` |
 | 3D timeline | `Sources/Timeline3D.sx` | `GFX.Animation/Examples/Timeline3D.sx` |
