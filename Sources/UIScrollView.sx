@@ -5,6 +5,7 @@ use GFX.UI
 use GFX.UI.Input as UIInput
 use GFX.Viewer
 use STD.Process
+use STD.Time
 
 func caption(text:str, size:float = 15.0) UI.Text {
     var result = UI.Text(text)
@@ -24,6 +25,7 @@ class ScrollForm {
     var horizontal:UI.ScrollState = UI.ScrollState(0.0)
     var inner:UI.ScrollState = UI.ScrollState(0.0)
     var target:UI.Focus = UI.Focus()
+    var smoothing:UI.State<bool> = UI.State<bool>(true)
     var actions:UI.State<int> = UI.State<int>(0)
     var names:UI.State<str>[] = []
 
@@ -36,7 +38,7 @@ class ScrollForm {
     func reveal() { self.target.reveal() }
     func edit() { self.target.request() }
 
-    func horizontal_panel() UI.View {
+    func horizontal_panel(smooth:bool) UI.View {
         var cards:UI.View[] = []
         for index in 0...10 {
             var card = UI.Column([caption("Carte $(index + 1)", 18.0),
@@ -49,14 +51,14 @@ class ScrollForm {
         }
         var content = UI.Row(cards)
         content.style.gap = 12.0
-        var scroll = UI.ScrollView(content, axis:UI.Flow.horizontal, state:self.horizontal)
+        var scroll = UI.ScrollView(content, axis:UI.Flow.horizontal, state:self.horizontal, smooth_scroll:smooth)
         scroll.style.height = 110.0
         scroll.style.padding = UI.Insets(8.0)
         scroll.style.background = Color.slate_900()
         return scroll
     }
 
-    func inner_panel() UI.View {
+    func inner_panel(smooth:bool) UI.View {
         var buttons:UI.View[] = []
         for index in 0...8 {
             var button = action("Action interne $(index + 1)", self.activate)
@@ -65,16 +67,16 @@ class ScrollForm {
         }
         var content = UI.Column(buttons)
         content.style.gap = 6.0
-        var scroll = UI.ScrollView(content, state:self.inner)
+        var scroll = UI.ScrollView(content, state:self.inner, smooth_scroll:smooth)
         scroll.style.height = 140.0
         scroll.style.padding = UI.Insets(8.0)
         scroll.style.background = Color.slate_800()
         return scroll
     }
 
-    func content() UI.View {
-        var rows:UI.View[] = [caption("Défilement horizontal imbriqué"), self.horizontal_panel(),
-            caption("Molette : le scroll interne arrive à sa limite puis le parent défile."), self.inner_panel()]
+    func content(smooth:bool) UI.View {
+        var rows:UI.View[] = [caption("Défilement horizontal imbriqué"), self.horizontal_panel(smooth),
+            caption("Molette : le scroll interne arrive à sa limite puis le parent défile."), self.inner_panel(smooth)]
         for index, name in self.names.indexed() {
             var label = caption("Ligne $(index + 1)")
             label.style.width = 95.0
@@ -99,17 +101,19 @@ class ScrollForm {
     func status(reads:UI.Reads) UI.View {
         return caption("Actions : $(reads.read(self.actions))")
     }
-    func describe() UI.View {
+    func describe(reads:UI.Reads) UI.View {
+        let smooth = reads.read(self.smoothing)
         var commands = UI.Row([action("Début", self.beginning), action("Fin", self.end),
             action("Voir la dernière ligne", self.reveal), action("Éditer la dernière", self.edit)], wrap:true)
         commands.style.gap = 8.0
-        var scroll = UI.ScrollView(self.content(), state:self.vertical)
+        var scroll = UI.ScrollView(self.content(smooth), state:self.vertical, smooth_scroll:smooth)
         scroll.style.flex = 1.0
         scroll.style.padding = UI.Insets(8.0)
         scroll.style.background = Color.slate_800()
         scroll.style.radius = 8.0
         var root = UI.Column([caption("Viewports défilables — J2", 24.0),
             caption("Molette, barres, Tab et saisie ; redimensionnez pendant l’édition."),
+            UI.Checkbox("Défilement lissé", checked:self.smoothing),
             commands, scroll, UI.Reactive(self.status)])
         root.style.padding = UI.Insets(20.0)
         root.style.gap = 12.0
@@ -119,13 +123,56 @@ class ScrollForm {
     }
 }
 
+// Optional cadence report: monotonic intervals between host updates, not GPU FPS.
+class ScrollTrace {
+    var enabled:bool = false
+    var clock:Time.Stopwatch = Time.Stopwatch()
+    var elapsed:float = 0.0
+    var maximum:float = 0.0
+    var frames:int = 0
+    var packets:int = 0
+    var drawings:int = 0
+    init(enabled:bool = false) { self.enabled = enabled }
+    func update(smooth:bool) {
+        if !self.enabled { return }
+        if !self.clock.is_running() { self.clock.start(); return }
+        let interval = self.clock.get_elapsed_milliseconds()
+        self.clock.restart()
+        self.elapsed += interval
+        if interval > self.maximum { self.maximum = interval }
+        self.frames++
+        if self.elapsed < 1000.0 { return }
+        if self.packets > 0 {
+            print("SCROLL_CADENCE smooth=$(smooth) updates=$(self.frames) interval_ms_mean=$(self.elapsed / self.frames as float) interval_ms_max=$(self.maximum) packets=$(self.packets) drawings=$(self.drawings)")
+        }
+        self.elapsed = 0.0
+        self.maximum = 0.0
+        self.frames = 0
+        self.packets = 0
+        self.drawings = 0
+    }
+}
+
 class ScrollSession:Canvas.Session {
     var model:ScrollForm = ScrollForm()
     var runtime:UI.Runtime
-    init() { self.runtime = UI.Runtime(self.model.describe()) }
-    func drawing(width:int, height:int) Canvas { return self.runtime.drawing(width, height) }
-    func update(delta:float) bool { return self.runtime.update(delta) }
+    var trace:ScrollTrace
+    init(tracing:bool = false) {
+        self.runtime = UI.Runtime(UI.Reactive(self.model.describe))
+        self.trace = ScrollTrace(tracing)
+    }
+    func drawing(width:int, height:int) Canvas {
+        if self.trace.enabled { self.trace.drawings++ }
+        return self.runtime.drawing(width, height)
+    }
+    func update(delta:float) bool {
+        self.trace.update(self.model.smoothing.value())
+        return self.runtime.update(delta)
+    }
     func handle(event:@Events.Event) bool {
+        if self.trace.enabled {
+            match event { mouse_wheel(value) => { self.trace.packets++ }; else => {} }
+        }
         var runtime = self.runtime
         return UIInput.handle(runtime, event)
     }
@@ -153,13 +200,17 @@ class ScrollSession:Canvas.Session {
 
 func main() {
     var cpu_check = false
+    var tracing = false
     match Process.arguments() {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
-            for argument in arguments { if argument == "--cpu-check" { cpu_check = true } }
+            for argument in arguments {
+                if argument == "--cpu-check" { cpu_check = true }
+                if argument == "--scroll-trace" { tracing = true }
+            }
         }
     }
-    var session = ScrollSession()
+    var session = ScrollSession(tracing)
     if cpu_check { session.check_cpu(); print("UIScrollView CPU : OK"); return }
     let result = Viewer.show(session,
         Viewer.CanvasSettings(width:960, height:740, title:"Silex — Viewports défilables J2"))
@@ -169,4 +220,21 @@ func main() {
 test "scroll demo constructs resizes reveals and edits without a window" {
     var session = ScrollSession()
     session.check_cpu()
+}
+
+
+test "scroll demo switches smooth mode without rebuilding its position" {
+    var session = ScrollSession()
+    var drawing = session.drawing(420, 540)
+    session.model.vertical.set_offset(60.0)
+    session.update(0.0)
+    drawing = session.drawing(420, 540)
+    session.model.smoothing.set(false)
+    session.update(0.0)
+    drawing = session.drawing(420, 540)
+    assert(session.model.vertical.offset() == 60.0)
+    session.model.smoothing.set(true)
+    session.update(0.0)
+    drawing = session.drawing(420, 540)
+    assert(session.model.vertical.offset() == 60.0)
 }

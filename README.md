@@ -657,3 +657,10 @@ on parallel rails. Green markers show the target. T reverses the target,
 R resets, Space pauses/resumes and Escape quits. Native `--smoke` verifies
 two eight-second cycles, overshoot versus monotonic travel, target reversal,
 force bounds, alignment, reset, pause/resume and interpolated ECS poses.
+
+The `UIScrollView.sx` demo includes a “Défilement lissé” checkbox to compare
+time-based wheel smoothing with immediate scrolling in the same viewport.
+Scrollbar dragging, programmatic moves and focus remain immediate in both modes.
+`--scroll-trace` reports host update intervals and wheel packet/drawing counts
+when scrolling; these are cadence diagnostics, not GPU FPS. The compiled
+executable accepts `--cpu-check` without opening a window.
