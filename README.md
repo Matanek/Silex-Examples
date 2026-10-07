@@ -705,3 +705,18 @@ consumer tests cover keyboard events, clicks and relaunching while paused.
 ```sh
 silex run Silex-Examples/Sources/Physics3D/SliderSoftLimitsScene.sx --release
 ```
+
+### Slider target tracking with combined position and velocity
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/SliderCombinedScene.sx
+```
+
+Green markers show a sinusoidal moving target. Gold receives position and
+velocity; blue receives position alone and visibly lags. T or Inverser reverses
+the target direction and resumes from pause. R or Repartir restarts; Space or
+the Pause/Reprendre button pauses/resumes; Escape closes. A counter and status
+confirm each command. The UI uses logical T/R letters and ignores key repeat.
+`--smoke` is explicitly automatic, with disabled interactive controls, two
+cycles and independent physics checks. `--controls-check` runs public event/
+button and paused-reversal assertions without a window in Debug/Release.

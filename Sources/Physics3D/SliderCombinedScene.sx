@@ -1,0 +1,286 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use GFX.Scene2D
+use GFX.UI
+use Physics3D.SliderCombinedControls
+use STD.Math
+use STD.Process
+use STD.Time.Clock
+
+class SliderCombinedSceneState {
+    var controls:SliderCombinedControls = SliderCombinedControls()
+    var ui:UI.Session
+    var panel:ECS.Entity = ECS.Entity()
+    var launches:int = 0
+    var bodies:Physics.RigidBody3D[] = []
+    var joints:Physics.SliderConstraint3D[] = []
+    var visuals:ECS.Entity[] = []
+    var previous:Physics.Transform3D[] = []
+    var target:float = 1.0
+    var elapsed:float = 0.0
+    var accumulator:float = 0.0
+    var trace_input:bool = false
+    var smoke:bool = false
+    var reversed:bool = false
+    var phase:float = 0.0
+    var markers:ECS.Entity[] = []
+    var gold_error:float = 0.0
+    var blue_error:float = 0.0
+    var samples:int = 0
+    var expected_speed:float[] = [0.0,0.0]
+    var expected_position:float[] = [0.0,0.0]
+    var cycles:int = 0
+    var pause_frames:int = 0
+    var pause_elapsed:float = 0.0
+    var pause_pose:Physics.Transform3D = Physics.Transform3D()
+    var frame_clock:Clock = Clock()
+    var frames:int = 0
+    var report_time:float = 0.0
+    init() { self.ui = UI.Session(self.controls.describe()) }
+}
+func combined_visual(world:&Resources.World, meshes:&Resources.Meshes3D,
+    size:Math.Vec3, position:Math.Vec3, color:Color) ECS.Entity
+{
+    let mesh = meshes.add(Scene3D.Geometry.Cube.make(size))
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:position))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.5)))
+}
+func apply_slider_combined(world:&Resources.World, state:&SliderCombinedSceneState) {
+    let position = 0.75*Math.sin(state.phase)
+    let speed = 0.6*state.target*Math.cos(state.phase)
+    state.joints[0].set_motor(Physics.SliderMotor3D.position_and_velocity(position,speed,20.0,8.0,8.0))
+    state.joints[1].set_motor(Physics.SliderMotor3D.position(position,20.0,8.0,8.0))
+}
+func reset_slider_combined(world:&Resources.World, state:&SliderCombinedSceneState) {
+    var i = 0
+    while i < 2 {
+        let pose = Physics.Transform3D(Math.Vec3(0.0,3.0,(i as float-0.5)*2.0))
+        state.bodies[i].set_transform(pose)
+        state.bodies[i].set_linear_velocity(Math.Vec3());state.bodies[i].set_angular_velocity(Math.Vec3())
+        state.previous[i] = pose;state.expected_speed[i] = 0.0;state.expected_position[i] = 0.0
+        i++
+    }
+    state.target = 1.0;state.elapsed = 0.0;state.accumulator = 0.0
+    state.reversed = false;state.phase = 0.0;state.gold_error = 0.0;state.blue_error = 0.0;state.samples = 0
+    apply_slider_combined(world,state)
+    print("Restart: green target, gold combined drive and blue position-only servo")
+}
+func create_slider_combined(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&SliderCombinedSceneState)
+{
+    var i = 0
+    while i < 2 {
+        let position = Math.Vec3(0.0,3.0,(i as float-0.5)*2.0)
+        let pose = Physics.Transform3D(position)
+        var rail = physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+            ..transform = pose ..collision_filter = Physics.CollisionFilter3D(mask_bits:0))
+        var body = physics.create_rigid_body(Physics.RigidBody3DSettings() ..transform = pose
+            ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.65,0.65,0.65)))
+            ..mass_properties = Physics.MassProperties3D(2.0,Math.Vec3(0.2))
+            ..collision_filter = Physics.CollisionFilter3D(mask_bits:0) ..allow_sleep = false)
+        state.joints.append(physics.create_slider_constraint(rail,body,
+            Physics.SliderConstraint3DSettings()))
+        state.bodies.append(body);state.previous.append(pose)
+        var color = Color.bytes(245,186,82)
+        if i == 1 { color = Color.bytes(75,163,245) }
+        state.visuals.append(combined_visual(world,meshes,Math.Vec3(0.65),position,color))
+        combined_visual(world,meshes,Math.Vec3(4.0,0.13,0.45),position.add(Math.Vec3(0.0,-0.4,0.0)),Color.bytes(110,125,145))
+        state.markers.append(combined_visual(world,meshes,Math.Vec3(0.08,0.1,0.85),position.add(Math.Vec3(0.0,-0.25,0.0)),Color.bytes(90,235,140)))
+        i++
+    }
+    combined_visual(world,meshes,Math.Vec3(14.0,0.2,10.0),Math.Vec3(0.0,-0.1,0.0),Color.bytes(52,70,87))
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.45)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance = 40.0))
+    reset_slider_combined(world,state);state.frame_clock.tick()
+    state.panel = world.spawn(ECS.EntityRecipe()
+        ..with(Scene2D.Transform(position:Math.Vec2()))
+        ..with(Scene2D.Canvas(state.ui.drawing(538,142),538,142)
+            ..anchor = Math.Vec2() ..pivot = Math.Vec2()
+            ..space = Scene2D.CanvasSpace.viewport ..layer = 100))
+    if state.smoke { print("Automatic tracking test: scenario controls target; T/R/Space disabled. Escape aborts.") }
+    else { print("Gold follows position + velocity, blue position only. Green target. Buttons or T: reverse and resume. R: restart and resume. Space: pause/resume. Escape: quit.") }
+}
+func toggle_slider_combined_pause(simulation:&Application.Simulation) {
+    if simulation.is_paused() { simulation.resume() } else { simulation.pause() }
+}
+func perform_slider_combined_actions(world:&Resources.World, simulation:&Application.Simulation,
+    state:&SliderCombinedSceneState)
+{
+    if state.controls.reset_requested {
+        state.controls.reset_requested = false
+        simulation.resume();reset_slider_combined(world,state)
+        state.controls.feedback("Cible et chariots repartis — en cours",false)
+    }
+    while state.controls.pause_requests>0 {
+        state.controls.pause_requests--
+        toggle_slider_combined_pause(simulation)
+        var message = "En cours"
+        if simulation.is_paused() { message = "En pause — T inverse et reprend" }
+        state.controls.feedback(message,simulation.is_paused())
+    }
+    while state.controls.launch_requests>0 {
+        state.controls.launch_requests--
+        simulation.resume();state.target = -state.target
+        apply_slider_combined(world,state);state.launches++
+        state.controls.feedback("Inversion n°$(state.launches) — sens de la cible inversé — en cours",false)
+    }
+}
+func update_slider_combined(world:&Resources.World, input:@Resources.InputState, simulation:&Application.Simulation,
+    physics:&Physics.World3D, state:&SliderCombinedSceneState, controller:&Application.Controller)
+{
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if !state.smoke {
+        for event in input.events() {
+            if state.trace_input {
+                match event {
+                    key_pressed(key) => { print("Shortcut keycode=$(key.keycode) physical_t=$(key.key==Input.Key.t) physical_r=$(key.key==Input.Key.r) repeat=$(key.repeated)") }
+                    else => {}
+                }
+            }
+            if !state.controls.handle(event) { let handled = state.ui.handle(event) }
+        }
+        perform_slider_combined_actions(world,simulation,state)
+    }
+    if state.ui.update(0.0) {
+        world.update<Scene2D.Canvas>(state.panel,func(panel:&Scene2D.Canvas) { panel.replace(state.ui.drawing(538,142)) })
+    }
+    if state.smoke && state.cycles==0 {
+        if state.pause_frames==0 && state.elapsed>=0.5 {
+            toggle_slider_combined_pause(simulation);assert(simulation.is_paused())
+            state.pause_elapsed = state.elapsed;state.pause_pose = state.bodies[0].transform();state.pause_frames = 1
+        } else if state.pause_frames>0 && state.pause_frames<=12 {
+            assert(simulation.is_paused() && simulation.delta()==0.0 && state.elapsed==state.pause_elapsed)
+            assert(state.bodies[0].transform()==state.pause_pose)
+            state.pause_frames++
+            if state.pause_frames==13 { toggle_slider_combined_pause(simulation);assert(!simulation.is_paused()) }
+        }
+    }
+    state.accumulator += simulation.delta()
+    let delta = 1.0/120.0
+    while state.accumulator>=delta {
+        var i = 0
+        while i<2 { state.previous[i] = state.bodies[i].transform();i++ }
+        let target = 0.75*Math.sin(state.phase)
+        let commanded_speed = 0.6*state.target*Math.cos(state.phase)
+        apply_slider_combined(world,state)
+        if state.smoke {
+            i = 0
+            while i<2 {
+                var speed = 0.0;if i==0 { speed = commanded_speed }
+                state.expected_speed[i] = (2.0*state.expected_speed[i]+delta*8.0*(target-state.expected_position[i])+delta*(8.0+delta*8.0)*speed)/(2.0+delta*8.0+delta*delta*8.0)
+                state.expected_position[i] += delta*state.expected_speed[i];i++
+            }
+        }
+        physics.step(delta);state.phase += delta*0.8*state.target
+        state.elapsed += delta;state.accumulator -= delta
+        if state.smoke {
+            i = 0
+            while i<2 {
+                assert(state.joints[i].anchor_error().length()<0.001 && state.joints[i].angular_error().length()<0.001)
+                assert(Math.abs(state.joints[i].position()-state.expected_position[i])<0.0001)
+                assert(Math.abs(state.joints[i].speed()-state.expected_speed[i])<0.0001)
+                assert(Math.abs(state.joints[i].motor_force())<=20.0001 && state.joints[i].friction_force()==0.0)
+                i++
+            }
+            let moving_target = 0.75*Math.sin(state.phase)
+            if (state.elapsed>=2.0 && state.elapsed<4.0) || state.elapsed>=6.0 {
+                state.gold_error += Math.abs(state.joints[0].position()-moving_target)
+                state.blue_error += Math.abs(state.joints[1].position()-moving_target);state.samples++
+            }
+            if !state.reversed && state.elapsed>=4.0 {
+                let reverse = SliderCombinedControls.combined_key_event(Input.Key.t,116 as uint32)
+                assert(state.controls.handle(reverse));perform_slider_combined_actions(world,simulation,state)
+                assert(state.launches==state.cycles+1 && !simulation.is_paused());state.reversed = true
+            }
+            if state.elapsed>=8.0 {
+                assert(state.reversed && state.samples>0 && state.gold_error<state.blue_error*0.6)
+                if state.cycles==0 { assert(state.pause_frames==13) }
+                state.cycles++
+                print("Slider combined smoke cycle=$(state.cycles): recurrence, alignment, signed motor capacity, target reversal, reset, pause/resume and rendered poses verified; mean gold error=$(state.gold_error/state.samples as float) m, blue=$(state.blue_error/state.samples as float) m")
+                if state.cycles==2 { controller.stop() }
+                reset_slider_combined(world,state)
+            }
+        }
+    }
+    state.frames++;state.report_time += state.frame_clock.tick()
+    if state.report_time>=1.0 { print("Slider target tracking FPS=$(state.frames as float/state.report_time)");state.frames = 0;state.report_time = 0.0 }
+}
+func render_slider_combined(world:&Resources.World, state:&SliderCombinedSceneState) {
+    let alpha = Math.clamp(state.accumulator*120.0,0.0,1.0)
+    var i = 0
+    while i<2 {
+        let position = state.previous[i].position.lerp(state.bodies[i].position(),alpha)
+        let first = state.previous[i].rotation;var second = state.bodies[i].rotation()
+        if first.dot(second)<0.0 { second = second.multiply(-1.0) }
+        let rotation = first.multiply(1.0-alpha).add(second.multiply(alpha)).normalized()
+        world.update<Components.Transform3D>(state.visuals[i],func(transform:&Components.Transform3D) { transform.position = position;transform.rotation = rotation })
+        world.update<Components.Transform3D>(state.markers[i],func(transform:&Components.Transform3D) { transform.position.x = 0.75*Math.sin(state.phase) })
+        if state.smoke {
+            let pose = world.get<Components.Transform3D>(state.visuals[i])
+            assert(pose.position.nearly_equal(position,0.0001) && Math.abs(pose.rotation.dot(rotation))>0.99999)
+        }
+        i++
+    }
+}
+func main() {
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument=="--controls-check" {
+            SliderCombinedControls.verify_combined_shortcuts()
+            SliderCombinedControls.verify_combined_buttons()
+            SliderCombinedControls.verify_combined_automatic_panel()
+            verify_combined_paused_launch()
+            print("Combined slider controls: keyboard events, buttons, repeated reversals and paused resume verified")
+            return
+        } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var state = SliderCombinedSceneState()
+    var title = "Cible mobile — position + vitesse | T inverser, R repartir, Espace pause"
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments {
+            if argument=="--smoke" { state.smoke = true }
+            if argument=="--input-trace" { state.trace_input = true }
+        } }
+        failure(error) => { panic(error.detail) }
+    }
+    if state.smoke {
+        title = "TEST AUTOMATIQUE — cible mobile — commandes désactivées"
+        state.controls.automatic = true;state.ui = UI.Session(state.controls.describe())
+    }
+    Application() ..add_resource(state) ..add_resource(Physics.World3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = title ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target = Math.Vec3(0.0,3.0,0.0)
+            ..distance = 9.0 ..yaw = Math.radians(-8.0) ..pitch = Math.radians(-20.0)))
+        ..add_system(Application.Schedule.startup,create_slider_combined)
+        ..add_system(Application.Schedule.update,update_slider_combined,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render_slider_combined) ..run()
+}
+
+func verify_combined_paused_launch() {
+    var world = Resources.World();var meshes = Resources.Meshes3D()
+    var physics = Physics.World3D();var state = SliderCombinedSceneState();var simulation = Application.Simulation()
+    create_slider_combined(world,meshes,physics,state)
+    simulation.pause()
+    let reverse = SliderCombinedControls.combined_key_event(Input.Key.t,116 as uint32)
+    assert(state.controls.handle(reverse));perform_slider_combined_actions(world,simulation,state)
+    assert(!simulation.is_paused() && state.launches==1 && state.target== -1.0)
+    assert(state.joints[0].motor()!.speed== -0.6 && state.joints[1].motor()!.speed==0.0)
+    physics.step(1.0/120.0);assert(state.bodies[0].position().x<0.0)
+    assert(state.controls.handle(reverse));perform_slider_combined_actions(world,simulation,state)
+    assert(state.launches==2 && state.target==1.0 && state.joints[0].motor()!.speed==0.6)
+    let pause = SliderCombinedControls.combined_key_event(Input.Key.space,32 as uint32)
+    assert(state.controls.handle(pause));perform_slider_combined_actions(world,simulation,state)
+    assert(simulation.is_paused() && state.controls.pause_label.value()=="Reprendre (Espace)")
+    let reset = SliderCombinedControls.combined_key_event(Input.Key.r,114 as uint32)
+    assert(state.controls.handle(reset));perform_slider_combined_actions(world,simulation,state)
+    assert(!simulation.is_paused() && state.bodies[0].position().x==0.0 && state.phase==0.0)
+}
+test "T reverses the moving target visibly and resumes after pause" { verify_combined_paused_launch() }
