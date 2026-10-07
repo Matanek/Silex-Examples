@@ -1,0 +1,202 @@
+use GFX.Physics
+use STD.Math
+
+// Only the selected mechanism is stepped. Supports are physical fixed bodies;
+// decorative rails, cables and route samples are rendered separately.
+package class ArticulationModel {
+    var family:int = 0
+    var world:Physics.World3D = Physics.World3D(Physics.World3DSettings() ..gravity=Math.Vec3())
+    var bodies:Physics.RigidBody3D[] = []
+    var sizes:Math.Vec3[] = []
+    var cone:Physics.ConeConstraint3D? = null
+    var swing:Physics.SwingTwistConstraint3D? = null
+    var six:Physics.SixDOFConstraint3D? = null
+    var gear:Physics.GearConstraint3D? = null
+    var rack:Physics.RackAndPinionConstraint3D? = null
+    var pulley:Physics.PulleyConstraint3D? = null
+    var path:Physics.PathConstraint3D? = null
+    var driver:Physics.HingeConstraint3D? = null
+    var route:Physics.Path3D? = null
+    var direction:float = -1.0
+    var actions:int = 0
+
+    func name() str {
+        if self.family==0 { return "1/7 — Cône" }
+        if self.family==1 { return "2/7 — Swing / twist" }
+        if self.family==2 { return "3/7 — Six degrés de liberté" }
+        if self.family==3 { return "4/7 — Engrenage 2:1" }
+        if self.family==4 { return "5/7 — Crémaillère" }
+        if self.family==5 { return "6/7 — Poulie" }
+        return "7/7 — Chemin courbe"
+    }
+    func instruction() str {
+        if self.family==0 { return "La barre pivote puis s'arrête sur la limite verte (±37°)." }
+        if self.family==1 { return "La barre s'incline et tourne sur elle-même vers la cible opposée." }
+        if self.family==2 { return "Le bloc change de côté et tourne ; les autres axes restent retenus." }
+        if self.family==3 { return "Les deux roues tournent en sens opposés, avec un rapport 2:1." }
+        if self.family==4 { return "Le pignon tourne et entraîne la barre horizontalement." }
+        if self.family==5 { return "Une masse monte, l'autre descend ; le câble garde sa longueur." }
+        return "Le chariot suit la boucle verte et son orientation, avec inversion du sens."
+    }
+    func action_label() str {
+        if self.family==0 { return "Pousser de l'autre côté" }
+        if self.family==5 { return "Tirer dans l'autre sens" }
+        if self.family==4 || self.family==6 { return "Lancer / inverser" }
+        return "Changer de cible"
+    }
+    func fixed(position:Math.Vec3) Physics.RigidBody3D {
+        return self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..body_type=Physics.BodyType3D.fixed ..transform=Physics.Transform3D(position)
+            ..collision_filter=Physics.CollisionFilter3D(mask_bits:0))
+    }
+    func moving(position:Math.Vec3,size:Math.Vec3) Physics.RigidBody3D {
+        var body=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..transform=Physics.Transform3D(position) ..allow_sleep=false
+            ..shape=Physics.Shape3D.box(Physics.Box3D(size))
+            ..mass_properties=Physics.MassProperties3D(2.0,Math.Vec3(0.4))
+            ..collision_filter=Physics.CollisionFilter3D(mask_bits:0))
+        self.bodies.append(body);self.sizes.append(size);return body
+    }
+    func reset() {
+        self.cone=null;self.swing=null;self.six=null;self.gear=null;self.rack=null
+        self.pulley=null;self.path=null;self.driver=null;self.route=null
+        self.bodies=[];self.sizes=[]
+        self.world=Physics.World3D(Physics.World3DSettings() ..gravity=Math.Vec3())
+        self.direction=-1.0;self.actions=0
+        let center=Math.Vec3(0.0,2.0,0.0)
+        if self.family<=2 {
+            var support=self.fixed(center)
+            var body=self.moving(center,Math.Vec3(2.0,0.35,0.55))
+            if self.family==0 {
+                self.cone=self.world.create_cone_constraint(support,body,Physics.ConeConstraint3DSettings()
+                    ..first_local_axis=Math.Vec3(1.0,0.0,0.0) ..second_local_axis=Math.Vec3(1.0,0.0,0.0)
+                    ..half_angle=0.65)
+            } else if self.family==1 {
+                self.swing=self.world.create_swing_twist_constraint(support,body,Physics.SwingTwistConstraint3DSettings()
+                    ..swing_limits=Physics.SwingLimits3D.cone(Math.Vec2(0.7,0.7))
+                    ..minimum_twist=-0.7 ..maximum_twist=0.7)
+            } else {
+                let locked=Physics.LinearAxis3DSettings() ..limit=Physics.LinearLimit3D.locked
+                self.six=self.world.create_six_dof_constraint(support,body,Physics.SixDOFConstraint3DSettings()
+                    ..translation_x=(Physics.LinearAxis3DSettings() ..limit=Physics.LinearLimit3D.bounded(-1.2,1.2))
+                    ..translation_y=locked ..translation_z=locked
+                    ..swing_limits=Physics.SwingLimits3D.cone(Math.Vec2())
+                    ..minimum_twist=-0.7 ..maximum_twist=0.7)
+            }
+        } else if self.family==3 || self.family==4 {
+            var first_position=Math.Vec3(-0.72,2.0,0.0)
+            var second_position=Math.Vec3(0.72,2.0,0.0)
+            if self.family==4 { first_position=Math.Vec3(0.0,2.4,0.0);second_position=Math.Vec3(0.0,1.8,0.0) }
+            var first=self.moving(first_position,Math.Vec3(1.1,0.2,0.3))
+            var support=self.fixed(first_position)
+            self.driver=self.world.create_hinge_constraint(support,first,Physics.HingeConstraint3DSettings())
+            if self.family==3 {
+                var second=self.moving(second_position,Math.Vec3(1.5,0.22,0.3))
+                var other_support=self.fixed(second_position)
+                var bearing=self.world.create_hinge_constraint(other_support,second,Physics.HingeConstraint3DSettings())
+                self.gear=self.world.create_gear_constraint(first,second,Physics.GearConstraint3DSettings() ..ratio=2.0)
+            } else {
+                var second=self.moving(second_position,Math.Vec3(3.0,0.2,0.35))
+                var rail=self.fixed(second_position)
+                var slider=self.world.create_slider_constraint(rail,second,Physics.SliderConstraint3DSettings()
+                    ..minimum_position=-1.1 ..maximum_position=1.1)
+                self.rack=self.world.create_rack_and_pinion_constraint(first,second,Physics.RackAndPinionConstraint3DSettings() ..ratio=2.0)
+            }
+        } else if self.family==5 {
+            var first=self.moving(Math.Vec3(-1.0,2.0,0.0),Math.Vec3(0.6,0.7,0.6))
+            var second=self.moving(Math.Vec3(1.0,2.0,0.0),Math.Vec3(0.6,0.7,0.6))
+            let frame=Physics.Transform3D(rotation:Math.Quat.angle_axis(Math.pi()/2.0,Math.Vec3(0.0,0.0,1.0)))
+            for body in self.bodies {
+                var support=self.fixed(body.position())
+                var guide=self.world.create_slider_constraint(support,body,Physics.SliderConstraint3DSettings()
+                    ..first_local_frame=frame ..second_local_frame=frame
+                    ..minimum_position=-0.9 ..maximum_position=0.9)
+            }
+            self.pulley=self.world.create_pulley_constraint(first,second,
+                Physics.PulleyConstraint3DSettings(Math.Vec3(-1.0,4.0,0.0),Math.Vec3(1.0,4.0,0.0))
+                ..minimum_length=4.0 ..maximum_length=4.0)
+        } else {
+            let h=2.48528137425
+            let n=Math.Vec3(0.0,0.0,1.0)
+            let knots:Physics.PathKnot3D[]=[
+                Physics.PathKnot3D(Math.Vec3(1.5,2.0,0.0),Math.Vec3(0.0,h,0.0),n),
+                Physics.PathKnot3D(Math.Vec3(0.0,3.5,0.0),Math.Vec3(-h,0.0,0.0),n),
+                Physics.PathKnot3D(Math.Vec3(-1.5,2.0,0.0),Math.Vec3(0.0,-h,0.0),n),
+                Physics.PathKnot3D(Math.Vec3(0.0,0.5,0.0),Math.Vec3(h,0.0,0.0),n)]
+            var route=Physics.Path3D(knots,true);self.route=route
+            var support=self.fixed(Math.Vec3())
+            var body=self.moving(route.frame(0.0).position,Math.Vec3(0.85,0.3,0.45))
+            body.set_transform(Physics.Transform3D(body.position(),Math.Quat.angle_axis(Math.pi()/2.0,n)))
+            self.path=self.world.create_path_constraint(support,body,Physics.PathConstraint3DSettings(route)
+                ..orientation=Physics.PathOrientation3D.follow_path)
+        }
+    }
+    func act() {
+        self.direction=-self.direction;self.actions++
+        if self.family==0 { self.bodies[0].set_angular_velocity(Math.Vec3(0.0,0.0,2.0*self.direction)) }
+        else if self.family==1 {
+            self.swing!.set_twist_motor(Physics.TwistMotor3D.position(0.6*self.direction,8.0,12.0,4.0))
+            self.swing!.set_swing_motor(Physics.SwingMotor3D.position(Math.Vec2(0.0,0.6*self.direction),8.0,12.0,4.0))
+        } else if self.family==2 {
+            self.six!.set_translation_x(Physics.LinearAxis3DSettings() ..limit=Physics.LinearLimit3D.bounded(-1.2,1.2)
+                ..motor=Physics.LinearMotor3D.position(self.direction,40.0,30.0,10.0))
+            self.six!.set_rotation_x_motor(Physics.AngularMotor3D.position(0.6*self.direction,8.0,12.0,4.0))
+        } else if self.family==3 { self.driver!.set_motor(Physics.HingeMotor3D.position(2.0*self.direction,12.0,15.0,5.0)) }
+        else if self.family==4 {
+            self.driver!.set_motor(Physics.HingeMotor3D(self.direction,0.5))
+        } else if self.family==5 {
+            self.bodies[0].set_linear_velocity(Math.Vec3(0.0,1.2*self.direction,0.0))
+            self.bodies[1].set_linear_velocity(Math.Vec3(0.0,-1.2*self.direction,0.0))
+        } else { self.path!.set_motor(Physics.LinearMotor3D(self.direction,20.0)) }
+    }
+    func action_description() str {
+        let positive=self.direction>0.0
+        if self.family==0 || self.family==1 {
+            if positive { return "barre vers le haut" } return "barre vers le bas"
+        }
+        if self.family==2 || self.family==4 {
+            if positive { return "cible à droite" } return "cible à gauche"
+        }
+        if self.family==5 {
+            if positive { return "doré monte, bleu descend" } return "doré descend, bleu monte"
+        }
+        if positive { return "doré dans le sens antihoraire" } return "doré dans le sens horaire"
+    }
+    func verify_settled() {
+        if self.family==0 { assert(Math.abs(self.cone!.angle()-0.65)<0.002) }
+        if self.family==1 {
+            assert(Math.abs(self.swing!.twist_angle()-0.6*self.direction)<0.01)
+            assert(Math.abs(self.swing!.swing_angles().y-0.6*self.direction)<0.01)
+        }
+        if self.family==2 { assert(Math.abs(self.six!.translation().x-self.direction)<0.01) }
+        if self.family==3 { assert(Math.abs(self.driver!.angle()-2.0*self.direction)<0.01) }
+        if self.family==4 { assert(Math.abs(self.rack!.phase_error())<0.002 && Math.abs(self.rack!.speed_error())<0.001) }
+        if self.family==5 { assert(Math.abs(self.bodies[0].position().y-(2.0+0.9*self.direction))<0.01) }
+        if self.family==6 { assert(Math.abs(self.path!.speed()-self.direction)<0.01) }
+    }
+    func measurement() str {
+        if self.family==0 { return "Inclinaison : $(Math.degrees(self.cone!.angle()))° / limite 37°" }
+        if self.family==1 { return "Twist : $(Math.degrees(self.swing!.twist_angle()))° — swing : $(Math.degrees(self.swing!.swing_angles().y))°" }
+        if self.family==2 { return "Course : $(self.six!.translation().x) m — rotation : $(Math.degrees(self.six!.twist_angle()))°" }
+        if self.family==3 { return "Rapport 2:1 — erreur de phase : $(self.gear!.phase_error()) rad" }
+        if self.family==4 { return "Course : $(self.rack!.travel()) m — angle pignon : $(self.rack!.pinion_angle()) rad" }
+        if self.family==5 { return "Câble : $(self.pulley!.length()) m / 4 m — doré : $(self.bodies[0].position().y) m" }
+        return "Parcours : $(self.path!.position()) m — vitesse : $(self.path!.speed()) m/s"
+    }
+    func verify() {
+        for body in self.bodies {
+            let p=body.position();let v=body.linear_velocity();let w=body.angular_velocity()
+            assert(p.length()<10.0 && v.length()<10.0 && w.length()<10.0)
+            assert(Math.abs(body.rotation().dot(body.rotation())-1.0)<0.001)
+        }
+        // At the crossing, allow at most one free angular advance (2 rad/s
+        // at 120 Hz). The separate settled check retains the 0.002 rad gate.
+        if self.family==0 { assert(self.cone!.angle()<=0.65+2.0/120.0 && self.cone!.anchor_error().length()<0.001) }
+        if self.family==1 { assert(self.swing!.anchor_error().length()<0.001) }
+        if self.family==2 { assert(Math.abs(self.six!.translation().x)<=1.201) }
+        if self.family==3 { assert(Math.abs(self.gear!.phase_error())<0.002) }
+        if self.family==4 { assert(Math.abs(self.rack!.phase_error())<0.002 && Math.abs(self.rack!.speed_error())<0.001) }
+        if self.family==5 { assert(Math.abs(self.pulley!.length()-4.0)<0.002) }
+        if self.family==6 { assert(self.path!.anchor_error().length()<0.003) }
+    }
+}

@@ -720,3 +720,18 @@ confirm each command. The UI uses logical T/R letters and ignores key repeat.
 `--smoke` is explicitly automatic, with disabled interactive controls, two
 cycles and independent physics checks. `--controls-check` runs public event/
 button and paused-reversal assertions without a window in Debug/Release.
+
+
+### Seven manual 3D articulations
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/Articulations/Main.sx --release
+```
+
+A single window selects cone, swing/twist, six DOF, gear, rack/pinion, pulley
+and curved path. Start each paused mechanism with its action button. The
+counter, status and live measurements confirm actions. Previous / Next and
+Reset restore the initial paused pose; actions resume from pause. Space and
+the Pause / Resume button share pause; R resets; Escape closes.
+[Controls and scope](Sources/Physics3D/Articulations/README.md) ·
+[Guide français](Sources/Physics3D/Articulations/README.fr.md).
