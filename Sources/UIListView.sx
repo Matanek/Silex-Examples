@@ -225,7 +225,7 @@ func main() {
         failure(error) => { panic(error.detail) }
     }
     var session = ProjectListSession()
-    if cpu { session.check_cpu(); session.check_frame_loop(); print("UIListView CPU : OK"); return }
+    if cpu { session.check_cpu(); session.check_frame_loop(); check_interactions(session); print("UIListView CPU : OK"); return }
     let code = Viewer.show(session,
         Viewer.CanvasSettings(width:960, height:720, title:"Silex — Listes virtualisées J2"))
     if code != 0 { panic("list viewer failed") }
@@ -239,4 +239,52 @@ test "actual list session traverses filters reverses and resizes without a windo
 test "actual list update and drawing keep wheel offset and painted rows coherent" {
     var session = ProjectListSession()
     session.check_frame_loop()
+}
+
+func painted_projects(commands:Canvas.Command[]) str[] {
+    var result:str[] = []
+    for command in commands {
+        match command {
+            text(value) => {
+                if Text.starts_with(value.value, "Projet ") { result.append(value.value) }
+            }
+            layer(value) => {
+                for project in painted_projects(value.commands()) { result.append(project) }
+            }
+            else => {}
+        }
+    }
+    return result
+}
+func assert_projects_unchanged(drawing:Canvas, expected:str[], phase:str) {
+    let actual = painted_projects(drawing.commands())
+    print("LIST interaction $(phase) expected=$(expected.count()) actual=$(actual.count())")
+    assert(actual.count() == expected.count())
+    for index, project in actual.indexed() { assert(project == expected[index]) }
+}
+func check_interactions(session:ProjectListSession) {
+    var initial = session.drawing(960, 720)
+    session.model.scroll.set_offset(8096.0)
+    var moved = session.drawing(960, 720)
+    let expected = painted_projects(moved.commands())
+    assert(expected.count() >= 9)
+    var frame = 0
+    while frame < 24 {
+        let y = 230.0 + (frame % 9) as float * 44.0
+        session.ui().pointer_moved(Math.Vec2(70.0, y))
+        session.update(1.0 / 120.0)
+        var hovered = session.drawing(960, 720)
+        assert_projects_unchanged(hovered, expected, "hover $(frame)")
+        session.ui().pointer_pressed(Math.Vec2(70.0, y))
+        session.ui().pointer_released(Math.Vec2(70.0, y))
+        session.update(1.0 / 120.0)
+        var selected = session.drawing(960, 720)
+        assert_projects_unchanged(selected, expected, "select $(frame)")
+        frame++
+    }
+}
+
+test "actual list keeps all painted projects during hover and selection" {
+    var session = ProjectListSession()
+    check_interactions(session)
 }
