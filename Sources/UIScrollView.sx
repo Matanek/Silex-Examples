@@ -197,6 +197,41 @@ class ScrollSession:Canvas.Session {
 
     func accepts_text_input() bool { return self.runtime.accepts_text_input() }
 
+    func check_horizontal_cpu(width:int, flipped:bool, smooth:bool) {
+        self.model.smoothing.set(smooth)
+        self.update(0.0)
+        self.model.beginning()
+        self.model.inner.set_offset(0.0)
+        self.model.horizontal.set_offset(0.0)
+        var drawing = self.drawing(width, 740)
+        let point = button_label_position(drawing.commands(), "Carte 1") ?? Math.Vec2()
+        assert(point.x > 0.0 && point.y > 0.0)
+        let wheel = Events.Event.mouse_wheel(Events.MouseWheelEvent(
+            window:Window.Id(value:1 as uint32), mouse:Pointer.MouseId(value:1 as uint32),
+            delta:Math.Vec2(1.0, 0.0), integer_delta:Math.Vec2(1.0, 0.0),
+            position:point, flipped:flipped, timestamp:Events.Timestamp(nanoseconds:3 as uint)))
+        assert(self.handle(wheel))
+        self.update(1.0 / 120.0)
+        let offset = self.model.horizontal.offset()
+        assert(offset > 0.0 && self.model.vertical.offset() == 0.0 && self.model.inner.offset() == 0.0)
+        drawing = self.drawing(width, 740)
+        let moved = button_label_position(drawing.commands(), "Carte 1") ?? Math.Vec2()
+        assert(Math.abs(moved.x - point.x + offset) < 0.001)
+        assert(moved.y == point.y)
+        let reverse = Events.Event.mouse_wheel(Events.MouseWheelEvent(
+            window:Window.Id(value:1 as uint32), mouse:Pointer.MouseId(value:1 as uint32),
+            delta:Math.Vec2(-1.0, 0.0), integer_delta:Math.Vec2(-1.0, 0.0),
+            position:point, flipped:flipped, timestamp:Events.Timestamp(nanoseconds:4 as uint)))
+        assert(self.handle(reverse))
+        self.update(1.0 / 120.0)
+        assert(self.model.horizontal.offset() < offset)
+        drawing = self.drawing(width, 740)
+        let returned = button_label_position(drawing.commands(), "Carte 1") ?? Math.Vec2()
+        assert(returned.x > moved.x && returned.y == point.y)
+        assert(Math.abs(returned.x - point.x + self.model.horizontal.offset()) < 0.001)
+        print("HORIZONTAL_HIT width=$(width) flipped=$(flipped) smooth=$(smooth) offset=$(offset) return=$(self.model.horizontal.offset())")
+    }
+
     func check_cpu() {
         var drawing = self.drawing(960, 740)
         assert(drawing.command_count() > 0)
@@ -236,6 +271,7 @@ class ScrollSession:Canvas.Session {
             drawing = self.drawing(960, 740)
             let moved = button_label_position(drawing.commands(), "Action interne 1") ?? Math.Vec2()
             assert(Math.abs(moved.y - point.y + self.model.inner.offset()) < 0.001)
+            self.check_horizontal_cpu(960, flipped, true)
         }
     }
 }
@@ -321,6 +357,17 @@ test "system wheel direction over the rendered button reaches its nested viewpor
             let moved = button_label_position(drawing.commands(), "Action interne 1") ?? Math.Vec2()
             assert(Math.abs(moved.y - point.y + session.model.inner.offset()) < 0.001)
             print("SCROLL_HIT width=$(width) flipped=$(flipped) x=$(point.x) y=$(point.y) inner=$(session.model.inner.offset()) max=$(session.model.inner.maximum_offset()) moved_y=$(moved.y)")
+        }
+    }
+}
+
+test "horizontal native deltas move cards in system direction in both modes" {
+    for width in [960, 420] {
+        for flipped in [false, true] {
+            for smooth in [false, true] {
+                var session = ScrollSession()
+                session.check_horizontal_cpu(width, flipped, smooth)
+            }
         }
     }
 }
