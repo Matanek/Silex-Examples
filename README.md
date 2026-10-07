@@ -678,6 +678,7 @@ R also resumes after resetting. The panel shows the relaunch count, direction
 and pause state. Letter shortcuts follow the logical T/R keys. Escape quits.
 `--controls-check` validates events and clicks without opening a window.
 `--input-trace` logs received keyboard events for diagnosis. Native `--smoke`
+shows a clearly labelled automatic scenario without interactive buttons and
 checks two complete spring trajectories through the same relaunch dispatcher;
 consumer tests cover keyboard events, clicks and relaunching while paused.
 

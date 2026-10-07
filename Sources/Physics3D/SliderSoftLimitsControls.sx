@@ -7,6 +7,7 @@ use STD.Math
 use GFX.UI
 
 package class SliderSoftLimitsControls {
+    var automatic:bool = false
     var launch_requests:int = 0
     var reset_requested:bool = false
     var pause_requests:int = 0
@@ -14,6 +15,16 @@ package class SliderSoftLimitsControls {
     var pause_label:UI.State<str> = UI.State<str>("Pause (Espace)")
 
     func describe() UI.View {
+        if self.automatic {
+            var root = UI.Column([UI.Text("TEST AUTOMATIQUE — fermeture à la fin"),
+                UI.Text("Le scénario pilote les chariots. Commandes clavier désactivées."),
+                UI.Text("La démo interactive sera lancée séparément.")])
+            root.style.padding = UI.Insets(16.0)
+            root.style.gap = 10.0
+            root.style.background = Color.slate_900().with_alpha(0.94)
+            root.style.foreground = Color.slate_100()
+            return root
+        }
         var launch = self.button("Relancer (T)",self.launch)
         var reset = self.button("Repartir (R)",self.reset)
         var pause = UI.Reactive(self.pause_button)
@@ -117,3 +128,15 @@ package func verify_soft_limits_buttons() {
 
 test "letter shortcuts follow logical T and R and preserve separate presses" { verify_soft_limits_shortcuts() }
 test "visible buttons trigger the same launch reset and pause actions" { verify_soft_limits_buttons() }
+
+package func verify_soft_limits_automatic_panel() {
+    var controls = SliderSoftLimitsControls();controls.automatic = true
+    var session = UI.Session(controls.describe())
+    var drawing = session.drawing(538,142);assert(drawing.command_count()>0)
+    let value = Events.MouseButtonEvent(window:Window.Id(value:0 as uint32),mouse:Input.MouseId(value:0 as uint32),
+        button:Input.MouseButton.left,down:true,clicks:1 as uint8,position:Math.Vec2(80.0,32.0),timestamp:Input.Timestamp(nanoseconds:0 as uint))
+    let press = Events.Event.mouse_button_pressed(value);let release = Events.Event.mouse_button_released(value)
+    let pressed = session.handle(press);let released = session.handle(release)
+    assert(controls.launch_requests==0 && !controls.reset_requested && controls.pause_requests==0)
+}
+test "automatic panel exposes no inert action buttons" { verify_soft_limits_automatic_panel() }

@@ -98,20 +98,14 @@ func create_slider_soft_limits(world:&Resources.World, meshes:&Resources.Meshes3
     soft_limits_visual(world,meshes,Math.Vec3(14.0,0.2,10.0),Math.Vec3(0.0,-0.1,0.0),Color.bytes(52,70,87))
     world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.45)))
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance = 40.0))
-    match Process.arguments() {
-        success(arguments) => { for argument in arguments {
-            if argument == "--smoke" { state.smoke = true }
-            if argument == "--input-trace" { state.trace_input = true }
-        } }
-        failure(error) => { panic(error.detail) }
-    }
     reset_slider_soft_limits(world,state);state.frame_clock.tick()
     state.panel = world.spawn(ECS.EntityRecipe()
         ..with(Scene2D.Transform(position:Math.Vec2()))
         ..with(Scene2D.Canvas(state.ui.drawing(538,142),538,142)
             ..anchor = Math.Vec2() ..pivot = Math.Vec2()
             ..space = Scene2D.CanvasSpace.viewport ..layer = 100))
-    print("Gold settles with damping; blue oscillates without damping. Red marks: nominal soft bound. Use the visible buttons or T: kick and resume. R: restart and resume. Space: pause/resume. Escape: quit.")
+    if state.smoke { print("Automatic spring test: scenario controls the carriages; T/R/Space disabled. Escape aborts.") }
+    else { print("Gold settles with damping; blue oscillates without damping. Use buttons or T: kick and resume. R: restart and resume. Space: pause/resume. Escape: quit.") }
 }
 func toggle_slider_soft_limits_pause(simulation:&Application.Simulation) {
     if simulation.is_paused() { simulation.resume() } else { simulation.pause() }
@@ -144,7 +138,6 @@ func update_slider_soft_limits(world:&Resources.World, input:@Resources.InputSta
     physics:&Physics.World3D, state:&SliderSoftLimitsSceneState, controller:&Application.Controller)
 {
     if input.is_pressed(Input.Key.escape) { controller.stop() }
-    if state.smoke && input.is_pressed(Input.Key.space) { toggle_slider_soft_limits_pause(simulation) }
     if !state.smoke {
         for event in input.events() {
             if state.trace_input {
@@ -239,14 +232,28 @@ func main() {
         success(arguments) => { for argument in arguments { if argument=="--controls-check" {
             SliderSoftLimitsControls.verify_soft_limits_shortcuts()
             SliderSoftLimitsControls.verify_soft_limits_buttons()
+            SliderSoftLimitsControls.verify_soft_limits_automatic_panel()
             verify_soft_limits_paused_launch()
             print("Soft limits controls: keyboard events, button clicks, repeated actions and paused relaunch verified")
             return
         } } }
         failure(error) => { panic(error.detail) }
     }
-    Application() ..add_resource(SliderSoftLimitsSceneState()) ..add_resource(Physics.World3D())
-        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = "Butées souples — commandes visibles v2 | T relancer, R repartir, Espace pause" ..width = 1200 ..height = 720))
+    var state = SliderSoftLimitsSceneState()
+    var title = "Butées souples — commandes visibles v2 | T relancer, R repartir, Espace pause"
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments {
+            if argument=="--smoke" { state.smoke = true }
+            if argument=="--input-trace" { state.trace_input = true }
+        } }
+        failure(error) => { panic(error.detail) }
+    }
+    if state.smoke {
+        title = "TEST AUTOMATIQUE — butées souples — commandes désactivées"
+        state.controls.automatic = true;state.ui = UI.Session(state.controls.describe())
+    }
+    Application() ..add_resource(state) ..add_resource(Physics.World3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = title ..width = 1200 ..height = 720))
         ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
         ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target = Math.Vec3(0.0,3.0,0.0)
             ..distance = 12.0 ..yaw = Math.radians(-8.0) ..pitch = Math.radians(-20.0)))
