@@ -589,3 +589,17 @@ times weaker; blue has equal capacity in both directions. **R** restarts from
 rest toward the current target, **Space** pauses/resumes, and **Escape** quits.
 The executable's `--smoke` verifies signed acceleration, reversal, reset,
 rendered poses and twelve frozen frames followed by resumption in two cycles.
+
+### Soft hinge stops
+
+From the workspace or Spec group root:
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/HingeSoftLimitsScene.sx --release
+```
+
+Gold yields beyond +/-0.4 rad under motor load; blue has rigid stops at those
+angles. Both motors have the same speed and effort. T reverses the target,
+R restarts from rest with the current target, Space pauses/resumes, Escape exits.
+`--smoke` checks soft deflection, rigid bounds, effort, anchors, reversal, reset,
+pause/resume and rendered poses through two cycles.
