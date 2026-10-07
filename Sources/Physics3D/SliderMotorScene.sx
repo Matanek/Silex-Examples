@@ -1,0 +1,192 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+use STD.Time.Clock
+
+class SliderMotorSceneState {
+    var body:Physics.RigidBody3D? = null
+    var joint:Physics.SliderConstraint3D? = null
+    var visual:ECS.Entity? = null
+    let initial:Physics.Transform3D = Physics.Transform3D(Math.Vec3(0.0,3.0,0.0),Math.Quat.angle_axis(-0.28,Math.Vec3(0.0,0.0,1.0)))
+    var previous:Physics.Transform3D = Physics.Transform3D()
+    var elapsed:float = 0.0
+    var accumulator:float = 0.0
+    var direction:float = -1.0
+    var smoke:bool = false
+    var capacity:float = 30.0
+    var motor_enabled:bool = true
+    var phase:int = 0
+    var weak_seen:bool = false
+    var disabled_seen:bool = false
+    var brake_seen:bool = false
+    var lower_seen:bool = false
+    var upper_seen:bool = false
+    var cycles:int = 0
+    var pause_frames:int = 0
+    var pause_elapsed:float = 0.0
+    var pause_pose:Physics.Transform3D = Physics.Transform3D()
+    var frame_clock:Clock = Clock()
+    var frames:int = 0
+    var report_time:float = 0.0
+}
+func slider_visual(world:&Resources.World, meshes:&Resources.Meshes3D,
+    size:Math.Vec3, pose:Physics.Transform3D, color:Color) ECS.Entity
+{
+    let mesh = meshes.add(Scene3D.Geometry.Cube.make(size))
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:pose.position,rotation:pose.rotation))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.5)))
+}
+func reset_slider_motor(state:&SliderMotorSceneState) {
+    state.body!.set_transform(state.initial)
+    state.body!.set_linear_velocity(Math.Vec3());state.body!.set_angular_velocity(Math.Vec3())
+    state.joint!.set_limits(-2.5,2.5)
+    state.previous = state.initial;state.elapsed = 0.0;state.accumulator = 0.0
+    state.direction = -1.0;state.capacity = 30.0;state.motor_enabled = true;state.phase = 0
+    state.weak_seen = false;state.disabled_seen = false;state.brake_seen = false
+    state.lower_seen = false;state.upper_seen = false
+    apply_slider_motor(state)
+}
+func apply_slider_motor(state:&SliderMotorSceneState) {
+    if state.motor_enabled { state.joint!.set_motor(Physics.SliderMotor3D(state.direction, state.capacity)) }
+    else { state.joint!.set_motor(null) }
+    print("Motor enabled=$(state.motor_enabled), target=$(state.direction) m/s, capacity=$(state.capacity) N")
+}
+func cycle_slider_motor_speed(state:&SliderMotorSceneState) {
+    if state.direction < 0.0 { state.direction = 0.0 }
+    else if state.direction == 0.0 { state.direction = 1.0 }
+    else { state.direction = -1.0 }
+    apply_slider_motor(state)
+}
+func create_slider_motor(world:&Resources.World, meshes:&Resources.Meshes3D,
+    physics:&Physics.World3D, state:&SliderMotorSceneState)
+{
+    var rail = physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+        ..transform = state.initial ..collision_filter = Physics.CollisionFilter3D(mask_bits:0))
+    state.body = physics.create_rigid_body(Physics.RigidBody3DSettings() ..transform = state.initial
+        ..shape = Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.8,0.65,0.8)))
+        ..mass_properties = Physics.MassProperties3D(3.0,Math.Vec3(0.3))
+        ..collision_filter = Physics.CollisionFilter3D(mask_bits:0) ..allow_sleep = false)
+    state.joint = physics.create_slider_constraint(rail,state.body!,
+        Physics.SliderConstraint3DSettings() ..minimum_position = -2.5 ..maximum_position = 2.5)
+    state.visual = slider_visual(world,meshes,Math.Vec3(0.8,0.65,0.8),state.initial,Color.bytes(245,186,82))
+    slider_visual(world,meshes,Math.Vec3(6.6,0.13,0.45),Physics.Transform3D(state.initial.point(Math.Vec3(0.0,-0.4,0.0)),state.initial.rotation),Color.bytes(89,184,237))
+    let stops:float[] = [-3.0,3.0]
+    for end in stops {
+        slider_visual(world,meshes,Math.Vec3(0.2,0.8,0.9),Physics.Transform3D(state.initial.point(Math.Vec3(end,0.0,0.0)),state.initial.rotation),Color.bytes(205,105,90))
+    }
+    slider_visual(world,meshes,Math.Vec3(14.0,0.2,10.0),Physics.Transform3D(Math.Vec3(0.0,-0.1,0.0)),Color.bytes(52,70,87))
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.45)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance = 40.0))
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    reset_slider_motor(state);state.frame_clock.tick()
+    print("Gold carriage: velocity motor on an inclined rail. Starts uphill at -1 m/s. T: cycle uphill, brake, downhill. F: capacity 30/6 N (6 N cannot climb). D: motor on/off. R: restart. Space: pause. Escape: quit.")
+}
+func toggle_slider_motor_pause(simulation:&Application.Simulation) {
+    if simulation.is_paused() { simulation.resume() } else { simulation.pause() }
+}
+func update_slider_motor(world:&Resources.World, input:@Resources.InputState, simulation:&Application.Simulation,
+    physics:&Physics.World3D, state:&SliderMotorSceneState, controller:&Application.Controller)
+{
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if input.is_pressed(Input.Key.space) { toggle_slider_motor_pause(simulation) }
+    if !state.smoke {
+        if input.is_pressed(Input.Key.r) { reset_slider_motor(state) }
+        if input.is_pressed(Input.Key.t) { cycle_slider_motor_speed(state) }
+        if input.is_pressed(Input.Key.f) {
+            if state.capacity > 6.0 { state.capacity = 6.0 } else { state.capacity = 30.0 }
+            apply_slider_motor(state)
+        }
+        if input.is_pressed(Input.Key.d) { state.motor_enabled = !state.motor_enabled;apply_slider_motor(state) }
+    }
+    if state.smoke && state.cycles==0 {
+        if state.pause_frames==0 && state.elapsed>=0.5 {
+            toggle_slider_motor_pause(simulation);assert(simulation.is_paused())
+            state.pause_elapsed = state.elapsed;state.pause_pose = state.body!.transform();state.pause_frames = 1
+        } else if state.pause_frames>0 && state.pause_frames<=12 {
+            assert(simulation.is_paused() && simulation.delta()==0.0 && state.elapsed==state.pause_elapsed)
+            assert(state.body!.transform()==state.pause_pose)
+            state.pause_frames++
+            if state.pause_frames==13 { toggle_slider_motor_pause(simulation);assert(!simulation.is_paused()) }
+        }
+    }
+    state.accumulator += simulation.delta()
+    let delta = 1.0/120.0
+    while state.accumulator>=delta {
+        state.previous = state.body!.transform()
+        physics.step(delta);state.elapsed += delta;state.accumulator -= delta
+        if state.smoke {
+            assert(state.joint!.anchor_error().length()<0.001 && state.joint!.angular_error().length()<0.001)
+            let position = state.joint!.position()
+            assert(position>=-2.5001 && position<=2.5001)
+            if position>2.499 { state.upper_seen = true }
+            if position< -2.499 { state.lower_seen = true }
+            assert(Math.abs(state.joint!.motor_force()) <= state.capacity + 0.001)
+            if state.phase == 4 && state.elapsed > 10.2 {
+                assert(state.joint!.speed() > -0.8 && Math.abs(state.joint!.motor_force() + 6.0) < 0.001)
+                state.weak_seen = true
+            }
+            if state.phase == 5 { assert(state.joint!.motor_force() == 0.0);state.disabled_seen = true }
+            if state.phase == 2 && state.elapsed > 8.7 {
+                assert(Math.abs(state.joint!.speed()) < 0.001);state.brake_seen = true
+            }
+            if state.phase == 0 && state.elapsed >= 3.0 {
+                state.direction = 1.0;apply_slider_motor(state);state.phase = 1
+            } else if state.phase == 1 && state.elapsed >= 8.5 {
+                state.direction = 0.0;apply_slider_motor(state);state.phase = 2
+            } else if state.phase == 2 && state.elapsed >= 9.0 {
+                state.direction = -1.0;apply_slider_motor(state);state.phase = 3
+            } else if state.phase == 3 && state.elapsed >= 9.5 {
+                state.capacity = 6.0;apply_slider_motor(state);state.phase = 4
+            } else if state.phase == 4 && state.elapsed >= 10.5 {
+                state.motor_enabled = false;apply_slider_motor(state);state.phase = 5
+            } else if state.phase == 5 && state.elapsed >= 11.0 {
+                state.motor_enabled = true;state.capacity = 30.0;state.direction = 0.0
+                apply_slider_motor(state);state.phase = 6
+            }
+            if state.elapsed>=12.0 {
+                assert(state.lower_seen && state.upper_seen && state.weak_seen && state.disabled_seen && state.brake_seen)
+                assert(Math.abs(state.joint!.speed()) < 0.001)
+                if state.cycles==0 { assert(state.pause_frames==13) }
+                state.cycles++
+                print("Slider motor smoke cycle=$(state.cycles): both rigid stops, reversal, braking, weak capacity, disable/re-enable, reset, pause/resume and rendered poses verified")
+                if state.cycles==2 { controller.stop() }
+                reset_slider_motor(state)
+            }
+        }
+    }
+    state.frames++;state.report_time += state.frame_clock.tick()
+    if state.report_time>=1.0 { print("Slider motor FPS=$(state.frames as float/state.report_time)");state.frames = 0;state.report_time = 0.0 }
+}
+func render_slider_motor(world:&Resources.World, state:&SliderMotorSceneState) {
+    let alpha = Math.clamp(state.accumulator*120.0,0.0,1.0)
+    let position = state.previous.position.lerp(state.body!.position(),alpha)
+    let first = state.previous.rotation;var second = state.body!.rotation()
+    if first.dot(second)<0.0 { second = second.multiply(-1.0) }
+    let rotation = first.multiply(1.0-alpha).add(second.multiply(alpha)).normalized()
+    world.update<Components.Transform3D>(state.visual!,func(transform:&Components.Transform3D) { transform.position = position;transform.rotation = rotation })
+    if state.smoke {
+        let pose = world.get<Components.Transform3D>(state.visual!)
+        assert(pose.position.nearly_equal(position,0.0001) && Math.abs(pose.rotation.dot(rotation))>0.99999)
+    }
+}
+func main() {
+    Application() ..add_resource(SliderMotorSceneState()) ..add_resource(Physics.World3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = "Silex slider motor | T speed, F force, D motor, R restart, Space pause" ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target = Math.Vec3(0.0,3.0,0.0)
+            ..distance = 12.0 ..yaw = Math.radians(-8.0) ..pitch = Math.radians(-20.0)))
+        ..add_system(Application.Schedule.startup,create_slider_motor)
+        ..add_system(Application.Schedule.update,update_slider_motor,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render_slider_motor) ..run()
+}
