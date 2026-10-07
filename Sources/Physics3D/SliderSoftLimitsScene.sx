@@ -7,11 +7,18 @@ use GFX.Physics
 use GFX.Plugins
 use GFX.Resources
 use GFX.Scene3D
+use GFX.Scene2D
+use GFX.UI
+use Physics3D.SliderSoftLimitsControls
 use STD.Math
 use STD.Process
 use STD.Time.Clock
 
 class SliderSoftLimitsSceneState {
+    var controls:SliderSoftLimitsControls = SliderSoftLimitsControls()
+    var ui:UI.Session
+    var panel:ECS.Entity = ECS.Entity()
+    var launches:int = 0
     var bodies:Physics.RigidBody3D[] = []
     var joints:Physics.SliderConstraint3D[] = []
     var visuals:ECS.Entity[] = []
@@ -19,6 +26,7 @@ class SliderSoftLimitsSceneState {
     var target:float = 1.0
     var elapsed:float = 0.0
     var accumulator:float = 0.0
+    var trace_input:bool = false
     var smoke:bool = false
     var reversed:bool = false
     var difference_seen:bool = false
@@ -31,6 +39,7 @@ class SliderSoftLimitsSceneState {
     var frame_clock:Clock = Clock()
     var frames:int = 0
     var report_time:float = 0.0
+    init() { self.ui = UI.Session(self.controls.describe()) }
 }
 func soft_limits_visual(world:&Resources.World, meshes:&Resources.Meshes3D,
     size:Math.Vec3, position:Math.Vec3, color:Color) ECS.Entity
@@ -42,11 +51,11 @@ func soft_limits_visual(world:&Resources.World, meshes:&Resources.Meshes3D,
 func apply_slider_soft_limits(world:&Resources.World, state:&SliderSoftLimitsSceneState) {
     var i = 0
     while i<2 {
-        state.bodies[i].set_linear_velocity(Math.Vec3(state.target*2.0,0.0,0.0))
-        state.expected_speed[i] = state.target*2.0
+        state.bodies[i].set_linear_velocity(Math.Vec3(state.target*4.0,0.0,0.0))
+        state.expected_speed[i] = state.target*4.0
         i++
     }
-    print("Kick=$(state.target*2.0) m/s. Gold: damping 8 N s/m. Blue: damping zero. Both springs: 8 N/m.")
+    print("Kick=$(state.target*4.0) m/s. Gold: damping 8 N s/m. Blue: damping zero. Both springs: 8 N/m.")
 }
 func reset_slider_soft_limits(world:&Resources.World, state:&SliderSoftLimitsSceneState) {
     var i = 0
@@ -90,23 +99,66 @@ func create_slider_soft_limits(world:&Resources.World, meshes:&Resources.Meshes3
     world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.45)))
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance = 40.0))
     match Process.arguments() {
-        success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
+        success(arguments) => { for argument in arguments {
+            if argument == "--smoke" { state.smoke = true }
+            if argument == "--input-trace" { state.trace_input = true }
+        } }
         failure(error) => { panic(error.detail) }
     }
     reset_slider_soft_limits(world,state);state.frame_clock.tick()
-    print("Gold settles with damping; blue oscillates without damping. Red marks: nominal soft bound. T: kick in alternating direction. R: restart. Space: pause/resume. Escape: quit.")
+    state.panel = world.spawn(ECS.EntityRecipe()
+        ..with(Scene2D.Transform(position:Math.Vec2()))
+        ..with(Scene2D.Canvas(state.ui.drawing(538,142),538,142)
+            ..anchor = Math.Vec2() ..pivot = Math.Vec2()
+            ..space = Scene2D.CanvasSpace.viewport ..layer = 100))
+    print("Gold settles with damping; blue oscillates without damping. Red marks: nominal soft bound. Use the visible buttons or T: kick and resume. R: restart and resume. Space: pause/resume. Escape: quit.")
 }
 func toggle_slider_soft_limits_pause(simulation:&Application.Simulation) {
     if simulation.is_paused() { simulation.resume() } else { simulation.pause() }
+}
+func perform_slider_soft_limits_actions(world:&Resources.World, simulation:&Application.Simulation,
+    state:&SliderSoftLimitsSceneState)
+{
+    if state.controls.reset_requested {
+        state.controls.reset_requested = false
+        simulation.resume();reset_slider_soft_limits(world,state)
+        state.controls.feedback("Reparti à 1,2 m — en cours",false)
+    }
+    while state.controls.pause_requests>0 {
+        state.controls.pause_requests--
+        toggle_slider_soft_limits_pause(simulation)
+        var message = "En cours"
+        if simulation.is_paused() { message = "En pause — T relance et reprend" }
+        state.controls.feedback(message,simulation.is_paused())
+    }
+    while state.controls.launch_requests>0 {
+        state.controls.launch_requests--
+        simulation.resume();state.target = -state.target
+        apply_slider_soft_limits(world,state);state.launches++
+        var direction = "droite"
+        if state.target<0.0 { direction = "gauche" }
+        state.controls.feedback("Relance n°$(state.launches) vers la $(direction) — en cours",false)
+    }
 }
 func update_slider_soft_limits(world:&Resources.World, input:@Resources.InputState, simulation:&Application.Simulation,
     physics:&Physics.World3D, state:&SliderSoftLimitsSceneState, controller:&Application.Controller)
 {
     if input.is_pressed(Input.Key.escape) { controller.stop() }
-    if input.is_pressed(Input.Key.space) { toggle_slider_soft_limits_pause(simulation) }
+    if state.smoke && input.is_pressed(Input.Key.space) { toggle_slider_soft_limits_pause(simulation) }
     if !state.smoke {
-        if input.is_pressed(Input.Key.r) { reset_slider_soft_limits(world,state) }
-        if input.is_pressed(Input.Key.t) { state.target = -state.target;apply_slider_soft_limits(world,state) }
+        for event in input.events() {
+            if state.trace_input {
+                match event {
+                    key_pressed(key) => { print("Shortcut keycode=$(key.keycode) physical_t=$(key.key==Input.Key.t) physical_r=$(key.key==Input.Key.r) repeat=$(key.repeated)") }
+                    else => {}
+                }
+            }
+            if !state.controls.handle(event) { let handled = state.ui.handle(event) }
+        }
+        perform_slider_soft_limits_actions(world,simulation,state)
+    }
+    if state.ui.update(0.0) {
+        world.update<Scene2D.Canvas>(state.panel,func(panel:&Scene2D.Canvas) { panel.replace(state.ui.drawing(538,142)) })
     }
     if state.smoke && state.cycles==0 {
         if state.pause_frames==0 && state.elapsed>=0.5 {
@@ -147,7 +199,11 @@ func update_slider_soft_limits(world:&Resources.World, input:@Resources.InputSta
             if state.joints[1].position()< -0.1 { state.difference_seen = true }
             if !state.reversed && state.elapsed>=4.0 {
                 assert(Math.abs(state.joints[0].position())<0.01 && state.difference_seen)
-                state.target = -1.0;apply_slider_soft_limits(world,state);state.reversed = true
+                let kick = SliderSoftLimitsControls.soft_limits_key_event(Input.Key.t,116 as uint32)
+                assert(state.controls.handle(kick))
+                perform_slider_soft_limits_actions(world,simulation,state)
+                assert(state.launches==state.cycles+1 && !simulation.is_paused())
+                state.reversed = true
             }
             if state.elapsed>=8.0 {
                 assert(state.reversed && state.difference_seen && Math.abs(state.joints[0].position())<0.01)
@@ -179,12 +235,54 @@ func render_slider_soft_limits(world:&Resources.World, state:&SliderSoftLimitsSc
     }
 }
 func main() {
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument=="--controls-check" {
+            SliderSoftLimitsControls.verify_soft_limits_shortcuts()
+            SliderSoftLimitsControls.verify_soft_limits_buttons()
+            verify_soft_limits_paused_launch()
+            print("Soft limits controls: keyboard events, button clicks, repeated actions and paused relaunch verified")
+            return
+        } } }
+        failure(error) => { panic(error.detail) }
+    }
     Application() ..add_resource(SliderSoftLimitsSceneState()) ..add_resource(Physics.World3D())
-        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = "Silex slider soft stops | Gold damped, blue oscillating | T kick, R restart, Space pause" ..width = 1200 ..height = 720))
-        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = "Butées souples — commandes visibles v2 | T relancer, R repartir, Espace pause" ..width = 1200 ..height = 720))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
         ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target = Math.Vec3(0.0,3.0,0.0)
             ..distance = 12.0 ..yaw = Math.radians(-8.0) ..pitch = Math.radians(-20.0)))
         ..add_system(Application.Schedule.startup,create_slider_soft_limits)
         ..add_system(Application.Schedule.update,update_slider_soft_limits,process_mode:Application.ProcessMode.always)
         ..add_system(Application.Schedule.render,render_slider_soft_limits) ..run()
 }
+
+func verify_soft_limits_paused_launch() {
+    var world = Resources.World()
+    var meshes = Resources.Meshes3D()
+    var physics = Physics.World3D()
+    var state = SliderSoftLimitsSceneState()
+    var simulation = Application.Simulation()
+    create_slider_soft_limits(world,meshes,physics,state)
+    simulation.pause()
+    let kick = SliderSoftLimitsControls.soft_limits_key_event(Input.Key.t,116 as uint32)
+    assert(state.controls.handle(kick))
+    perform_slider_soft_limits_actions(world,simulation,state)
+    assert(!simulation.is_paused() && state.launches==1)
+    assert(state.bodies[0].linear_velocity().x== -4.0 && state.bodies[1].linear_velocity().x== -4.0)
+    let start = state.bodies[0].position().x
+    physics.step(1.0/120.0)
+    assert(state.bodies[0].position().x<start)
+    assert(state.controls.handle(kick))
+    perform_slider_soft_limits_actions(world,simulation,state)
+    assert(state.launches==2 && state.bodies[0].linear_velocity().x==4.0)
+    let pause = SliderSoftLimitsControls.soft_limits_key_event(Input.Key.space,32 as uint32)
+    assert(state.controls.handle(pause))
+    perform_slider_soft_limits_actions(world,simulation,state)
+    assert(simulation.is_paused() && state.controls.pause_label.value()=="Reprendre (Espace)")
+    let reset = SliderSoftLimitsControls.soft_limits_key_event(Input.Key.r,114 as uint32)
+    assert(state.controls.handle(reset))
+    perform_slider_soft_limits_actions(world,simulation,state)
+    assert(!simulation.is_paused() && state.bodies[0].position().x==1.2)
+    assert(state.bodies[0].linear_velocity().x==0.0)
+}
+
+test "T visibly resumes a paused carriage and repeated actions alternate direction" { verify_soft_limits_paused_launch() }

@@ -668,7 +668,18 @@ negative effort is needed. Native `--smoke` verifies two eight-second cycles,
 independent clamped trajectories, signed budgets, alignment, target reversal,
 reset, pause/resume and interpolated ECS poses.
 
-Soft slider stops: `Sources/Physics3D/SliderSoftLimitsScene.sx` compares a gold damped carriage with a blue undamped one around equal soft bounds. T kicks in alternating directions, R resets, Space pauses/resumes, Escape quits.
+### Soft slider stops
+
+`Sources/Physics3D/SliderSoftLimitsScene.sx` compares a gold damped carriage
+with a blue undamped one around equal soft bounds. Use the visible **Relancer**,
+**Repartir** and **Pause/Reprendre** buttons, or T, R and Space. Each relaunch
+sets a ±4 m/s speed in an alternating direction and resumes a paused simulation;
+R also resumes after resetting. The panel shows the relaunch count, direction
+and pause state. Letter shortcuts follow the logical T/R keys. Escape quits.
+`--controls-check` validates events and clicks without opening a window.
+`--input-trace` logs received keyboard events for diagnosis. Native `--smoke`
+checks two complete spring trajectories through the same relaunch dispatcher;
+consumer tests cover keyboard events, clicks and relaunching while paused.
 
 ```sh
 silex run Silex-Examples/Sources/Physics3D/SliderSoftLimitsScene.sx --release
