@@ -657,3 +657,13 @@ to hold the gravity load; T launches alternately uphill/downhill, R restarts,
 Space pauses/resumes and Escape quits. Native `--smoke` checks two eight-second
 cycles of launch/braking, resting under load, free travel, re-enabling the brake,
 reset, force bounds, alignment, pause/resume and interpolated ECS poses.
+
+### Signed slider force bounds
+
+`silex run Silex-Examples/Sources/Physics3D/SliderForceBoundsScene.sx --release`
+compares a gold carriage with [-0.5, 2] N and a blue one with symmetric ±2 N.
+T reverses target speed, R resets, Space pauses/resumes and Escape quits.
+Gold accelerates quickly toward positive speed and reverses more slowly when
+negative effort is needed. Native `--smoke` verifies two eight-second cycles,
+independent clamped trajectories, signed budgets, alignment, target reversal,
+reset, pause/resume and interpolated ECS poses.
