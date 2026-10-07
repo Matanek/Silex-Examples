@@ -668,3 +668,12 @@ redraw (`changed`, up to three packets per reporting interval). This flag does
 not identify which viewport consumed the event. These are input/cadence
 diagnostics, not GPU FPS. The compiled executable accepts `--cpu-check` without
 opening a window.
+
+### Slider axial friction
+
+`silex run Silex-Examples/Sources/Physics3D/SliderFrictionScene.sx --release`
+shows a gold carriage on an inclined rail. F toggles a 15 N brake, sufficient
+to hold the gravity load; T launches alternately uphill/downhill, R restarts,
+Space pauses/resumes and Escape quits. Native `--smoke` checks two eight-second
+cycles of launch/braking, resting under load, free travel, re-enabling the brake,
+reset, force bounds, alignment, pause/resume and interpolated ECS poses.
