@@ -622,3 +622,11 @@ The binary accepts `--smoke`: two eight-second cycles, reversal and reset,
 a twelve-frame pause, bounded torque, anchors/axes and rendered poses checked.
 Mean tracking error is compared over settled intervals 2–4 and 6–8 seconds,
 excluding startup and reversal.
+
+`Physics3D/SliderScene.sx` shows a gold carriage sliding under gravity along an
+inclined blue rail. Red stops bound its signed travel to ±2.5 m and the slider
+holds its orientation. **T** applies alternating uphill/downhill impulses,
+**R** resets, **Space** pauses/resumes and **Escape** closes. From the workspace
+or Spec group root, run `silex run Silex-Examples/Sources/Physics3D/SliderScene.sx --release`.
+Its compiled executable accepts `--smoke` to check both stops, impulses, reset,
+pause/resume, alignment and interpolated ECS poses over two eight-second cycles.
