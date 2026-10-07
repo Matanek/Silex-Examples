@@ -661,6 +661,10 @@ force bounds, alignment, reset, pause/resume and interpolated ECS poses.
 The `UIScrollView.sx` demo includes a “Défilement lissé” checkbox to compare
 time-based wheel smoothing with immediate scrolling in the same viewport.
 Scrollbar dragging, programmatic moves and focus remain immediate in both modes.
-`--scroll-trace` reports host update intervals and wheel packet/drawing counts
-when scrolling; these are cadence diagnostics, not GPU FPS. The compiled
-executable accepts `--cpu-check` without opening a window.
+`--scroll-trace` reports host update intervals, wheel packet/drawing counts and
+scroll offsets. `SCROLL_ROUTE` compares wheel-event coordinates with the last
+mouse position and reports the delta and whether input processing requested a
+redraw (`changed`, up to three packets per reporting interval). This flag does
+not identify which viewport consumed the event. These are input/cadence
+diagnostics, not GPU FPS. The compiled executable accepts `--cpu-check` without
+opening a window.

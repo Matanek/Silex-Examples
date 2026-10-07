@@ -1,11 +1,14 @@
 use GFX.Canvas
 use GFX.Color
 use GFX.Input.Events
+use GFX.Input.Pointer
+use GFX.Window
 use GFX.UI
 use GFX.UI.Input as UIInput
 use GFX.Viewer
 use STD.Process
 use STD.Time
+use STD.Math
 
 func caption(text:str, size:float = 15.0) UI.Text {
     var result = UI.Text(text)
@@ -132,8 +135,11 @@ class ScrollTrace {
     var frames:int = 0
     var packets:int = 0
     var drawings:int = 0
+    var pointer:Math.Vec2 = Math.Vec2()
+    var pointer_known:bool = false
     init(enabled:bool = false) { self.enabled = enabled }
-    func update(smooth:bool) {
+    func update(model:ScrollForm) {
+        let smooth = model.smoothing.value()
         if !self.enabled { return }
         if !self.clock.is_running() { self.clock.start(); return }
         let interval = self.clock.get_elapsed_milliseconds()
@@ -143,7 +149,7 @@ class ScrollTrace {
         self.frames++
         if self.elapsed < 1000.0 { return }
         if self.packets > 0 {
-            print("SCROLL_CADENCE smooth=$(smooth) updates=$(self.frames) interval_ms_mean=$(self.elapsed / self.frames as float) interval_ms_max=$(self.maximum) packets=$(self.packets) drawings=$(self.drawings)")
+            print("SCROLL_CADENCE smooth=$(smooth) updates=$(self.frames) interval_ms_mean=$(self.elapsed / self.frames as float) interval_ms_max=$(self.maximum) packets=$(self.packets) drawings=$(self.drawings) inner=$(model.inner.offset())/$(model.inner.maximum_offset()) parent=$(model.vertical.offset())/$(model.vertical.maximum_offset()) horizontal=$(model.horizontal.offset())/$(model.horizontal.maximum_offset())")
         }
         self.elapsed = 0.0
         self.maximum = 0.0
@@ -166,16 +172,29 @@ class ScrollSession:Canvas.Session {
         return self.runtime.drawing(width, height)
     }
     func update(delta:float) bool {
-        self.trace.update(self.model.smoothing.value())
+        self.trace.update(self.model)
         return self.runtime.update(delta)
     }
     func handle(event:@Events.Event) bool {
-        if self.trace.enabled {
-            match event { mouse_wheel(value) => { self.trace.packets++ }; else => {} }
-        }
         var runtime = self.runtime
-        return UIInput.handle(runtime, event)
+        let changed = UIInput.handle(runtime, event)
+        if self.trace.enabled {
+            match event {
+                mouse_moved(value) => { self.trace.pointer = value.position; self.trace.pointer_known = true }
+                mouse_button_pressed(value) => { self.trace.pointer = value.position; self.trace.pointer_known = true }
+                mouse_button_released(value) => { self.trace.pointer = value.position; self.trace.pointer_known = true }
+                mouse_wheel(value) => {
+                    if self.trace.packets < 3 {
+                        print("SCROLL_ROUTE pointer_known=$(self.trace.pointer_known) pointer=($(self.trace.pointer.x),$(self.trace.pointer.y)) event=($(value.position.x),$(value.position.y)) delta=($(value.delta.x),$(value.delta.y)) flipped=$(value.flipped) changed=$(changed) inner=$(self.model.inner.offset())/$(self.model.inner.maximum_offset()) parent=$(self.model.vertical.offset())/$(self.model.vertical.maximum_offset())")
+                    }
+                    self.trace.packets++
+                }
+                else => {}
+            }
+        }
+        return changed
     }
+
     func accepts_text_input() bool { return self.runtime.accepts_text_input() }
 
     func check_cpu() {
@@ -195,6 +214,27 @@ class ScrollSession:Canvas.Session {
         drawing = self.drawing(1, 1)
         drawing = self.drawing(960, 740)
         assert(drawing.command_count() > 0)
+        self.runtime.focus_lost()
+        self.model.beginning()
+        self.model.inner.set_offset(0.0)
+        drawing = self.drawing(960, 740)
+        let point = button_label_position(drawing.commands(), "Action interne 1") ?? Math.Vec2()
+        assert(point.y > 0.0)
+        let motion = Events.Event.mouse_moved(Events.MouseMotionEvent(
+            window:Window.Id(value:1 as uint32), mouse:Pointer.MouseId(value:1 as uint32),
+            buttons:0 as uint32, position:point, delta:Math.Vec2(), relative:false,
+            timestamp:Events.Timestamp(nanoseconds:1 as uint)))
+        self.handle(motion)
+        let wheel = Events.Event.mouse_wheel(Events.MouseWheelEvent(
+            window:Window.Id(value:1 as uint32), mouse:Pointer.MouseId(value:1 as uint32),
+            delta:Math.Vec2(0.0, -1.0), integer_delta:Math.Vec2(0.0, -1.0),
+            position:point, flipped:false, timestamp:Events.Timestamp(nanoseconds:2 as uint)))
+        assert(self.handle(wheel))
+        self.update(1.0 / 120.0)
+        assert(self.model.inner.offset() > 0.0 && self.model.vertical.offset() == 0.0)
+        drawing = self.drawing(960, 740)
+        let moved = button_label_position(drawing.commands(), "Action interne 1") ?? Math.Vec2()
+        assert(Math.abs(moved.y - point.y + self.model.inner.offset()) < 0.001)
     }
 }
 
@@ -237,4 +277,49 @@ test "scroll demo switches smooth mode without rebuilding its position" {
     session.update(0.0)
     drawing = session.drawing(420, 540)
     assert(session.model.vertical.offset() == 60.0)
+}
+
+func button_label_position(commands:@Canvas.Command[], label:str) Math.Vec2? {
+    for command in commands {
+        match command {
+            text(value) => {
+                if value.value == label { return Math.Vec2(value.position.x + 4.0, value.position.y + 4.0) }
+            }
+            layer(value) => {
+                if let point = button_label_position(value.commands(), label) { return point }
+            }
+            else => {}
+        }
+    }
+    return null
+}
+
+test "scroll event over the rendered hovered button reaches its nested viewport" {
+    for width in [960, 420] {
+        for flipped in [false, true] {
+            var session = ScrollSession()
+            var drawing = session.drawing(width, 740)
+            let point = button_label_position(drawing.commands(), "Action interne 1") ?? Math.Vec2()
+            assert(point.y > 0.0)
+            let motion = Events.Event.mouse_moved(Events.MouseMotionEvent(
+                window:Window.Id(value:1 as uint32), mouse:Pointer.MouseId(value:1 as uint32),
+                buttons:0 as uint32, position:point, delta:Math.Vec2(), relative:false,
+                timestamp:Events.Timestamp(nanoseconds:1 as uint)))
+            assert(session.handle(motion))
+            var delta = -1.0
+            if flipped { delta = 1.0 }
+            let wheel = Events.Event.mouse_wheel(Events.MouseWheelEvent(
+                window:Window.Id(value:1 as uint32), mouse:Pointer.MouseId(value:1 as uint32),
+                delta:Math.Vec2(0.0, delta), integer_delta:Math.Vec2(0.0, delta),
+                position:point, flipped:flipped, timestamp:Events.Timestamp(nanoseconds:2 as uint)))
+            assert(session.handle(wheel))
+            session.update(1.0 / 120.0)
+            assert(session.model.inner.offset() > 0.0)
+            assert(session.model.vertical.offset() == 0.0)
+            drawing = session.drawing(width, 740)
+            let moved = button_label_position(drawing.commands(), "Action interne 1") ?? Math.Vec2()
+            assert(Math.abs(moved.y - point.y + session.model.inner.offset()) < 0.001)
+            print("SCROLL_HIT width=$(width) flipped=$(flipped) x=$(point.x) y=$(point.y) inner=$(session.model.inner.offset()) max=$(session.model.inner.maximum_offset()) moved_y=$(moved.y)")
+        }
+    }
 }
