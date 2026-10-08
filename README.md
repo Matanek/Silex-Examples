@@ -784,6 +784,20 @@ counter. From the workspace root run `silex run Silex-Examples/Sources/UITabs.sx
 Its compiled executable accepts `--cpu-check` to exercise the actual session
 without creating a window or GPU device.
 
+### Loaded spatial hinge
+
+A blue pendulum carries a yellow 2 kg payload one metre outside its rotation
+plane through a green fixed attachment. Explicit left/right targets, release
+under gravity and a mirrored payload give visible manual actions. It starts
+paused; Space and R also have labelled buttons.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/LoadedHinge/Main.sx --release
+```
+
+[Controls and scope](Sources/Physics3D/LoadedHinge/README.md) ·
+[Guide français](Sources/Physics3D/LoadedHinge/README.fr.md).
+
 [UIPanels](Sources/UIPanels.sx) combines collapsible forms, nested bounded splits
 and scrollable document/log panels. Edit and collapse the form, drag the blue
 separators, or focus them with Tab and use axis arrows, Shift for a 1 px step,
