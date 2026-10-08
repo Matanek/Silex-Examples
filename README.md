@@ -831,3 +831,14 @@ focus remains confined. From the workspace root run
 `--cpu-check` to click each popup anchor, submit/close its contents and open
 nested modals in its real session without a window or GPU. Persistent popup
 actions bind an owned model; they do not borrow locals from the view factory.
+
+
+[UISelect](Sources/UISelect.sx) demonstrates typed dropdown choices, tentative
+keyboard navigation, cancellation and 50,000 virtualized project options.
+Reorder or filter the source; programmatic changes update the label without
+echoing callbacks. Run `silex run Silex-Examples/Sources/UISelect.sx` from the
+workspace root. The executable accepts `--cpu-check` to exercise actual pointer
+and keyboard paths, source changes and resizing without a window or GPU.
+Use `--cpu-profile` to measure construction, closed/open idle frames and popup
+scrolling in the same session, also without a window or GPU. These timings cover
+UI update and Canvas command recording, not displayed GPU frames.
