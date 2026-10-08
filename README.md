@@ -86,6 +86,8 @@ Shift extends multiple selection. The builder counter demonstrates bounded row
 descriptions while scrolling. `--cpu-check` validates the actual session without
 creating a window.
 
+[Play and control a MIDI score](Sources/MIDIPlayer/README.md) with a customized timbre or an integrated instrument. The player owns its audio feeding in standalone and application modes; Space pauses/resumes, S stops and R replays.
+
 ## Organization
 
 All demonstrations live under [`Sources/`](Sources/). Focused technical
@@ -819,3 +821,13 @@ silex run Silex-Examples/Sources/Physics3D/RackServo/Main.sx --release
 
 [Controls and scope](Sources/Physics3D/RackServo/README.md) ·
 [Guide français](Sources/Physics3D/RackServo/README.fr.md).
+
+
+[UIOverlays](Sources/UIOverlays.sx) demonstrates four anchored popovers, a delayed
+tooltip, retained editing and nested modal dialogs. Resize or scroll an anchor;
+Escape closes the topmost surface, outside clicks dismiss popovers and modal
+focus remains confined. From the workspace root run
+`silex run Silex-Examples/Sources/UIOverlays.sx`. The executable accepts
+`--cpu-check` to click each popup anchor, submit/close its contents and open
+nested modals in its real session without a window or GPU. Persistent popup
+actions bind an owned model; they do not borrow locals from the view factory.
