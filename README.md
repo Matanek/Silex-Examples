@@ -790,3 +790,11 @@ The visible counter tracks user gestures; programmatic reset does not increment 
 From the workspace root run `silex run Silex-Examples/Sources/UIPanels.sx`.
 The compiled executable accepts `--cpu-check` to check the actual session
 without opening a window or creating a GPU device.
+
+
+[UIOverlays](Sources/UIOverlays.sx) demonstrates four anchored popovers, a delayed
+tooltip, retained editing and nested modal dialogs. Resize or scroll an anchor;
+Escape closes the topmost surface, outside clicks dismiss popovers and modal
+focus remains confined. From the workspace root run
+`silex run Silex-Examples/Sources/UIOverlays.sx`. The executable accepts
+`--cpu-check` to exercise its real session without a window or GPU.

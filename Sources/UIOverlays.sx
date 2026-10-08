@@ -1,0 +1,163 @@
+use GFX.Window.Cursor
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.UI
+use GFX.UI.Input as UIInput
+use GFX.Viewer
+use STD.Math
+use STD.Process
+use STD.Text
+
+func action(label:str, callback:func()) UI.Button {
+    var button = UI.Button(label, callback)
+    button.style.padding = UI.Insets(10.0)
+    button.style.background = Color.slate_700()
+    button.style.foreground = Color.slate_100()
+    button.style.radius = 6.0
+    return button
+}
+func card(children:UI.View[], width:float = 280.0) UI.Column {
+    var column = UI.Column(children)
+    column.style.width = width
+    column.style.padding = UI.Insets(16.0)
+    column.style.gap = 12.0
+    column.style.background = Color.slate_800()
+    column.style.foreground = Color.slate_100()
+    column.style.radius = 10.0
+    column.style.border = UI.Border(1.0, Color.slate_500())
+    return column
+}
+func gap(height:float) UI.Container {
+    var result = UI.Container(); result.style.height = height
+    return result
+}
+func painted(commands:Canvas.Command[]) str {
+    var result = ""
+    for command in commands {
+        match command {
+            text(value) => { result += value.value + "|" }
+            layer(value) => { result += painted(value.commands()) }
+            else => {}
+        }
+    }
+    return result
+}
+class OverlayWorkspace {
+    var left_top:UI.State<bool> = UI.State<bool>(false)
+    var right_top:UI.State<bool> = UI.State<bool>(false)
+    var left_bottom:UI.State<bool> = UI.State<bool>(false)
+    var right_bottom:UI.State<bool> = UI.State<bool>(false)
+    var modal:UI.State<bool> = UI.State<bool>(false)
+    var nested:UI.State<bool> = UI.State<bool>(false)
+    var anchor_visible:UI.State<bool> = UI.State<bool>(true)
+    var note:UI.State<str> = UI.State<str>("Note conservée")
+    var name:UI.State<str> = UI.State<str>("Projet Silex")
+    var actions:UI.State<float> = UI.State<float>(0.0)
+    func open_modal() { self.modal.set(true) }
+    func open_nested() { self.nested.set(true) }
+    func close_modal() { self.modal.set(false) }
+    func close_nested() { self.nested.set(false) }
+    func activate() { self.actions.set(self.actions.value() + 1.0) }
+    func popup(label:str, opened:UI.State<bool>, side:UI.PopupPlacement) UI.View {
+        var surface = card([UI.Text(label), UI.TextField(self.note),
+            action("Valider", func() { self.activate(); opened.set(false) }),
+            action("Fermer", func() { opened.set(false) })])
+        var anchor = action(label, func() { opened.set(!opened.value()) })
+        return UI.Popover(anchor, surface, opened, placement:side)
+    }
+    func edges(reads:UI.Reads) UI.View {
+        var space = UI.Container(); space.style.flex = 1.0
+        var top = UI.Row([self.popup("Haut gauche", self.left_top, UI.PopupPlacement.above), space,
+            self.popup("Haut droite", self.right_top, UI.PopupPlacement.right)])
+        top.style.gap = 12.0
+        var bottom = UI.Row([self.popup("Bas gauche", self.left_bottom, UI.PopupPlacement.left), space,
+            self.popup("Bas droite", self.right_bottom, UI.PopupPlacement.below)])
+        bottom.style.gap = 12.0
+        var result = UI.Column([top, gap(180.0), bottom])
+        result.style.hidden = !reads.read(self.anchor_visible)
+        return result
+    }
+    func describe() UI.View {
+        var heading = UI.Text("Superpositions — J3"); heading.style.font_size = 28.0
+        var hint = UI.Tooltip(action("Aide : survolez-moi", func() {}),
+            card([UI.Text("Infobulle après 0,5 seconde"), UI.Text("Elle ne prend pas le focus.")], width:300.0))
+        var controls = UI.Row([action("Ouvrir une modale", self.open_modal), hint,
+            action("Action du fond", self.activate)], wrap:true)
+        controls.style.gap = 12.0
+        var page = UI.Column([heading,
+            UI.Text("Ouvrez les quatre popovers · Échap ou clic extérieur ferme le sommet."),
+            controls, UI.Checkbox("Afficher les ancres", self.anchor_visible),
+            UI.Reactive(self.edges), UI.TextField("Saisie du fond"),
+            UI.Text(self.actions, format:func(value:float) str { return "Actions : $(value as int)" }),
+            UI.Text("Redimensionnez et faites défiler : le popup suit son ancre visible."), gap(250.0)])
+        page.style.padding = UI.Insets(20.0); page.style.gap = 16.0
+        page.style.foreground = Color.slate_100()
+        var base = UI.ScrollView(page, smooth_scroll:true)
+        base.style.background = Color.slate_950()
+        var modal_body = card([UI.Text("Dialogue modal"), UI.TextField(self.name),
+            UI.Text("Tab reste ici. Le fond est bloqué."),
+            action("Ouvrir une seconde modale", self.open_nested), action("Fermer", self.close_modal)], width:420.0)
+        var nested_body = card([UI.Text("Seconde modale"), UI.Text("Échap revient au premier dialogue."),
+            action("Fermer la seconde", self.close_nested)], width:360.0)
+        return UI.Dialog(base, UI.Dialog(modal_body, nested_body, self.nested), self.modal)
+    }
+}
+class OverlaySession:Canvas.Session {
+    var model:OverlayWorkspace = OverlayWorkspace()
+    private var current:UI.Runtime?
+    init() { self.current = UI.Runtime(self.model.describe()) }
+    func ui() UI.Runtime {
+        if var runtime = self.current { return runtime }
+        panic("overlay session has no runtime")
+    }
+    func drawing(width:int, height:int) Canvas { return self.ui().drawing(width, height) }
+    func update(delta:float) bool { return self.ui().update(delta) }
+    func handle(event:@Events.Event) bool { var runtime = self.ui(); return UIInput.handle(runtime, event) }
+    func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
+    func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func check_cpu() {
+        var drawing = self.drawing(1000, 760)
+        self.model.left_top.set(true)
+        drawing = self.drawing(1000, 760)
+        assert(self.ui().accepts_text_input())
+        assert(self.ui().insert_text("!"))
+        assert(self.ui().key_pressed(Keyboard.Key.escape))
+        self.model.open_modal()
+        drawing = self.drawing(1000, 760)
+        assert(self.ui().accepts_text_input())
+        assert(self.ui().insert_text("!"))
+        self.model.open_nested()
+        drawing = self.drawing(1000, 760)
+        assert(Text.contains(painted(drawing.commands()), "Seconde modale"))
+        assert(self.ui().key_pressed(Keyboard.Key.escape))
+        assert(self.model.modal.value() && !self.model.nested.value())
+        assert(self.ui().key_pressed(Keyboard.Key.escape))
+        assert(!self.model.modal.value())
+        let extents:Math.Vec2[] = [Math.Vec2(600.0, 500.0), Math.Vec2(1200.0, 800.0), Math.Vec2(1.0, 1.0)]
+        for size in extents { drawing = self.drawing(size.x as int, size.y as int) }
+        self.model.left_bottom.set(true)
+        drawing = self.drawing(1000, 760)
+        self.model.anchor_visible.set(false)
+        drawing = self.drawing(1000, 760)
+        assert(!self.model.left_bottom.value())
+        assert(self.model.note.value() == "Note conservée!")
+        assert(self.model.name.value() == "Projet Silex!")
+    }
+}
+func main() {
+    var cpu = false
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var session = OverlaySession()
+    if cpu { session.check_cpu(); print("UIOverlays CPU : OK"); return }
+    let code = Viewer.show(session, Viewer.CanvasSettings(width:1000, height:760,
+        title:"Silex — Superpositions J3"))
+    if code != 0 { panic("overlay viewer failed") }
+}
+test "actual overlay session opens edits stacks resizes and removes anchors without a window" {
+    var session = OverlaySession(); session.check_cpu()
+}
