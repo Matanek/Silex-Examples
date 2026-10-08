@@ -842,3 +842,17 @@ and keyboard paths, source changes and resizing without a window or GPU.
 Use `--cpu-profile` to measure construction, closed/open idle frames and popup
 scrolling in the same session, also without a window or GPU. These timings cover
 UI update and Canvas command recording, not displayed GPU frames.
+
+### Hinge stop impacts
+
+A paused manual scene lets you launch and reverse a free rotor or a position
+motor between two angular stops. Slow playback and retained before/after
+braking speeds make the first stop response observable; Space/R and explicit
+buttons control pause and reset.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/HingeImpact/Main.sx --release
+```
+
+[Controls and scope](Sources/Physics3D/HingeImpact/README.md) ·
+[Guide français](Sources/Physics3D/HingeImpact/README.fr.md).
