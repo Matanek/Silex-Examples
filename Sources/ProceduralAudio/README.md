@@ -8,10 +8,12 @@ bytes of musical commands; it embeds neither audio nor an instrument bank.
 
 To start with a single game sound, [RetroVictory.sx](../RetroVictory.sx) plays
 four C–E–G–C notes with a square wave and an 8-bit bitcrusher.
-The file shows how to prepare the sound once with `make_victory_sound(audio)`,
-then trigger it with `audio.play(victory)`. Change `notes` and `durations_ms`
-to adjust the melody; `audio.wait` only keeps the demo alive until playback ends,
-and should be omitted in a game.
+The file describes pitches with `Music.Key.C5`, `E5`, `G5`, `C6`, prepares
+the sound once with `melody.prepare(audio, using:timbre)` and triggers it with
+`audio.play(victory)`. Change the notes, their `beats` or the `tempo` to adjust
+the melody; `audio.wait` only keeps the demo alive until playback ends and
+should be omitted in a game. Convert text names with `Music.key("C#5")` or
+`Music.keys(["C5", "E5", "G5", "C6"])`.
 
 ## Listen and select a recipe
 
