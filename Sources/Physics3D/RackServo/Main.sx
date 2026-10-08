@@ -1,0 +1,196 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Scene3D
+use GFX.UI
+use GFX.Physics
+use Physics3D.RackServo.Model
+use Physics3D.RackServo.Controls
+use STD.Math
+use STD.Process
+
+class RackServoScene {
+    var model:Model.RackServoModel=Model.RackServoModel()
+    var controls:Controls.RackServoControls=Controls.RackServoControls()
+    var ui:UI.Session
+    var panel:ECS.Entity=ECS.Entity()
+    var pinion:ECS.Entity=ECS.Entity()
+    var rack:ECS.Entity=ECS.Entity()
+    var teeth:ECS.Entity[]=[]
+    var previous_pinion:Physics.Transform3D=Physics.Transform3D()
+    var previous_rack:Physics.Transform3D=Physics.Transform3D()
+    var accumulator:float=0.0
+    var telemetry:float=0.0
+    var smoke:bool=false
+    var smoke_time:float=0.0
+    var smoke_phase:int=0
+    var smoke_pauses:int=0
+    var smoke_pose:Physics.Transform3D=Physics.Transform3D()
+    init() { self.ui=UI.Session(self.controls.describe()) }
+}
+func visual(world:&Resources.World,meshes:&Resources.Meshes3D,position:Math.Vec3,size:Math.Vec3,color:Color) ECS.Entity {
+    let mesh=meshes.add(Scene3D.Geometry.Cube.make())
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:position,scale:size))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.45)))
+}
+func rebuild(state:&RackServoScene,simulation:&Application.Simulation) {
+    state.model.reset();state.previous_pinion=state.model.pinion!.transform();state.previous_rack=state.model.rack!.transform()
+    state.accumulator=0.0;state.telemetry=0.0;simulation.pause()
+    state.controls.feedback.set("Prêt — en pause ; choisissez gauche ou droite.")
+    state.controls.pause_text.set("Reprendre (Espace)")
+    state.controls.measure.set(state.model.measurement())
+}
+func perform(state:&RackServoScene,simulation:&Application.Simulation) {
+    while state.controls.resets>0 { state.controls.resets--;state.controls.command=0;rebuild(state,simulation) }
+    while state.controls.pauses>0 {
+        state.controls.pauses--
+        if simulation.is_paused() { simulation.resume();state.controls.feedback.set("Simulation reprise") }
+        else { simulation.pause();state.controls.feedback.set("En pause — Espace ou le bouton pour reprendre") }
+    }
+    if state.controls.command!=0 {
+        let command=copy state.controls.command;state.controls.command=0
+        if command==2 { state.model.aim(0.0);state.controls.feedback.set("Retour au centre — en cours") }
+        else {
+            state.model.aim(command as float)
+            var side="gauche";if command>0 { side="droite" }
+            state.controls.feedback.set("Commande n°$(state.model.commands) — cible à $(side) — en cours")
+        }
+        simulation.resume()
+    }
+    var label="Pause (Espace)";if simulation.is_paused() { label="Reprendre (Espace)" }
+    state.controls.pause_text.set(label)
+}
+func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&RackServoScene,simulation:&Application.Simulation) {
+    state.pinion=visual(world,meshes,Math.Vec3(),Math.Vec3(1.1,0.2,0.3),Color.bytes(245,186,82))
+    state.rack=visual(world,meshes,Math.Vec3(),Math.Vec3(3.0,0.2,0.35),Color.bytes(75,163,245))
+    var i=0;while i<16 {
+        var color=Color.bytes(245,186,82);if i>=8 { color=Color.bytes(75,163,245) }
+        state.teeth.append(visual(world,meshes,Math.Vec3(),Math.Vec3(0.15,0.2,0.3),color));i++
+    }
+    visual(world,meshes,Math.Vec3(0.0,2.4,-0.3),Math.Vec3(0.2),Color.bytes(225,225,225))
+    visual(world,meshes,Math.Vec3(0.0,1.45,-0.2),Math.Vec3(4.4,0.08,0.1),Color.bytes(100,235,160))
+    visual(world,meshes,Math.Vec3(-2.15,1.8,0.0),Math.Vec3(0.08,0.4,0.5),Color.bytes(100,235,160))
+    visual(world,meshes,Math.Vec3(2.15,1.8,0.0),Math.Vec3(0.08,0.4,0.5),Color.bytes(100,235,160))
+    visual(world,meshes,Math.Vec3(0.0,-0.15,0.0),Math.Vec3(10.0,0.2,8.0),Color.bytes(52,70,87))
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.5)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance=40.0))
+    rebuild(state,simulation)
+    state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform(position:Math.Vec2()))
+        ..with(Scene2D.Canvas(state.ui.drawing(940,320),940,320) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+            ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+}
+func update(world:&Resources.World,input:@Resources.InputState,state:&RackServoScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if !state.smoke {
+        for event in input.events() { if !state.controls.handle(event) { let handled=state.ui.handle(event) } }
+        perform(state,simulation)
+    } else {
+        if state.smoke_time==0.0 && simulation.is_paused() { state.controls.right();perform(state,simulation) }
+        if state.smoke_time>=1.0 && state.smoke_pauses==0 {
+            state.controls.pause();perform(state,simulation);state.smoke_pose=state.model.pinion!.transform();state.smoke_pauses=1
+        } else if state.smoke_pauses>0 && state.smoke_pauses<8 {
+            assert(simulation.is_paused() && simulation.delta()==0.0 && state.model.pinion!.transform()==state.smoke_pose)
+            state.smoke_pauses++
+        } else if state.smoke_pauses==8 { state.controls.pause();perform(state,simulation);state.smoke_pauses++ }
+        if state.smoke_time>=3.0 && state.smoke_phase==0 {
+            state.model.verify_settled();state.controls.left();perform(state,simulation);state.smoke_phase=1
+        } else if state.smoke_time>=6.0 && state.smoke_phase==1 {
+            state.model.verify_settled();state.controls.center();perform(state,simulation);state.smoke_phase=2
+        }
+    }
+    state.accumulator+=simulation.delta()
+    let delta=1.0/120.0
+    while state.accumulator>=delta {
+        state.previous_pinion=state.model.pinion!.transform();state.previous_rack=state.model.rack!.transform()
+        state.model.world.step(delta);state.accumulator-=delta
+        if state.smoke { state.model.verify();state.smoke_time+=delta }
+    }
+    state.telemetry+=simulation.delta()
+    if state.telemetry>=0.1 { state.telemetry=0.0;state.controls.measure.set(state.model.measurement()) }
+    if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(p:&Scene2D.Canvas) { p.replace(state.ui.drawing(940,320)) }) }
+    if state.smoke && state.smoke_time>=9.0 {
+        state.model.verify_settled();print("Rack servo smoke: both rail stops, reversal, center, pause/resume and rendered poses verified")
+        controller.stop()
+    }
+}
+func blended(first:Physics.Transform3D,second:Physics.Transform3D,alpha:float) Physics.Transform3D {
+    var rotation=second.rotation;if first.rotation.dot(rotation)<0.0 { rotation=rotation.multiply(-1.0) }
+    return Physics.Transform3D(first.position.lerp(second.position,alpha),
+        first.rotation.multiply(1.0-alpha).add(rotation.multiply(alpha)).normalized())
+}
+func place(world:&Resources.World,entity:ECS.Entity,pose:Physics.Transform3D,size:Math.Vec3) {
+    world.update<Components.Transform3D>(entity,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation;t.scale=size })
+}
+func render(world:&Resources.World,state:&RackServoScene) {
+    let alpha=Math.clamp(state.accumulator*120.0,0.0,1.0)
+    let pinion=blended(state.previous_pinion,state.model.pinion!.transform(),alpha)
+    let rack=blended(state.previous_rack,state.model.rack!.transform(),alpha)
+    place(world,state.pinion,pinion,Math.Vec3(1.1,0.2,0.3));place(world,state.rack,rack,Math.Vec3(3.0,0.2,0.35))
+    var i=0;while i<8 {
+        let angle=2.0*Math.pi()*(i as float)/8.0
+        let tooth_offset=Math.Vec3(0.46*Math.cos(angle),0.46*Math.sin(angle),0.0)
+        place(world,state.teeth[i],Physics.Transform3D(pinion.point(tooth_offset),pinion.rotation.multiply(Math.Quat.angle_axis(angle,Math.Vec3(0.0,0.0,1.0)))),Math.Vec3(0.18,0.22,0.3))
+        place(world,state.teeth[8+i],Physics.Transform3D(rack.point(Math.Vec3(-1.33+0.38*(i as float),0.17,0.0)),rack.rotation),Math.Vec3(0.15,0.2,0.3))
+        i++
+    }
+    if state.smoke {
+        let displayed=world.get<Components.Transform3D>(state.pinion)
+        assert(displayed.position.nearly_equal(pinion.position,0.00001) && displayed.scale==Math.Vec3(1.1,0.2,0.3))
+        let weight=world.get<Components.Transform3D>(state.rack)
+        assert(weight.position.nearly_equal(rack.position,0.00001))
+    }
+}
+func main() {
+    var state=RackServoScene()
+    match Process.arguments() {
+        success(arguments)=> { for argument in arguments {
+            if argument=="--controls-check" { verify_interactions();print("Rack servo: buttons, Space/R, both stops, center and reset verified");return }
+            if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
+        } }
+        failure(error)=> { panic(error.detail) }
+    }
+    var title="Servo de crémaillère — commandes manuelles"
+    if state.smoke { title="TEST AUTOMATIQUE — crémaillère — fermeture à la fin" }
+    Application() ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,2.4,0.0)
+            ..vertical_fov=0.9 ..distance=8.0 ..yaw=Math.radians(-10.0) ..pitch=Math.radians(-8.0)))
+        ..add_system(Application.Schedule.startup,startup)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}
+func step_for_check(state:&RackServoScene) {
+    var i=0;while i<360 { state.model.world.step(1.0/120.0);state.model.verify();i++ }
+    state.model.verify_settled();state.accumulator=0.0
+    state.previous_pinion=state.model.pinion!.transform();state.previous_rack=state.model.rack!.transform()
+}
+func verify_interactions() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=RackServoScene();var simulation=Application.Simulation()
+    startup(world,meshes,state,simulation);assert(simulation.is_paused())
+    var drawing=state.ui.drawing(940,320);assert(drawing.command_count()>0)
+    let initial=state.model.rack!.position()
+    Controls.click(state.ui,290.0,110.0);perform(state,simulation);assert(!simulation.is_paused() && state.model.commands==1)
+    step_for_check(state);let right=state.model.rack!.position();assert(right.x-initial.x>0.59)
+    render(world,state);assert(world.get<Components.Transform3D>(state.rack).position==right)
+    assert(state.controls.handle(Controls.key_event(Input.Key.space,32 as uint32)));perform(state,simulation);assert(simulation.is_paused())
+    assert(state.controls.handle(Controls.key_event(Input.Key.space,32 as uint32,true)));perform(state,simulation);assert(simulation.is_paused())
+    let changed=state.ui.update(0.0);var refreshed=state.ui.drawing(940,320)
+    Controls.click(state.ui,100.0,110.0);perform(state,simulation);assert(!simulation.is_paused())
+    step_for_check(state);assert(right.x-state.model.rack!.position().x>1.19)
+    let moved=state.ui.update(0.0);var layout=state.ui.drawing(940,320)
+    Controls.click(state.ui,300.0,160.0);perform(state,simulation);assert(simulation.is_paused())
+    Controls.click(state.ui,490.0,110.0);perform(state,simulation);assert(!simulation.is_paused() && state.model.target==0.0)
+    step_for_check(state);assert(Math.abs(state.model.rack!.position().x)<0.002)
+    assert(state.controls.handle(Controls.key_event(Input.Key.p,114 as uint32)));perform(state,simulation)
+    assert(simulation.is_paused() && state.model.rack!.position()==initial)
+    render(world,state);assert(world.get<Components.Transform3D>(state.rack).position==initial)
+    let reset=state.ui.update(0.0);var reset_layout=state.ui.drawing(940,320)
+    Controls.click(state.ui,90.0,160.0);perform(state,simulation);assert(simulation.is_paused() && state.model.commands==0)
+}
+test "rack servo controls reach both stops, center and reset with visible rendered motion" { verify_interactions() }
