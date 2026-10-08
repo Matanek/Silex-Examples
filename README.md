@@ -783,3 +783,12 @@ creates a fresh editor. Programmatic choices do not increment the user-change
 counter. From the workspace root run `silex run Silex-Examples/Sources/UITabs.sx`.
 Its compiled executable accepts `--cpu-check` to exercise the actual session
 without creating a window or GPU device.
+
+[UIPanels](Sources/UIPanels.sx) combines collapsible forms, nested bounded splits
+and scrollable document/log panels. Edit and collapse the form, drag the blue
+separators, or focus them with Tab and use axis arrows, Shift for a 1 px step,
+and Home/End for bounds. Window resize preserves preferred sizes and edits.
+The visible counter tracks user gestures; programmatic reset does not increment it.
+From the workspace root run `silex run Silex-Examples/Sources/UIPanels.sx`.
+The compiled executable accepts `--cpu-check` to check the actual session
+without opening a window or creating a GPU device.

@@ -1,0 +1,205 @@
+use GFX.Window.Cursor
+use GFX.Window
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.UI
+use GFX.UI.Input as UIInput
+use GFX.Viewer
+use STD.Process
+use STD.Text
+
+func caption(value:str, size:float = 16.0) UI.Text {
+    var text = UI.Text(value)
+    text.style.font_size = size
+    return text
+}
+func action(label:str, callback:func()) UI.Button {
+    var button = UI.Button(label, callback)
+    button.style.padding = UI.Insets(8.0)
+    button.style.background = Color.slate_700()
+    button.style.radius = 6.0
+    return button
+}
+func panel_text(commands:Canvas.Command[]) str {
+    var text = ""
+    for command in commands {
+        match command {
+            text(value) => { text += value.value }
+            layer(value) => { text += panel_text(value.commands()) }
+            else => {}
+        }
+    }
+    return text
+}
+class WorkspacePanels {
+    var expanded:UI.State<bool> = UI.State<bool>(true)
+    var nested:UI.State<bool> = UI.State<bool>(true)
+    var width:UI.State<float> = UI.State<float>(280.0)
+    var height:UI.State<float> = UI.State<float>(200.0)
+    var changes:UI.State<int> = UI.State<int>(0)
+    var actions:UI.State<int> = UI.State<int>(0)
+    var note:UI.State<str> = UI.State<str>("Éditez cette note, puis réduisez les panneaux ou la fenêtre.")
+    var title_focus:UI.Focus = UI.Focus()
+    var field_focus:UI.Focus = UI.Focus()
+    var horizontal_focus:UI.Focus = UI.Focus()
+    var vertical_focus:UI.Focus = UI.Focus()
+
+    func resized(value:float) { self.changes.set(self.changes.value() + 1) }
+    func folded(value:bool) { self.changes.set(self.changes.value() + 1) }
+    func toggle() { self.expanded.set(!self.expanded.value()) }
+    func reset() { self.width.set(280.0); self.height.set(200.0) }
+    func focus_horizontal() { self.horizontal_focus.request() }
+    func focus_vertical() { self.vertical_focus.request() }
+    func activated() { self.actions.set(self.actions.value() + 1) }
+    func pane(content:UI.View) UI.View {
+        var column = UI.Column([content])
+        column.style.background = Color.slate_800()
+        column.style.padding = UI.Insets(14.0)
+        column.style.radius = 6.0
+        var viewport = UI.ScrollView(column, smooth_scroll:true)
+        viewport.style.background = Color.slate_800()
+        return viewport
+    }
+    func describe_workspace() UI.View {
+        var field = UI.TextField("Atelier Silex")
+        field.style.background = Color.slate_900()
+        field.style.padding = UI.Insets(10.0)
+        var inner = UI.CollapsiblePanel("Options", UI.Column([
+            UI.TextField("Saisie conservée dans le panneau imbriqué"),
+            action("Action du panneau", self.activated)
+        ]), self.nested, self.folded)
+        inner.header_style.background = Color.slate_700()
+        inner.header_style.padding = UI.Insets(8.0)
+        inner.style.gap = 10.0
+        var details = UI.Column([
+            caption("Nom du projet"), UI.FocusTarget(self.field_focus, field),
+            UI.Separator(), inner,
+            caption("Repliez puis ouvrez : texte et sélection restent attachés au champ.")
+        ])
+        details.style.gap = 14.0
+        var panel = UI.CollapsiblePanel("Projet", details, self.expanded, self.folded)
+        panel.header_style.background = Color.slate_700()
+        panel.header_style.padding = UI.Insets(10.0)
+        panel.header_style.radius = 5.0
+        panel.style.gap = 14.0
+        var area = UI.TextArea(self.note)
+        area.style.height = 130.0
+        area.style.background = Color.slate_900()
+        area.style.padding = UI.Insets(10.0)
+        var document = self.pane(UI.Column([caption("Document", 22.0), area]))
+        var logs:UI.View[] = [caption("Journal défilable", 20.0)]
+        var index = 1
+        while index <= 20 { logs.append(caption("Ligne du journal $(index)")); index++ }
+        var log = UI.Column(logs)
+        log.style.gap = 10.0
+        var vertical = UI.SplitView(document, self.pane(log), self.height,
+            axis:UI.Flow.vertical, minimum_first:120.0, minimum_second:100.0,
+            maximum_first:320.0, separator_size:12.0, on_resize:self.resized)
+        vertical.appearance = UI.SplitterAppearance(color:null)
+        var split = UI.SplitView(self.pane(UI.FocusTarget(self.title_focus, panel)),
+            UI.FocusTarget(self.vertical_focus, vertical), self.width,
+            minimum_first:180.0, minimum_second:240.0, maximum_first:420.0,
+            separator_size:12.0, on_resize:self.resized)
+        split.appearance = UI.SplitterAppearance(thickness:1.0, active_thickness:2.0)
+        split.style.height = 470.0
+        return UI.FocusTarget(self.horizontal_focus, split)
+    }
+    func status(reads:UI.Reads) UI.View {
+        let width = reads.read(self.width)
+        let height = reads.read(self.height)
+        let changes = reads.read(self.changes)
+        let actions = reads.read(self.actions)
+        return caption("Préférences : $(width) × $(height) px · gestes : $(changes) · actions : $(actions)")
+    }
+    func describe() UI.View {
+        var controls = UI.Row([
+            action("Replier / ouvrir par code", self.toggle), action("Tailles initiales", self.reset),
+            action("Focus séparateur vertical", self.focus_horizontal),
+            action("Focus séparateur horizontal", self.focus_vertical)
+        ], wrap:true)
+        controls.style.gap = 8.0
+        var content = UI.Column([
+            caption("Panneaux repliables et redimensionnables — J2", 26.0),
+            caption("Glissez les séparateurs fins : survol coloré et curseur adapté · Tab · flèches de l’axe · Maj : 1 px · Début / Fin"),
+            controls, self.describe_workspace(), UI.Reactive(self.status),
+            caption("Réduisez puis agrandissez la fenêtre : les tailles préférées sont conservées.")
+        ])
+        content.style.gap = 16.0
+        content.style.padding = UI.Insets(20.0)
+        content.style.foreground = Color.slate_100()
+        var viewport = UI.ScrollView(content, smooth_scroll:true)
+        viewport.style.background = Color.slate_950()
+        return viewport
+    }
+}
+class PanelsSession:Canvas.Session {
+    var model:WorkspacePanels = WorkspacePanels()
+    private var runtime:UI.Runtime?
+    init() { self.runtime = UI.Runtime(self.model.describe()) }
+    func ui() UI.Runtime {
+        if var runtime = self.runtime { return runtime }
+        panic("panels session has no runtime")
+    }
+    func drawing(width:int, height:int) Canvas { return self.ui().drawing(width, height) }
+    func update(delta:float) bool { return self.ui().update(delta) }
+    func handle(event:@Events.Event) bool { var runtime = self.ui(); return UIInput.handle(runtime, event) }
+    func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
+    func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func check_cpu() {
+        var drawing = self.drawing(1000, 740)
+        self.model.field_focus.request()
+        self.update(0.0)
+        assert(self.ui().accepts_text_input())
+        assert(self.ui().insert_text("!"))
+        self.model.expanded.set(false)
+        drawing = self.drawing(1000, 740)
+        assert(!self.ui().accepts_text_input())
+        assert(!Text.contains(panel_text(drawing.commands()), "Atelier Silex!"))
+        assert(self.ui().key_pressed(Keyboard.Key.enter))
+        assert(self.model.expanded.value())
+        drawing = self.drawing(1000, 740)
+        assert(Text.contains(panel_text(drawing.commands()), "Atelier Silex!"))
+        self.model.focus_horizontal()
+        self.update(0.0)
+        assert(self.ui().key_pressed(Keyboard.Key.end))
+        assert(self.model.width.value() == 420.0)
+        assert(self.ui().key_pressed(Keyboard.Key.home))
+        assert(self.model.width.value() == 180.0)
+        self.model.focus_vertical()
+        self.update(0.0)
+        assert(self.ui().key_pressed(Keyboard.Key.down))
+        assert(self.model.height.value() == 210.0)
+        self.model.reset()
+        let changes = self.model.changes.value()
+        for width in [1000, 420, 100, 1, 1000] {
+            drawing = self.drawing(width, 740)
+            assert(self.model.width.value() == 280.0 && self.model.height.value() == 200.0)
+            print("PANELS width=$(width) : OK")
+        }
+        assert(self.model.changes.value() == changes)
+        self.model.field_focus.request()
+        self.update(0.0)
+        assert(self.ui().accepts_text_input())
+        assert(self.ui().insert_text("?"))
+        drawing = self.drawing(1000, 740)
+        assert(Text.contains(panel_text(drawing.commands()), "Atelier Silex!?"))
+    }
+}
+func main() {
+    var cpu = false
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var session = PanelsSession()
+    if cpu { session.check_cpu(); print("UIPanels CPU : OK"); return }
+    let code = Viewer.show(session, Viewer.CanvasSettings(width:1000, height:740,
+        title:"Silex — Panneaux repliables et séparateurs J2"))
+    if code != 0 { panic("panels viewer failed") }
+}
+test "actual panels session retains edits focus and size preferences through collapse and resize without a window" {
+    var session = PanelsSession()
+    session.check_cpu()
+}

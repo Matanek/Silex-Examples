@@ -1,3 +1,5 @@
+use GFX.Window.Cursor
+use GFX.Window
 use GFX.Canvas
 use GFX.Color
 use GFX.Input.Events
@@ -167,6 +169,7 @@ class TabsSession:Canvas.Session {
         var runtime = self.ui()
         return UIInput.handle(runtime, event)
     }
+    func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
     func accepts_text_input() bool { return self.ui().accepts_text_input() }
     func check_cpu() {
         var drawing = self.drawing(960, 700)

@@ -1,3 +1,4 @@
+use GFX.Window.Cursor
 use GFX.Canvas
 use GFX.Input.Events
 use GFX.Input.Keyboard
@@ -32,6 +33,8 @@ public class CalculatorSession:Canvas.Session {
         }
         return self.ui.handle(event)
     }
+
+    func pointer_cursor() Cursor { return self.ui.pointer_cursor() }
 
     func accepts_text_input() bool { return self.ui.accepts_text_input() }
 
