@@ -1,3 +1,5 @@
+use GFX.Window.Cursor
+use GFX.Window
 use GFX.Canvas
 use GFX.Color
 use GFX.Input.Events
@@ -219,6 +221,7 @@ class FormSession:Canvas.Session {
         return self.ui.update(delta)
     }
     func handle(event:@Events.Event) bool { return self.ui.handle(event) }
+    func pointer_cursor() Cursor { return self.ui.pointer_cursor() }
     func accepts_text_input() bool { return self.ui.accepts_text_input() }
     func finished() bool { return self.smoke && self.elapsed >= 1.0 }
 }
