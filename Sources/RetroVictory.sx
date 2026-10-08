@@ -11,7 +11,7 @@ func main() {
 
     var timbre = Music.Timbre.retro()
     // Exemple de personnalisation : timbre.release_seconds = 0.07
-    let victory = try melody.prepare(audio, timbre) else error { panic(error.detail) }
+    let victory = try melody.prepare(audio, using:timbre) else error { panic(error.detail) }
     let playing = audio.play(victory) // Préparer au chargement, déclencher à la victoire.
     audio.wait(playing)              // Seulement pour cette démo ; ne pas attendre en jeu.
 }

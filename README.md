@@ -8,7 +8,7 @@ owning package.
 
 Start with the [retro victory sound](Sources/RetroVictory.sx): four C–E–G–C
 notes written in beats at 187.5 BPM with `GFX.Audio.Music`. Choose a customizable
-retro timbre, then call `melody.prepare(audio)` once at game loading time and
+retro timbre, then call `melody.prepare(audio, using:timbre)` once at game loading time and
 `audio.play(victory)` when the player wins. No application PCM buffer is needed.
 The melody lasts 0.88 seconds, followed by a 30 ms tail. Change the `Music.Note`
 values and tempo to adjust the melody, or modify the timbre before preparation.
