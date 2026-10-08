@@ -9,10 +9,12 @@ banque d’instruments n’est embarqué.
 
 Pour commencer avec un seul son de jeu, [RetroVictory.sx](../RetroVictory.sx)
 joue quatre notes Do–Mi–Sol–Do avec une onde carrée et un bitcrusher 8 bits.
-Le fichier montre comment préparer le son une fois avec `make_victory_sound(audio)`,
-puis le déclencher avec `audio.play(victory)`. Modifier `notes` et `durations_ms`
-change la mélodie ; `audio.wait` sert seulement à laisser finir la démo,
-pas à bloquer le jeu.
+Le fichier décrit les hauteurs avec `Music.Key.C5`, `E5`, `G5`, `C6`, puis
+prépare le son une fois avec `melody.prepare(audio, using:timbre)` et le déclenche
+avec `audio.play(victory)`. Modifier les notes, leurs `beats` ou le `tempo` change
+la mélodie ; `audio.wait` sert seulement à laisser finir la démo, pas à bloquer
+le jeu. Les noms textuels se convertissent avec `Music.key("C#5")` ou
+`Music.keys(["C5", "E5", "G5", "C6"])`.
 
 ## Écouter et choisir une recette
 

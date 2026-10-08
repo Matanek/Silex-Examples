@@ -5,8 +5,8 @@ use GFX.Audio.Music
 func main() {
     var audio = Audio()
     var melody = try Music.Melody.create([
-        Music.Note(key:72, beats:0.5), Music.Note(key:76, beats:0.5),
-        Music.Note(key:79, beats:0.5), Music.Note(key:84, beats:1.25),
+        Music.Note(key:Music.Key.C5, beats:0.5), Music.Note(key:Music.Key.E5, beats:0.5),
+        Music.Note(key:Music.Key.G5, beats:0.5), Music.Note(key:Music.Key.C6, beats:1.25),
     ], tempo:187.5) else error { panic(error.detail) }
 
     var timbre = Music.Timbre.retro()
