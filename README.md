@@ -756,3 +756,12 @@ Reset restore the initial paused pose; actions resume from pause. Space and
 the Pause / Resume button share pause; R resets; Escape closes.
 [Controls and scope](Sources/Physics3D/Articulations/README.md) ·
 [Guide français](Sources/Physics3D/Articulations/README.fr.md).
+
+[UITabs](Sources/UITabs.sx) keeps panel edits and text selection while switching
+or reordering tabs. Add and close documents, enable the disabled Help tab, and
+resize while editing. The bar is one Tab stop; arrows and Home/End select a tab.
+Closing an active panel returns its focus to the bar; restoring a removed panel
+creates a fresh editor. Programmatic choices do not increment the user-change
+counter. From the workspace root run `silex run Silex-Examples/Sources/UITabs.sx`.
+Its compiled executable accepts `--cpu-check` to exercise the actual session
+without creating a window or GPU device.

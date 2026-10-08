@@ -9,6 +9,7 @@ synchronisation automatique.
 
 | Démonstration | Source actuelle | Origine |
 | --- | --- | --- |
+| Onglets et panneaux conservés | `Sources/UITabs.sx` | création propre au catalogue pour Tabs : saisie retenue, navigation, réordonnement et fermeture |
 | Analog clock | `Sources/AnalogClock.sx` | `GFX.Scene2D/Examples/Clock.sx` |
 | Application command console | `Sources/ApplicationCommandConsole.sx` | `GFX.UI.Terminal/Examples/ApplicationConsole.sx` |
 | Application GPU triangle | `Sources/ApplicationGPUTriangle/Main.sx` | `GFX.GPU/Examples/TriangleApplication.sx` |

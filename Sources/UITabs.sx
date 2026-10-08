@@ -1,0 +1,242 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.UI
+use GFX.UI.Input as UIInput
+use GFX.Viewer
+use STD.Process
+use STD.Text
+
+func caption(value:str, size:float = 16.0) UI.Text {
+    var text = UI.Text(value)
+    text.style.font_size = size
+    return text
+}
+func action(label:str, callback:func()) UI.Button {
+    var button = UI.Button(label, callback)
+    button.style.padding = UI.Insets(8.0)
+    button.style.background = Color.slate_700()
+    button.style.radius = 6.0
+    return button
+}
+func command_text(commands:Canvas.Command[]) str {
+    var text = ""
+    for command in commands {
+        match command {
+            text(value) => { text += value.value }
+            layer(value) => { text += command_text(value.commands()) }
+            else => {}
+        }
+    }
+    return text
+}
+class WorkspaceTabs {
+    var selected:UI.State<str?> = UI.State<str?>("project")
+    var reversed:UI.State<bool> = UI.State<bool>(false)
+    var help_enabled:UI.State<bool> = UI.State<bool>(false)
+    var extra:UI.State<int> = UI.State<int>(0)
+    var closed:UI.State<str[]> = UI.State<str[]>([])
+    var changes:UI.State<int> = UI.State<int>(0)
+    var note:UI.State<str> = UI.State<str>("Cette note est liée au modèle.")
+    var bar:UI.Focus = UI.Focus()
+    var project_field:UI.Focus = UI.Focus()
+
+    func changed(key:str) { self.changes.set(self.changes.value() + 1) }
+    func reverse() { self.reversed.set(!self.reversed.value()) }
+    func add() {
+        self.extra.set(self.extra.value() + 1)
+        self.selected.set("extra-$(self.extra.value())")
+    }
+    func restore() { self.closed.set([]); self.selected.set("project") }
+    func choose_project() { self.selected.set("project") }
+    func focus_bar() { self.bar.request() }
+    func is_closed(key:str, closed:str[]) bool {
+        for value in closed { if value == key { return true } }
+        return false
+    }
+    func close() {
+        if let key = self.selected.value() {
+            var closed = self.closed.value()
+            if !self.is_closed(key, closed) { closed.append(key); self.closed.set(closed) }
+            self.selected.set(null)
+            for candidate in ["project", "notes"] {
+                if !self.is_closed(candidate, closed) { self.selected.set(candidate); return }
+            }
+            var index = 1
+            while index <= self.extra.value() {
+                let candidate = "extra-$(index)"
+                if !self.is_closed(candidate, closed) { self.selected.set(candidate); return }
+                index++
+            }
+        }
+    }
+    func panel(title:str, content:UI.View) UI.View {
+        var panel = UI.Column([caption(title, 22.0), content])
+        panel.style.padding = UI.Insets(16.0)
+        panel.style.gap = 14.0
+        panel.style.background = Color.slate_800()
+        panel.style.radius = 8.0
+        return panel
+    }
+    func describe_tabs(reads:UI.Reads) UI.View {
+        let closed = reads.read(self.closed)
+        let extra = reads.read(self.extra)
+        let enabled = reads.read(self.help_enabled)
+        let reversed = reads.read(self.reversed)
+        var values:UI.Tab[] = []
+        if !self.is_closed("project", closed) {
+            var field = UI.TextField("Atelier Silex")
+            field.style.background = Color.slate_900()
+            field.style.padding = UI.Insets(10.0)
+            values.append(UI.Tab("project", "Projet", self.panel("Nom du projet — saisie conservée", UI.Column([
+                UI.FocusTarget(self.project_field, field),
+                caption("Éditez, sélectionnez du texte, puis changez d’onglet et revenez."),
+                caption("Inverser l’ordre conserve cette saisie. Fermer puis restaurer recrée le panneau.")
+            ]))))
+        }
+        if !self.is_closed("notes", closed) {
+            var area = UI.TextArea(self.note)
+            area.style.background = Color.slate_900()
+            area.style.padding = UI.Insets(10.0)
+            area.style.height = 160.0
+            values.append(UI.Tab("notes", "Notes", self.panel("Note liée au modèle", area)))
+        }
+        if !self.is_closed("help", closed) {
+            values.append(UI.Tab("help", "Aide", self.panel("Aide", caption("Tab atteint la barre puis le panneau actif. Échap libère le focus.")), !enabled))
+        }
+        var index = 1
+        while index <= extra {
+            let key = "extra-$(index)"
+            if !self.is_closed(key, closed) {
+                values.append(UI.Tab(key, "Document $(index)", self.panel("Document $(index)", UI.TextField("Texte du document $(index)"))))
+            }
+            index++
+        }
+        if reversed {
+            var ordered:UI.Tab[] = []
+            var position = values.count() - 1
+            while position >= 0 { ordered.append(values[position]); position-- }
+            values = ordered
+        }
+        var tabs = UI.Tabs(values, self.selected, self.changed)
+        tabs.style.gap = 12.0
+        tabs.style.font_size = 20.0
+        return UI.FocusTarget(self.bar, tabs)
+    }
+    func status(reads:UI.Reads) UI.View {
+        let selection = reads.read(self.selected)
+        let changes = reads.read(self.changes)
+        var name = "aucun"
+        if let key = selection { name = key }
+        return caption("Panneau : $(name) · changements utilisateur : $(changes)")
+    }
+    func describe() UI.View {
+        var controls = UI.Row([
+            action("Inverser l’ordre", self.reverse), action("Ajouter", self.add),
+            action("Fermer l’actif", self.close), action("Restaurer", self.restore),
+            action("Projet par code", self.choose_project), action("Focus onglets", self.focus_bar)
+        ], wrap:true)
+        controls.style.gap = 8.0
+        var content = UI.Column([
+            caption("Onglets et panneaux conservés — J2", 26.0),
+            caption("Tab / Maj+Tab · flèches · Début / Fin · Espace / Entrée"),
+            controls, UI.Checkbox("Autoriser Aide", self.help_enabled),
+            UI.Reactive(self.describe_tabs), UI.Reactive(self.status),
+            caption("Les choix par code ne changent pas le compteur. Redimensionnez pendant la saisie.")
+        ])
+        content.style.gap = 16.0
+        content.style.padding = UI.Insets(20.0)
+        content.style.foreground = Color.slate_100()
+        var viewport = UI.ScrollView(content, smooth_scroll:true)
+        viewport.style.background = Color.slate_950()
+        return viewport
+    }
+}
+class TabsSession:Canvas.Session {
+    var model:WorkspaceTabs = WorkspaceTabs()
+    private var runtime:UI.Runtime?
+    init() { self.runtime = UI.Runtime(self.model.describe()) }
+    func ui() UI.Runtime {
+        if var runtime = self.runtime { return runtime }
+        panic("tabs session has no runtime")
+    }
+    func drawing(width:int, height:int) Canvas { return self.ui().drawing(width, height) }
+    func update(delta:float) bool { return self.ui().update(delta) }
+    func handle(event:@Events.Event) bool {
+        var runtime = self.ui()
+        return UIInput.handle(runtime, event)
+    }
+    func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func check_cpu() {
+        var drawing = self.drawing(960, 700)
+        self.model.project_field.request()
+        assert(self.update(0.0))
+        assert(self.ui().accepts_text_input())
+        assert(self.ui().insert_text("!"))
+        self.model.selected.set("notes")
+        drawing = self.drawing(960, 700)
+        assert(!self.ui().accepts_text_input())
+        self.model.reverse()
+        self.model.choose_project()
+        drawing = self.drawing(960, 700)
+        assert(Text.contains(command_text(drawing.commands()), "Atelier Silex!"))
+        for width in [960, 420, 100, 1, 960] {
+            drawing = self.drawing(width, 700)
+            self.model.focus_bar()
+            self.update(0.0)
+            let before = self.model.changes.value()
+            assert(self.ui().key_pressed(Keyboard.Key.home))
+            assert(self.model.selected.value() == "notes")
+            assert(self.ui().key_pressed(Keyboard.Key.end))
+            assert(self.model.selected.value() == "project")
+            assert(self.model.changes.value() == before + 2)
+            drawing = self.drawing(width, 700)
+            print("TABS width=$(width) : OK")
+        }
+        self.model.add()
+        drawing = self.drawing(960, 700)
+        assert(Text.contains(command_text(drawing.commands()), "Texte du document 1"))
+        self.model.close()
+        drawing = self.drawing(960, 700)
+        assert(self.model.selected.value() == "project")
+        self.model.project_field.request()
+        self.update(0.0)
+        assert(self.ui().accepts_text_input())
+        self.model.close()
+        drawing = self.drawing(960, 700)
+        assert(self.model.selected.value() == "notes" && !self.ui().accepts_text_input())
+        self.model.close()
+        drawing = self.drawing(960, 700)
+        assert(self.model.selected.value() == null)
+        self.model.help_enabled.set(true)
+        self.model.focus_bar()
+        drawing = self.drawing(960, 700)
+        assert(self.ui().key_pressed(Keyboard.Key.space))
+        assert(self.model.selected.value() == "help")
+        self.model.close()
+        drawing = self.drawing(960, 700)
+        self.model.restore()
+        drawing = self.drawing(960, 700)
+        assert(Text.contains(command_text(drawing.commands()), "Atelier Silex"))
+        assert(!Text.contains(command_text(drawing.commands()), "Atelier Silex!"))
+        if self.update(0.0) { drawing = self.drawing(960, 700) }
+        assert(!self.update(0.0))
+    }
+}
+func main() {
+    var cpu = false
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var session = TabsSession()
+    if cpu { session.check_cpu(); print("UITabs CPU : OK"); return }
+    let code = Viewer.show(session,
+        Viewer.CanvasSettings(width:960, height:700, title:"Silex — Onglets conservés J2"))
+    if code != 0 { panic("tabs viewer failed") }
+}
+test "actual tabs session retains edits across selection order close and resize without a window" {
+    var session = TabsSession()
+    session.check_cpu()
+}
