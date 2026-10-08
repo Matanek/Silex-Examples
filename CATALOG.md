@@ -9,6 +9,7 @@ synchronisation automatique.
 
 | Démonstration | Source actuelle | Origine |
 | --- | --- | --- |
+| Charnière avec charge hors du plan | `Sources/Physics3D/LoadedHinge/Main.sx` | création propre au catalogue : cibles explicites, attache fixe déportée, déport opposé et lâcher sous gravité |
 | Onglets et panneaux conservés | `Sources/UITabs.sx` | création propre au catalogue pour Tabs : saisie retenue, navigation, réordonnement et fermeture |
 | Analog clock | `Sources/AnalogClock.sx` | `GFX.Scene2D/Examples/Clock.sx` |
 | Application command console | `Sources/ApplicationCommandConsole.sx` | `GFX.UI.Terminal/Examples/ApplicationConsole.sx` |

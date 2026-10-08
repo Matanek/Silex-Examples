@@ -1,0 +1,53 @@
+use GFX.Physics
+use STD.Math
+
+package class LoadedHingeModel {
+    var world:Physics.World3D=Physics.World3D()
+    var body:Physics.RigidBody3D?=null
+    var payload:Physics.RigidBody3D?=null
+    var joint:Physics.HingeConstraint3D?=null
+    var attachment:Physics.FixedConstraint3D?=null
+    var offset:float=1.0
+    var target:float=0.0
+    var commands:int=0
+    func reset() {
+        self.world=Physics.World3D();self.target=0.0;self.commands=0
+        self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.plane(Physics.Plane3D(offset:0.5)))
+        var pivot=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..transform=Physics.Transform3D(Math.Vec3(0.0,2.0,0.0))
+            ..collision_filter=Physics.CollisionFilter3D(mask_bits:0))
+        var body=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..shape=Physics.Shape3D.sphere(Physics.Sphere3D(0.5))
+            ..transform=Physics.Transform3D(Math.Vec3(0.0,1.0,0.0)) ..allow_sleep=false)
+        var payload=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..transform=Physics.Transform3D(Math.Vec3(0.0,1.0,self.offset))
+            ..mass_properties=Physics.MassProperties3D(2.0,Math.Vec3(0.2))
+            ..collision_filter=Physics.CollisionFilter3D(mask_bits:0) ..allow_sleep=false)
+        self.attachment=self.world.create_fixed_constraint(body,payload,Physics.FixedConstraint3DSettings()
+            ..first_local_frame=Physics.Transform3D(Math.Vec3(0.0,0.0,self.offset)))
+        self.joint=self.world.create_hinge_constraint(pivot,body,Physics.HingeConstraint3DSettings()
+            ..second_local_anchor=Math.Vec3(0.0,1.0,0.0))
+        self.body=body;self.payload=payload
+    }
+    func aim(direction:float) {
+        self.target=0.65*direction;self.commands++
+        self.joint!.set_motor(Physics.HingeMotor3D.position(self.target,40.0,400.0,40.0))
+    }
+    func release() { self.target=0.0;self.commands++;self.joint!.set_motor(null) }
+    func verify() {
+        assert(self.joint!.anchor_error().length()<0.01)
+        assert(self.attachment!.anchor_error().length()<0.01)
+        assert(self.attachment!.angular_error().length()<0.01)
+        assert(Math.abs(self.joint!.motor_torque())<=40.0001)
+    }
+    func verify_settled() {
+        self.verify();assert(self.joint!.axis_error()<0.002)
+        if self.joint!.motor()!=null { assert(Math.abs(self.joint!.angle()-self.target)<0.05) }
+    }
+    func measurement() str {
+        let angle=Math.degrees(self.joint!.angle());let torque=self.joint!.motor_torque()
+        let axis=self.joint!.axis_error();let anchor=self.attachment!.anchor_error().length()
+        return "Angle $(angle)° · couple $(torque) N·m / 40 · axe $(axis) rad · attache $(anchor) m"
+    }
+}
