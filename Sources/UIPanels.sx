@@ -1,3 +1,5 @@
+use GFX.Window.Cursor
+use GFX.Window
 use GFX.Canvas
 use GFX.Color
 use GFX.Input.Events
@@ -95,12 +97,12 @@ class WorkspacePanels {
         var vertical = UI.SplitView(document, self.pane(log), self.height,
             axis:UI.Flow.vertical, minimum_first:120.0, minimum_second:100.0,
             maximum_first:320.0, separator_size:12.0, on_resize:self.resized)
-        vertical.separator_style.background = Color.cyan_700()
+        vertical.appearance = UI.SplitterAppearance(color:null)
         var split = UI.SplitView(self.pane(UI.FocusTarget(self.title_focus, panel)),
             UI.FocusTarget(self.vertical_focus, vertical), self.width,
             minimum_first:180.0, minimum_second:240.0, maximum_first:420.0,
             separator_size:12.0, on_resize:self.resized)
-        split.separator_style.background = Color.cyan_700()
+        split.appearance = UI.SplitterAppearance(thickness:1.0, active_thickness:2.0)
         split.style.height = 470.0
         return UI.FocusTarget(self.horizontal_focus, split)
     }
@@ -120,7 +122,7 @@ class WorkspacePanels {
         controls.style.gap = 8.0
         var content = UI.Column([
             caption("Panneaux repliables et redimensionnables — J2", 26.0),
-            caption("Glissez les lignes bleues · Tab · flèches de l’axe · Maj : 1 px · Début / Fin"),
+            caption("Glissez les séparateurs fins : survol coloré et curseur adapté · Tab · flèches de l’axe · Maj : 1 px · Début / Fin"),
             controls, self.describe_workspace(), UI.Reactive(self.status),
             caption("Réduisez puis agrandissez la fenêtre : les tailles préférées sont conservées.")
         ])
@@ -143,6 +145,7 @@ class PanelsSession:Canvas.Session {
     func drawing(width:int, height:int) Canvas { return self.ui().drawing(width, height) }
     func update(delta:float) bool { return self.ui().update(delta) }
     func handle(event:@Events.Event) bool { var runtime = self.ui(); return UIInput.handle(runtime, event) }
+    func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
     func accepts_text_input() bool { return self.ui().accepts_text_input() }
     func check_cpu() {
         var drawing = self.drawing(1000, 740)

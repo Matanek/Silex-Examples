@@ -1,3 +1,5 @@
+use GFX.Window.Cursor
+use GFX.Window
 use GFX.Canvas
 use GFX.Color
 use GFX.Input.Events
@@ -87,6 +89,7 @@ class GridSession:Canvas.Session {
     func drawing(width:int, height:int) Canvas { return self.ui.drawing(width, height) }
     func update(delta:float) bool { return self.ui.update(delta) }
     func handle(event:@Events.Event) bool { return self.ui.handle(event) }
+    func pointer_cursor() Cursor { return self.ui.pointer_cursor() }
     func accepts_text_input() bool { return self.ui.accepts_text_input() }
 }
 
