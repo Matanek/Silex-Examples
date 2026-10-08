@@ -86,6 +86,8 @@ Shift extends multiple selection. The builder counter demonstrates bounded row
 descriptions while scrolling. `--cpu-check` validates the actual session without
 creating a window.
 
+[Play and control a MIDI score](Sources/MIDIPlayer/README.md) with a customized timbre or an integrated instrument. The player owns its audio feeding in standalone and application modes; Space pauses/resumes, S stops and R replays.
+
 ## Organization
 
 All demonstrations live under [`Sources/`](Sources/). Focused technical
