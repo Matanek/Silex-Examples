@@ -797,4 +797,6 @@ tooltip, retained editing and nested modal dialogs. Resize or scroll an anchor;
 Escape closes the topmost surface, outside clicks dismiss popovers and modal
 focus remains confined. From the workspace root run
 `silex run Silex-Examples/Sources/UIOverlays.sx`. The executable accepts
-`--cpu-check` to exercise its real session without a window or GPU.
+`--cpu-check` to click each popup anchor, submit/close its contents and open
+nested modals in its real session without a window or GPU. Persistent popup
+actions bind an owned model; they do not borrow locals from the view factory.

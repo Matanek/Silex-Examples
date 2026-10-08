@@ -44,6 +44,36 @@ func painted(commands:Canvas.Command[]) str {
     }
     return result
 }
+func text_position(commands:Canvas.Command[], label:str) Math.Vec2? {
+    for command in commands {
+        match command {
+            text(value) => { if value.value == label { return value.position + Math.Vec2(2.0, 2.0) } }
+            layer(value) => { if let point = text_position(value.commands(), label) { return point } }
+            else => {}
+        }
+    }
+    return null
+}
+// Persistent UI callbacks bind an owned model rather than borrowing helper locals.
+class ProjectPopover {
+    private let label:str
+    private var opened:UI.State<bool>
+    private var note:UI.State<str>
+    private var actions:UI.State<float>
+    private let side:UI.PopupPlacement
+    init(label:str, opened:UI.State<bool>, note:UI.State<str>, actions:UI.State<float>, side:UI.PopupPlacement) {
+        self.label = label; self.opened = opened; self.note = note
+        self.actions = actions; self.side = side
+    }
+    func toggle() { self.opened.set(!self.opened.value()) }
+    func close() { self.opened.set(false) }
+    func submit() { self.actions.set(self.actions.value() + 1.0); self.close() }
+    func describe() UI.View {
+        var surface = card([UI.Text(self.label), UI.TextField(self.note),
+            action("Valider", self.submit), action("Fermer", self.close)])
+        return UI.Popover(action(self.label, self.toggle), surface, self.opened, placement:self.side)
+    }
+}
 class OverlayWorkspace {
     var left_top:UI.State<bool> = UI.State<bool>(false)
     var right_top:UI.State<bool> = UI.State<bool>(false)
@@ -61,11 +91,8 @@ class OverlayWorkspace {
     func close_nested() { self.nested.set(false) }
     func activate() { self.actions.set(self.actions.value() + 1.0) }
     func popup(label:str, opened:UI.State<bool>, side:UI.PopupPlacement) UI.View {
-        var surface = card([UI.Text(label), UI.TextField(self.note),
-            action("Valider", func() { self.activate(); opened.set(false) }),
-            action("Fermer", func() { opened.set(false) })])
-        var anchor = action(label, func() { opened.set(!opened.value()) })
-        return UI.Popover(anchor, surface, opened, placement:side)
+        var project = ProjectPopover(label, opened, self.note, self.actions, side)
+        return project.describe()
     }
     func edges(reads:UI.Reads) UI.View {
         var space = UI.Container(); space.style.flex = 1.0
@@ -117,18 +144,39 @@ class OverlaySession:Canvas.Session {
     func handle(event:@Events.Event) bool { var runtime = self.ui(); return UIInput.handle(runtime, event) }
     func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
     func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func click(label:str) {
+        var drawing = self.drawing(1000, 760)
+        if let point = text_position(drawing.commands(), label) {
+            let moved = self.ui().pointer_moved(point)
+            assert(self.ui().pointer_pressed(point))
+            assert(self.ui().pointer_released(point))
+        } else { panic("control $(label) was not painted") }
+    }
     func check_cpu() {
         var drawing = self.drawing(1000, 760)
-        self.model.left_top.set(true)
+        self.click("Haut gauche")
+        assert(self.model.left_top.value())
         drawing = self.drawing(1000, 760)
         assert(self.ui().accepts_text_input())
         assert(self.ui().insert_text("!"))
         assert(self.ui().key_pressed(Keyboard.Key.escape))
-        self.model.open_modal()
+        let labels:str[] = ["Haut gauche", "Haut droite", "Bas gauche", "Bas droite"]
+        var flags:UI.State<bool>[] = [self.model.left_top, self.model.right_top, self.model.left_bottom, self.model.right_bottom]
+        for index, label in labels.indexed() {
+            self.click(label)
+            assert(flags[index].value())
+            self.click("Valider")
+            assert(!flags[index].value())
+            self.click(label)
+            self.click("Fermer")
+            assert(!flags[index].value())
+        }
+        assert(self.model.actions.value() == 4.0)
+        self.click("Ouvrir une modale")
         drawing = self.drawing(1000, 760)
         assert(self.ui().accepts_text_input())
         assert(self.ui().insert_text("!"))
-        self.model.open_nested()
+        self.click("Ouvrir une seconde modale")
         drawing = self.drawing(1000, 760)
         assert(Text.contains(painted(drawing.commands()), "Seconde modale"))
         assert(self.ui().key_pressed(Keyboard.Key.escape))
