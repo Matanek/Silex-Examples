@@ -6,12 +6,14 @@ is a catalog of standalone applications: focused technical illustrations
 belong in documentation, while API proofs remain under `Tests/` in their
 owning package.
 
-Start with the [retro victory sound](Sources/RetroVictory.sx) to create a game
-sound in one file: four C–E–G–C notes, a square wave and an 8-bit bitcrusher,
-lasting 0.88 seconds. Prepare it once with `make_victory_sound(audio)`, then call
-`audio.play(victory)` when the player wins. Change `notes` and `durations_ms`
-to adjust the melody. The demo's `audio.wait` only keeps the standalone program
-alive; omit it in a game. From the `SilexProject/` workspace root:
+Start with the [retro victory sound](Sources/RetroVictory.sx): four C–E–G–C
+notes written in beats at 187.5 BPM with `GFX.Audio.Music`. Choose a customizable
+retro timbre, then call `melody.prepare(audio, using:timbre)` once at game loading time and
+`audio.play(victory)` when the player wins. No application PCM buffer is needed.
+The melody lasts 0.88 seconds, followed by a 30 ms tail. Change the `Music.Note`
+values and tempo to adjust the melody, or modify the timbre before preparation.
+The demo's `audio.wait` only keeps the standalone program alive; omit it in a
+game. From the `SilexProject/` workspace root:
 
 ```sh
 silex run Silex-Examples/Sources/RetroVictory.sx --release
