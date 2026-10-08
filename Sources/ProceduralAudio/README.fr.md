@@ -7,6 +7,13 @@ banque d’instruments n’est embarqué.
 
 [English version](README.md).
 
+Pour commencer avec un seul son de jeu, [RetroVictory.sx](../RetroVictory.sx)
+joue quatre notes Do–Mi–Sol–Do avec une onde carrée et un bitcrusher 8 bits.
+Le fichier montre comment préparer le son une fois avec `make_victory_sound(audio)`,
+puis le déclencher avec `audio.play(victory)`. Modifier `notes` et `durations_ms`
+change la mélodie ; `audio.wait` sert seulement à laisser finir la démo,
+pas à bloquer le jeu.
+
 ## Écouter et choisir une recette
 
 Depuis la racine `SilexProject/`, avec la toolchain et les packages locaux de la

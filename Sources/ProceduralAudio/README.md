@@ -6,6 +6,13 @@ bytes of musical commands; it embeds neither audio nor an instrument bank.
 
 [Version française](README.fr.md).
 
+To start with a single game sound, [RetroVictory.sx](../RetroVictory.sx) plays
+four C–E–G–C notes with a square wave and an 8-bit bitcrusher.
+The file shows how to prepare the sound once with `make_victory_sound(audio)`,
+then trigger it with `audio.play(victory)`. Change `notes` and `durations_ms`
+to adjust the melody; `audio.wait` only keeps the demo alive until playback ends,
+and should be omitted in a game.
+
 ## Listen and select a recipe
 
 From the `SilexProject/` root, using the Spec’s local toolchain and packages

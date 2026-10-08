@@ -47,6 +47,7 @@ synchronisation automatique.
 | 2D shape gallery | `Sources/ShapeGallery2D/Main.sx` | `GFX.Canvas/Examples/ShapeGallery2D.sx` |
 | Silex logo | `Sources/SilexLogo.sx` | création propre au catalogue |
 | Procedural audio | `Sources/ProceduralAudio/Main.sx` | composition des parcours publics de GFX.Audio ; générateurs propres à l’application et partition MIDI de 218 octets, sans banque de sons |
+| Retro victory sound | `Sources/RetroVictory.sx` | promotion de `Sandbox/TestMidi.sx` : quatre notes Do–Mi–Sol–Do, onde carrée et bitcrusher 8 bits ; son préparé une fois puis déclenché avec `audio.play(victory)` |
 | Spatial audio | `Sources/SpatialAudio.sx` | `GFX.Audio/Examples/PlaySpatialSound.sx` |
 | 2D timeline | `Sources/Timeline2D.sx` | `GFX.Animation/Examples/Timeline2D.sx` |
 | 3D timeline | `Sources/Timeline3D.sx` | `GFX.Animation/Examples/Timeline3D.sx` |

@@ -1,0 +1,53 @@
+use GFX.Audio
+use GFX.Audio.MIDI
+use GFX.Audio.Processing
+use GFX.Audio.Synthesis
+
+// Depuis SilexProject : silex run Silex-Examples/Sources/RetroVictory.sx --release
+
+func make_victory_sound(audio:Audio) Audio.Sound {
+    let format = Processing.Format(sample_rate:48_000, channels:1)
+
+    // Do5, Mi5, Sol5, Do6 : trois notes courtes, puis une note finale tenue.
+    let notes = [72, 76, 79, 84]
+    let durations_ms = [160, 160, 160, 400]
+    var melody:float32[] = []
+
+    for index, note in notes.indexed() {
+        let frequency = try MIDI.frequency(note) else error { panic(error.detail) }
+        var tone = try Synthesis.Oscillator.create(format,
+            frequency_hz:frequency, amplitude:0.18,
+            waveform:Synthesis.Waveform.square) else error { panic(error.detail) }
+        var retro = try Processing.Bitcrusher.create(format,
+            bits:8, hold_frames:6) else error { panic(error.detail) }
+
+        // Attaque de 2 ms et relâchement de 30 ms pour éviter les clics.
+        var envelope = try Synthesis.Envelope.create(format,
+            attack_frames:96, decay_frames:960, sustain:0.7,
+            release_frames:1_440) else error { panic(error.detail) }
+
+        // À 48 kHz, 1 ms = 48 samples mono. Les 10 dernières ms sont silencieuses.
+        let frames = durations_ms[index] * 48
+        let release_start = frames - 1_440 - 480
+        var samples:float32[] = []
+        for frame in 0...frames { samples.append(0.0) }
+
+        try tone.render(&samples[0:frames]) else error { panic(error.detail) }
+        try retro.process(&samples[0:frames]) else error { panic(error.detail) }
+        envelope.note_on()
+        try envelope.process(&samples[0:release_start]) else error { panic(error.detail) }
+        envelope.note_off()
+        try envelope.process(&samples[release_start:frames]) else error { panic(error.detail) }
+
+        for sample in samples { melody.append(sample) }
+    }
+
+    return audio.create(@melody[0:melody.count()], sample_rate:format.sample_rate)
+}
+
+func main() {
+    var audio = Audio()
+    let victory = make_victory_sound(audio) // À préparer au chargement du jeu.
+    let playing = audio.play(victory)      // À déclencher quand le joueur gagne.
+    audio.wait(playing)                    // Seulement pour cette démo ; ne pas attendre en jeu.
+}

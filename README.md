@@ -6,6 +6,17 @@ is a catalog of standalone applications: focused technical illustrations
 belong in documentation, while API proofs remain under `Tests/` in their
 owning package.
 
+Start with the [retro victory sound](Sources/RetroVictory.sx) to create a game
+sound in one file: four C–E–G–C notes, a square wave and an 8-bit bitcrusher,
+lasting 0.88 seconds. Prepare it once with `make_victory_sound(audio)`, then call
+`audio.play(victory)` when the player wins. Change `notes` and `durations_ms`
+to adjust the melody. The demo's `audio.wait` only keeps the standalone program
+alive; omit it in a game. From the `SilexProject/` workspace root:
+
+```sh
+silex run Silex-Examples/Sources/RetroVictory.sx --release
+```
+
 The [procedural audio demonstration](Sources/ProceduralAudio/README.md) plays
 beeps, impacts, a laser, an explosion, a changing engine, an 8-bit sound and
 melodies composed directly or through MIDI. Select a recipe with `--case` or
