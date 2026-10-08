@@ -9,6 +9,7 @@ use GFX.Viewer
 use STD.Math
 use STD.Process
 use STD.Text
+use STD.Time
 
 enum Livraison { atelier; domicile; relais }
 
@@ -158,14 +159,59 @@ class SelectSession:Canvas.Session {
         for size in sizes { drawing = self.drawing(size.x as int, size.y as int) }
         assert(self.model.project.value() == 49999 && self.model.actions.value() == 2.0)
     }
+    func profile_cpu() {
+        var drawing = self.drawing(1100, 700)
+        var frame = 0
+        while frame < 3 {
+            var clock = Time.Stopwatch(); clock.start()
+            let changed = self.update(1.0 / 60.0)
+            drawing = self.drawing(1100, 700)
+            print("PROFILE closed $(frame) ms=$(clock.get_elapsed_milliseconds()) changed=$(changed)")
+            frame++
+        }
+        var opened = Time.Stopwatch(); opened.start()
+        self.click("Projet 49991  v")
+        drawing = self.drawing(1100, 700)
+        print("PROFILE open ms=$(opened.get_elapsed_milliseconds())")
+        frame = 0
+        while frame < 3 {
+            var clock = Time.Stopwatch(); clock.start()
+            let changed = self.update(1.0 / 60.0)
+            drawing = self.drawing(1100, 700)
+            print("PROFILE idle $(frame) ms=$(clock.get_elapsed_milliseconds()) changed=$(changed)")
+            frame++
+        }
+        if let point = text_position(drawing.commands(), "Projet 49991") {
+            frame = 0
+            while frame < 3 {
+                var clock = Time.Stopwatch(); clock.start()
+                let moved = self.ui().pointer_moved(point)
+                let scrolled = self.ui().pointer_scrolled(point, Math.Vec2(0.0, -8.0))
+                let changed = self.update(1.0 / 60.0)
+                drawing = self.drawing(1100, 700)
+                print("PROFILE scroll $(frame) ms=$(clock.get_elapsed_milliseconds()) changed=$(changed)")
+                frame++
+            }
+        } else { panic("profile popup row was not painted") }
+        assert(self.model.project.value() == 49990 && self.model.actions.value() == 0.0)
+    }
 }
 func main() {
     var cpu = false
+    var profile = false
     match Process.arguments() {
-        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
+        success(arguments) => { for argument in arguments {
+            if argument == "--cpu-check" { cpu = true }
+            if argument == "--cpu-profile" { profile = true }
+        } }
         failure(error) => { panic(error.detail) }
     }
+    var clock = Time.Stopwatch(); clock.start()
     var session = SelectSession()
+    if profile {
+        print("PROFILE construct ms=$(clock.get_elapsed_milliseconds())")
+        session.profile_cpu(); print("UISelect profile : OK"); return
+    }
     if cpu { session.check_cpu(); print("UISelect CPU : OK"); return }
     let code = Viewer.show(session, Viewer.CanvasSettings(width:1100, height:700, title:"Silex — Select J3"))
     if code != 0 { panic("select viewer failed") }
