@@ -809,6 +809,19 @@ From the workspace root run `silex run Silex-Examples/Sources/UIPanels.sx`.
 The compiled executable accepts `--cpu-check` to check the actual session
 without opening a window or creating a GPU device.
 
+## Rack servo and rail stops
+
+A yellow pinion drives a blue rack to both finite rail stops. Explicit left,
+right and center buttons resume the initially paused simulation; Space pauses
+and R resets it. The display distinguishes movement from a motor pushing a stop.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/RackServo/Main.sx --release
+```
+
+[Controls and scope](Sources/Physics3D/RackServo/README.md) ·
+[Guide français](Sources/Physics3D/RackServo/README.fr.md).
+
 
 [UIOverlays](Sources/UIOverlays.sx) demonstrates four anchored popovers, a delayed
 tooltip, retained editing and nested modal dialogs. Resize or scroll an anchor;

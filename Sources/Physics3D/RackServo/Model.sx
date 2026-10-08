@@ -1,0 +1,59 @@
+use GFX.Physics
+use STD.Math
+
+package class RackServoModel {
+    var world:Physics.World3D=Physics.World3D(Physics.World3DSettings() ..gravity=Math.Vec3())
+    var pinion:Physics.RigidBody3D?=null
+    var rack:Physics.RigidBody3D?=null
+    var driver:Physics.HingeConstraint3D?=null
+    var transmission:Physics.RackAndPinionConstraint3D?=null
+    var target:float=0.0
+    var commands:int=0
+    func fixed(position:Math.Vec3) Physics.RigidBody3D {
+        return self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..transform=Physics.Transform3D(position) ..collision_filter=Physics.CollisionFilter3D(mask_bits:0))
+    }
+    func moving(position:Math.Vec3,size:Math.Vec3) Physics.RigidBody3D {
+        return self.world.create_rigid_body(Physics.RigidBody3DSettings() ..allow_sleep=false
+            ..transform=Physics.Transform3D(position) ..shape=Physics.Shape3D.box(Physics.Box3D(size))
+            ..mass_properties=Physics.MassProperties3D(2.0,Math.Vec3(0.4))
+            ..collision_filter=Physics.CollisionFilter3D(mask_bits:0))
+    }
+    func reset() {
+        self.world=Physics.World3D(Physics.World3DSettings() ..gravity=Math.Vec3())
+        self.target=0.0;self.commands=0
+        var pinion=self.moving(Math.Vec3(0.0,2.4,0.0),Math.Vec3(1.1,0.2,0.3))
+        var rack=self.moving(Math.Vec3(0.0,1.8,0.0),Math.Vec3(3.0,0.2,0.35))
+        self.driver=self.world.create_hinge_constraint(self.fixed(pinion.position()),pinion)
+        self.world.create_slider_constraint(self.fixed(rack.position()),rack,
+            Physics.SliderConstraint3DSettings() ..minimum_position=-0.6 ..maximum_position=0.6)
+        self.transmission=self.world.create_rack_and_pinion_constraint(pinion,rack,
+            Physics.RackAndPinionConstraint3DSettings() ..ratio=2.0)
+        self.pinion=pinion;self.rack=rack
+    }
+    func aim(direction:float) {
+        self.target=1.5*direction;self.commands++
+        self.driver!.set_motor(Physics.HingeMotor3D.position(self.target,12.0,15.0,8.0))
+    }
+    func verify() {
+        assert(Math.abs(self.transmission!.phase_error())<0.002)
+        assert(Math.abs(self.transmission!.speed_error())<0.001)
+        assert(Math.abs(self.transmission!.travel())<0.602)
+        assert(Math.abs(self.driver!.motor_torque())<=12.0001)
+        assert(self.driver!.anchor_error().length()<0.001 && self.driver!.axis_error()<0.001)
+    }
+    func verify_settled() {
+        self.verify()
+        var travel=0.0;if self.target!=0.0 { travel=0.6*self.target/1.5 }
+        assert(Math.abs(self.transmission!.travel()-travel)<0.002)
+        assert(Math.abs(self.pinion!.angular_velocity().z)<0.01)
+        if self.target!=0.0 { assert(Math.abs(self.driver!.motor_torque()-3.0*self.target)<0.01) }
+    }
+    func measurement() str {
+        let travel=self.transmission!.travel();let torque=self.driver!.motor_torque()
+        var status="En déplacement"
+        if Math.abs(travel)>0.599 && Math.abs(self.pinion!.angular_velocity().z)<0.01 { status="En butée — le moteur pousse" }
+        if self.target==0.0 && Math.abs(travel)<0.002 { status="Au centre" }
+        return "$(status) · course $(travel) m / ±0,6\nCouple $(torque) N·m / 12 · phase $(self.transmission!.phase_error()) rad"
+    }
+}
