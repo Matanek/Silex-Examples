@@ -1,0 +1,79 @@
+use GFX.Audio
+use GFX.Audio.Synthesis
+use Module.Recipes.Recipe
+use STD.Error
+use STD.Error.Kind
+use STD.Math
+
+public func render(recipe:Recipe, block_frames:int = 480) Result<float32[], Error> {
+    var source = recipe.source
+    var samples:float32[] = []; var i = 0
+    while i < recipe.frames*source.format.channels { samples.append(0.0); i++ }
+    var start = 0
+    while start < samples.count() {
+        var end = start+block_frames*source.format.channels; if end > samples.count() { end = samples.count() }
+        try source.render(&samples[start:end]); start = end
+    }
+    return Result<float32[], Error>.success(samples)
+}
+func peak(samples:@float32[..]) float32 {
+    var peak:float32 = 0.0
+    for value in samples { assert(Math.is_finite(value)); if Math.abs(value) > peak { peak = Math.abs(value) } }
+    return peak
+}
+public func check(recipe:Recipe) Result<void, Error> {
+    var source = recipe.source
+    var expected = try render(recipe)
+    assert(expected.count() == recipe.frames*source.format.channels)
+    let level = peak(@expected[0:expected.count()]); assert(level > 0.001 && level < 0.9)
+    assert(expected[0] == 0.0 as float32)
+    // Short sounds end with their release; long recipes include a silent tail.
+    var ending_frames = 1
+    if recipe.frames >= 120_000 { ending_frames = 480 }
+    var i = expected.count()-ending_frames*source.format.channels
+    while i < expected.count() { assert(Math.abs(expected[i]) < 0.001); i++ }
+    source.reset(); var split = try render(recipe,257)
+    i = 0; while i < expected.count() { assert(split[i] == expected[i]); i++ }
+    source.reset()
+    var audio = try Audio.offline(sample_rate:source.format.sample_rate,channels:source.format.channels)
+    var producer = try Synthesis.StreamProducer.create(audio,source,recipe.frames,block_frames:480,capacity_frames:127)
+    let playing = audio.play(producer.stream()); var frame = 0
+    while frame < recipe.frames {
+        if !producer.input_closed() {
+            match producer.pump() { failure(error) => { if error.kind != Kind.would_block() { return Result<void, Error>.failure(error) } }; success(count) => {} }
+        }
+        let info = try audio.stream_info(producer.stream()); assert(info.queued_frames > 0 && info.queued_frames <= 127)
+        let actual = try audio.render(info.queued_frames)
+        i = 0; while i < actual.count() { assert(actual[i] == expected[frame*source.format.channels+i]); i++ }
+        frame += info.queued_frames
+    }
+    let final = try audio.stream_info(producer.stream())
+    assert(producer.input_closed() && final.drained && final.written_frames == recipe.frames && final.consumed_frames == recipe.frames && final.discarded_frames == 0)
+    print("$(recipe.name): $(recipe.frames) frames, $(source.format.channels) channels, peak $(level), replay and stream match")
+    return Result<void, Error>.success()
+}
+public func play(audio:Audio, recipe:Recipe) Result<void, Error> {
+    var source = recipe.source
+    print("$(recipe.name): $(recipe.frames as float64/48_000.0) seconds")
+    if recipe.frames < 72_000 {
+        let samples = try render(recipe)
+        let sound = audio.create(@samples[0:samples.count()],sample_rate:source.format.sample_rate,channels:source.format.channels)
+        audio.wait(audio.play(sound)); assert(audio.unload(sound))
+    } else {
+        var producer = try Synthesis.StreamProducer.create(audio,source,recipe.frames,block_frames:480,capacity_frames:1_440)
+        var prefill = 0
+        while prefill < 3 { let count = try producer.pump(); assert(count == 480); prefill++ }
+        let playing = audio.play(producer.stream())
+        while !producer.input_closed() {
+            match producer.pump() {
+                failure(error) => { if error.kind != Kind.would_block() { return Result<void, Error>.failure(error) }
+                    try audio.wait_writable(producer.stream()) }
+                success(count) => {}
+            }
+        }
+        audio.wait(playing)
+        let info = try audio.stream_info(producer.stream())
+        assert(info.drained && info.consumed_frames == recipe.frames && info.discarded_frames == 0)
+    }
+    return Result<void, Error>.success()
+}

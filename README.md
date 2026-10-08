@@ -6,6 +6,11 @@ is a catalog of standalone applications: focused technical illustrations
 belong in documentation, while API proofs remain under `Tests/` in their
 owning package.
 
+The [procedural audio demonstration](Sources/ProceduralAudio/README.md) plays
+beeps, impacts, a laser, an explosion, a changing engine, an 8-bit sound and
+melodies composed directly or through MIDI. Select a recipe with `--case` or
+verify its PCM and stream without a device using `--check`.
+
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.
 

@@ -1,0 +1,32 @@
+use GFX.Audio.Synthesis
+use GFX.Audio.Processing
+use STD.Error
+use STD.Error.Kind
+
+// Application-owned generator: gate the source on the audio frame clock.
+public class Gated:Synthesis.Generator {
+    let format:Processing.Format
+    private var source:Synthesis.Generator
+    private var envelope:Synthesis.Envelope
+    private let gate_frames:int
+    private var frame:int = 0
+    private var released:bool = false
+    init(source:Synthesis.Generator, envelope:Synthesis.Envelope, gate_frames:int) {
+        self.format = source.format; self.source = source; self.envelope = envelope
+        self.gate_frames = gate_frames; self.envelope.note_on()
+    }
+    func render(samples:&float32[..]) Result<void, Error> {
+        if samples.count() % self.format.channels != 0 { return Result<void, Error>.failure(Error(kind:Kind.invalid_input(),operation:"demo.audio",subject:null,detail:"complete audio frames required")) }
+        var start = 0
+        while start < samples.count() {
+            if self.frame >= self.gate_frames && !self.released { self.envelope.note_off(); self.released = true }
+            var frames = (samples.count()-start)/self.format.channels
+            if !self.released && frames > self.gate_frames-self.frame { frames = self.gate_frames-self.frame }
+            let end = start+frames*self.format.channels
+            try self.source.render(&samples[start:end]); try self.envelope.process(&samples[start:end])
+            self.frame += frames; start = end
+        }
+        return Result<void, Error>.success()
+    }
+    func reset() { self.source.reset(); self.envelope.reset(); self.envelope.note_on(); self.frame = 0; self.released = false }
+}

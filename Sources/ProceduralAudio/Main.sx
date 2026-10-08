@@ -1,0 +1,39 @@
+use GFX.Audio
+use Module.Recipes
+use Module.Playback
+use STD.Process
+use STD.Error
+
+func run(checking:bool, selected:str) Result<void, Error> {
+    let names = Recipes.names()
+    var found = selected == "all"
+    for name in names { if name == selected { found = true } }
+    if !found { panic("Unknown recipe. Choose beep, impact, laser, explosion, engine, retro, melody or midi.") }
+    if checking {
+        for index, name in names.indexed() { if selected == "all" || selected == name { var recipe = try Recipes.make(index); try Playback.check(recipe) } }
+        print("Procedural audio check passed without an output device")
+    } else {
+        var audio = Audio()
+        for index, name in names.indexed() { if selected == "all" || selected == name { var recipe = try Recipes.make(index); try Playback.play(audio,recipe) } }
+    }
+    return Result<void, Error>.success()
+}
+func main() {
+    match Process.arguments() {
+        failure(error) => { panic(error.detail) }
+        success(arguments) => {
+            var selected = "all"; var checking = false; var index = 1
+            while index < arguments.count() {
+                match arguments[index] {
+                    "--check" => { checking = true }
+                    "--case" => { index++; if index >= arguments.count() { panic("--case requires a recipe name") }
+                        selected = arguments[index] }
+                    "--help" => { print("Procedural audio: --case beep|impact|laser|explosion|engine|retro|melody|midi|all; --check renders and verifies without a device"); return }
+                    else => { panic("Unknown option; use --help") }
+                }
+                index++
+            }
+            match run(checking,selected) { failure(error) => { panic(error.detail) }; success => {} }
+        }
+    }
+}
