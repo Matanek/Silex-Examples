@@ -829,3 +829,10 @@ and keyboard paths, source changes and resizing without a window or GPU.
 Use `--cpu-profile` to measure construction, closed/open idle frames and popup
 scrolling in the same session, also without a window or GPU. These timings cover
 UI update and Canvas command recording, not displayed GPU frames.
+
+[UIComboBox](Sources/UIComboBox.sx) compares a closed Select and editable typed
+suggestions, an explicit free-text conversion, and filtering 50,000 projects.
+Try Unicode input, cancellation, fixed-width long text and resizing with the
+popup open. From the workspace root run
+`silex run Silex-Examples/Sources/UIComboBox.sx --release`. The executable accepts
+`--cpu-check` and `--cpu-profile` without opening a window.

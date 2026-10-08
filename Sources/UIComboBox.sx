@@ -1,0 +1,209 @@
+use GFX.UI
+use GFX.UI.Input as UIInput
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.Window.Cursor
+use GFX.Viewer
+use STD.Math
+use STD.Process
+use STD.Text
+use STD.Time
+
+enum Livraison { atelier; domicile; relais }
+func choice_style() UI.Style {
+    var style = UI.Style(); style.width = 300.0; style.height = 44.0
+    style.font_size = 18.0; style.background = Color.slate_900()
+    style.foreground = Color.slate_100(); style.accent = Color.cyan_500()
+    style.border = UI.Border(1.0, Color.slate_500()); style.radius = 6.0
+    return style
+}
+func label(value:str, size:float = 18.0) UI.Text {
+    var style = UI.Style(); style.font_size = size
+    return UI.Text(value, style:style)
+}
+func card(title:str, content:UI.View) UI.View {
+    var result = UI.Column([label(title, 20.0), content])
+    result.style.width = 340.0; result.style.padding = UI.Insets(20.0)
+    result.style.gap = 16.0; result.style.background = Color.slate_800(); result.style.radius = 10.0
+    return result
+}
+func projects() UI.SelectOption<int>[] {
+    var result:UI.SelectOption<int>[] = []; var index = 0
+    while index < 50000 {
+        result.append(UI.SelectOption<int>(index, "Projet $(index + 1)", disabled:index % 13 == 0, key:"project-$(index)"))
+        index++
+    }
+    return result
+}
+func commands_text(commands:Canvas.Command[]) str {
+    var result = ""
+    for command in commands {
+        match command {
+            text(value) => { result += value.value + "|" }
+            layer(value) => { result += commands_text(value.commands()) }
+            else => {}
+        }
+    }
+    return result
+}
+class ComboWorkspace {
+    var delivery:UI.State<Livraison?> = UI.State<Livraison?>(Livraison.atelier)
+    var closed:UI.State<Livraison?> = UI.State<Livraison?>(Livraison.atelier)
+    var tag:UI.State<str?> = UI.State<str?>("Équipe créative")
+    var project:UI.State<int?> = UI.State<int?>(null)
+    var options:UI.State<UI.SelectOption<int>[]> = UI.State<UI.SelectOption<int>[]>(projects())
+    var calls:UI.State<float> = UI.State<float>(0.0)
+    var disabled:UI.State<bool> = UI.State<bool>(false)
+    var project_focus:UI.Focus = UI.Focus()
+    var tag_focus:UI.Focus = UI.Focus()
+    var delivery_focus:UI.Focus = UI.Focus()
+    func delivery_changed(value:Livraison) { self.calls.set(self.calls.value() + 1.0) }
+    func tag_changed(value:str) { self.calls.set(self.calls.value() + 1.0) }
+    func project_changed(value:int) { self.calls.set(self.calls.value() + 1.0) }
+    func convert_tag(value:str) str? {
+        let text = Text.trim(value)
+        if text == "" { return null }
+        return text
+    }
+    func format_tag(value:str) str { return value }
+    func last() { self.project.set(49999) }
+    func reduce() {
+        var result:UI.SelectOption<int>[] = []
+        for option in self.options.value() { if option.value < 20 { result.append(option) } }
+        self.options.set(result)
+    }
+    func restore() { self.options.set(projects()) }
+    func delivery_view(reads:UI.Reads) UI.View {
+        var style = choice_style(); style.disabled = reads.read(self.disabled)
+        return UI.FocusTarget(self.delivery_focus, UI.ComboBox<Livraison>([
+            UI.SelectOption<Livraison>(Livraison.atelier, "Atelier"),
+            UI.SelectOption<Livraison>(Livraison.domicile, "Domicile indisponible", disabled:true),
+            UI.SelectOption<Livraison>(Livraison.relais, "Point relais")], self.delivery,
+            on_change:self.delivery_changed, placeholder:"Chercher une livraison", empty_label:"Aucune livraison",
+            style:style, popup_height:160.0, row_height:44.0))
+    }
+    func tag_view() UI.View {
+        return UI.FocusTarget(self.tag_focus, UI.ComboBox<str>([
+            UI.SelectOption<str>("Équipe créative", "Équipe créative"),
+            UI.SelectOption<str>("École", "École"), UI.SelectOption<str>("Straße", "Straße")], self.tag,
+            on_change:self.tag_changed, custom_value:self.convert_tag, format_value:self.format_tag,
+            placeholder:"Saisir une équipe", empty_label:"Entrée crée cette valeur", style:choice_style(), popup_height:180.0))
+    }
+    func project_view(reads:UI.Reads) UI.View {
+        return UI.FocusTarget(self.project_focus, UI.ComboBox<int>(reads.read(self.options), self.project,
+            on_change:self.project_changed, placeholder:"Chercher parmi 50 000 projets", empty_label:"Aucun projet trouvé",
+            style:choice_style(), popup_height:260.0, row_height:40.0))
+    }
+    func status(reads:UI.Reads) UI.View {
+        let delivery = reads.read(self.delivery); var selected = "Atelier"
+        if delivery == Livraison.relais { selected = "Point relais" }
+        let project = reads.read(self.project) ?? -1
+        return label("Validé : $(selected) · $(reads.read(self.tag) ?? "—") · projet $(project + 1) · changements $(reads.read(self.calls) as int)")
+    }
+    func button(title:str, action:func()) UI.View {
+        var style = UI.Style(); style.padding = UI.Insets(vertical:10.0, horizontal:16.0)
+        style.background = Color.slate_700(); style.radius = 6.0; style.font_size = 18.0
+        return UI.Button(title, action, style:style)
+    }
+    func page() UI.View {
+        var choices = UI.Row([
+            card("Liste fermée · Select", UI.Select<Livraison>([
+                UI.SelectOption<Livraison>(Livraison.atelier, "Atelier"), UI.SelectOption<Livraison>(Livraison.relais, "Point relais")],
+                self.closed, style:choice_style(), popup_height:140.0)),
+            card("Saisie + choix typé", UI.Reactive(self.delivery_view)),
+            card("Saisie + valeur libre", self.tag_view())], wrap:true)
+        choices.style.gap = 20.0
+        var tools = UI.Row([self.button("Dernier projet", self.last), self.button("Garder 20", self.reduce),
+            self.button("Restaurer 50 000", self.restore)], wrap:true)
+        tools.style.gap = 12.0
+        var result = UI.Column([label("Choisir ou rechercher — ComboBox J3", 28.0),
+            label("Tapez pour filtrer · flèches pour parcourir · Entrée valide · Échap ou Tab annule"),
+            UI.Checkbox("Désactiver la livraison éditable", self.disabled), choices,
+            card("50 000 projets virtualisés", UI.Reactive(self.project_view)), tools,
+            UI.Reactive(self.status), label("La valeur validée reste stable pendant la saisie. Essayez STRASSE, une valeur libre et un texte très long."),
+            label("Redimensionnez avec la liste ouverte, puis utilisez le trackpad sur les suggestions.")])
+        result.style.padding = UI.Insets(24.0); result.style.gap = 20.0
+        result.style.foreground = Color.slate_100(); result.style.background = Color.slate_950()
+        return UI.ScrollView(result, smooth_scroll:true)
+    }
+}
+class ComboSession:Canvas.Session {
+    var model:ComboWorkspace = ComboWorkspace()
+    private var runtime:UI.Runtime
+    init() { self.runtime = UI.Runtime(self.model.page()) }
+    func drawing(width:int, height:int) Canvas { return self.runtime.drawing(width, height) }
+    func update(delta:float) bool { return self.runtime.update(delta) }
+    func handle(event:@Events.Event) bool { var current = self.runtime; return UIInput.handle(current, event) }
+    func pointer_cursor() Cursor { return self.runtime.pointer_cursor() }
+    func accepts_text_input() bool { return self.runtime.accepts_text_input() }
+    func edit(target:UI.Focus, text:str) {
+        target.request(); let changed = self.update(0.0)
+        var drawing = self.drawing(1140, 760)
+        assert(self.runtime.accepts_text_input())
+        let selected = self.runtime.key_pressed(Keyboard.Key.a, Keyboard.Modifiers(system:true))
+        assert(self.runtime.insert_text(text)); drawing = self.drawing(1140, 760)
+    }
+    func check_cpu() {
+        self.edit(self.model.delivery_focus, "relais")
+        assert(self.model.delivery.value() == Livraison.atelier)
+        assert(self.runtime.key_pressed(Keyboard.Key.enter))
+        var drawing = self.drawing(1140, 760)
+        assert(self.model.delivery.value() == Livraison.relais && self.model.calls.value() == 1.0)
+        self.edit(self.model.tag_focus, "STRASSE")
+        assert(self.runtime.key_pressed(Keyboard.Key.enter)); drawing = self.drawing(1140, 760)
+        assert(self.model.tag.value() == "Straße" && self.model.calls.value() == 2.0)
+        self.edit(self.model.tag_focus, "  Équipe libre 🚀  ")
+        assert(self.runtime.key_pressed(Keyboard.Key.enter)); drawing = self.drawing(1140, 760)
+        assert(self.model.tag.value() == "Équipe libre 🚀" && self.model.calls.value() == 3.0)
+        self.edit(self.model.project_focus, "Projet 50000")
+        assert(Text.contains(commands_text(self.drawing(1140, 760).commands()), "Projet 50000|"))
+        assert(self.runtime.key_pressed(Keyboard.Key.enter)); drawing = self.drawing(1140, 760)
+        assert(self.model.project.value() == 49999 && self.model.calls.value() == 4.0)
+        self.edit(self.model.project_focus, "not a project")
+        let sizes:Math.Vec2[] = [Math.Vec2(600.0, 500.0), Math.Vec2(1.0, 1.0), Math.Vec2(1200.0, 800.0)]
+        for size in sizes { drawing = self.drawing(size.x as int, size.y as int) }
+        assert(self.runtime.key_pressed(Keyboard.Key.escape)); drawing = self.drawing(1140, 760)
+        assert(self.model.project.value() == 49999 && self.model.calls.value() == 4.0)
+        self.model.reduce(); drawing = self.drawing(1140, 760)
+        assert(self.model.project.value() == 49999 && self.model.calls.value() == 4.0)
+    }
+    func profile_cpu() {
+        self.edit(self.model.project_focus, "Projet ")
+        var frame = 0
+        while frame < 3 {
+            var clock = Time.Stopwatch(); clock.start()
+            let changed = self.update(1.0 / 60.0)
+            var drawing = self.drawing(1140, 760)
+            print("PROFILE idle $(frame) ms=$(clock.get_elapsed_milliseconds()) changed=$(changed)")
+            frame++
+        }
+        var filter = Time.Stopwatch(); filter.start()
+        assert(self.runtime.insert_text("50000"))
+        var drawing = self.drawing(1140, 760)
+        print("PROFILE filter 50000 ms=$(filter.get_elapsed_milliseconds())")
+        assert(self.model.project.value() == null && self.model.calls.value() == 0.0)
+    }
+}
+func main() {
+    var cpu = false; var profile = false
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments {
+            if argument == "--cpu-check" { cpu = true }
+            if argument == "--cpu-profile" { profile = true }
+        } }
+        failure(error) => { panic(error.detail) }
+    }
+    var clock = Time.Stopwatch(); clock.start(); var session = ComboSession()
+    if profile {
+        print("PROFILE construct ms=$(clock.get_elapsed_milliseconds())")
+        session.profile_cpu(); print("UIComboBox profile : OK"); return
+    }
+    if cpu { session.check_cpu(); print("UIComboBox CPU : OK"); return }
+    let code = Viewer.show(session, Viewer.CanvasSettings(width:1140, height:760, title:"Silex — ComboBox J3"))
+    if code != 0 { panic("combobox viewer failed") }
+}
+test "real ComboBox demo interaction paths run without window or GPU" {
+    var session = ComboSession(); session.check_cpu()
+}
