@@ -1,0 +1,175 @@
+use GFX.UI
+use GFX.UI.Input as UIInput
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.Window.Cursor
+use GFX.Viewer
+use STD.Math
+use STD.Process
+use STD.Text
+
+enum Livraison { atelier; domicile; relais }
+
+func select_style() UI.Style {
+    var style = UI.Style(); style.width = 300.0; style.height = 42.0
+    style.padding = UI.Insets(10.0); style.background = Color.slate_700()
+    style.foreground = Color.slate_100(); style.radius = 6.0
+    return style
+}
+func action(label:str, callback:func()) UI.Button {
+    var result = UI.Button(label, callback, style:select_style())
+    result.style.width = null
+    return result
+}
+func project_options() UI.SelectOption<int>[] {
+    var options:UI.SelectOption<int>[] = []; var index = 0
+    while index < 50000 {
+        options.append(UI.SelectOption<int>(index, "Projet $(index + 1)",
+            disabled:index % 13 == 0, key:"project-$(index)"))
+        index++
+    }
+    return options
+}
+func painted(commands:Canvas.Command[]) str {
+    var result = ""
+    for command in commands {
+        match command {
+            text(value) => { result += value.value + "|" }
+            layer(value) => { result += painted(value.commands()) }
+            else => {}
+        }
+    }
+    return result
+}
+func text_position(commands:Canvas.Command[], label:str) Math.Vec2? {
+    for command in commands {
+        match command {
+            text(value) => { if value.value == label { return value.position + Math.Vec2(2.0, 2.0) } }
+            layer(value) => { if let point = text_position(value.commands(), label) { return point } }
+            else => {}
+        }
+    }
+    return null
+}
+class SelectWorkspace {
+    var delivery:UI.State<Livraison?> = UI.State<Livraison?>(Livraison.atelier)
+    var project:UI.State<int?> = UI.State<int?>(49990)
+    var options:UI.State<UI.SelectOption<int>[]> = UI.State<UI.SelectOption<int>[]>(project_options())
+    var disabled:UI.State<bool> = UI.State<bool>(false)
+    var actions:UI.State<float> = UI.State<float>(0.0)
+    var empty:UI.State<int?> = UI.State<int?>(null)
+    func delivery_changed(value:Livraison) { self.actions.set(self.actions.value() + 1.0) }
+    func project_changed(value:int) { self.actions.set(self.actions.value() + 1.0) }
+    func last() { self.project.set(49999) }
+    func reverse() {
+        var previous = self.options.value(); var next:UI.SelectOption<int>[] = []
+        var index = previous.count() - 1
+        while index >= 0 { next.append(previous[index]); index-- }
+        self.options.set(next)
+    }
+    func reduce() {
+        var next:UI.SelectOption<int>[] = []
+        for option in self.options.value() { if option.value < 20 { next.append(option) } }
+        self.options.set(next)
+    }
+    func restore() { self.options.set(project_options()) }
+    func delivery_view(reads:UI.Reads) UI.View {
+        var style = select_style(); style.disabled = reads.read(self.disabled)
+        return UI.Select<Livraison>([UI.SelectOption<Livraison>(Livraison.atelier, "Atelier"),
+            UI.SelectOption<Livraison>(Livraison.domicile, "Domicile (indisponible)", disabled:true),
+            UI.SelectOption<Livraison>(Livraison.relais, "Point relais")], self.delivery,
+            on_change:self.delivery_changed, style:style, popup_height:144.0, row_height:44.0)
+    }
+    func project_view(reads:UI.Reads) UI.View {
+        return UI.Select<int>(reads.read(self.options), self.project, on_change:self.project_changed,
+            placeholder:"Projet absent de la liste", style:select_style(), popup_height:240.0)
+    }
+    func status(reads:UI.Reads) UI.View {
+        let project = reads.read(self.project) ?? -1
+        let delivery = reads.read(self.delivery)
+        var label = "Atelier"
+        if delivery == Livraison.relais { label = "Point relais" }
+        return UI.Text("Valeurs validées : $(label) · projet $(project + 1) · callbacks $(reads.read(self.actions) as int)")
+    }
+    func page() UI.View {
+        var heading = UI.Text("Choix typés — Select J3"); heading.style.font_size = 28.0
+        var tools = UI.Row([action("Dernier projet", self.last), action("Inverser", self.reverse),
+            action("Garder 20 projets", self.reduce), action("Restaurer 50 000", self.restore)], wrap:true)
+        tools.style.gap = 12.0
+        var row = UI.Row([UI.Column([UI.Text("Livraison"), UI.Reactive(self.delivery_view)]),
+            UI.Column([UI.Text("50 000 projets · une option sur 13 désactivée"), UI.Reactive(self.project_view)])], wrap:true)
+        row.style.gap = 24.0
+        var result = UI.Column([heading,
+            UI.Text("Ouvrez · flèches / Début / Fin · Entrée valide · Échap ou Tab annule."),
+            UI.Text("Le choix provisoire ne change pas les valeurs affichées ci-dessous."),
+            UI.Checkbox("Désactiver le choix de livraison", self.disabled), row,
+            UI.Reactive(self.status), tools, UI.Text("Liste vide"),
+            UI.Select<int>([], self.empty, placeholder:"Aucune valeur", style:select_style()),
+            UI.Text("Redimensionnez avec un popup ouvert ; le trackpad défile ses options.")])
+        result.style.padding = UI.Insets(24.0); result.style.gap = 18.0
+        result.style.foreground = Color.slate_100(); result.style.background = Color.slate_950()
+        return UI.ScrollView(result, smooth_scroll:true)
+    }
+}
+class SelectSession:Canvas.Session {
+    var model:SelectWorkspace = SelectWorkspace()
+    private var current:UI.Runtime?
+    init() { self.current = UI.Runtime(self.model.page()) }
+    func ui() UI.Runtime {
+        if var runtime = self.current { return runtime }
+        panic("select session has no runtime")
+    }
+    func drawing(width:int, height:int) Canvas { return self.ui().drawing(width, height) }
+    func update(delta:float) bool { return self.ui().update(delta) }
+    func handle(event:@Events.Event) bool { var runtime = self.ui(); return UIInput.handle(runtime, event) }
+    func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
+    func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func click(label:str) {
+        var drawing = self.drawing(1100, 700)
+        if let point = text_position(drawing.commands(), label) {
+            let moved = self.ui().pointer_moved(point)
+            assert(self.ui().pointer_pressed(point)); assert(self.ui().pointer_released(point))
+        } else { panic("control $(label) was not painted") }
+    }
+    func check_cpu() {
+        self.click("Atelier  v")
+        var drawing = self.drawing(1100, 700)
+        assert(self.ui().key_pressed(Keyboard.Key.down))
+        assert(self.model.delivery.value() == Livraison.atelier)
+        assert(self.ui().key_pressed(Keyboard.Key.escape))
+        self.click("Atelier  v"); self.click("Point relais")
+        drawing = self.drawing(1100, 700)
+        assert(self.model.delivery.value() == Livraison.relais && self.model.actions.value() == 1.0)
+        self.click("Projet 49991  v")
+        drawing = self.drawing(1100, 700)
+        assert(Text.contains(painted(drawing.commands()), "Projet 49991|"))
+        assert(self.ui().key_pressed(Keyboard.Key.end)); assert(self.ui().key_pressed(Keyboard.Key.enter))
+        drawing = self.drawing(1100, 700)
+        assert(self.model.project.value() == 49999 && self.model.actions.value() == 2.0)
+        self.click("Inverser"); self.click("Garder 20 projets")
+        drawing = self.drawing(1100, 700)
+        assert(Text.contains(painted(drawing.commands()), "Projet absent de la liste  v"))
+        assert(self.model.project.value() == 49999)
+        self.click("Restaurer 50 000")
+        self.click("Projet 50000  v")
+        let sizes:Math.Vec2[] = [Math.Vec2(600.0, 500.0), Math.Vec2(1200.0, 800.0), Math.Vec2(1.0, 1.0)]
+        for size in sizes { drawing = self.drawing(size.x as int, size.y as int) }
+        assert(self.model.project.value() == 49999 && self.model.actions.value() == 2.0)
+    }
+}
+func main() {
+    var cpu = false
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var session = SelectSession()
+    if cpu { session.check_cpu(); print("UISelect CPU : OK"); return }
+    let code = Viewer.show(session, Viewer.CanvasSettings(width:1100, height:700, title:"Silex — Select J3"))
+    if code != 0 { panic("select viewer failed") }
+}
+test "real Select demo pointer and keyboard paths run without window or GPU" {
+    var session = SelectSession(); session.check_cpu()
+}
