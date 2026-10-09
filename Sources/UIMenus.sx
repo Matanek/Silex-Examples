@@ -1,0 +1,104 @@
+use GFX.UI
+use GFX.UI.Input as UIInput
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.Window.Cursor
+use GFX.Viewer
+use STD.Math
+use STD.Process
+
+func box(width:float, height:float) UI.Style {
+    var style = UI.Style(); style.width = width; style.height = height; return style
+}
+func label(value:str, size:float = 18.0) UI.Text {
+    var style = UI.Style(); style.font_size = size; return UI.Text(value, style:style)
+}
+class CommandWorkspace {
+    var enabled:UI.State<bool> = UI.State<bool>(true)
+    var note:UI.State<str> = UI.State<str>("Projet Silex")
+    var calls:UI.State<float> = UI.State<float>(0.0)
+    var last:UI.State<str> = UI.State<str>("Aucune commande")
+    var save:UI.Command? = null
+    var rename:UI.Command? = null
+    var unavailable:UI.Command? = null
+    init() {
+        self.save = UI.Command("Enregistrer", self.save_project, enabled:self.enabled,
+            shortcut:UI.Shortcut(Keyboard.Key.s, "Cmd/Ctrl+S"))
+        self.rename = UI.Command("Renommer", self.rename_project, shortcut:UI.Shortcut(Keyboard.Key.r, "Cmd/Ctrl+R"))
+        self.unavailable = UI.Command("Exporter (indisponible)", self.save_project, enabled:UI.State<bool>(false))
+    }
+    func save_project() { self.calls.set(self.calls.value() + 1.0); self.last.set("Projet enregistré") }
+    func rename_project() { self.calls.set(self.calls.value() + 1.0); self.last.set("Renommer : $(self.note.value())") }
+    func items() UI.MenuItem[] {
+        return [UI.MenuItem.command(self.save!), UI.MenuItem.command(self.rename!), UI.MenuItem.separator(),
+            UI.MenuItem.submenu("Autres actions", [UI.MenuItem.command(self.rename!), UI.MenuItem.command(self.unavailable!)])]
+    }
+    func summary(reads:UI.Reads) UI.View {
+        return label(reads.read(self.last) + " · actions : $(reads.read(self.calls))")
+    }
+    func page() UI.View {
+        var popup = UI.Style(); popup.width = 310.0; popup.foreground = Color.slate_100(); popup.accent = Color.cyan_500()
+        var panel = UI.Style(); panel.height = 220.0; panel.padding = UI.Insets(20.0); panel.gap = 16.0
+        panel.background = Color.slate_800(); panel.radius = 8.0
+        var input = UI.Style(); input.height = 42.0; input.background = Color.slate_900()
+        input.border = UI.Border(1.0, Color.slate_500()); input.radius = 6.0; input.padding = UI.Insets(10.0)
+        var context = UI.ContextMenu(UI.Column([label("Clic secondaire dans cette zone"),
+            UI.TextField(self.note, style:input), label("La saisie conserve ses raccourcis d’édition.")], style:panel), self.items(), popup_style:popup)
+        var menu_bar = UI.Row([UI.Menu("Projet", self.items(), popup_style:popup),
+            UI.Menu("Actions", [UI.MenuItem.submenu("Projet", self.items())], popup_style:popup)])
+        menu_bar.style.gap = 8.0; menu_bar.wrap = true
+        var root = UI.Column([label("Commandes partagées — menus J3", 28.0),
+            label("Menu, toolbar, clic secondaire et Cmd/Ctrl+S ou R."),
+            label("Flèches : parcourir · Entrée : valider · Échap : remonter · Tab : fermer"),
+            menu_bar, UI.Toolbar([self.save!, self.rename!]),
+            UI.Checkbox("Autoriser l’enregistrement", self.enabled), context,
+            UI.Reactive(self.summary), label("Réduisez la fenêtre et ouvrez un sous-menu près du bord.")])
+        root.style.padding = UI.Insets(24.0); root.style.gap = 16.0
+        root.style.foreground = Color.slate_100(); root.style.background = Color.slate_950()
+        return UI.CommandScope(root, [self.save!, self.rename!])
+    }
+}
+class MenuSession:Canvas.Session {
+    private var form:CommandWorkspace = CommandWorkspace()
+    private var current:UI.Runtime?
+    init() { self.current = UI.Runtime(self.form.page()) }
+    func drawing(width:int, height:int) Canvas { return self.current!.drawing(width, height) }
+    func update(delta:float) bool { return self.current!.update(delta) }
+    func handle(event:@Events.Event) bool { var runtime = self.current!; return UIInput.handle(runtime, event) }
+    func accepts_text_input() bool { return self.current!.accepts_text_input() }
+    func pointer_cursor() Cursor { return self.current!.pointer_cursor() }
+    func check_cpu() {
+        var runtime = self.current!
+        var drawing = runtime.drawing(900, 660)
+        assert(runtime.key_pressed(Keyboard.Key.tab))
+        assert(runtime.key_pressed(Keyboard.Key.enter)); drawing = runtime.drawing(900, 660)
+        assert(runtime.key_pressed(Keyboard.Key.enter)); assert(self.form.calls.value() == 1.0)
+        drawing = runtime.drawing(900, 660)
+        assert(runtime.key_pressed(Keyboard.Key.enter)); drawing = runtime.drawing(480, 660)
+        let down = runtime.key_pressed(Keyboard.Key.end); let right = runtime.key_pressed(Keyboard.Key.right)
+        drawing = runtime.drawing(480, 660)
+        assert(runtime.key_pressed(Keyboard.Key.enter)); assert(self.form.calls.value() == 2.0)
+        drawing = runtime.drawing(1, 1); drawing = runtime.drawing(900, 660)
+        self.form.enabled.set(false); let changed = runtime.update(0.0)
+        assert(!self.form.save!.execute())
+        var frame = 0
+        while frame < 120 { drawing = runtime.drawing(900, 660); let updated = runtime.update(0.01); frame++ }
+        self.form.enabled.set(true)
+    }
+}
+func main() {
+    var cpu = false
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var session = MenuSession()
+    if cpu { session.check_cpu(); print("UIMenus CPU : OK"); return }
+    let code = Viewer.show(session, Viewer.CanvasSettings(width:900, height:660, title:"Silex — Commandes et menus J3"))
+    if code != 0 { panic("menus viewer failed") }
+}
+test "menu demonstration exercises shared commands and nested keyboard navigation" {
+    var session = MenuSession(); session.check_cpu()
+}
