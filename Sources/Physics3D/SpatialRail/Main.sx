@@ -1,0 +1,219 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Scene3D
+use GFX.UI
+use GFX.Physics
+use Physics3D.SpatialRail.Model
+use Physics3D.SpatialRail.Controls
+use Physics3D.RigidShapesScene.Visuals
+use STD.Math
+use STD.Process
+
+class SpatialRailScene {
+    var model:Model.SpatialRailModel=Model.SpatialRailModel()
+    var controls:Controls.SpatialRailControls=Controls.SpatialRailControls()
+    var ui:UI.Session
+    var panel:ECS.Entity=ECS.Entity()
+    var arm:ECS.Entity=ECS.Entity()
+    var payload:ECS.Entity=ECS.Entity()
+    var attachment:ECS.Entity=ECS.Entity()
+    var second_axis:ECS.Entity=ECS.Entity()
+    var contact_marker:ECS.Entity=ECS.Entity()
+    var previous_arm:Physics.Transform3D=Physics.Transform3D()
+    var previous_payload:Physics.Transform3D=Physics.Transform3D()
+    var accumulator:float=0.0
+    var telemetry:float=0.0
+    var smoke:bool=false
+    var smoke_time:float=0.0
+    var smoke_phase:int=0
+    var smoke_pauses:int=0
+    var smoke_pose:Physics.Transform3D=Physics.Transform3D()
+    init() { self.ui=UI.Session(self.controls.describe()) }
+}
+func visual(world:&Resources.World,meshes:&Resources.Meshes3D,position:Math.Vec3,size:Math.Vec3,color:Color) ECS.Entity {
+    let mesh=meshes.add(Scene3D.Geometry.Cube.make())
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:position,scale:size))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.45)))
+}
+func rebuild(state:&SpatialRailScene,simulation:&Application.Simulation) {
+    state.model.reset();state.previous_arm=state.model.arm!.transform();state.previous_payload=state.model.payload!.transform()
+    state.accumulator=0.0;state.telemetry=0.0;simulation.pause()
+    state.controls.payload_command=0;state.controls.brakes=0
+    state.controls.feedback.set("En pause — choisissez un mouvement ; il reprend la simulation.")
+    state.controls.contact.set(state.model.contact_state());state.controls.pause_text.set("Reprendre (Espace)");state.controls.measure.set(state.model.measurement())
+}
+func perform(state:&SpatialRailScene,simulation:&Application.Simulation) {
+    let changed=state.controls.resets>0 || state.controls.pauses>0 || state.controls.brakes>0 || state.controls.payload_command!=0
+    while state.controls.resets>0 { state.controls.resets--;rebuild(state,simulation) }
+    while state.controls.pauses>0 {
+        state.controls.pauses--
+        if simulation.is_paused() { simulation.resume();state.controls.feedback.set("Simulation reprise") }
+        else { simulation.pause();state.controls.feedback.set("En pause — Espace ou le bouton pour reprendre") }
+    }
+    if state.controls.payload_command!=0 {
+        let direction=copy state.controls.payload_command;state.controls.payload_command=0
+        state.model.move_payload(direction as float);simulation.resume()
+        var action="lever";if direction<0 { action="abaisser" }
+        state.controls.feedback.set("Commande n°$(state.model.commands) — $(action) la charge")
+    }
+    while state.controls.brakes>0 {
+        state.controls.brakes--;state.model.brake();simulation.resume()
+        state.controls.feedback.set("Commande n°$(state.model.commands) — freinage et tenue de la position courante")
+    }
+    if changed {
+        var label="Pause (Espace)";if simulation.is_paused() { label="Reprendre (Espace)" }
+        state.controls.pause_text.set(label);state.controls.measure.set(state.model.measurement());state.controls.contact.set(state.model.contact_state())
+    }
+}
+func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&SpatialRailScene,simulation:&Application.Simulation) {
+    state.arm=visual(world,meshes,Math.Vec3(),Math.Vec3(1.0,0.12,0.12),Color.bytes(75,163,245))
+    let sphere=meshes.add(Visuals.round_mesh(0.5,0.5,0.0))
+    state.payload=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(scale:Math.Vec3(0.3)))
+        ..with(Components.Mesh3D(sphere)) ..with(Components.Material3D(albedo:Color.bytes(245,186,82),roughness:0.45)))
+    state.contact_marker=visual(world,meshes,Math.Vec3(),Math.Vec3(),Color.bytes(90,245,155))
+    visual(world,meshes,Math.Vec3(0.85,1.56,0.5),Math.Vec3(2.6,0.04,2.0),Color.bytes(105,125,147))
+    state.attachment=visual(world,meshes,Math.Vec3(),Math.Vec3(0.08,0.08,0.8),Color.bytes(245,186,82))
+    state.second_axis=visual(world,meshes,Math.Vec3(),Math.Vec3(0.04,0.6,0.04),Color.bytes(100,235,160))
+    visual(world,meshes,Math.Vec3(0.0,1.8,0.0),Math.Vec3(0.08,0.08,0.6),Color.bytes(240,90,95))
+    visual(world,meshes,Math.Vec3(0.0,0.9,-0.25),Math.Vec3(0.12,1.8,0.12),Color.bytes(170,180,190))
+    visual(world,meshes,Math.Vec3(0.0,1.8,-0.13),Math.Vec3(0.12,0.12,0.26),Color.bytes(170,180,190))
+    visual(world,meshes,Math.Vec3(0.5,0.0,0.0),Math.Vec3(6.0,0.1,5.0),Color.bytes(52,70,87))
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.5)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance=40.0))
+    rebuild(state,simulation)
+    state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform(position:Math.Vec2()))
+        ..with(Scene2D.Canvas(state.ui.drawing(1000,300),1000,300) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+            ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+}
+func update(world:&Resources.World,input:@Resources.InputState,state:&SpatialRailScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if !state.smoke {
+        for event in input.events() { if !state.controls.handle(event) { let handled=state.ui.handle(event) } }
+        perform(state,simulation)
+    } else {
+        if state.smoke_time==0.0 && simulation.is_paused() { state.controls.payload_down();perform(state,simulation) }
+        if state.smoke_time>=1.0 && state.smoke_pauses==0 {
+            state.controls.pause();perform(state,simulation);state.smoke_pose=state.model.payload!.transform();state.smoke_pauses=1
+        } else if state.smoke_pauses>0 && state.smoke_pauses<8 {
+            assert(simulation.is_paused() && simulation.delta()==0.0 && state.model.payload!.transform()==state.smoke_pose)
+            state.smoke_pauses++
+        } else if state.smoke_pauses==8 { state.controls.pause();perform(state,simulation);state.smoke_pauses++ }
+        if state.smoke_time>=3.0 && state.smoke_phase==0 {
+            assert(state.model.contact_reached && state.model.peak_impulse>0.1)
+            state.controls.payload_up();perform(state,simulation);state.smoke_phase=1
+        } else if state.smoke_time>=6.0 && state.smoke_phase==1 {
+            state.model.verify_settled();assert(!state.model.contacting)
+            state.controls.payload_down();perform(state,simulation);state.smoke_phase=2
+        } else if state.smoke_time>=9.0 && state.smoke_phase==2 {
+            assert(state.model.contact_reached);state.controls.brake();perform(state,simulation);state.smoke_phase=3
+        }
+    }
+    state.accumulator+=simulation.delta();let delta=1.0/120.0
+    while state.accumulator>=delta {
+        state.previous_arm=state.model.arm!.transform();state.previous_payload=state.model.payload!.transform()
+        state.model.step(delta);state.accumulator-=delta
+        if state.smoke { state.model.verify();state.smoke_time+=delta }
+    }
+    state.telemetry+=simulation.delta()
+    if state.telemetry>=0.1 { state.telemetry=0.0;state.controls.measure.set(state.model.measurement());state.controls.contact.set(state.model.contact_state()) }
+    if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(p:&Scene2D.Canvas) { p.replace(state.ui.drawing(1000,300)) }) }
+    if state.smoke && state.smoke_time>=10.0 {
+        state.model.verify_settled();print("Spatial rail smoke: floor blockage, release, braking, pause and rendered poses verified")
+        controller.stop()
+    }
+}
+func blended(first:Physics.Transform3D,second:Physics.Transform3D,alpha:float) Physics.Transform3D {
+    var rotation=second.rotation;if first.rotation.dot(rotation)<0.0 { rotation=rotation.multiply(-1.0) }
+    return Physics.Transform3D(first.position.lerp(second.position,alpha),
+        first.rotation.multiply(1.0-alpha).add(rotation.multiply(alpha)).normalized())
+}
+func place(world:&Resources.World,entity:ECS.Entity,pose:Physics.Transform3D,size:Math.Vec3) {
+    world.update<Components.Transform3D>(entity,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation;t.scale=size })
+}
+func render(world:&Resources.World,state:&SpatialRailScene) {
+    let alpha=Math.clamp(state.accumulator*120.0,0.0,1.0)
+    let arm=blended(state.previous_arm,state.model.arm!.transform(),alpha)
+    let payload=blended(state.previous_payload,state.model.payload!.transform(),alpha)
+    let joint=arm.point(Math.Vec3(0.5,0.1,0.8))
+    let attachment=Physics.Transform3D(arm.point(Math.Vec3(0.5,0.0,0.4)),arm.rotation)
+    place(world,state.arm,arm,Math.Vec3(1.0,0.12,0.12));place(world,state.payload,payload,Math.Vec3(0.3))
+    place(world,state.attachment,attachment,Math.Vec3(0.08,0.08,0.8))
+    place(world,state.second_axis,Physics.Transform3D(joint,arm.rotation),Math.Vec3(0.04,0.6,0.04))
+    var marker_size=Math.Vec3();if state.model.contacting { marker_size=Math.Vec3(0.055,0.015,0.055) }
+    place(world,state.contact_marker,Physics.Transform3D(state.model.contact_point.add(Math.Vec3(0.0,0.012,0.0))),marker_size)
+    if state.smoke {
+        assert(world.get<Components.Transform3D>(state.contact_marker).scale==marker_size)
+        assert(world.get<Components.Transform3D>(state.arm).position.nearly_equal(arm.position,0.00001))
+        assert(world.get<Components.Transform3D>(state.payload).position.nearly_equal(payload.position,0.00001))
+        assert(world.get<Components.Transform3D>(state.attachment).position.nearly_equal(attachment.position,0.00001))
+        assert(world.get<Components.Transform3D>(state.second_axis).position.nearly_equal(joint,0.00001))
+    }
+}
+func main() {
+    var state=SpatialRailScene()
+    match Process.arguments() {
+        success(arguments)=> { for argument in arguments {
+            if argument=="--controls-check" { verify_interactions();print("Spatial rail: buttons, floor blockage, release, Space/R, braking, reset and displayed poses verified");return }
+            if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
+        } }
+        failure(error)=> { panic(error.detail) }
+    }
+    var title="Charnière et glissière — rail vertical — commandes manuelles"
+    if state.smoke { title="TEST AUTOMATIQUE — rail vertical — fermeture à la fin" }
+    Application() ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.5,2.4,0.35)
+            ..vertical_fov=0.9 ..distance=6.0 ..yaw=Math.radians(-38.0) ..pitch=Math.radians(-16.0)
+            ..zoom_speed=0.0 ..scroll_zoom_speed=0.0 ..orbit_sensitivity=0.0 ..pan_sensitivity=0.0))
+        ..add_system(Application.Schedule.startup,startup)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}
+func step_for_check(state:&SpatialRailScene,seconds:float=5.0,rate:int=120) {
+    var elapsed=0.0;let delta=1.0/rate as float
+    while elapsed<seconds { state.model.step(delta);state.model.verify();elapsed+=delta }
+    state.accumulator=0.0;state.previous_arm=state.model.arm!.transform();state.previous_payload=state.model.payload!.transform()
+}
+func verify_interactions() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=SpatialRailScene();var simulation=Application.Simulation()
+    startup(world,meshes,state,simulation);assert(simulation.is_paused())
+    var drawing=state.ui.drawing(1000,300);assert(drawing.command_count()>0)
+    perform(state,simulation);assert(!state.ui.update(0.0))
+    let initial=state.model.payload!.position()
+    Controls.click(state.ui,100.0,109.0);perform(state,simulation)
+    assert(!simulation.is_paused() && state.model.commands==1)
+    step_for_check(state,3.0,60);step_for_check(state,10.0)
+    assert(state.model.contact_reached && state.model.peak_impulse>0.1 && !state.model.payload_moving)
+    assert(state.model.payload!.position().y<initial.y-0.05)
+    assert(Math.abs(state.model.payload_target-state.model.second!.position())<0.02)
+    assert(state.model.contact_state()=="CONTACT ATTEINT — descente arrêtée ; cliquez Lever la charge")
+    render(world,state);assert(world.get<Components.Transform3D>(state.contact_marker).scale.x>0.0)
+    assert(world.get<Components.Transform3D>(state.payload).position==state.model.payload!.position())
+    assert(state.controls.handle(Controls.key_event(Input.Key.space,32 as uint32)));perform(state,simulation);assert(simulation.is_paused())
+    assert(state.controls.handle(Controls.key_event(Input.Key.space,32 as uint32,true)));perform(state,simulation);assert(simulation.is_paused())
+    let updated=state.ui.update(0.0);var layout=state.ui.drawing(1000,300)
+    Controls.click(state.ui,350.0,109.0);perform(state,simulation);assert(!simulation.is_paused())
+    step_for_check(state,3.0);state.model.verify_settled();assert(!state.model.contacting)
+    assert(state.model.payload!.position().y>initial.y+0.07)
+    assert(state.model.contact_state()=="CHARGE LIBRE — aucun contact avec le plan")
+    render(world,state);assert(world.get<Components.Transform3D>(state.contact_marker).scale.x==0.0)
+    assert(world.get<Components.Transform3D>(state.payload).position==state.model.payload!.position())
+    let released=state.ui.update(0.0);var released_layout=state.ui.drawing(1000,300)
+    Controls.click(state.ui,100.0,109.0);perform(state,simulation);step_for_check(state,0.3)
+    Controls.click(state.ui,100.0,155.0);perform(state,simulation);step_for_check(state,1.0);state.model.verify_settled()
+    assert(state.controls.handle(Controls.key_event(Input.Key.p,114 as uint32)));perform(state,simulation)
+    assert(simulation.is_paused() && state.model.commands==0 && !state.model.contacting)
+    assert(state.model.payload!.position()==initial)
+    let reset=state.ui.update(0.0);var reset_layout=state.ui.drawing(1000,300)
+    Controls.click(state.ui,480.0,155.0);perform(state,simulation);assert(!simulation.is_paused())
+    Controls.click(state.ui,250.0,155.0);perform(state,simulation);assert(simulation.is_paused())
+    render(world,state);assert(world.get<Components.Transform3D>(state.payload).position==initial)
+}
+test "spatial hinge-slider controls expose floor blockage and release with coherent pause and reset" { verify_interactions() }

@@ -915,3 +915,12 @@ silex run Silex-Examples/Sources/Physics3D/SpatialContacts/Main.sx --release
 
 [Controls and scope](Sources/Physics3D/SpatialContacts/README.md) ·
 [Guide français](Sources/Physics3D/SpatialContacts/README.fr.md).
+
+## Vertical slider carried by a hinge
+
+[SpatialRail](Sources/Physics3D/SpatialRail/README.md) holds a blue arm and
+raises/lowers an offset gold sphere on a green vertical rail. Buttons expose
+floor contact, release, braking and pause; travel and target appear in centimeters.
+From the workspace root or owning Spec group run
+`silex run Silex-Examples/Sources/Physics3D/SpatialRail/Main.sx --release`.
+[Guide français](Sources/Physics3D/SpatialRail/README.fr.md).

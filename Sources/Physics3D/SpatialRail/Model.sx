@@ -1,0 +1,104 @@
+use GFX.Physics
+use STD.Math
+
+package class SpatialRailModel {
+    var world:Physics.World3D=Physics.World3D()
+    var arm:Physics.RigidBody3D?=null
+    var payload:Physics.RigidBody3D?=null
+    var first:Physics.HingeConstraint3D?=null
+    var second:Physics.SliderConstraint3D?=null
+    var payload_target:float=0.0
+    var payload_moving:bool=false
+    var commands:int=0
+    var contacts:Physics.Contact3D[]=[]
+    var contacting:bool=false
+    var contact_reached:bool=false
+    var contact_point:Math.Vec3=Math.Vec3()
+    var contact_impulse:float=0.0
+    var peak_impulse:float=0.0
+    func reset() {
+        self.world=Physics.World3D();self.commands=0
+        self.payload_target=0.0;self.payload_moving=false
+        self.contacts.clear();self.contact_reached=false;self.contacting=false;self.contact_point=Math.Vec3();self.contact_impulse=0.0;self.peak_impulse=0.0
+        let disabled=Physics.CollisionFilter3D(mask_bits:0)
+        var pivot=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..body_type=Physics.BodyType3D.fixed ..collision_filter=disabled
+            ..transform=Physics.Transform3D(Math.Vec3(0.0,1.8,0.0)))
+        var arm=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..transform=Physics.Transform3D(Math.Vec3(0.5,1.8,0.0))
+            ..mass_properties=Physics.MassProperties3D(2.0,Math.Vec3(0.4))
+            ..allow_sleep=false ..collision_filter=disabled)
+        self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.plane(Physics.Plane3D(Math.Vec3(0.0,1.0,0.0),1.58)) ..friction=0.0 ..restitution=0.0)
+        var payload=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..shape=Physics.Shape3D.sphere(Physics.Sphere3D(0.15))
+            ..transform=Physics.Transform3D(Math.Vec3(1.0,1.8,0.8))
+            ..mass_properties=Physics.MassProperties3D(2.0,Math.Vec3(0.2))
+            ..allow_sleep=false ..friction=0.0 ..restitution=0.0)
+        self.first=self.world.create_hinge_constraint(pivot,arm,Physics.HingeConstraint3DSettings()
+            ..second_local_anchor=Math.Vec3(-0.5,0.0,0.0) ..motor=Physics.HingeMotor3D(0.0,60.0))
+        let orientation=Math.Quat.angle_axis(Math.pi()/2.0,Math.Vec3(0.0,0.0,1.0))
+        self.second=self.world.create_slider_constraint(arm,payload,Physics.SliderConstraint3DSettings()
+            ..first_local_frame=Physics.Transform3D(Math.Vec3(0.5,0.0,0.8),orientation)
+            ..second_local_frame=Physics.Transform3D(Math.Vec3(),orientation)
+            ..motor=Physics.SliderMotor3D(0.0,40.0))
+        self.arm=arm;self.payload=payload
+    }
+    func move_payload(direction:float) {
+        self.contact_reached=false
+        self.payload_target=0.15
+        if direction<0.0 { self.payload_target= -0.2 }
+        self.payload_moving=true;self.commands++
+        var speed=0.2;if self.payload_target<self.second!.position() { speed=-0.2 }
+        self.second!.set_motor(Physics.SliderMotor3D(speed,40.0))
+    }
+    func brake() {
+        self.payload_moving=false;self.commands++
+        self.first!.set_motor(Physics.HingeMotor3D(0.0,60.0))
+        self.second!.set_motor(Physics.SliderMotor3D(0.0,40.0))
+        self.payload_target=self.second!.position()
+    }
+    func step(delta:float) {
+        if self.payload_moving && Math.abs(self.payload_target-self.second!.position())<0.002 {
+            self.payload_moving=false;self.second!.set_motor(Physics.SliderMotor3D(0.0,40.0))
+        }
+        self.world.step(delta);self.world.write_contacts(self.contacts)
+        self.contacting=!self.contacts.is_empty();self.contact_impulse=0.0;self.contact_point=Math.Vec3()
+        for contact in self.contacts {
+            assert(contact.first_body().same_body(self.payload!) || contact.second_body().same_body(self.payload!))
+            assert(contact.point_count()==1);self.contact_point=contact.point()
+            self.contact_impulse+=contact.normal_impulse()
+        }
+        self.peak_impulse=Math.max(self.peak_impulse,self.contact_impulse)
+        if self.contacting && self.payload_moving && self.payload_target<self.second!.position() {
+            self.contact_reached=true;self.payload_moving=false
+            self.second!.set_motor(Physics.SliderMotor3D(0.0,40.0))
+            self.payload_target=self.second!.position()
+        }
+    }
+    func verify() {
+        assert(self.first!.anchor_error().length()<0.005 && self.second!.anchor_error().length()<0.005)
+        assert(self.first!.axis_error()<0.005 && self.second!.angular_error().length()<0.005)
+        assert(self.payload!.position().y>=1.727)
+        assert(Math.abs(self.first!.angle())<0.02)
+        assert(Math.abs(self.first!.motor_torque())<=60.0001 && Math.abs(self.second!.motor_force())<=40.0001)
+    }
+    func verify_settled() {
+        self.verify();assert(!self.payload_moving)
+        assert(Math.abs(self.second!.position()-self.payload_target)<0.02)
+        assert(self.arm!.linear_velocity().length()<0.01 && self.payload!.linear_velocity().length()<0.01)
+        assert(self.arm!.angular_velocity().length()<0.01 && self.payload!.angular_velocity().length()<0.01)
+    }
+    func contact_state() str {
+        if self.contact_reached {
+            return "CONTACT ATTEINT — descente arrêtée ; cliquez Lever la charge"
+        }
+        if self.contacting { return "EN CONTACT — charge appuyée sur le plan" }
+        return "CHARGE LIBRE — aucun contact avec le plan"
+    }
+    func measurement() str {
+        let course=Math.round(100.0*self.second!.position()) as int
+        let target=Math.round(100.0*self.payload_target) as int
+        return "Course verticale : $(course) cm → cible $(target) cm · commande n°$(self.commands)"
+    }
+}
