@@ -1,0 +1,173 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Input
+use GFX.Window
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.Window.Cursor
+use GFX.UI
+use GFX.UI.Input as UIInput
+use GFX.Viewer
+use STD.Process
+
+func focus_name(mode:int) str {
+    if mode == 1 { return "Soulignement" }
+    if mode == 2 { return "Fond" }
+    if mode == 3 { return "Aucun indicateur" }
+    return "Contour arrondi"
+}
+func focus_style(mode:int) UI.FocusAppearance {
+    if mode == 1 { return UI.FocusAppearance.underline(width:3.0) }
+    if mode == 2 { return UI.FocusAppearance.background(opacity:0.25) }
+    if mode == 3 { return UI.FocusAppearance.none() }
+    return UI.FocusAppearance.outline(width:2.0)
+}
+func project_key(value:int) str { return "project-$(value)" }
+
+class FocusForm {
+    var mode:UI.State<int> = UI.State<int>(0)
+    var light:UI.State<bool> = UI.State<bool>(false)
+    var text:UI.State<str> = UI.State<str>("Une édition conservée")
+    var enabled:UI.State<bool> = UI.State<bool>(true)
+    var checked:UI.State<bool> = UI.State<bool>(true)
+    var choice:UI.State<int?> = UI.State<int?>(1)
+    var selection:UI.State<str?> = UI.State<str?>(null)
+    var calls:UI.State<int> = UI.State<int>(0)
+    var field_focus:UI.Focus = UI.Focus()
+    func cycle_focus() { self.mode.set((self.mode.value() + 1) % 4) }
+    func cycle_palette() { self.light.set(!self.light.value()) }
+    func activate() { self.calls.set(self.calls.value() + 1) }
+    func focus_field() { self.field_focus.request() }
+    func label(value:str, size:float = 18.0) UI.Text {
+        var result = UI.Text(value); result.style.font_size = size
+        return result
+    }
+    func control(mode:int, light:bool) UI.Style {
+        var style = UI.Style()
+        style.font_size = 18.0; style.padding = UI.Insets(10.0)
+        style.radius = 8.0; style.border = UI.Border(1.0, Color.slate_500())
+        style.foreground = Color.slate_100(); style.background = Color.slate_900()
+        if light { style.foreground = Color.slate_950(); style.background = Color.white() }
+        style.accent = Color.cyan_500(); style.focus = focus_style(mode)
+        return style
+    }
+    func project(value:int) UI.View { return self.label("Projet $(value)") }
+    func describe(reads:UI.Reads) UI.View {
+        let mode = reads.read(self.mode); let light = reads.read(self.light)
+        var style = self.control(mode, light)
+        var button = UI.Button("Valider", self.activate, style:style)
+        button.style.disabled = !reads.read(self.enabled)
+        var field = UI.TextField(self.text, style:style)
+        var overridden = UI.TextField("Surcharge locale : contour violet", style:style)
+        overridden.style.focus = UI.FocusAppearance.outline(Color(r:0.65, g:0.4, b:0.95), width:3.0)
+        let options:UI.SelectOption<int>[] = [UI.SelectOption<int>(1, "Atelier"), UI.SelectOption<int>(2, "Point relais")]
+        var check = UI.Checkbox("Option conservée", self.checked, style:style)
+        check.style.background = null; check.style.border = null
+        var radio = UI.RadioGroup<int>([UI.RadioOption<int>(1, "Atelier"), UI.RadioOption<int>(2, "Point relais")], self.choice)
+        radio.style.focus = style.focus; radio.style.accent = style.accent; radio.style.gap = 8.0
+        var list = UI.ListView<int>([1,2,3,4,5,6,7,8,9,10], project_key, self.project,
+            self.selection, row_height:40.0, style:style, smooth_scroll:true)
+        list.style.height = 180.0
+        var controls = UI.Row([
+            UI.Button("Indicateur suivant (F2)", self.cycle_focus, style:style),
+            UI.Button("Palette claire / sombre (F3)", self.cycle_palette, style:style),
+            UI.Button("Focus champ", self.focus_field, style:style)
+        ], wrap:true); controls.style.gap = 8.0
+        var content = UI.Column([
+            self.label("Focus personnalisable — J4", 28.0),
+            self.label("Tab / Maj+Tab · F2 : indicateur · F3 : palette · Éditez puis changez le style."),
+            self.label("Indicateur : " + focus_name(mode)), controls,
+            UI.Checkbox("Activer le bouton", self.enabled),
+            UI.FocusTarget(self.field_focus, field), overridden, button, check, radio,
+            UI.Select<int>(options, self.choice, style:style),
+            UI.ComboBox<int>(options, self.choice, style:style), list,
+            self.label("Actions : $(reads.read(self.calls)) · sélection : $(reads.read(self.selection) ?? "aucune")")
+        ])
+        content.style.gap = 14.0; content.style.padding = UI.Insets(24.0)
+        content.style.foreground = style.foreground
+        var viewport = UI.ScrollView(content, smooth_scroll:true)
+        viewport.style.background = Color.slate_950()
+        if light { viewport.style.background = Color.slate_100() }
+        return viewport
+    }
+}
+class FocusSession:Canvas.Session {
+    var form:FocusForm = FocusForm()
+    private var runtime:UI.Runtime?
+    init() { self.runtime = UI.Runtime(UI.Reactive(self.form.describe)) }
+    func ui() UI.Runtime { if var runtime = self.runtime { return runtime }
+        panic("missing focus runtime") }
+    func drawing(width:int, height:int) Canvas { return self.ui().drawing(width, height) }
+    func update(delta:float) bool { return self.ui().update(delta) }
+    func handle(event:@Events.Event) bool {
+        match event {
+            key_pressed(value) => {
+                if !value.repeated && value.key == Keyboard.Key.f2 { self.form.cycle_focus(); return true }
+                if !value.repeated && value.key == Keyboard.Key.f3 { self.form.cycle_palette(); return true }
+            }
+            else => {}
+        }
+        var runtime = self.ui()
+        return UIInput.handle(runtime, event)
+    }
+    func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
+    func check_cpu() {
+        for width in [960, 480, 160, 1] {
+            for light in [false, true] {
+                self.form.light.set(light)
+                for mode in 0...4 {
+                    self.form.mode.set(mode)
+                    var drawing = self.drawing(width, 800)
+                    self.form.field_focus.request(); let requested = self.update(0.0)
+                    drawing = self.drawing(width, 800)
+                    assert(self.accepts_text_input())
+                    let text = self.form.text.value()
+                    self.form.cycle_focus(); self.form.cycle_palette()
+                    let changed = self.update(0.0); drawing = self.drawing(width, 800)
+                    assert(self.accepts_text_input() && self.form.text.value() == text)
+                }
+            }
+        }
+        self.form.mode.set(0); self.form.light.set(false)
+        var drawing = self.drawing(960, 800)
+        for frame in 0...120 { let updated = self.update(1.0 / 120.0) }
+        print("UIFocusAppearance CPU : OK")
+    }
+}
+func main() {
+    var cpu = false
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var session = FocusSession()
+    if cpu { session.check_cpu(); return }
+    let code = Viewer.show(session, Viewer.CanvasSettings(width:960, height:800,
+        title:"Silex — Focus personnalisable J4"))
+    if code != 0 { panic("focus viewer failed") }
+}
+test "actual focus gallery keeps editing while styles and viewport change without a window" {
+    var session = FocusSession(); session.check_cpu()
+}
+
+func pressed_key(key:Keyboard.Key, repeated:bool = false) Events.Event {
+    return Events.Event.key_pressed(Events.KeyEvent(
+        window:Window.Id(value:1 as uint32), keyboard:Keyboard.KeyboardId(value:1 as uint32),
+        key:key, keycode:0 as uint32, raw:0 as uint16, repeated:repeated,
+        modifiers:Keyboard.Modifiers(), timestamp:Input.Timestamp(nanoseconds:1 as uint)))
+}
+test "gallery shortcuts change appearance while retaining the focused editor" {
+    var session = FocusSession(); var drawing = session.drawing(960, 800)
+    session.form.field_focus.request(); let focused = session.update(0.0)
+    assert(session.accepts_text_input())
+    let value = session.form.text.value()
+    assert(session.handle(pressed_key(Keyboard.Key.f2)))
+    assert(session.form.mode.value() == 1)
+    let updated = session.update(0.0); drawing = session.drawing(960, 800)
+    assert(session.accepts_text_input() && session.form.text.value() == value)
+    let ignored = session.handle(pressed_key(Keyboard.Key.f2, true))
+    assert(session.form.mode.value() == 1)
+    assert(session.handle(pressed_key(Keyboard.Key.f3)))
+    assert(session.form.light.value())
+}

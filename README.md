@@ -888,3 +888,14 @@ silex run Silex-Examples/Sources/Physics3D/SpatialHinges/Main.sx --release
 
 [Controls and scope](Sources/Physics3D/SpatialHinges/README.md) ·
 [Guide français](Sources/Physics3D/SpatialHinges/README.fr.md).
+
+### Custom focus feedback
+
+[UIFocusAppearance](Sources/UIFocusAppearance.sx) compares configurable outlines,
+underlines, backgrounds and invisible feedback while retaining keyboard focus.
+Use Tab/Shift+Tab, F2 to change feedback while editing, and F3 to switch local
+light/dark palettes. One field has its own purple outline. These palettes are
+explicit description styles, not a theme cascade. From the workspace root run
+`silex run Silex-Examples/Sources/UIFocusAppearance.sx --release`.
+The compiled executable accepts `--cpu-check` to exercise the gallery without
+opening a window.
