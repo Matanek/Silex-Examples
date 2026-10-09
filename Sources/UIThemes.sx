@@ -1,0 +1,180 @@
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.Window.Cursor
+use GFX.UI
+use GFX.UI.Terminal
+use GFX.UI.Input as UIInput
+use GFX.Viewer
+use STD.Math
+use STD.Process
+
+// Custom content consciously consumes the same immutable theme as the controls.
+class PaletteContent:UI.Content {
+    private var dark:UI.Theme
+    private var light:UI.Theme
+    private var bright:UI.State<bool>
+    init(dark:UI.Theme, light:UI.Theme, bright:UI.State<bool>) {
+        self.dark = dark; self.light = light; self.bright = bright
+    }
+    func measure(maximum:Math.Vec2) Math.Vec2 { return Math.Vec2(240.0, 48.0) }
+    func paint(painter:&Canvas.Painter, frame:Canvas.Rect, opacity:float) {
+        var theme = self.dark; if self.bright.value() { theme = self.light }
+        painter.fill(frame, Canvas.Fill.solid(theme.background.with_alpha(opacity)))
+        painter.fill(Canvas.Rect(frame.position + Math.Vec2(6.0, 6.0), Math.Vec2(32.0, 32.0), theme.radius),
+            Canvas.Fill.solid(theme.accent.with_alpha(opacity)))
+        painter.text("Canvas personnalisé", frame.position + Math.Vec2(48.0, 10.0),
+            Canvas.TextStyle(size:theme.font_size, color:theme.foreground.with_alpha(opacity)))
+    }
+    func focusable() bool { return false }
+    func accepts_text_input() bool { return false }
+    func focus_changed(focused:bool) bool { return false }
+    func update(delta:float) bool { return false }
+    func pointer_scrolled(delta:Math.Vec2) bool { return false }
+    func insert_text(value:str) bool { return false }
+    func key_pressed(key:Keyboard.Key, modifiers:Keyboard.Modifiers) bool { return false }
+}
+func project_key(value:int) str { return "project-$(value)" }
+func project(value:int) UI.View { return UI.Text("Projet $(value)") }
+class ThemeForm {
+    var dark:UI.Theme = UI.Theme.dark()
+    var light:UI.Theme = UI.Theme.light()
+    var bright:UI.State<bool> = UI.State<bool>(false)
+    var error:UI.State<bool> = UI.State<bool>(false)
+    var enabled:UI.State<bool> = UI.State<bool>(true)
+    var checked:UI.State<bool> = UI.State<bool>(true)
+    var choice:UI.State<int?> = UI.State<int?>(1)
+    var tab:UI.State<str?> = UI.State<str?>("one")
+    var text:UI.State<str> = UI.State<str>("Édition conservée")
+    var value:UI.State<float> = UI.State<float>(0.5)
+    var selected:UI.State<str?> = UI.State<str?>(null)
+    var calls:UI.State<int> = UI.State<int>(0)
+    var field_focus:UI.Focus = UI.Focus()
+    var command:UI.Command? = null
+    var preview:UI.CustomView?
+    init() {
+        self.command = UI.Command("Valider", self.activate, self.enabled)
+        self.preview = UI.CustomView(PaletteContent(self.dark,self.light,self.bright))
+    }
+    func toggle_theme() { self.bright.set(!self.bright.value()) }
+    func toggle_error() { self.error.set(!self.error.value()) }
+    func activate() { self.calls.set(self.calls.value() + 1) }
+    func focus_field() { self.field_focus.request() }
+    func describe(reads:UI.Reads) UI.View {
+        let bright = reads.read(self.bright); let error = reads.read(self.error)
+        var theme = self.dark; if bright { theme = self.light }
+        var control = UI.Style(); control.height = 44.0
+        var field = UI.TextField(self.text, style:control); field.style.error = error
+        var button = self.command!.button(style:control)
+        var custom = self.preview!
+        var highlighted = UI.Button("Surcharge violette", self.activate, style:control)
+        highlighted.style.background = Color(r:0.35, g:0.15, b:0.55); highlighted.style.foreground = Color.white()
+        var pressed = UI.Appearance(); pressed.background = Color(r:0.60, g:0.25, b:0.75)
+        highlighted.style.states = UI.StateStyles(pressed:pressed)
+        var options:UI.SelectOption<int>[] = []
+        for index in 1...31 { options.append(UI.SelectOption<int>(index, "Projet $(index)")) }
+        var row = UI.Row([UI.Button("Clair / sombre (F2)", self.toggle_theme, style:control),
+            UI.Button("Erreur champ (F3)", self.toggle_error, style:control),
+            UI.Button("Focus champ", self.focus_field, style:control)], wrap:true)
+        var choices = UI.Row([UI.Select<int>(options, self.choice), UI.ComboBox<int>(options, self.choice)], wrap:true)
+        var radios = UI.RadioGroup<int>([UI.RadioOption<int>(1,"Premier"), UI.RadioOption<int>(2,"Second")], self.choice)
+        var list = UI.ListView<int>([1,2,3,4,5,6,7,8,9,10], project_key, project, self.selected, row_height:36.0)
+        list.style.height = 120.0
+        var tabs = UI.Tabs([UI.Tab("one","Général",UI.Text("Un panneau conservé")),
+            UI.Tab("two","Détails",UI.Text("Second panneau"))], self.tab)
+        var nested = UI.Column([UI.Text("Sous-arbre toujours clair"), UI.Button("Thème hérité localement",self.activate,style:control)])
+        nested.style.theme = self.light; nested.style.foreground = self.light.foreground
+        nested.style.background = self.light.background; nested.style.padding = UI.Insets(12.0)
+        var content = UI.Column([UI.Text("Thèmes partagés — J4"),
+            UI.Text("Tab / Maj+Tab · F2 : thème · F3 : erreur · tapez puis changez le thème."),
+            row, UI.Checkbox("Activer Valider",self.enabled),
+            UI.FocusTarget(self.field_focus,field), UI.Row([button,highlighted],wrap:true),
+            UI.Checkbox("Sélection conservée",self.checked), radios, UI.Slider(self.value), choices,
+            UI.Menu("Actions",[UI.MenuItem.command(self.command!),UI.MenuItem.submenu("Plus",[UI.MenuItem.command(self.command!)])]),
+            tabs, list, custom, nested, UI.Text("Actions : $(reads.read(self.calls))")])
+        content.style.padding = UI.Insets(24.0)
+        var viewport = UI.ScrollView(content,smooth_scroll:true); viewport.style.theme = theme
+        return viewport
+    }
+}
+class ThemeSession:Canvas.Session {
+    var form:ThemeForm = ThemeForm()
+    private var runtime:UI.Runtime?
+    init() { self.runtime = UI.Runtime(UI.Reactive(self.form.describe)) }
+    func ui() UI.Runtime { return self.runtime! }
+    func drawing(width:int,height:int) Canvas { return self.ui().drawing(width,height) }
+    func update(delta:float) bool { return self.ui().update(delta) }
+    func handle(event:@Events.Event) bool {
+        match event {
+            key_pressed(value) => {
+                if !value.repeated && value.key == Keyboard.Key.f2 { self.form.toggle_theme(); return true }
+                if !value.repeated && value.key == Keyboard.Key.f3 { self.form.toggle_error(); return true }
+            }
+            else => {}
+        }
+        var runtime = self.ui(); return UIInput.handle(runtime,event)
+    }
+    func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
+    func check_cpu() {
+        for width in [960,480,160,1] {
+            var drawing = self.drawing(width,900)
+            self.form.field_focus.request(); let focused = self.update(0.0)
+            let before = self.form.text.value()
+            for bright in [true,false,true,false] {
+                self.form.bright.set(bright); self.form.toggle_error()
+                let changed = self.update(0.0); drawing = self.drawing(width,900)
+                assert(self.accepts_text_input() && self.form.text.value() == before)
+            }
+        }
+        self.form.field_focus.request(); let focused = self.update(0.0)
+        var runtime = self.ui(); let ended = runtime.key_pressed(Keyboard.Key.end)
+        assert(runtime.key_pressed(Keyboard.Key.left,Keyboard.Modifiers(shift:true)))
+        self.form.toggle_theme(); let changed = runtime.update(0.0)
+        assert(runtime.insert_text("X")); assert(self.form.text.value() == "Édition conservéX")
+        print("UIThemes CPU : OK")
+    }
+}
+func main() {
+    var cpu = false
+    match Process.arguments() {
+        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var session = ThemeSession()
+    if cpu { session.check_cpu(); return }
+    let code = Viewer.show(session,Viewer.CanvasSettings(width:960,height:900,title:"Silex — Thèmes partagés J4"))
+    if code != 0 { panic("themes viewer failed") }
+}
+test "actual theme gallery preserves editing across palette and viewport changes without a window" {
+    var session = ThemeSession(); session.check_cpu()
+}
+
+func has_fill(commands:Canvas.Command[], color:Color) bool {
+    for command in commands { match command {
+        fill_rect(value) => { if value.style.brush().color_at(Math.Vec2()) == color { return true } }
+        layer(value) => { if has_fill(value.commands(), color) { return true } }
+        else => {}
+    } }
+    return false
+}
+test "custom Canvas content consumes the theme while retaining its view" {
+    var form = ThemeForm(); var custom = form.preview!
+    var runtime = UI.Runtime(custom); var drawing = runtime.drawing(300,60)
+    assert(has_fill(drawing.commands(),form.dark.accent))
+    form.bright.set(true); drawing = runtime.drawing(300,60)
+    assert(has_fill(drawing.commands(),form.light.accent))
+}
+
+test "GUI themes preserve Terminal palette until an explicit settings choice" {
+    var default_console = Terminal.Console(size:Terminal.Size(columns:12,rows:2))
+    var root = UI.Column([default_console]); root.style.theme = UI.Theme.light()
+    var runtime = UI.Runtime(root); var drawing = runtime.drawing(300,100)
+    assert(has_fill(drawing.commands(),Color.slate_950()))
+    var gui = UI.Theme.light()
+    var settings = Terminal.ViewSettings(theme:Terminal.Theme(gui.foreground,gui.background,gui.accent))
+    var harmonized = Terminal.Console(size:Terminal.Size(columns:12,rows:2),settings:settings)
+    var themed_runtime = UI.Runtime(harmonized); drawing = themed_runtime.drawing(300,100)
+    assert(has_fill(drawing.commands(),gui.background))
+}

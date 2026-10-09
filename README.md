@@ -924,3 +924,10 @@ floor contact, release, braking and pause; travel and target appear in centimete
 From the workspace root or owning Spec group run
 `silex run Silex-Examples/Sources/Physics3D/SpatialRail/Main.sx --release`.
 [Guide français](Sources/Physics3D/SpatialRail/README.fr.md).
+
+## Shared UI themes
+
+[Sources/UIThemes.sx](Sources/UIThemes.sx) demonstrates inherited light/dark palettes, local overrides,
+selection/error/disabled states, menus, choices and custom Canvas content. F2
+changes the theme and F3 toggles input errors while preserving editing and focus.
+Run with `--cpu-check` to validate without opening a window.
