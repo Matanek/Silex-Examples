@@ -849,3 +849,17 @@ Try Unicode input, cancellation, fixed-width long text and resizing with the
 popup open. From the workspace root run
 `silex run Silex-Examples/Sources/UIComboBox.sx --release`. The executable accepts
 `--cpu-check` and `--cpu-profile` without opening a window.
+
+### Hinge stop impacts
+
+A paused manual scene lets you launch and reverse a free rotor or a position
+motor between two angular stops. Slow playback and retained before/after
+braking speeds make the first stop response observable; Space/R and explicit
+buttons control pause and reset.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/HingeImpact/Main.sx --release
+```
+
+[Controls and scope](Sources/Physics3D/HingeImpact/README.md) ·
+[Guide français](Sources/Physics3D/HingeImpact/README.fr.md).

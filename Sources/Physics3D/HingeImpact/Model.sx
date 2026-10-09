@@ -1,0 +1,61 @@
+use GFX.Physics
+use STD.Math
+
+package class HingeImpactModel {
+    var world:Physics.World3D=Physics.World3D(Physics.World3DSettings() ..gravity=Math.Vec3())
+    var body:Physics.RigidBody3D?=null
+    var hinge:Physics.HingeConstraint3D?=null
+    var driven:bool=false
+    var commands:int=0
+    var brakes:int=0
+    var brake_speed:float=0.0
+    var brake_after:float=0.0
+    var brake_angle:float=0.0
+    var detecting:bool=false
+    func reset() {
+        self.world=Physics.World3D(Physics.World3DSettings() ..gravity=Math.Vec3())
+        self.commands=0;self.brakes=0;self.detecting=false;self.driven=false
+        self.brake_speed=0.0;self.brake_after=0.0;self.brake_angle=0.0
+        var fixed=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..transform=Physics.Transform3D(Math.Vec3(0.0,2.4,0.0))
+            ..collision_filter=Physics.CollisionFilter3D(mask_bits:0))
+        var body=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..allow_sleep=false
+            ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(5.0,0.16,0.25)))
+            ..mass_properties=Physics.MassProperties3D(1.0,Math.Vec3(0.1))
+            ..transform=Physics.Transform3D(Math.Vec3(0.0,2.4,0.0))
+            ..collision_filter=Physics.CollisionFilter3D(mask_bits:0))
+        self.hinge=self.world.create_hinge_constraint(fixed,body,
+            Physics.HingeConstraint3DSettings() ..minimum_angle=-0.3 ..maximum_angle=0.3)
+        self.body=body
+    }
+    func aim(direction:float) {
+        self.commands++;self.detecting=true
+        if self.driven { self.hinge!.set_motor(Physics.HingeMotor3D.position(direction*0.8,10.0,1.6,0.08)) }
+        else { self.hinge!.set_motor(null);self.body!.set_angular_velocity(Math.Vec3(0.0,0.0,direction)) }
+    }
+    func step(delta:float) {
+        let before=self.hinge!.angular_speed();let angle=self.hinge!.angle()
+        self.world.step(delta)
+        let after=self.hinge!.angular_speed()
+        let limit=self.hinge!.limit_torque()*delta;let motor=self.hinge!.motor_torque()*delta
+        assert(Math.abs(0.1*(after-before)-limit-motor)<0.000002)
+        assert(limit*(before+after)*0.5<=0.000001)
+        assert(Math.abs(self.hinge!.motor_torque())<=10.0002)
+        assert(Math.abs(self.hinge!.angle())<=0.30001)
+        assert(self.hinge!.anchor_error().length()<0.00001 && self.hinge!.axis_error()<0.00001)
+        if self.detecting && Math.abs(limit)>0.00001 {
+            self.detecting=false;self.brakes++;self.brake_speed=before;self.brake_after=after;self.brake_angle=angle
+        }
+    }
+    func at_stop(direction:float) {
+        assert(Math.abs(self.hinge!.angle()-direction*0.3)<0.001)
+        assert(Math.abs(self.hinge!.angular_speed())<0.001)
+        assert(self.brakes>0)
+    }
+    func measurement() str {
+        var mode="Rotation libre";if self.driven { mode="Moteur de position" }
+        var status="En mouvement";if Math.abs(self.hinge!.angle())>0.299 && Math.abs(self.hinge!.angular_speed())<0.001 { status="Arrêt en butée" }
+        if self.commands==0 { status="Prêt" }
+        return "$(mode) · $(status) · angle $(Math.degrees(self.hinge!.angle()))° / ±17,2°\nVitesse $(self.hinge!.angular_speed()) rad/s · couple moteur $(self.hinge!.motor_torque()) N·m\nFreinage n°$(self.brakes) : $(self.brake_speed) → $(self.brake_after) rad/s à $(Math.degrees(self.brake_angle))°"
+    }
+}

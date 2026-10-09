@@ -135,15 +135,15 @@ class SelectSession:Canvas.Session {
         } else { panic("control $(label) was not painted") }
     }
     func check_cpu() {
-        self.click("Atelier  v")
+        self.click("Atelier")
         var drawing = self.drawing(1100, 700)
         assert(self.ui().key_pressed(Keyboard.Key.down))
         assert(self.model.delivery.value() == Livraison.atelier)
         assert(self.ui().key_pressed(Keyboard.Key.escape))
-        self.click("Atelier  v"); self.click("Point relais")
+        self.click("Atelier"); self.click("Point relais")
         drawing = self.drawing(1100, 700)
         assert(self.model.delivery.value() == Livraison.relais && self.model.actions.value() == 1.0)
-        self.click("Projet 49991  v")
+        self.click("Projet 49991")
         drawing = self.drawing(1100, 700)
         assert(Text.contains(painted(drawing.commands()), "Projet 49991|"))
         assert(self.ui().key_pressed(Keyboard.Key.end)); assert(self.ui().key_pressed(Keyboard.Key.enter))
@@ -151,10 +151,10 @@ class SelectSession:Canvas.Session {
         assert(self.model.project.value() == 49999 && self.model.actions.value() == 2.0)
         self.click("Inverser"); self.click("Garder 20 projets")
         drawing = self.drawing(1100, 700)
-        assert(Text.contains(painted(drawing.commands()), "Projet absent de la liste  v"))
+        assert(Text.contains(painted(drawing.commands()), "Projet absent de la liste"))
         assert(self.model.project.value() == 49999)
         self.click("Restaurer 50 000")
-        self.click("Projet 50000  v")
+        self.click("Projet 50000")
         let sizes:Math.Vec2[] = [Math.Vec2(600.0, 500.0), Math.Vec2(1200.0, 800.0), Math.Vec2(1.0, 1.0)]
         for size in sizes { drawing = self.drawing(size.x as int, size.y as int) }
         assert(self.model.project.value() == 49999 && self.model.actions.value() == 2.0)
@@ -170,7 +170,7 @@ class SelectSession:Canvas.Session {
             frame++
         }
         var opened = Time.Stopwatch(); opened.start()
-        self.click("Projet 49991  v")
+        self.click("Projet 49991")
         drawing = self.drawing(1100, 700)
         print("PROFILE open ms=$(opened.get_elapsed_milliseconds())")
         frame = 0
