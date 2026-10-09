@@ -13,7 +13,8 @@ the sound once with `melody.prepare(audio, using:timbre)` and triggers it with
 `audio.play(victory)`. Change the notes, their `beats` or the `tempo` to adjust
 the melody; `audio.wait` only keeps the demo alive until playback ends and
 should be omitted in a game. Convert text names with `Music.key("C#5")` or
-`Music.keys(["C5", "E5", "G5", "C6"])`.
+`Music.keys(["C5", "E5", "G5", "C6"])`. These calls return MIDI numbers directly;
+`Music.try_key` and `Music.try_keys` return a `Result` for inputs that may be invalid.
 
 ## Listen and select a recipe
 
