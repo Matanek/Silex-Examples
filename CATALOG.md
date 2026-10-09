@@ -9,6 +9,7 @@ synchronisation automatique.
 
 | Démonstration | Source actuelle | Origine |
 | --- | --- | --- |
+| Trois servos swing/twist sous charge | `Sources/Physics3D/LoadedSwingTwist/Main.sx` | création propre au catalogue : trois cibles composées sous gravité, charge déportée, repères moteur colorés, inversion, recentrage, pause et mesures |
 | Servo de crémaillère et fins de rail | `Sources/Physics3D/RackServo/Main.sx` | création propre au catalogue : deux cibles explicites, butées, retour au centre, pause et mesures physiques |
 | Premier freinage de charnière | `Sources/Physics3D/HingeImpact/Main.sx` | rotation libre ou motorisée, deux butées et inversion au ralenti, vitesse avant/après freinage, boutons explicites |
 | Charnière avec charge hors du plan | `Sources/Physics3D/LoadedHinge/Main.sx` | création propre au catalogue : cibles explicites, attache fixe déportée, déport opposé et lâcher sous gravité |

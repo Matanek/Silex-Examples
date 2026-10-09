@@ -1,0 +1,60 @@
+use GFX.Physics
+use STD.Math
+
+package class LoadedSwingModel {
+    var world:Physics.World3D=Physics.World3D()
+    var body:Physics.RigidBody3D?=null
+    var joint:Physics.SwingTwistConstraint3D?=null
+    let pivot:Math.Vec3=Math.Vec3(0.0,2.0,0.0)
+    let lever:Math.Vec3=Math.Vec3(0.5,0.2,0.4)
+    let base:Math.Quat=Math.Quat.angle_axis(0.7,Math.Vec3(1.0,2.0,-1.0).normalized())
+    let frame:Math.Quat=Math.Quat.angle_axis(0.35,Math.Vec3(0.0,0.0,1.0))
+    var direction:int=0
+    var commands:int=0
+    func reset() {
+        self.world=Physics.World3D();self.commands=0
+        let disabled=Physics.CollisionFilter3D(mask_bits:0)
+        var support=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..body_type=Physics.BodyType3D.fixed ..transform=Physics.Transform3D(self.pivot,self.base)
+            ..collision_filter=disabled)
+        var body=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..transform=Physics.Transform3D(self.pivot.add(self.base.rotate(self.lever)),self.base)
+            ..mass_properties=Physics.MassProperties3D(2.0,Math.Vec3(0.4))
+            ..allow_sleep=false ..collision_filter=disabled)
+        self.joint=self.world.create_swing_twist_constraint(support,body,Physics.SwingTwistConstraint3DSettings()
+            ..first_local_frame=Physics.Transform3D(rotation:self.frame)
+            ..second_local_frame=Physics.Transform3D(self.lever.negated(),self.frame)
+            ..swing_limits=Physics.SwingLimits3D.cone(Math.Vec2(0.8)) ..minimum_twist=-0.8 ..maximum_twist=0.8)
+        self.body=body;self.set_target(0);self.commands=0
+    }
+    func set_target(direction:int) {
+        self.direction=direction;self.commands++
+        let sign=direction as float
+        self.joint!.set_twist_motor(Physics.TwistMotor3D.position(0.25*sign,30.0,80.0,15.0))
+        self.joint!.set_swing_motor(Physics.SwingMotor3D.position(Math.Vec2(0.2*sign,-0.15*sign),30.0,80.0,15.0))
+    }
+    func step(delta:float) { self.world.step(delta) }
+    func verify() {
+        let m=self.joint!.motor_torque()
+        assert(self.joint!.anchor_error().length()<0.005)
+        assert(Math.abs(m.x)<=30.0001 && Math.abs(m.y)<=30.0001 && Math.abs(m.z)<=30.0001)
+        assert(self.body!.position().add(self.body!.transform().rotation.rotate(self.lever.negated())).nearly_equal(self.pivot,0.005))
+    }
+    func verify_settled() {
+        self.verify()
+        assert(self.body!.linear_velocity().length()<0.003 && self.body!.angular_velocity().length()<0.003)
+        let force=self.joint!.reaction_force();let torque=self.joint!.reaction_torque()
+        assert(force.subtract(Math.Vec3(0.0,19.62,0.0)).length()<0.05)
+        assert(torque.add(self.body!.transform().rotation.rotate(self.lever.negated()).cross(force)).length()<0.05)
+    }
+    func measurement() str {
+        let swing=self.joint!.swing_angles();let m=self.joint!.motor_torque()
+        let twist=Math.round(Math.degrees(self.joint!.twist_angle())) as int
+        let y=Math.round(Math.degrees(swing.x)) as int;let z=Math.round(Math.degrees(swing.y)) as int
+        let x_target=Math.round(Math.degrees(0.25*self.direction as float)) as int
+        let y_target=Math.round(Math.degrees(0.2*self.direction as float)) as int
+        let z_target=Math.round(Math.degrees(-0.15*self.direction as float)) as int
+        let mx=Math.round(m.x*10.0)/10.0;let my=Math.round(m.y*10.0)/10.0;let mz=Math.round(m.z*10.0)/10.0
+        return "Angles/cibles X $(twist)/$(x_target)° · Y $(y)/$(y_target)° · Z $(z)/$(z_target)° | Couples $(mx), $(my), $(mz) N·m"
+    }
+}
