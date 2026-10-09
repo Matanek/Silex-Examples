@@ -25,8 +25,9 @@ class CommandWorkspace {
     var unavailable:UI.Command? = null
     var use_system:bool = false
     var hover_menus:bool = false
-    init(system:bool = false, hover:bool = false) {
-        self.use_system = system; self.hover_menus = hover
+    var close_menus:bool = false
+    init(system:bool = false, hover:bool = false, close:bool = false) {
+        self.use_system = system; self.hover_menus = hover; self.close_menus = close
         self.save = UI.Command("Enregistrer", self.save_project, enabled:self.enabled,
             shortcut:UI.Shortcut(Keyboard.Key.s, "Cmd/Ctrl+S"))
         self.rename = UI.Command("Renommer", self.rename_project, shortcut:UI.Shortcut(Keyboard.Key.r, "Cmd/Ctrl+R"))
@@ -49,11 +50,12 @@ class CommandWorkspace {
         input.border = UI.Border(1.0, Color.slate_500()); input.radius = 6.0; input.padding = UI.Insets(10.0)
         var context = UI.ContextMenu(UI.Column([label("Clic secondaire dans cette zone"),
             UI.TextField(self.note, style:input), label("La saisie conserve ses raccourcis d’édition.")], style:panel), self.items(), popup_style:popup)
-        var menu_bar = UI.Row([UI.Menu("Projet", self.items(), popup_style:popup, open_on_hover:self.hover_menus),
-            UI.Menu("Actions", [UI.MenuItem.submenu("Projet", self.items())], popup_style:popup, open_on_hover:self.hover_menus)])
+        var menu_bar = UI.Row([UI.Menu("Projet", self.items(), popup_style:popup, open_on_hover:self.hover_menus, close_on_leave:self.close_menus),
+            UI.Menu("Actions", [UI.MenuItem.submenu("Projet", self.items())], popup_style:popup, open_on_hover:self.hover_menus, close_on_leave:self.close_menus)])
         menu_bar.style.gap = 8.0; menu_bar.wrap = true
         var instruction = "Menus au clic (option --hover-menu pour le survol)."
         if self.hover_menus { instruction = "Menus au survol ; Échap ferme jusqu’à une nouvelle entrée." }
+        if self.close_menus { instruction += " Sortie du menu : fermeture automatique." }
         if self.use_system { instruction = "La barre système conserve le comportement natif macOS." }
         var controls:UI.View = menu_bar
         if self.use_system { controls = label("Menus Projet et Actions dans la barre système macOS.") }
@@ -71,8 +73,8 @@ class CommandWorkspace {
 class MenuSession:Canvas.Session {
     private var form:CommandWorkspace = CommandWorkspace()
     private var current:UI.Runtime?
-    init(system:bool = false, hover:bool = false) {
-        self.form = CommandWorkspace(system, hover)
+    init(system:bool = false, hover:bool = false, close:bool = false) {
+        self.form = CommandWorkspace(system, hover, close)
         var menu:UI.SystemMenu? = null
         if system { menu = UI.SystemMenu([UI.MenuItem.submenu("Projet", self.form.items()),
             UI.MenuItem.submenu("Actions", [UI.MenuItem.submenu("Projet", self.form.items())])]) }
@@ -106,12 +108,13 @@ func main() {
     var cpu = false
     var system = false
     var hover = false
+    var close = false
     match Process.arguments() {
-        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } if argument == "--system-menu" { system = true } if argument == "--hover-menu" { hover = true } } }
+        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } if argument == "--system-menu" { system = true } if argument == "--hover-menu" { hover = true } if argument == "--close-on-leave" { close = true } } }
         failure(error) => { panic(error.detail) }
     }
     if system && !UI.SystemMenu.available() { panic("La barre système est disponible sur macOS ; utiliser le mode dans la vue.") }
-    var session = MenuSession(system, hover)
+    var session = MenuSession(system, hover, close)
     if cpu {
         var normal = MenuSession(); normal.check_cpu()
         var drawing = session.drawing(900, 660); let updated = session.update(0.01)
