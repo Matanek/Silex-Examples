@@ -31,9 +31,11 @@ class FocusForm {
     var enabled:UI.State<bool> = UI.State<bool>(true)
     var checked:UI.State<bool> = UI.State<bool>(true)
     var choice:UI.State<int?> = UI.State<int?>(1)
+    var long_choice:UI.State<int?> = UI.State<int?>(0)
     var selection:UI.State<str?> = UI.State<str?>(null)
     var calls:UI.State<int> = UI.State<int>(0)
     var field_focus:UI.Focus = UI.Focus()
+    var long_focus:UI.Focus = UI.Focus()
     func cycle_focus() { self.mode.set((self.mode.value() + 1) % 4) }
     func cycle_palette() { self.light.set(!self.light.value()) }
     func activate() { self.calls.set(self.calls.value() + 1) }
@@ -73,6 +75,9 @@ class FocusForm {
             UI.Button("Palette claire / sombre (F3)", self.cycle_palette, style:style),
             UI.Button("Focus champ", self.focus_field, style:style)
         ], wrap:true); controls.style.gap = 8.0
+        var projects:UI.SelectOption<int>[] = []
+        for index in 0...30 { projects.append(UI.SelectOption<int>(index, "Projet $(index + 1)")) }
+        var popup = UI.Style(); popup.maximum_height = 160.0
         var content = UI.Column([
             self.label("Focus personnalisable — J4", 28.0),
             self.label("Tab / Maj+Tab · F2 : indicateur · F3 : palette · Éditez puis changez le style."),
@@ -80,7 +85,9 @@ class FocusForm {
             UI.Checkbox("Activer le bouton", self.enabled),
             UI.FocusTarget(self.field_focus, field), overridden, button, check, radio,
             UI.Select<int>(options, self.choice, style:style),
-            UI.ComboBox<int>(options, self.choice, style:style), list,
+            UI.ComboBox<int>(options, self.choice, style:style),
+            self.label("30 projets · hauteur maximale 160 px · tapez pour réduire la liste"),
+            UI.FocusTarget(self.long_focus, UI.ComboBox<int>(projects, self.long_choice, style:style, popup_style:popup)), list,
             self.label("Actions : $(reads.read(self.calls)) · sélection : $(reads.read(self.selection) ?? "aucune")")
         ])
         content.style.gap = 14.0; content.style.padding = UI.Insets(24.0)
@@ -132,6 +139,15 @@ class FocusSession:Canvas.Session {
         self.form.mode.set(0); self.form.light.set(false)
         var drawing = self.drawing(960, 800)
         for frame in 0...120 { let updated = self.update(1.0 / 120.0) }
+        drawing = self.drawing(960, 1600)
+        self.form.long_focus.request(); let focused = self.update(0.0)
+        var runtime = self.ui(); assert(runtime.accepts_text_input())
+        assert(runtime.key_pressed(Keyboard.Key.down)); drawing = self.drawing(960, 1600)
+        assert(runtime.key_pressed(Keyboard.Key.a, Keyboard.Modifiers(system:true)))
+        assert(runtime.insert_text("Projet 30")); drawing = self.drawing(960, 1600)
+        assert(runtime.accepts_text_input() && self.form.long_choice.value() == 0)
+        assert(runtime.key_pressed(Keyboard.Key.escape)); drawing = self.drawing(960, 1600)
+        assert(self.form.long_choice.value() == 0)
         print("UIFocusAppearance CPU : OK")
     }
 }

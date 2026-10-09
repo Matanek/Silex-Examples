@@ -897,6 +897,8 @@ Use Tab/Shift+Tab, F2 to change feedback while editing, and F3 to switch local
 light/dark palettes. One field has its own purple outline. These palettes are
 explicit description styles, not a theme cascade. From the workspace root run
 `silex run Silex-Examples/Sources/UIFocusAppearance.sx --release`.
+Short choice popups fit their options; the 30-project ComboBox caps its popup
+at 160 px and shrinks while filtering.
 The compiled executable accepts `--cpu-check` to exercise the gallery without
 opening a window.
 
