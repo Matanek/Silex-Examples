@@ -1,0 +1,84 @@
+use GFX.Physics
+use STD.Math
+
+package class ArticulatedPoseModel {
+    var world:Physics.World3D=Physics.World3D()
+    var upper:Physics.RigidBody3D?=null
+    var lower:Physics.RigidBody3D?=null
+    var shoulder:Physics.SwingTwistConstraint3D?=null
+    var elbow:Physics.HingeConstraint3D?=null
+    let pivot:Math.Vec3=Math.Vec3(0.0,2.0,0.0)
+    let upper_lever:Math.Vec3=Math.Vec3(0.5,0.2,0.4)
+    let elbow_anchor:Math.Vec3=Math.Vec3(0.5,-0.2,0.15)
+    let lower_lever:Math.Vec3=Math.Vec3(0.35,0.1,-0.3)
+    let base:Math.Quat=Math.Quat.angle_axis(0.7,Math.Vec3(1.0,2.0,-1.0).normalized())
+    let frame:Math.Quat=Math.Quat.angle_axis(0.35,Math.Vec3(0.0,0.0,1.0))
+    var direction:int=0
+    var commands:int=0
+    func reset() {
+        self.world=Physics.World3D();self.commands=0
+        let disabled=Physics.CollisionFilter3D(mask_bits:0)
+        var support=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..body_type=Physics.BodyType3D.fixed ..transform=Physics.Transform3D(self.pivot,self.base)
+            ..collision_filter=disabled)
+        var upper=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..transform=Physics.Transform3D(self.pivot.add(self.base.rotate(self.upper_lever)),self.base)
+            ..mass_properties=Physics.MassProperties3D(2.0,Math.Vec3(0.4))
+            ..allow_sleep=false ..collision_filter=disabled)
+        var lower=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..transform=Physics.Transform3D(self.pivot.add(self.base.rotate(self.upper_lever.add(self.elbow_anchor).add(self.lower_lever))),self.base)
+            ..mass_properties=Physics.MassProperties3D(2.0,Math.Vec3(0.2))
+            ..allow_sleep=false ..collision_filter=disabled)
+        self.shoulder=self.world.create_swing_twist_constraint(support,upper,Physics.SwingTwistConstraint3DSettings()
+            ..first_local_frame=Physics.Transform3D(rotation:self.frame)
+            ..second_local_frame=Physics.Transform3D(self.upper_lever.negated(),self.frame)
+            ..swing_limits=Physics.SwingLimits3D.cone(Math.Vec2(0.8)) ..minimum_twist=-0.8 ..maximum_twist=0.8)
+        self.elbow=self.world.create_hinge_constraint(upper,lower,Physics.HingeConstraint3DSettings()
+            ..first_local_anchor=self.elbow_anchor ..second_local_anchor=self.lower_lever.negated()
+            ..minimum_angle=-0.8 ..maximum_angle=0.8)
+        self.upper=upper;self.lower=lower;self.set_target(0);self.commands=0
+    }
+    func set_target(direction:int) {
+        self.direction=direction;self.commands++
+        let sign=direction as float
+        self.shoulder!.set_twist_motor(Physics.TwistMotor3D.position(0.25*sign,60.0,120.0,20.0))
+        self.shoulder!.set_swing_motor(Physics.SwingMotor3D.position(Math.Vec2(0.2*sign,-0.15*sign),60.0,120.0,20.0))
+        self.elbow!.set_motor(Physics.HingeMotor3D.position(0.35*sign,40.0,80.0,15.0))
+    }
+    func step(delta:float) { self.world.step(delta) }
+    func verify() {
+        let m=self.shoulder!.motor_torque()
+        assert(self.shoulder!.anchor_error().length()<0.005 && self.elbow!.anchor_error().length()<0.005)
+        assert(Math.abs(m.x)<=60.0001 && Math.abs(m.y)<=60.0001 && Math.abs(m.z)<=60.0001)
+        assert(Math.abs(self.elbow!.motor_torque())<=40.0001)
+        assert(self.upper!.transform().point(self.upper_lever.negated()).nearly_equal(self.pivot,0.005))
+        assert(self.lower!.transform().point(self.lower_lever.negated()).nearly_equal(self.upper!.transform().point(self.elbow_anchor),0.005))
+    }
+    func verify_settled() {
+        self.verify()
+        assert(self.upper!.linear_velocity().length()<0.003 && self.upper!.angular_velocity().length()<0.003)
+        assert(self.lower!.linear_velocity().length()<0.003 && self.lower!.angular_velocity().length()<0.003)
+        let f1=self.shoulder!.reaction_force();let f2=self.elbow!.reaction_force()
+        let g=Math.Vec3(0.0,-19.62,0.0)
+        assert(f1.add(g.multiply(2.0)).length()<0.05 && f2.add(g).length()<0.05)
+        assert(self.shoulder!.reaction_torque().add(self.upper!.position().subtract(self.pivot).cross(g))
+            .add(self.lower!.position().subtract(self.pivot).cross(g)).length()<0.05)
+        assert(self.elbow!.reaction_torque().add(self.lower!.transform().rotation.rotate(self.lower_lever.negated()).cross(f2)).length()<0.05)
+    }
+    func shoulder_measurement() str {
+        let swing=self.shoulder!.swing_angles();let m=self.shoulder!.motor_torque()
+        let twist=Math.round(Math.degrees(self.shoulder!.twist_angle())) as int
+        let y=Math.round(Math.degrees(swing.x)) as int;let z=Math.round(Math.degrees(swing.y)) as int
+        let x_target=Math.round(Math.degrees(0.25*self.direction as float)) as int
+        let y_target=Math.round(Math.degrees(0.2*self.direction as float)) as int
+        let z_target=Math.round(Math.degrees(-0.15*self.direction as float)) as int
+        let mx=Math.round(m.x*10.0)/10.0;let my=Math.round(m.y*10.0)/10.0;let mz=Math.round(m.z*10.0)/10.0
+        return "Épaule / cibles X $(twist)/$(x_target)° · Y $(y)/$(y_target)° · Z $(z)/$(z_target)° | Couples $(mx), $(my), $(mz) N·m"
+    }
+    func elbow_measurement() str {
+        let angle=Math.round(Math.degrees(self.elbow!.angle())) as int
+        let target=Math.round(Math.degrees(0.35*self.direction as float)) as int
+        let torque=Math.round(self.elbow!.motor_torque()*10.0)/10.0
+        return "Coude / cible $(angle)/$(target)° — angle par rapport au bras | Couple $(torque) N·m"
+    }
+}

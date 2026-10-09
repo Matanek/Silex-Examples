@@ -1,0 +1,75 @@
+use GFX.Color
+use GFX.Input
+use GFX.Input.Events
+use GFX.Window
+use GFX.UI
+use STD.Math
+
+package class ArticulatedPoseControls {
+    var direction:int=0
+    var has_target:bool=false
+    var resets:int=0
+    var pauses:int=0
+    var automatic:bool=false
+    var pause_text:UI.State<str> =UI.State<str>("Reprendre (Espace)")
+    var feedback:UI.State<str> =UI.State<str>("En pause — choisissez une cible pour démarrer.")
+    var shoulder_measure:UI.State<str> =UI.State<str>("")
+    var elbow_measure:UI.State<str> =UI.State<str>("")
+    func positive() { self.direction=1;self.has_target=true }
+    func negative() { self.direction=-1;self.has_target=true }
+    func center() { self.direction=0;self.has_target=true }
+    func reset() { self.resets++ }
+    func pause() { self.pauses++ }
+    func button(text:str,action:func(),width:float=200.0) UI.Button {
+        var b=UI.Button(text,action);b.style.width=width;b.style.height=38.0
+        b.style.background=Color.slate_700();b.style.radius=5.0;return b
+    }
+    func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause) }
+    func status(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.feedback)) }
+    func shoulder_metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.shoulder_measure)) }
+    func elbow_metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.elbow_measure)) }
+    func describe() UI.View {
+        var title=UI.Text("Épaule et coude sous charge — deux membres, quatre servos");title.style.height=34.0
+        var help=UI.Text("Bras bronze et charge or : 2 kg chacun · épaule blanche fixe, coude cyan mobile.");help.style.height=24.0
+        var movement=UI.Row([self.button("Pose +",self.positive),self.button("Pose −",self.negative),self.button("Recentrer",self.center)])
+        movement.style.gap=10.0
+        var management=UI.Row([self.button("Remettre à zéro (R)",self.reset),UI.Reactive(self.pause_button)])
+        management.style.gap=10.0
+        var rows:UI.View[]=[title,help,movement,management,UI.Reactive(self.status),UI.Reactive(self.shoulder_metrics),UI.Reactive(self.elbow_metrics),
+            UI.Text("Repère rouge X / vert Y / bleu Z ; trait bleu au coude : flexion. Poids : équilibre élastique. Espace / R / Échap.")]
+        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — fermeture à la fin"),UI.Reactive(self.shoulder_metrics),UI.Reactive(self.elbow_metrics)] }
+        var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
+        root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0
+        return root
+    }
+    func handle(event:@Events.Event) bool {
+        if self.automatic { return false }
+        match event {
+            key_pressed(key)=> {
+                let reset=key.keycode==114 as uint32 || key.keycode==82 as uint32 || (key.keycode==0 as uint32 && key.key==Input.Key.r)
+                if key.key==Input.Key.space || reset {
+                    if !key.repeated { if reset { self.reset() } else { self.pause() } }
+                    return true
+                }
+            }
+            else=>{}
+        }
+        return false
+    }
+}
+package func key_event(key:Input.Key,code:uint32=0 as uint32,repeated:bool=false) Events.Event {
+    let modifiers=Input.Modifiers(shift:false,control:false,alt:false,system:false,
+        left_shift:false,right_shift:false,level5:false,left_control:false,right_control:false,
+        left_alt:false,right_alt:false,left_system:false,right_system:false,mode:false,
+        caps_lock:false,num_lock:false,scroll_lock:false)
+    return Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:0 as uint32),
+        keyboard:Input.KeyboardId(value:0 as uint32),key:key,keycode:code,raw:0 as uint16,
+        repeated:repeated,modifiers:modifiers,timestamp:Input.Timestamp(nanoseconds:0 as uint)))
+}
+package func click(session:&UI.Session,x:float,y:float) {
+    let value=Events.MouseButtonEvent(window:Window.Id(value:0 as uint32),mouse:Input.MouseId(value:0 as uint32),
+        button:Input.MouseButton.left,down:true,clicks:1 as uint8,position:Math.Vec2(x,y),timestamp:Input.Timestamp(nanoseconds:0 as uint))
+    let pressed=session.handle(Events.Event.mouse_button_pressed(value))
+    let released=session.handle(Events.Event.mouse_button_released(value))
+    assert(pressed && released)
+}

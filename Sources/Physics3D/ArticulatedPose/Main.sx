@@ -1,0 +1,225 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Scene3D
+use GFX.UI
+use GFX.Physics
+use Physics3D.ArticulatedPose.Model
+use Physics3D.ArticulatedPose.Controls
+use STD.Math
+use STD.Process
+
+class ArticulatedPoseScene {
+    var model:Model.ArticulatedPoseModel=Model.ArticulatedPoseModel()
+    var controls:Controls.ArticulatedPoseControls=Controls.ArticulatedPoseControls()
+    var ui:UI.Session
+    var panel:ECS.Entity=ECS.Entity()
+    var payload:ECS.Entity=ECS.Entity()
+    var upper:ECS.Entity=ECS.Entity()
+    var elbow:ECS.Entity=ECS.Entity()
+    var elbow_axis:ECS.Entity=ECS.Entity()
+    var rods:ECS.Entity[]=[]
+    var axes:ECS.Entity[]=[]
+    let rod_centers:Math.Vec3[]=[Math.Vec3(-0.25,-0.1,-0.2),Math.Vec3(0.25,-0.1,0.075),Math.Vec3(-0.175,-0.05,0.15)]
+    var rod_sizes:Math.Vec3[]=[]
+    var rod_rotations:Math.Quat[]=[]
+    let axis_centers:Math.Vec3[]=[Math.Vec3(0.24,0.0,0.0),Math.Vec3(0.0,0.24,0.0),Math.Vec3(0.0,0.0,0.24)]
+    let axis_sizes:Math.Vec3[]=[Math.Vec3(0.48,0.025,0.025),Math.Vec3(0.025,0.48,0.025),Math.Vec3(0.025,0.025,0.48)]
+    var previous:Physics.Transform3D=Physics.Transform3D()
+    var previous_lower:Physics.Transform3D=Physics.Transform3D()
+    var accumulator:float=0.0
+    var telemetry:float=0.0
+    var smoke:bool=false
+    var smoke_time:float=0.0
+    var smoke_phase:int=0
+    var smoke_pauses:int=0
+    var smoke_pose:Physics.Transform3D=Physics.Transform3D()
+    var smoke_lower_pose:Physics.Transform3D=Physics.Transform3D()
+    init() { self.ui=UI.Session(self.controls.describe()) }
+}
+func visual(world:&Resources.World,mesh:Scene3D.MeshHandle,position:Math.Vec3,size:Math.Vec3,color:Color) ECS.Entity {
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:position,scale:size))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.45)))
+}
+func rebuild(state:&ArticulatedPoseScene,simulation:&Application.Simulation) {
+    state.model.reset();state.previous=state.model.upper!.transform();state.previous_lower=state.model.lower!.transform();state.accumulator=0.0;state.telemetry=0.0
+    state.controls.has_target=false;simulation.pause()
+    state.controls.feedback.set("En pause — choisissez une cible pour démarrer.")
+    state.controls.pause_text.set("Reprendre (Espace)");state.controls.shoulder_measure.set(state.model.shoulder_measurement());state.controls.elbow_measure.set(state.model.elbow_measurement())
+}
+func perform(state:&ArticulatedPoseScene,simulation:&Application.Simulation) {
+    if state.controls.resets==0 && state.controls.pauses==0 && !state.controls.has_target { return }
+    while state.controls.resets>0 { state.controls.resets--;rebuild(state,simulation) }
+    while state.controls.pauses>0 {
+        state.controls.pauses--
+        if simulation.is_paused() { simulation.resume();state.controls.feedback.set("Simulation reprise") }
+        else { simulation.pause();state.controls.feedback.set("En pause — Espace ou le bouton pour reprendre") }
+    }
+    if state.controls.has_target {
+        state.controls.has_target=false;state.model.set_target(state.controls.direction);simulation.resume()
+        var action="recentrage";if state.controls.direction>0 { action="cible +" } if state.controls.direction<0 { action="cible −" }
+        state.controls.feedback.set("Commande n°$(state.model.commands) — $(action) ; équilibre élastique sous le poids")
+    }
+    var label="Pause (Espace)";if simulation.is_paused() { label="Reprendre (Espace)" }
+    state.controls.pause_text.set(label);state.controls.shoulder_measure.set(state.model.shoulder_measurement());state.controls.elbow_measure.set(state.model.elbow_measurement())
+}
+func along(vector:Math.Vec3) Math.Quat {
+    let direction=vector.normalized();let axis=Math.Vec3(1.0,0.0,0.0).cross(direction)
+    if axis.length()<0.000001 {
+        if direction.x<0.0 { return Math.Quat.angle_axis(Math.pi(),Math.Vec3(0.0,1.0,0.0)) }
+        return Math.Quat.identity()
+    }
+    return Math.Quat.angle_axis(Math.acos(Math.clamp(direction.x,-1.0,1.0)),axis.normalized())
+}
+func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&ArticulatedPoseScene,simulation:&Application.Simulation) {
+    let cube=meshes.add(Scene3D.Geometry.Cube.make())
+    state.upper=visual(world,cube,Math.Vec3(),Math.Vec3(0.24,0.2,0.2),Color.bytes(185,125,82))
+    state.elbow=visual(world,cube,Math.Vec3(),Math.Vec3(0.1),Color.bytes(70,230,235))
+    state.elbow_axis=visual(world,cube,Math.Vec3(),Math.Vec3(0.025,0.025,0.45),Color.bytes(75,163,245))
+    let levers:Math.Vec3[]=[state.model.upper_lever,state.model.elbow_anchor,state.model.lower_lever]
+    for lever in levers { state.rod_sizes.append(Math.Vec3(lever.length(),0.035,0.035));state.rod_rotations.append(along(lever)) }
+    state.payload=visual(world,cube,Math.Vec3(),Math.Vec3(0.32,0.24,0.2),Color.bytes(245,186,82))
+    for i in [0,1,2] {
+        state.rods.append(visual(world,cube,Math.Vec3(),Math.Vec3(),Color.bytes(170,180,190)))
+        var color=Color.bytes(240,90,95)
+        if i==1 { color=Color.bytes(100,235,160) } if i==2 { color=Color.bytes(75,163,245) }
+        state.axes.append(visual(world,cube,Math.Vec3(),Math.Vec3(),color))
+    }
+    visual(world,cube,state.model.pivot,Math.Vec3(0.12),Color.bytes(245,245,245))
+    visual(world,cube,Math.Vec3(0.0,1.0,-0.25),Math.Vec3(0.12,2.0,0.12),Color.bytes(130,145,160))
+    visual(world,cube,Math.Vec3(0.0,2.0,-0.13),Math.Vec3(0.12,0.12,0.26),Color.bytes(130,145,160))
+    visual(world,cube,Math.Vec3(0.7,0.0,0.2),Math.Vec3(5.0,0.1,3.0),Color.bytes(52,70,87))
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.5)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance=40.0))
+    rebuild(state,simulation)
+    state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform(position:Math.Vec2()))
+        ..with(Scene2D.Canvas(state.ui.drawing(1120,320),1120,320) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+            ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+}
+func update(world:&Resources.World,input:@Resources.InputState,state:&ArticulatedPoseScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if !state.smoke {
+        for event in input.events() { if !state.controls.handle(event) { let handled=state.ui.handle(event) } }
+        perform(state,simulation)
+    } else {
+        if state.smoke_time==0.0 && simulation.is_paused() { state.controls.positive();perform(state,simulation) }
+        if state.smoke_time>=1.0 && state.smoke_pauses==0 {
+            state.controls.pause();perform(state,simulation);state.smoke_pose=state.model.upper!.transform();state.smoke_lower_pose=state.model.lower!.transform();state.smoke_pauses=1
+        } else if state.smoke_pauses>0 && state.smoke_pauses<8 {
+            assert(simulation.is_paused() && simulation.delta()==0.0 && state.model.upper!.transform()==state.smoke_pose && state.model.lower!.transform()==state.smoke_lower_pose)
+            state.smoke_pauses++
+        } else if state.smoke_pauses==8 { state.controls.pause();perform(state,simulation);state.smoke_pauses++ }
+        if state.smoke_time>=4.0 && state.smoke_phase==0 {
+            state.model.verify_settled();state.controls.negative();perform(state,simulation);state.smoke_phase=1
+        } else if state.smoke_time>=8.0 && state.smoke_phase==1 {
+            state.model.verify_settled();state.controls.center();perform(state,simulation);state.smoke_phase=2
+        }
+    }
+    state.accumulator+=simulation.delta();let delta=1.0/120.0
+    while state.accumulator>=delta {
+        state.previous=state.model.upper!.transform();state.previous_lower=state.model.lower!.transform();state.model.step(delta);state.accumulator-=delta
+        if state.smoke { state.model.verify();state.smoke_time+=delta }
+    }
+    state.telemetry+=simulation.delta()
+    if state.telemetry>=0.1 { state.telemetry=0.0;state.controls.shoulder_measure.set(state.model.shoulder_measurement());state.controls.elbow_measure.set(state.model.elbow_measurement()) }
+    if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(p:&Scene2D.Canvas) { p.replace(state.ui.drawing(1120,320)) }) }
+    if state.smoke && state.smoke_time>=12.0 {
+        state.model.verify_settled();print("Articulated pose smoke: shoulder, elbow, reversal, recentering, pause and rendered poses verified");controller.stop()
+    }
+}
+func blended(first:Physics.Transform3D,second:Physics.Transform3D,alpha:float) Physics.Transform3D {
+    var rotation=second.rotation;if first.rotation.dot(rotation)<0.0 { rotation=rotation.multiply(-1.0) }
+    return Physics.Transform3D(first.position.lerp(second.position,alpha),
+        first.rotation.multiply(1.0-alpha).add(rotation.multiply(alpha)).normalized())
+}
+func place(world:&Resources.World,entity:ECS.Entity,pose:Physics.Transform3D,size:Math.Vec3) {
+    world.update<Components.Transform3D>(entity,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation;t.scale=size })
+}
+func render(world:&Resources.World,state:&ArticulatedPoseScene) {
+    let alpha=Math.clamp(state.accumulator*120.0,0.0,1.0)
+    let upper=blended(state.previous,state.model.upper!.transform(),alpha)
+    let lower=blended(state.previous_lower,state.model.lower!.transform(),alpha)
+    let frame=upper.rotation.multiply(state.model.frame)
+    let elbow=Physics.Transform3D(upper.point(state.model.elbow_anchor),upper.rotation)
+    place(world,state.upper,upper,Math.Vec3(0.24,0.2,0.2))
+    place(world,state.payload,lower,Math.Vec3(0.32,0.24,0.2))
+    place(world,state.elbow,elbow,Math.Vec3(0.1));place(world,state.elbow_axis,elbow,Math.Vec3(0.025,0.025,0.45))
+    var i=0;while i<3 {
+        var body=upper;if i==2 { body=lower }
+        let rod=Physics.Transform3D(body.point(state.rod_centers[i]),body.rotation.multiply(state.rod_rotations[i]))
+        let axis=Physics.Transform3D(upper.position.add(frame.rotate(state.axis_centers[i])),frame)
+        place(world,state.rods[i],rod,state.rod_sizes[i]);place(world,state.axes[i],axis,state.axis_sizes[i])
+        if state.smoke {
+            assert(world.get<Components.Transform3D>(state.rods[i]).position.nearly_equal(rod.position,0.00001))
+            assert(world.get<Components.Transform3D>(state.rods[i]).rotation==rod.rotation)
+            assert(world.get<Components.Transform3D>(state.axes[i]).rotation==axis.rotation)
+        }
+        i++
+    }
+    if state.smoke {
+        assert(world.get<Components.Transform3D>(state.upper).position.nearly_equal(upper.position,0.00001))
+        assert(world.get<Components.Transform3D>(state.payload).position.nearly_equal(lower.position,0.00001))
+        assert(world.get<Components.Transform3D>(state.elbow).position.nearly_equal(elbow.position,0.00001))
+        assert(upper.point(state.model.upper_lever.negated()).nearly_equal(state.model.pivot,0.005))
+        assert(lower.point(state.model.lower_lever.negated()).nearly_equal(elbow.position,0.005))
+    }
+}
+func step_for_check(state:&ArticulatedPoseScene,rate:int=120) {
+    let delta=1.0/rate as float;var step=0
+    while step<rate*4 { state.model.step(delta);state.model.verify();step++ }
+    state.model.verify_settled();state.accumulator=0.0;state.previous=state.model.upper!.transform();state.previous_lower=state.model.lower!.transform()
+}
+func verify_interactions() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=ArticulatedPoseScene();var simulation=Application.Simulation()
+    startup(world,meshes,state,simulation);assert(simulation.is_paused())
+    var drawing=state.ui.drawing(1120,320);assert(drawing.command_count()>0)
+    let initial=state.model.upper!.transform();let initial_lower=state.model.lower!.transform()
+    Controls.click(state.ui,100.0,109.0);perform(state,simulation)
+    assert(!simulation.is_paused() && state.model.direction==1 && state.model.commands==1)
+    step_for_check(state,60);let positive=state.model.shoulder!.orientation();let first_elbow=state.model.elbow!.angle()
+    render(world,state);assert(world.get<Components.Transform3D>(state.upper).rotation==state.model.upper!.transform().rotation)
+    assert(world.get<Components.Transform3D>(state.payload).rotation==state.model.lower!.transform().rotation)
+    assert(state.controls.handle(Controls.key_event(Input.Key.space,32 as uint32)));perform(state,simulation);assert(simulation.is_paused())
+    assert(state.controls.handle(Controls.key_event(Input.Key.space,32 as uint32,true)));perform(state,simulation);assert(simulation.is_paused())
+    let updated=state.ui.update(0.0);var layout=state.ui.drawing(1120,320)
+    Controls.click(state.ui,310.0,109.0);perform(state,simulation);assert(!simulation.is_paused() && state.model.direction==-1)
+    step_for_check(state);let reversed=positive.conjugated().multiply(state.model.shoulder!.orientation())
+    assert(2.0*Math.atan2(Math.Vec3(reversed.x,reversed.y,reversed.z).length(),Math.abs(reversed.w))>0.5)
+    assert(Math.abs(first_elbow-state.model.elbow!.angle())>0.5)
+    let inverted=state.ui.update(0.0);var inverse_layout=state.ui.drawing(1120,320)
+    Controls.click(state.ui,520.0,109.0);perform(state,simulation);step_for_check(state);assert(state.model.direction==0)
+    render(world,state);assert(world.get<Components.Transform3D>(state.payload).position==state.model.lower!.position())
+    assert(state.controls.handle(Controls.key_event(Input.Key.p,114 as uint32)));perform(state,simulation)
+    assert(simulation.is_paused() && state.model.commands==0 && state.model.upper!.transform()==initial)
+    let reset=state.ui.update(0.0);var reset_layout=state.ui.drawing(1120,320)
+    Controls.click(state.ui,310.0,155.0);perform(state,simulation);assert(!simulation.is_paused())
+    Controls.click(state.ui,100.0,155.0);perform(state,simulation);assert(simulation.is_paused())
+    render(world,state);assert(world.get<Components.Transform3D>(state.payload).position==initial_lower.position)
+}
+test "articulated pose controls compose shoulder and elbow and preserve reversal recentering pause reset and rendered poses" { verify_interactions() }
+func main() {
+    var state=ArticulatedPoseScene()
+    match Process.arguments() {
+        success(arguments)=> { for argument in arguments {
+            if argument=="--controls-check" { verify_interactions();print("Articulated pose: shoulder, elbow, reversal, recentering, Space/R, reset and rendered poses verified");return }
+            if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
+        } }
+        failure(error)=> { panic(error.detail) }
+    }
+    var title="Épaule et coude — deux membres sous charge — commandes manuelles"
+    if state.smoke { title="TEST AUTOMATIQUE — épaule et coude — fermeture à la fin" }
+    Application() ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.65,2.65,0.1)
+            ..vertical_fov=0.9 ..distance=4.8 ..yaw=Math.radians(-38.0) ..pitch=Math.radians(-16.0)
+            ..zoom_speed=0.0 ..scroll_zoom_speed=0.0 ..orbit_sensitivity=0.0 ..pan_sensitivity=0.0))
+        ..add_system(Application.Schedule.startup,startup)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}
