@@ -14,7 +14,9 @@ prépare le son une fois avec `melody.prepare(audio, using:timbre)` et le décle
 avec `audio.play(victory)`. Modifier les notes, leurs `beats` ou le `tempo` change
 la mélodie ; `audio.wait` sert seulement à laisser finir la démo, pas à bloquer
 le jeu. Les noms textuels se convertissent avec `Music.key("C#5")` ou
-`Music.keys(["C5", "E5", "G5", "C6"])`.
+`Music.keys(["C5", "E5", "G5", "C6"])`. Ces appels retournent directement les numéros MIDI ;
+`Music.try_key` et `Music.try_keys` retournent un `Result` pour les entrées
+qui peuvent être invalides.
 
 ## Écouter et choisir une recette
 
