@@ -858,6 +858,10 @@ editor panel. From the workspace root run
 `--cpu-check` to exercise its interaction and tiny-resize paths without a
 window or GPU.
 
+Run the same compiled UIMenus executable with `--system-menu` for the optional
+macOS application menu bar; omit this argument to keep menus in the page. The
+`--cpu-check --system-menu` route exercises composition without starting video.
+
 ### Hinge stop impacts
 
 A paused manual scene lets you launch and reverse a free rotor or a position

@@ -23,7 +23,9 @@ class CommandWorkspace {
     var save:UI.Command? = null
     var rename:UI.Command? = null
     var unavailable:UI.Command? = null
-    init() {
+    var use_system:bool = false
+    init(system:bool = false) {
+        self.use_system = system
         self.save = UI.Command("Enregistrer", self.save_project, enabled:self.enabled,
             shortcut:UI.Shortcut(Keyboard.Key.s, "Cmd/Ctrl+S"))
         self.rename = UI.Command("Renommer", self.rename_project, shortcut:UI.Shortcut(Keyboard.Key.r, "Cmd/Ctrl+R"))
@@ -49,10 +51,12 @@ class CommandWorkspace {
         var menu_bar = UI.Row([UI.Menu("Projet", self.items(), popup_style:popup),
             UI.Menu("Actions", [UI.MenuItem.submenu("Projet", self.items())], popup_style:popup)])
         menu_bar.style.gap = 8.0; menu_bar.wrap = true
+        var controls:UI.View = menu_bar
+        if self.use_system { controls = label("Menus Projet et Actions dans la barre système macOS.") }
         var root = UI.Column([label("Commandes partagées — menus J3", 28.0),
             label("Menu, toolbar, clic secondaire et Cmd/Ctrl+S ou R."),
             label("Flèches : parcourir · Entrée : valider · Échap : remonter · Tab : fermer"),
-            menu_bar, UI.Toolbar([self.save!, self.rename!]),
+            controls, UI.Toolbar([self.save!, self.rename!]),
             UI.Checkbox("Autoriser l’enregistrement", self.enabled), context,
             UI.Reactive(self.summary), label("Réduisez la fenêtre et ouvrez un sous-menu près du bord.")])
         root.style.padding = UI.Insets(24.0); root.style.gap = 16.0
@@ -63,7 +67,13 @@ class CommandWorkspace {
 class MenuSession:Canvas.Session {
     private var form:CommandWorkspace = CommandWorkspace()
     private var current:UI.Runtime?
-    init() { self.current = UI.Runtime(self.form.page()) }
+    init(system:bool = false) {
+        self.form = CommandWorkspace(system)
+        var menu:UI.SystemMenu? = null
+        if system { menu = UI.SystemMenu([UI.MenuItem.submenu("Projet", self.form.items()),
+            UI.MenuItem.submenu("Actions", [UI.MenuItem.submenu("Projet", self.form.items())])]) }
+        self.current = UI.Runtime(self.form.page(), system_menu:menu)
+    }
     func drawing(width:int, height:int) Canvas { return self.current!.drawing(width, height) }
     func update(delta:float) bool { return self.current!.update(delta) }
     func handle(event:@Events.Event) bool { var runtime = self.current!; return UIInput.handle(runtime, event) }
@@ -90,12 +100,18 @@ class MenuSession:Canvas.Session {
 }
 func main() {
     var cpu = false
+    var system = false
     match Process.arguments() {
-        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
+        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } if argument == "--system-menu" { system = true } } }
         failure(error) => { panic(error.detail) }
     }
-    var session = MenuSession()
-    if cpu { session.check_cpu(); print("UIMenus CPU : OK"); return }
+    if system && !UI.SystemMenu.available() { panic("La barre système est disponible sur macOS ; utiliser le mode dans la vue.") }
+    var session = MenuSession(system)
+    if cpu {
+        var normal = MenuSession(); normal.check_cpu()
+        var drawing = session.drawing(900, 660); let updated = session.update(0.01)
+        print("UIMenus CPU : OK"); return
+    }
     let code = Viewer.show(session, Viewer.CanvasSettings(width:900, height:660, title:"Silex — Commandes et menus J3"))
     if code != 0 { panic("menus viewer failed") }
 }
