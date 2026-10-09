@@ -863,3 +863,16 @@ silex run Silex-Examples/Sources/Physics3D/HingeImpact/Main.sx --release
 
 [Controls and scope](Sources/Physics3D/HingeImpact/README.md) ·
 [Guide français](Sources/Physics3D/HingeImpact/README.fr.md).
+
+### Two perpendicular hinges under load
+
+A blue arm turns about a red Z pivot; its gold payload turns about a green X
+axis. Visible button pairs raise/lower each part separately, with target angles,
+command feedback, braking, pause and reset. The scene starts paused.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/SpatialHinges/Main.sx --release
+```
+
+[Controls and scope](Sources/Physics3D/SpatialHinges/README.md) ·
+[Guide français](Sources/Physics3D/SpatialHinges/README.fr.md).
