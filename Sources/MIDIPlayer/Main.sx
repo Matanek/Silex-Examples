@@ -14,7 +14,11 @@ struct Demo {
     var stage:int = 0
     init(player:Music.Player) { self.player = player }
 }
-func make(audio:Audio, score:MIDI.Score, sine:bool) Music.Player {
+func make(audio:Audio, score:MIDI.Score, sine:bool, piano:bool) Music.Player {
+    if piano {
+        var instrument = try Music.Instruments.piano(amplitude:0.16, max_voices:32) else error { panic(error.detail) }
+        return try Music.Player.create(audio, score, using:instrument, tail_seconds:0.2) else error { panic(error.detail) }
+    }
     if sine {
         var instrument = try Music.Instruments.sine(amplitude:0.16, release_seconds:0.15) else error { panic(error.detail) }
         return try Music.Player.create(audio, score, using:instrument) else error { panic(error.detail) }
@@ -46,16 +50,17 @@ func check(time:@Resources.FrameTime, demo:&Demo, controller:&Application.Contro
 }
 func main() {
     let arguments = try Process.arguments() else error { panic(error.detail) }
-    var checking = false; var standalone = false; var sine = false
+    var checking = false; var standalone = false; var sine = false; var piano = false
     for argument in arguments {
         if argument == "--check" { checking = true }
         if argument == "--standalone" { standalone = true }
         if argument == "--sine" { sine = true }
+        if argument == "--piano" { piano = true }
     }
     if standalone {
         var audio = Audio(); let bytes = embed_bytes("Score.mid")
         var score = try MIDI.Score.parse(@bytes[0:bytes.count()], 48_000) else error { panic(error.detail) }
-        var player = make(audio, score, sine)
+        var player = make(audio, score, sine, piano)
         let playing = try player.play() else error { panic(error.detail) }
         try player.wait() else error { panic(error.detail) }
         let state = try player.state() else error { panic(error.detail) }; assert(state == Music.State.finished)
@@ -63,7 +68,7 @@ func main() {
     }
     var audio = Audio(); let bytes = embed_bytes("Score.mid")
     var score = try MIDI.Score.parse(@bytes[0:bytes.count()], 48_000) else error { panic(error.detail) }
-    var player = make(audio, score, sine)
+    var player = make(audio, score, sine, piano)
     var application = Application()
     application.add_resource(audio)
     application.add_resource(Demo(player))

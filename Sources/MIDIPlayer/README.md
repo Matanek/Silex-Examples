@@ -31,3 +31,10 @@ The player stores a bounded PCM queue rather than the complete song. See the
 for tails, errors, advanced routing, and buffer capacity.
 
 [Lire en français](README.fr.md).
+
+Add `--piano` to play the score with the built-in procedural piano:
+
+```sh
+.silex/midi-player --piano
+.silex/midi-player --standalone --piano
+```
