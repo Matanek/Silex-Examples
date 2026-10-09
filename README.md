@@ -924,3 +924,14 @@ floor contact, release, braking and pause; travel and target appear in centimete
 From the workspace root or owning Spec group run
 `silex run Silex-Examples/Sources/Physics3D/SpatialRail/Main.sx --release`.
 [Guide français](Sources/Physics3D/SpatialRail/README.fr.md).
+
+
+## Three swing/twist servos under load
+
+[LoadedSwingTwist](Sources/Physics3D/LoadedSwingTwist/README.md) drives a gold
+2 kg offset load around a fixed white pivot. Colored motor axes expose the
+compound rotation; explicit opposite targets, recentering, pause and reset
+show finite-spring equilibrium under gravity. From the workspace root or
+owning Spec group run
+`silex run Silex-Examples/Sources/Physics3D/LoadedSwingTwist/Main.sx --release`.
+[Guide français](Sources/Physics3D/LoadedSwingTwist/README.fr.md).
