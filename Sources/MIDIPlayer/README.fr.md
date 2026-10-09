@@ -1,7 +1,7 @@
 # Jouer et contrôler une partition MIDI
 
 La partition conserve ses changements de tempo. Choisir un timbre rétro modifié
-ou l’instrument sinus intégré. Le plugin Audio alimente la lecture sur le thread
+ou l’un des instruments intégrés, sinus ou piano. Le plugin Audio alimente la lecture sur le thread
 applicatif ; l’exemple ne contient aucune boucle de pompage de samples ou de flux.
 
 Depuis la racine SilexProject (ou celle du groupe Worktree de la Spec) :
@@ -13,7 +13,7 @@ silex compile Silex-Examples/Sources/MIDIPlayer/Main.sx --release -o .silex/midi
 
 Dans la fenêtre, Espace suspend/reprend, S arrête, R rejoue, Échap quitte.
 Une lecture terminée reste disponible pour être rejouée. Ajouter `--sine` pour
-choisir l’instrument intégré. Le mode simple réunit les notes des canaux et
+choisir le sinus ; `--piano` choisit le piano. Le mode simple réunit les notes des canaux et
 signale les programmes/contrôleurs ignorés ; il ne reproduit pas l’orchestration
 originale de la partition.
 
@@ -33,3 +33,10 @@ stocke une file PCM bornée, sans matérialiser le morceau complet. Le
 précise queues, erreurs, routage avancé et capacité des buffers.
 
 [Read in English](README.md).
+
+Ajouter `--piano` pour jouer la partition avec le piano procédural intégré :
+
+```sh
+.silex/midi-player --piano
+.silex/midi-player --standalone --piano
+```
