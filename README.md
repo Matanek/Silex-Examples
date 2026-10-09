@@ -850,6 +850,18 @@ popup open. From the workspace root run
 `silex run Silex-Examples/Sources/UIComboBox.sx --release`. The executable accepts
 `--cpu-check` and `--cpu-profile` without opening a window.
 
+[UIMenus](Sources/UIMenus.sx) shares commands across menus, nested submenus,
+contextual menus, a wrapping toolbar and Cmd/Ctrl shortcuts. Disable Save to
+check shared availability; use arrows, Escape and Tab or secondary-click the
+editor panel. From the workspace root run
+`silex run Silex-Examples/Sources/UIMenus.sx --release`. The executable accepts
+`--cpu-check` to exercise its interaction and tiny-resize paths without a
+window or GPU.
+
+Run the same compiled UIMenus executable with `--system-menu` for the optional
+macOS application menu bar; omit this argument to keep menus in the page. The
+`--cpu-check --system-menu` route exercises composition without starting video.
+
 ### Hinge stop impacts
 
 A paused manual scene lets you launch and reverse a free rotor or a position
