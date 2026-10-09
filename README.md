@@ -899,3 +899,17 @@ explicit description styles, not a theme cascade. From the workspace root run
 `silex run Silex-Examples/Sources/UIFocusAppearance.sx --release`.
 The compiled executable accepts `--cpu-check` to exercise the gallery without
 opening a window.
+
+## Spatial contact with manual release
+
+Lower the gold sphere onto the plane, observe its contact marker and stopped
+motor command, then lift it free. Buttons acknowledge each action; Space/R
+and pause/reset buttons remain available. This manual test concerns visual
+clarity and interaction; mechanical balances are qualified separately.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/SpatialContacts/Main.sx --release
+```
+
+[Controls and scope](Sources/Physics3D/SpatialContacts/README.md) ·
+[Guide français](Sources/Physics3D/SpatialContacts/README.fr.md).
