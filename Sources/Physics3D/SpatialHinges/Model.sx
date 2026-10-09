@@ -1,0 +1,81 @@
+use GFX.Physics
+use STD.Math
+
+package class SpatialHingesModel {
+    var world:Physics.World3D=Physics.World3D()
+    var arm:Physics.RigidBody3D?=null
+    var payload:Physics.RigidBody3D?=null
+    var first:Physics.HingeConstraint3D?=null
+    var second:Physics.HingeConstraint3D?=null
+    var arm_target:float=0.0
+    var payload_target:float=0.0
+    var arm_moving:bool=false
+    var payload_moving:bool=false
+    var commands:int=0
+    func reset() {
+        self.world=Physics.World3D();self.commands=0
+        self.arm_target=0.0;self.payload_target=0.0;self.arm_moving=false;self.payload_moving=false
+        let disabled=Physics.CollisionFilter3D(mask_bits:0)
+        var pivot=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..body_type=Physics.BodyType3D.fixed ..collision_filter=disabled
+            ..transform=Physics.Transform3D(Math.Vec3(0.0,1.8,0.0)))
+        var arm=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..transform=Physics.Transform3D(Math.Vec3(0.5,1.8,0.0))
+            ..mass_properties=Physics.MassProperties3D(2.0,Math.Vec3(0.4))
+            ..allow_sleep=false ..collision_filter=disabled)
+        var payload=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..transform=Physics.Transform3D(Math.Vec3(1.0,1.8,0.8))
+            ..mass_properties=Physics.MassProperties3D(2.0,Math.Vec3(0.2))
+            ..allow_sleep=false ..collision_filter=disabled)
+        self.first=self.world.create_hinge_constraint(pivot,arm,Physics.HingeConstraint3DSettings()
+            ..second_local_anchor=Math.Vec3(-0.5,0.0,0.0) ..motor=Physics.HingeMotor3D(0.0,60.0))
+        self.second=self.world.create_hinge_constraint(arm,payload,Physics.HingeConstraint3DSettings()
+            ..first_local_anchor=Math.Vec3(0.5,0.0,0.0) ..second_local_anchor=Math.Vec3(0.0,0.0,-0.8)
+            ..first_local_axis=Math.Vec3(1.0,0.0,0.0) ..second_local_axis=Math.Vec3(1.0,0.0,0.0)
+            ..first_local_normal=Math.Vec3(0.0,1.0,0.0) ..second_local_normal=Math.Vec3(0.0,1.0,0.0)
+            ..motor=Physics.HingeMotor3D(0.0,40.0))
+        self.arm=arm;self.payload=payload
+    }
+    func move_arm(direction:float) {
+        self.arm_target=0.35*direction;self.arm_moving=true;self.commands++
+        var speed=0.2;if self.arm_target<self.first!.angle() { speed=-0.2 }
+        self.first!.set_motor(Physics.HingeMotor3D(speed,60.0))
+    }
+    func move_payload(direction:float) {
+        self.payload_target=-0.45*direction;self.payload_moving=true;self.commands++
+        var speed=0.2;if self.payload_target<self.second!.angle() { speed=-0.2 }
+        self.second!.set_motor(Physics.HingeMotor3D(speed,40.0))
+    }
+    func brake() {
+        self.arm_moving=false;self.payload_moving=false;self.commands++
+        self.first!.set_motor(Physics.HingeMotor3D(0.0,60.0))
+        self.second!.set_motor(Physics.HingeMotor3D(0.0,40.0))
+        self.arm_target=self.first!.angle();self.payload_target=self.second!.angle()
+    }
+    func step(delta:float) {
+        if self.arm_moving && Math.abs(self.arm_target-self.first!.angle())<0.006 {
+            self.arm_moving=false;self.first!.set_motor(Physics.HingeMotor3D(0.0,60.0))
+        }
+        if self.payload_moving && Math.abs(self.payload_target-self.second!.angle())<0.006 {
+            self.payload_moving=false;self.second!.set_motor(Physics.HingeMotor3D(0.0,40.0))
+        }
+        self.world.step(delta)
+    }
+    func verify() {
+        assert(self.first!.anchor_error().length()<0.005 && self.second!.anchor_error().length()<0.005)
+        assert(self.first!.axis_error()<0.005 && self.second!.axis_error()<0.005)
+        assert(Math.abs(self.first!.motor_torque())<=60.0001 && Math.abs(self.second!.motor_torque())<=40.0001)
+    }
+    func verify_settled() {
+        self.verify();assert(!self.arm_moving && !self.payload_moving)
+        assert(Math.abs(self.first!.angle()-self.arm_target)<0.02)
+        assert(Math.abs(self.second!.angle()-self.payload_target)<0.02)
+        assert(self.arm!.linear_velocity().length()<0.01 && self.payload!.linear_velocity().length()<0.01)
+        assert(self.arm!.angular_velocity().length()<0.01 && self.payload!.angular_velocity().length()<0.01)
+    }
+    func measurement() str {
+        let arm=Math.round(Math.degrees(self.first!.angle())) as int;let payload=Math.round(Math.degrees(self.second!.angle())) as int
+        let target_arm=Math.round(Math.degrees(self.arm_target)) as int;let target_payload=Math.round(Math.degrees(self.payload_target)) as int
+        return "Bras Z : $(arm)° → $(target_arm)° · charge X : $(payload)° → $(target_payload)° · commande n°$(self.commands)"
+    }
+}

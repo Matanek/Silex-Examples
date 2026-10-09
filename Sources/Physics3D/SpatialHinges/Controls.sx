@@ -1,0 +1,78 @@
+use GFX.Color
+use GFX.Input
+use GFX.Input.Events
+use GFX.Window
+use GFX.UI
+use STD.Math
+
+package class SpatialHingesControls {
+    var arm_command:int=0
+    var payload_command:int=0
+    var brakes:int=0
+    var resets:int=0
+    var pauses:int=0
+    var automatic:bool=false
+    var pause_text:UI.State<str> =UI.State<str>("Reprendre (Espace)")
+    var feedback:UI.State<str> =UI.State<str>("En pause — choisissez un mouvement ; il reprend la simulation.")
+    var measure:UI.State<str> =UI.State<str>("")
+    func arm_up() { self.arm_command=1 }
+    func arm_down() { self.arm_command=-1 }
+    func payload_up() { self.payload_command=1 }
+    func payload_down() { self.payload_command=-1 }
+    func brake() { self.brakes++ }
+    func reset() { self.resets++ }
+    func pause() { self.pauses++ }
+    func button(text:str,action:func(),width:float=200.0) UI.Button {
+        var b=UI.Button(text,action);b.style.width=width;b.style.height=38.0
+        b.style.background=Color.slate_700();b.style.radius=5.0;return b
+    }
+    func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause,190.0) }
+    func status(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.feedback)) }
+    func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
+    func describe() UI.View {
+        var title=UI.Text("Deux charnières — bras bleu et charge or de 2 kg");title.style.height=34.0
+        var help=UI.Text("Axe Z rouge au pivot ; axe X vert au bout du bras. Choisissez haut ou bas pour chaque articulation.")
+        help.style.height=24.0
+        var arm=UI.Row([self.button("Monter le bras",self.arm_up),self.button("Baisser le bras",self.arm_down)])
+        arm.style.gap=10.0
+        var payload=UI.Row([self.button("Lever la charge",self.payload_up),self.button("Abaisser la charge",self.payload_down)])
+        payload.style.gap=10.0
+        var management=UI.Row([self.button("Remettre à zéro (R)",self.reset,190.0),UI.Reactive(self.pause_button),self.button("Freiner les deux",self.brake,210.0)])
+        management.style.gap=10.0
+        var rows:UI.View[]=[title,help,arm,payload,management,UI.Reactive(self.status),UI.Reactive(self.metrics),UI.Text("Espace : pause · R : zéro · Échap : fermer. Les positions sont tenues sous gravité.")]
+        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — fermeture à la fin"),UI.Reactive(self.metrics)] }
+        var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
+        root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0
+        return root
+    }
+    func handle(event:@Events.Event) bool {
+        if self.automatic { return false }
+        match event {
+            key_pressed(key)=> {
+                let reset=key.keycode==114 as uint32 || key.keycode==82 as uint32 || (key.keycode==0 as uint32 && key.key==Input.Key.r)
+                if key.key==Input.Key.space || reset {
+                    if !key.repeated { if reset { self.reset() } else { self.pause() } }
+                    return true
+                }
+            }
+            else=>{}
+        }
+        return false
+    }
+}
+package func key_event(key:Input.Key,code:uint32=0 as uint32,repeated:bool=false) Events.Event {
+    let modifiers=Input.Modifiers(shift:false,control:false,alt:false,system:false,
+        left_shift:false,right_shift:false,level5:false,left_control:false,right_control:false,
+        left_alt:false,right_alt:false,left_system:false,right_system:false,mode:false,
+        caps_lock:false,num_lock:false,scroll_lock:false)
+    return Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:0 as uint32),
+        keyboard:Input.KeyboardId(value:0 as uint32),key:key,keycode:code,raw:0 as uint16,
+        repeated:repeated,modifiers:modifiers,timestamp:Input.Timestamp(nanoseconds:0 as uint)))
+}
+package func click(session:&UI.Session,x:float,y:float) {
+    let value=Events.MouseButtonEvent(window:Window.Id(value:0 as uint32),mouse:Input.MouseId(value:0 as uint32),
+        button:Input.MouseButton.left,down:true,clicks:1 as uint8,position:Math.Vec2(x,y),timestamp:Input.Timestamp(nanoseconds:0 as uint))
+    let pressed=session.handle(Events.Event.mouse_button_pressed(value))
+    let released=session.handle(Events.Event.mouse_button_released(value))
+    assert(pressed && released)
+}
