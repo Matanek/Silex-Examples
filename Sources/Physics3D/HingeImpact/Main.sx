@@ -157,7 +157,7 @@ func verify_interactions() {
 }
 func main() {
     var state=HingeImpactScene()
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments)=> { for argument in arguments {
             if argument=="--controls-check" { verify_interactions();print("Hinge impact: four buttons, Space/R, free/motor stops, reversal and rendered motion verified");return }
             if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }

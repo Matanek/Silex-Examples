@@ -173,7 +173,7 @@ func verify_interactions() {
 test "loaded swing controls compose three axes and preserve reversal recentering pause reset and rendered poses" { verify_interactions() }
 func main() {
     var state=LoadedSwingScene()
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments)=> { for argument in arguments {
             if argument=="--controls-check" { verify_interactions();print("Loaded swing: targets, reversal, recentering, Space/R, reset and rendered poses verified");return }
             if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }

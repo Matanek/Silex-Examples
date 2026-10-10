@@ -230,7 +230,7 @@ func render_slider_combined(world:&Resources.World, state:&SliderCombinedSceneSt
     }
 }
 func main() {
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments) => { for argument in arguments { if argument=="--controls-check" {
             SliderCombinedControls.verify_combined_shortcuts()
             SliderCombinedControls.verify_combined_buttons()
@@ -243,7 +243,7 @@ func main() {
     }
     var state = SliderCombinedSceneState()
     var title = "Cible mobile — position + vitesse | T inverser, R repartir, Espace pause"
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments) => { for argument in arguments {
             if argument=="--smoke" { state.smoke = true }
             if argument=="--input-trace" { state.trace_input = true }

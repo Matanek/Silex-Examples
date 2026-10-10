@@ -6,7 +6,7 @@ public class Typography {
 
     static func pixel() Canvas.Font {
         if let cached = Typography.pixel_value { return cached }
-        var created = Canvas.Font(required_face(VectorFont.Face.pixel()))
+        var created = Canvas.Font(required_face((try VectorFont.Face.pixel())))
         Typography.pixel_value = created
         return created
     }

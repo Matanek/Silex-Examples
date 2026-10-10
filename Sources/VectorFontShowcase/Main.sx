@@ -58,7 +58,7 @@ struct Options {
 func options() Options {
     var verification = false
     var capture:str? = null
-    match Process.arguments() {
+    match (try Process.arguments()) {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
             for argument in arguments {
@@ -158,9 +158,9 @@ func footer(painter:&Canvas.Painter, font:Canvas.Font, message:str) {
 
 func typography_board(font:Canvas.Font, terminal_font:Canvas.Font) Canvas {
     var face = font.face()
-    var instance = required_instance(Font.Instance.create(face, size:32.0))
-    var latin = required_run(instance.shape("office  a\u{0323}\u{0301}  Ελληνικά  Кириллица"))
-    var missing = required_run(instance.shape("देवनागरी  العربية"))
+    var instance = required_instance((try Font.Instance.create(face, size:32.0)))
+    var latin = required_run((try instance.shape("office  a\u{0323}\u{0301}  Ελληνικά  Кириллица")))
+    var missing = required_run((try instance.shape("देवनागरी  العربية")))
     let glyphs = latin.glyph_count() + missing.glyph_count()
     let notdef = latin.missing_glyph_count() + missing.missing_glyph_count()
     return Canvas()..paint(func(painter:&Canvas.Painter) {
@@ -232,8 +232,8 @@ func paint_typography_geometry(
 }
 
 func typography_geometry(font:Canvas.Font) Canvas {
-    var instance = required_instance(Font.Instance.create(font.face(), size:56.0))
-    var run = required_run(instance.shape("office"))
+    var instance = required_instance((try Font.Instance.create(font.face(), size:56.0)))
+    var run = required_run((try instance.shape("office")))
     let baseline = 164.0 + Math.ceil(instance.metrics().ascender) as int as float
     return Canvas()..paint(func(painter:&Canvas.Painter) {
         paint_typography_geometry(painter, font, run, baseline)
@@ -287,10 +287,10 @@ func stroke_outline(
 
 func vector_board(font:Canvas.Font) Canvas {
     var face = font.face()
-    var instance = required_instance(Font.Instance.create(face, size:1.0))
-    var run = required_run(instance.shape("OBé"))
+    var instance = required_instance((try Font.Instance.create(face, size:1.0)))
+    var run = required_run((try instance.shape("OBé")))
     var outlines:Font.PlacedOutline[] = []
-    match run.outlines() {
+    match (try run.outlines()) {
         failure(error) => { panic(error.detail) }
         success(values) => { outlines = values }
     }
@@ -310,8 +310,8 @@ func vector_board(font:Canvas.Font) Canvas {
 }
 
 func vector_geometry(font:Canvas.Font) Canvas {
-    var instance = required_instance(Font.Instance.create(font.face(), size:1.0))
-    var run = required_run(instance.shape("OBé"))
+    var instance = required_instance((try Font.Instance.create(font.face(), size:1.0)))
+    var run = required_run((try instance.shape("OBé")))
     let origin = Math.Vec2(500.0, 470.0)
     let zoom = 190.0
     return Canvas()..paint(func(painter:&Canvas.Painter) {
@@ -360,8 +360,8 @@ func scene_board(font:Canvas.Font) Canvas {
 
 func capture_board(font:Canvas.Font, terminal_font:Canvas.Font) Canvas {
     var drawing = typography_board(font, terminal_font)
-    var overlay_instance = required_instance(Font.Instance.create(font.face(), size:56.0))
-    var overlay_run = required_run(overlay_instance.shape("office"))
+    var overlay_instance = required_instance((try Font.Instance.create(font.face(), size:56.0)))
+    var overlay_run = required_run((try overlay_instance.shape("office")))
     let overlay_baseline = 164.0 + Math.ceil(overlay_instance.metrics().ascender) as int as float
     drawing.paint(func(painter:&Canvas.Painter) {
         paint_typography_geometry(painter, font, overlay_run, overlay_baseline)
@@ -392,7 +392,7 @@ func save_capture(path:str, font:Canvas.Font, terminal_font:Canvas.Font) {
     assert(changed > 200000)
     let png = PNG.encode(image)
     assert(png.count() > 10000)
-    match File.write_all(path, @png[0:png.count()]) {
+    match (try File.write_all(path, @png[0:png.count()])) {
         failure(error) => { panic(error.detail) }
         success => {}
     }
@@ -468,9 +468,9 @@ func create_showcase(
             ..text_mode = Scene2D.CanvasTextMode.coverage
         )
     )
-    var instance = required_instance(Font.Instance.create(face, size:1.0))
-    var run = required_run(instance.shape("Vector O Bé"))
-    let text_mesh = required_text(meshes.add_text(Scene3D.Text(
+    var instance = required_instance((try Font.Instance.create(face, size:1.0)))
+    var run = required_run((try instance.shape("Vector O Bé")))
+    let text_mesh = required_text((try meshes.add_text(Scene3D.Text(
         run,
         plane:Scene3D.TextPlane(
             origin:Math.Vec3(-3.4, 0.2, 0.0),
@@ -478,7 +478,7 @@ func create_showcase(
             y_axis:Math.Vec3.up()
         ),
         tolerance:0.003
-    )))
+    ))))
     let receiver_mesh = meshes.add(Scene3D.Geometry.Plane.make(Math.Vec2(9.4, 3.4)))
     state.text = world.spawn(ECS.EntityRecipe()
         ..with(Scene3D.Transform())
