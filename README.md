@@ -956,3 +956,13 @@ show the elbow’s local frame and gravity-loaded elastic equilibrium. From
 the workspace or owning Spec group root run
 `silex run Silex-Examples/Sources/Physics3D/ArticulatedPose/Main.sx --release`.
 [Guide français](Sources/Physics3D/ArticulatedPose/README.fr.md).
+
+## Ragdoll hierarchy and independent poses
+
+[RagdollPose](Sources/Physics3D/RagdollPose/README.md) creates two ten-part
+mannequins from one hierarchy. Change the gold mannequin's pose while the blue
+one remains a reference, then release both into a short physical free fall.
+Pause, replay and reset expose the joint frames and assembly lifetime. From
+the workspace or owning Spec group root run
+`silex run Silex-Examples/Sources/Physics3D/RagdollPose/Main.sx --release`.
+[Guide français](Sources/Physics3D/RagdollPose/README.fr.md).

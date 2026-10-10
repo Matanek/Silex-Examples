@@ -1,0 +1,108 @@
+use GFX.Physics
+use STD.Math
+
+package class RagdollPoseModel {
+    var world:Physics.World3D = Physics.World3D()
+    var settings:Physics.Ragdoll3DSettings
+    var instances:Physics.Ragdoll3D[] = []
+    let sizes:Math.Vec3[] = [Math.Vec3(0.65,0.9,0.35),Math.Vec3(0.38),
+        Math.Vec3(0.2,0.56,0.22),Math.Vec3(0.18,0.5,0.2),Math.Vec3(0.2,0.56,0.22),Math.Vec3(0.18,0.5,0.2),
+        Math.Vec3(0.25,0.64,0.26),Math.Vec3(0.22,0.6,0.23),Math.Vec3(0.25,0.64,0.26),Math.Vec3(0.22,0.6,0.23)]
+    let parents:int[] = [-1,0,0,2,0,4,0,6,0,8]
+    let anchors:Math.Vec3[] = [Math.Vec3(),Math.Vec3(0.0,1.08,0.0),Math.Vec3(-0.48,0.9,0.0),Math.Vec3(0.0,-0.56,0.0),
+        Math.Vec3(0.48,0.9,0.0),Math.Vec3(0.0,-0.56,0.0),Math.Vec3(-0.2,-0.05,0.0),Math.Vec3(0.0,-0.64,0.0),
+        Math.Vec3(0.2,-0.05,0.0),Math.Vec3(0.0,-0.64,0.0)]
+    let offsets:Math.Vec3[] = [Math.Vec3(0.0,0.45,0.0),Math.Vec3(0.0,0.2,0.0),Math.Vec3(0.0,-0.28,0.0),Math.Vec3(0.0,-0.25,0.0),
+        Math.Vec3(0.0,-0.28,0.0),Math.Vec3(0.0,-0.25,0.0),Math.Vec3(0.0,-0.32,0.0),Math.Vec3(0.0,-0.3,0.0),
+        Math.Vec3(0.0,-0.32,0.0),Math.Vec3(0.0,-0.3,0.0)]
+    var variant:int = 0
+    var steps:int = 0
+    var delta:float = 1.0 / 120.0
+    private var read_buffer:Physics.Transform3D[] = []
+
+    init() {
+        var parts:Physics.RagdollPart3D[] = []
+        var i = 0
+        while i < 10 {
+            let body = Physics.RigidBody3DSettings()
+                ..shape = Physics.Shape3D.box(Physics.Box3D(self.sizes[i].multiply(0.5)))
+                ..mass_properties = Physics.MassProperties3D(2.0,Math.Vec3(0.2))
+                ..allow_sleep = false
+            parts.append(Physics.RagdollPart3D(self.parents[i],body,
+                local_transform:Physics.Transform3D(self.anchors[i]),body_offset:Physics.Transform3D(self.offsets[i])))
+            i++
+        }
+        self.settings = Physics.Ragdoll3DSettings(parts,self_collision:false)
+        self.reset()
+    }
+    func desired_pose(instance:int) Physics.Transform3D[] {
+        var pose:Physics.Transform3D[] = []
+        var i = 0
+        while i < 10 { pose.append(self.settings.part(i).local_transform);i++ }
+        let side = instance as float * 2.0 - 1.0
+        pose[0] = Physics.Transform3D(Math.Vec3(side * 1.6,3.4,0.0),Math.Quat.angle_axis(side * 0.25,Math.Vec3(0.0,1.0,0.0)))
+        if instance == 0 && self.variant == 1 {
+            for index in [2,4] {
+                var sign = -1.0; if index == 4 { sign = 1.0 }
+                pose[index] = Physics.Transform3D(pose[index].position,Math.Quat.angle_axis(sign * 1.15,Math.Vec3(0.0,0.0,1.0)))
+                pose[index+1] = Physics.Transform3D(pose[index+1].position,Math.Quat.angle_axis(sign * 0.5,Math.Vec3(0.0,0.0,1.0)))
+            }
+            for index in [6,8] {
+                pose[index] = Physics.Transform3D(pose[index].position,Math.Quat.angle_axis(0.5,Math.Vec3(1.0,0.0,0.0)))
+                pose[index+1] = Physics.Transform3D(pose[index+1].position,Math.Quat.angle_axis(-0.8,Math.Vec3(1.0,0.0,0.0)))
+            }
+        }
+        return pose
+    }
+    func restore_pose() {
+        var instance = 0
+        while instance < 2 { self.instances[instance].set_local_pose(self.desired_pose(instance));instance++ }
+        self.steps = 0
+    }
+    func set_pose(variant:int) { self.variant = variant;self.restore_pose() }
+    func reset() {
+        for ragdoll in self.instances { self.world.destroy_ragdoll(ragdoll) }
+        self.instances.clear()
+        self.instances.append(self.world.create_ragdoll(self.settings))
+        self.instances.append(self.world.create_ragdoll(self.settings))
+        self.variant = 0;self.restore_pose()
+    }
+    func step(delta:float) { self.delta = delta;self.world.step(delta);self.steps++ }
+    func elapsed() float { return self.steps as float * self.delta }
+    func finished() bool { return self.elapsed() >= 0.6 - 0.00001 }
+    func write_pose(output:&Physics.Transform3D[]) {
+        output.clear()
+        for var ragdoll in self.instances {
+            ragdoll.write_pose(self.read_buffer)
+            for transform in self.read_buffer { output.append(transform) }
+        }
+    }
+    func verify() {
+        assert(self.world.body_count() == 20 && self.world.swing_twist_constraint_count() == 18)
+        assert(self.world.contact_count() == 0)
+        var actual:Physics.Transform3D[] = []
+        var instance = 0
+        while instance < 2 {
+            let expected = self.desired_pose(instance)
+            var ragdoll = self.instances[instance]
+            ragdoll.write_local_pose(actual)
+            let fall = 9.81 * self.delta * self.delta * self.steps as float * (self.steps + 1) as float / 2.0
+            assert(actual[0].position.nearly_equal(expected[0].position.subtract(Math.Vec3(0.0,fall,0.0)),0.0001))
+            var i = 0
+            while i < 10 {
+                assert(Math.abs(Math.abs(actual[i].rotation.dot(expected[i].rotation)) - 1.0) < 0.00001)
+                assert(ragdoll.body(i).linear_velocity().nearly_equal(Math.Vec3(0.0,-9.81 * self.elapsed(),0.0),0.0001))
+                if i > 0 {
+                    assert(actual[i].position.nearly_equal(expected[i].position,0.0001))
+                    assert(ragdoll.joint(i)!.anchor_error().length() < 0.0001)
+                }
+                i++
+            }
+            instance++
+        }
+    }
+    func measurement() str {
+        let millis = Math.round(self.elapsed() * 1000.0) as int
+        return "2 instances · 20 membres · 18 articulations | Chute : $(millis) / 600 ms — pause automatique pour relire la pose"
+    }
+}
