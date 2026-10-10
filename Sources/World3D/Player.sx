@@ -39,7 +39,7 @@ public func start(player:&Player, world:&Resources.World, window:&Resources.Wind
     player.camera = world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform3D(position:player.motor.eye_position(1.0)))
         ..with(Components.Camera3D(vertical_fov:Math.radians(75.0), near_plane:0.05, far_plane:180.0)))
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments) => {
             for argument in arguments {
                 if argument == "--smoke" { player.smoke = true }

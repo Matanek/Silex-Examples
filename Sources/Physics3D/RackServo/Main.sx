@@ -147,7 +147,7 @@ func render(world:&Resources.World,state:&RackServoScene) {
 }
 func main() {
     var state=RackServoScene()
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments)=> { for argument in arguments {
             if argument=="--controls-check" { verify_interactions();print("Rack servo: buttons, Space/R, both stops, center and reset verified");return }
             if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }

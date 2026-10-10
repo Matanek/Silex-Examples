@@ -133,7 +133,7 @@ class VisualSession:Canvas.Session {
 }
 func main() {
     var cpu = false
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
         failure(error) => { panic(error.detail) }
     }

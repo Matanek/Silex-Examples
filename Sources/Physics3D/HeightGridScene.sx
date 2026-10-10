@@ -147,7 +147,7 @@ func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
         ..with(Components.SunLight3D(
             direction:Math.Vec3(-0.45, -1.0, -0.3).normalized(),
             color:Color.white(), intensity:3.3)))
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments) => {
             for argument in arguments {
                 if argument == "--smoke" { state.smoke = true }

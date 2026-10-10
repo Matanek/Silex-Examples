@@ -500,7 +500,7 @@ func run_scene(mode:str, count:int) {
 }
 
 func main() {
-    match Process.arguments() {
+    match (try Process.arguments()) {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
             if arguments.count() == 1 {

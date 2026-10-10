@@ -16,7 +16,7 @@ use Module.Session.verify_calculator_shortcuts
 use STD.Process
 
 func verification_mode() bool {
-    match Process.arguments() {
+    match (try Process.arguments()) {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
             for argument in arguments {

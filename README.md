@@ -6,6 +6,11 @@ is a catalog of standalone applications: focused technical illustrations
 belong in documentation, while API proofs remain under `Tests/` in their
 owning package.
 
+This development revision requires the compiler and packages using the single
+`Result` API: ordinary calls return the success value or panic, and `try call()`
+keeps the `Result` for explicit error handling. Update the toolchain and
+packages together before running these sources.
+
 Start with the [retro victory sound](Sources/RetroVictory.sx): four C–E–G–C
 notes written in beats at 187.5 BPM with `GFX.Audio.Music`. Choose a customizable
 retro timbre, then call `melody.prepare(audio, using:timbre)` once at game loading time and

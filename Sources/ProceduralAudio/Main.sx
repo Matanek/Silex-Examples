@@ -10,16 +10,16 @@ func run(checking:bool, selected:str) Result<void, Error> {
     for name in names { if name == selected { found = true } }
     if !found { panic("Unknown recipe. Choose beep, impact, laser, explosion, engine, retro, melody or midi.") }
     if checking {
-        for index, name in names.indexed() { if selected == "all" || selected == name { var recipe = try Recipes.make(index); try Playback.check(recipe) } }
+        for index, name in names.indexed() { if selected == "all" || selected == name { var recipe = try Recipes.make(index) else error { return Result<void,Error>.failure(error) }; try Playback.check(recipe) else error { return Result<void,Error>.failure(error) } } }
         print("Procedural audio check passed without an output device")
     } else {
         var audio = Audio()
-        for index, name in names.indexed() { if selected == "all" || selected == name { var recipe = try Recipes.make(index); try Playback.play(audio,recipe) } }
+        for index, name in names.indexed() { if selected == "all" || selected == name { var recipe = try Recipes.make(index) else error { return Result<void,Error>.failure(error) }; try Playback.play(audio,recipe) else error { return Result<void,Error>.failure(error) } } }
     }
     return Result<void, Error>.success()
 }
 func main() {
-    match Process.arguments() {
+    match (try Process.arguments()) {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
             var selected = "all"; var checking = false; var index = 1
@@ -33,7 +33,7 @@ func main() {
                 }
                 index++
             }
-            match run(checking,selected) { failure(error) => { panic(error.detail) }; success => {} }
+            match (try run(checking,selected)) { failure(error) => { panic(error.detail) }; success => {} }
         }
     }
 }

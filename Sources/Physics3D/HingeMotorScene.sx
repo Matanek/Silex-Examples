@@ -95,7 +95,7 @@ func create_motors(world:&Resources.World, meshes:&Resources.Meshes3D,
     motor_visual(world,meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(16.0,0.2,8.0))),Math.Vec3(0.0,-0.2,0.0),Color.bytes(52,70,87))
     world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.45)))
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5) ..shadow_distance = 40.0))
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments) => { for argument in arguments { if argument == "--smoke" { state.smoke = true } } }
         failure(error) => { panic(error.detail) }
     }
