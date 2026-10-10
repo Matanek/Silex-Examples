@@ -157,7 +157,7 @@ func render(world:&Resources.World,state:&SpatialRailScene) {
 }
 func main() {
     var state=SpatialRailScene()
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments)=> { for argument in arguments {
             if argument=="--controls-check" { verify_interactions();print("Spatial rail: buttons, floor blockage, release, Space/R, braking, reset and displayed poses verified");return }
             if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }

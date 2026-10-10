@@ -187,7 +187,7 @@ func render(world:&Resources.World,state:&ArticulationScene) {
 }
 func main() {
     var state=ArticulationScene()
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments)=> { for argument in arguments {
             if argument=="--controls-check" { verify_interactions();print("Seven mechanisms: buttons, shortcuts, pause, visible movement and reset verified");return }
             if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }

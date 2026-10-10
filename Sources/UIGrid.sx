@@ -95,7 +95,7 @@ class GridSession:Canvas.Session {
 
 func main() {
     var cpu_check = false
-    match Process.arguments() {
+    match (try Process.arguments()) {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
             for argument in arguments { if argument == "--cpu-check" { cpu_check = true } }

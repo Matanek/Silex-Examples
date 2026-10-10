@@ -175,7 +175,7 @@ struct UnitMind {
 }
 
 func verification_mode() bool {
-    match Process.arguments() {
+    match (try Process.arguments()) {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
             for argument in arguments { if argument == "--verify" { return true } }
@@ -476,7 +476,7 @@ func unit_definition(battlefield:&Battlefield) BehaviourTree.Definition<Battlefi
     builder.end()
 
     var definition:BehaviourTree.Definition<Battlefield>? = null
-    match builder.build() {
+    match (try builder.build()) {
         success(value) => { definition = value }
         failure(_) => { panic("the RTS behaviour tree must be valid") }
     }

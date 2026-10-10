@@ -281,7 +281,7 @@ class ScrollSession:Canvas.Session {
 func main() {
     var cpu_check = false
     var tracing = false
-    match Process.arguments() {
+    match (try Process.arguments()) {
         failure(error) => { panic(error.detail) }
         success(arguments) => {
             for argument in arguments {

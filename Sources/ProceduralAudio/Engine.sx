@@ -16,19 +16,19 @@ public class Engine:Synthesis.Generator {
     }
     static func create() Result<Engine, Error> {
         let format = Processing.Format(sample_rate:48_000,channels:1)
-        var fundamental = try Synthesis.Control.create(48_000,value:-1.0)
-        var harmonic = try Synthesis.Control.create(48_000,value:-1.0)
-        var gain = try Synthesis.Control.create(48_000,value:0.0)
-        var low = try Synthesis.FrequencyModulation.create(format,fundamental,frequency_hz:140.0,deviation_hz:100.0,amplitude:0.25)
-        var high = try Synthesis.FrequencyModulation.create(format,harmonic,frequency_hz:280.0,deviation_hz:200.0,amplitude:0.1)
-        var noise = try Synthesis.PinkNoise.create(format,seed:42,amplitude:0.04)
-        var mix = try Synthesis.Mix.create([low,high,noise],[1.0 as float32,1.0 as float32,0.5 as float32])
-        var source = try Synthesis.AmplitudeModulation.create(mix,gain,offset:0.0,depth:1.0)
-        try gain.set(0.55,duration_frames:2_400)
+        var fundamental = try Synthesis.Control.create(48_000,value:-1.0) else error { return Result<Engine,Error>.failure(error) }
+        var harmonic = try Synthesis.Control.create(48_000,value:-1.0) else error { return Result<Engine,Error>.failure(error) }
+        var gain = try Synthesis.Control.create(48_000,value:0.0) else error { return Result<Engine,Error>.failure(error) }
+        var low = try Synthesis.FrequencyModulation.create(format,fundamental,frequency_hz:140.0,deviation_hz:100.0,amplitude:0.25) else error { return Result<Engine,Error>.failure(error) }
+        var high = try Synthesis.FrequencyModulation.create(format,harmonic,frequency_hz:280.0,deviation_hz:200.0,amplitude:0.1) else error { return Result<Engine,Error>.failure(error) }
+        var noise = try Synthesis.PinkNoise.create(format,seed:42,amplitude:0.04) else error { return Result<Engine,Error>.failure(error) }
+        var mix = try Synthesis.Mix.create([low,high,noise],[1.0 as float32,1.0 as float32,0.5 as float32]) else error { return Result<Engine,Error>.failure(error) }
+        var source = try Synthesis.AmplitudeModulation.create(mix,gain,offset:0.0,depth:1.0) else error { return Result<Engine,Error>.failure(error) }
+        try gain.set(0.55,duration_frames:2_400) else error { return Result<Engine,Error>.failure(error) }
         return Result<Engine, Error>.success(Engine(fundamental,harmonic,gain,source))
     }
     private func regime(value:float32, gain:float32, frames:int) Result<void, Error> {
-        try self.fundamental.set(value,frames); try self.harmonic.set(value,frames); try self.gain.set(gain,frames)
+        try self.fundamental.set(value,frames) else error { return Result<void,Error>.failure(error) }; try self.harmonic.set(value,frames) else error { return Result<void,Error>.failure(error) }; try self.gain.set(gain,frames) else error { return Result<void,Error>.failure(error) }
         return Result<void, Error>.success()
     }
     func render(samples:&float32[..]) Result<void, Error> {
@@ -37,20 +37,20 @@ public class Engine:Synthesis.Generator {
         while start < samples.count() {
             if self.change < 4 && self.frame == (self.change+1)*48_000 {
                 match self.change {
-                    0 => { try self.regime(1.0,0.9,24_000) }
-                    1 => { try self.regime(-0.25,0.45,12_000) }
-                    2 => { try self.regime(0.5,0.7,24_000) }
-                    else => { try self.regime(-1.0,0.0,48_000) }
+                    0 => { try self.regime(1.0,0.9,24_000) else error { return Result<void,Error>.failure(error) } }
+                    1 => { try self.regime(-0.25,0.45,12_000) else error { return Result<void,Error>.failure(error) } }
+                    2 => { try self.regime(0.5,0.7,24_000) else error { return Result<void,Error>.failure(error) } }
+                    else => { try self.regime(-1.0,0.0,48_000) else error { return Result<void,Error>.failure(error) } }
                 }
                 self.change++
             }
             var count = samples.count()-start
             if self.change < 4 && count > (self.change+1)*48_000-self.frame { count = (self.change+1)*48_000-self.frame }
-            try self.source.render(&samples[start:start+count]); self.frame += count; start += count
+            try self.source.render(&samples[start:start+count]) else error { return Result<void,Error>.failure(error) }; self.frame += count; start += count
         }
         return Result<void, Error>.success()
     }
     func reset() { self.source.reset(); self.frame = 0; self.change = 0
-        match self.gain.set(0.55,2_400) { failure(error) => { panic(error.detail) }; success => {} }
+        match (try self.gain.set(0.55,2_400)) { failure(error) => { panic(error.detail) }; success => {} }
     }
 }

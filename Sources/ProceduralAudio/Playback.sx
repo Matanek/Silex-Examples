@@ -12,7 +12,7 @@ public func render(recipe:Recipe, block_frames:int = 480) Result<float32[], Erro
     var start = 0
     while start < samples.count() {
         var end = start+block_frames*source.format.channels; if end > samples.count() { end = samples.count() }
-        try source.render(&samples[start:end]); start = end
+        try source.render(&samples[start:end]) else error { return Result<float32[],Error>.failure(error) }; start = end
     }
     return Result<float32[], Error>.success(samples)
 }
@@ -23,7 +23,7 @@ func peak(samples:@float32[..]) float32 {
 }
 public func check(recipe:Recipe) Result<void, Error> {
     var source = recipe.source
-    var expected = try render(recipe)
+    var expected = try render(recipe) else error { return Result<void,Error>.failure(error) }
     assert(expected.count() == recipe.frames*source.format.channels)
     let level = peak(@expected[0:expected.count()]); assert(level > 0.001 && level < 0.9)
     assert(expected[0] == 0.0 as float32)
@@ -32,22 +32,22 @@ public func check(recipe:Recipe) Result<void, Error> {
     if recipe.frames >= 120_000 { ending_frames = 480 }
     var i = expected.count()-ending_frames*source.format.channels
     while i < expected.count() { assert(Math.abs(expected[i]) < 0.001); i++ }
-    source.reset(); var split = try render(recipe,257)
+    source.reset(); var split = try render(recipe,257) else error { return Result<void,Error>.failure(error) }
     i = 0; while i < expected.count() { assert(split[i] == expected[i]); i++ }
     source.reset()
-    var audio = try Audio.offline(sample_rate:source.format.sample_rate,channels:source.format.channels)
-    var producer = try Synthesis.StreamProducer.create(audio,source,recipe.frames,block_frames:480,capacity_frames:127)
+    var audio = try Audio.offline(sample_rate:source.format.sample_rate,channels:source.format.channels) else error { return Result<void,Error>.failure(error) }
+    var producer = try Synthesis.StreamProducer.create(audio,source,recipe.frames,block_frames:480,capacity_frames:127) else error { return Result<void,Error>.failure(error) }
     let playing = audio.play(producer.stream()); var frame = 0
     while frame < recipe.frames {
         if !producer.input_closed() {
-            match producer.pump() { failure(error) => { if error.kind != Kind.would_block() { return Result<void, Error>.failure(error) } }; success(count) => {} }
+            match (try producer.pump()) { failure(error) => { if error.kind != Kind.would_block() { return Result<void, Error>.failure(error) } }; success(count) => {} }
         }
-        let info = try audio.stream_info(producer.stream()); assert(info.queued_frames > 0 && info.queued_frames <= 127)
-        let actual = try audio.render(info.queued_frames)
+        let info = try audio.stream_info(producer.stream()) else error { return Result<void,Error>.failure(error) }; assert(info.queued_frames > 0 && info.queued_frames <= 127)
+        let actual = try audio.render(info.queued_frames) else error { return Result<void,Error>.failure(error) }
         i = 0; while i < actual.count() { assert(actual[i] == expected[frame*source.format.channels+i]); i++ }
         frame += info.queued_frames
     }
-    let final = try audio.stream_info(producer.stream())
+    let final = try audio.stream_info(producer.stream()) else error { return Result<void,Error>.failure(error) }
     assert(producer.input_closed() && final.drained && final.written_frames == recipe.frames && final.consumed_frames == recipe.frames && final.discarded_frames == 0)
     print("$(recipe.name): $(recipe.frames) frames, $(source.format.channels) channels, peak $(level), replay and stream match")
     return Result<void, Error>.success()
@@ -56,23 +56,23 @@ public func play(audio:Audio, recipe:Recipe) Result<void, Error> {
     var source = recipe.source
     print("$(recipe.name): $(recipe.frames as float64/48_000.0) seconds")
     if recipe.frames < 72_000 {
-        let samples = try render(recipe)
+        let samples = try render(recipe) else error { return Result<void,Error>.failure(error) }
         let sound = audio.create(@samples[0:samples.count()],sample_rate:source.format.sample_rate,channels:source.format.channels)
         audio.wait(audio.play(sound)); assert(audio.unload(sound))
     } else {
-        var producer = try Synthesis.StreamProducer.create(audio,source,recipe.frames,block_frames:480,capacity_frames:1_440)
+        var producer = try Synthesis.StreamProducer.create(audio,source,recipe.frames,block_frames:480,capacity_frames:1_440) else error { return Result<void,Error>.failure(error) }
         var prefill = 0
-        while prefill < 3 { let count = try producer.pump(); assert(count == 480); prefill++ }
+        while prefill < 3 { let count = try producer.pump() else error { return Result<void,Error>.failure(error) }; assert(count == 480); prefill++ }
         let playing = audio.play(producer.stream())
         while !producer.input_closed() {
-            match producer.pump() {
-                failure(error) => { if error.kind != Kind.would_block() { return Result<void, Error>.failure(error) }
-                    try audio.wait_writable(producer.stream()) }
+            match (try producer.pump()) {
+                failure(cause) => { if cause.kind != Kind.would_block() { return Result<void, Error>.failure(cause) }
+                    try audio.wait_writable(producer.stream()) else error { return Result<void,Error>.failure(error) } }
                 success(count) => {}
             }
         }
         audio.wait(playing)
-        let info = try audio.stream_info(producer.stream())
+        let info = try audio.stream_info(producer.stream()) else error { return Result<void,Error>.failure(error) }
         assert(info.drained && info.consumed_frames == recipe.frames && info.discarded_frames == 0)
     }
     return Result<void, Error>.success()

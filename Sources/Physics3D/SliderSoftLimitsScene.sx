@@ -228,7 +228,7 @@ func render_slider_soft_limits(world:&Resources.World, state:&SliderSoftLimitsSc
     }
 }
 func main() {
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments) => { for argument in arguments { if argument=="--controls-check" {
             SliderSoftLimitsControls.verify_soft_limits_shortcuts()
             SliderSoftLimitsControls.verify_soft_limits_buttons()
@@ -241,7 +241,7 @@ func main() {
     }
     var state = SliderSoftLimitsSceneState()
     var title = "Butées souples — commandes visibles v2 | T relancer, R repartir, Espace pause"
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments) => { for argument in arguments {
             if argument=="--smoke" { state.smoke = true }
             if argument=="--input-trace" { state.trace_input = true }

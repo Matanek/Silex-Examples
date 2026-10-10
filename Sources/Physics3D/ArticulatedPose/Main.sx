@@ -204,7 +204,7 @@ func verify_interactions() {
 test "articulated pose controls compose shoulder and elbow and preserve reversal recentering pause reset and rendered poses" { verify_interactions() }
 func main() {
     var state=ArticulatedPoseScene()
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments)=> { for argument in arguments {
             if argument=="--controls-check" { verify_interactions();print("Articulated pose: shoulder, elbow, reversal, recentering, Space/R, reset and rendered poses verified");return }
             if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }

@@ -23,7 +23,7 @@ public class Gated:Synthesis.Generator {
             var frames = (samples.count()-start)/self.format.channels
             if !self.released && frames > self.gate_frames-self.frame { frames = self.gate_frames-self.frame }
             let end = start+frames*self.format.channels
-            try self.source.render(&samples[start:end]); try self.envelope.process(&samples[start:end])
+            try self.source.render(&samples[start:end]) else error { return Result<void,Error>.failure(error) }; try self.envelope.process(&samples[start:end]) else error { return Result<void,Error>.failure(error) }
             self.frame += frames; start = end
         }
         return Result<void, Error>.success()

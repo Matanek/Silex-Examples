@@ -110,7 +110,7 @@ func create_scene(world:&Resources.World, meshes:&Resources.Meshes3D,
     world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.22)))
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(
         direction:Math.Vec3(-0.4, -1.0, -0.3).normalized(), intensity:3.0)))
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments) => {
             for argument in arguments { if argument == "--smoke" { state.smoke = true } }
         }

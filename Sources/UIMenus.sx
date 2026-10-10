@@ -109,7 +109,7 @@ func main() {
     var system = false
     var hover = false
     var close = false
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } if argument == "--system-menu" { system = true } if argument == "--hover-menu" { hover = true } if argument == "--close-on-leave" { close = true } } }
         failure(error) => { panic(error.detail) }
     }

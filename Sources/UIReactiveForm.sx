@@ -228,7 +228,7 @@ class FormSession:Canvas.Session {
 
 func main() {
     var smoke = false
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(args) => { for arg in args { if arg == "--smoke" { smoke = true } } }
         failure(error) => { panic("Cannot read process arguments") }
     }

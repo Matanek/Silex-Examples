@@ -131,7 +131,7 @@ class AdaptiveSession:Canvas.Session {
 
 func main() {
     var smoke = false
-    match Process.arguments() {
+    match (try Process.arguments()) {
         success(arguments) => { for argument in arguments { if argument == "--smoke" { smoke = true } } }
         failure(error) => { panic(error.detail) }
     }
