@@ -1,0 +1,61 @@
+use GFX.UI
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Keyboard
+use STD.Math
+
+// Application content: a bounded stream of samples and one retained Path.
+// Neither a second UI loop nor a graphing package is needed.
+public class Trace:UI.Content {
+    private var running:UI.State<bool>
+    private var bright:UI.State<bool>
+    private var dark:UI.Theme = UI.Theme.dark()
+    private var light:UI.Theme = UI.Theme.light()
+    private var line:Canvas.Path = Canvas.Path()
+    private var samples:float[] = []
+    private var elapsed:float = 0.0
+    private var revision:int = 0
+    private var painted_revision:int = -1
+    private var painted_frame:Canvas.Rect = Canvas.Rect(Math.Vec2(),Math.Vec2())
+    var measurements:int = 0
+    var updates:int = 0
+    var preparations:int = 0
+    init(running:UI.State<bool>,bright:UI.State<bool>) { self.running = running; self.bright = bright }
+    func measure(maximum:Math.Vec2) Math.Vec2 { self.measurements++; return Math.Vec2(480.0,100.0) }
+    func paint(painter:&Canvas.Painter,frame:Canvas.Rect,opacity:float) {
+        if self.painted_revision != self.revision || self.painted_frame != frame {
+            self.line.reset()
+            for index, sample in self.samples.indexed() {
+                let position = frame.position + Math.Vec2(
+                    frame.size.x * index as float / 95.0, frame.size.y * (0.5 - sample * 0.4))
+                if index == 0 { self.line.move_to(position) } else { self.line.line_to(position) }
+            }
+            self.painted_revision = self.revision; self.painted_frame = frame; self.preparations++
+        }
+        var theme = self.dark; if self.bright.value() { theme = self.light }
+        painter.clip(Canvas.Rect(frame.position,frame.size),func(clipped:&Canvas.Painter) {
+            clipped.fill(frame,Canvas.Fill.solid(theme.background.with_alpha(opacity)))
+            clipped.stroke(Canvas.Line(frame.position + Math.Vec2(0.0,frame.size.y * 0.5),
+                frame.position + Math.Vec2(frame.size.x,frame.size.y * 0.5)),
+                Canvas.Stroke(theme.foreground.with_alpha(opacity * 0.15),1.0))
+            if self.samples.count() > 1 {
+                clipped.stroke(self.line,Canvas.Stroke(theme.accent.with_alpha(opacity),2.0))
+            }
+        })
+    }
+    func update(delta:float) bool {
+        if !self.running.value() || delta == 0.0 { return false }
+        self.elapsed += delta
+        var next:float[] = []
+        var start = 0; if self.samples.count() >= 96 { start = 1 }
+        for index in start...self.samples.count() { next.append(self.samples[index]) }
+        next.append(Math.sin(self.elapsed * 4.0))
+        self.samples = next; self.updates++; self.revision++; return true
+    }
+    func focusable() bool { return false }
+    func accepts_text_input() bool { return false }
+    func focus_changed(focused:bool) bool { return false }
+    func pointer_scrolled(delta:Math.Vec2) bool { return false }
+    func insert_text(value:str) bool { return false }
+    func key_pressed(key:Keyboard.Key,modifiers:Keyboard.Modifiers) bool { return false }
+}

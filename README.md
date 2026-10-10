@@ -941,3 +941,18 @@ show finite-spring equilibrium under gravity. From the workspace root or
 owning Spec group run
 `silex run Silex-Examples/Sources/Physics3D/LoadedSwingTwist/Main.sx --release`.
 [Guide français](Sources/Physics3D/LoadedSwingTwist/README.fr.md).
+
+[UIVisuals](Sources/UIVisuals/Main.sx) compares all five image fits, icon actions,
+bound and indeterminate progress, and a retained application plot. Use F2 to
+change theme, F3 to pause, F4 to hide the animated group, and edit the text while
+resizing. Icon actions share a counter across a button, menu and toolbar.
+From the workspace or Spec group root:
+
+```sh
+silex run Silex-Examples/Sources/UIVisuals/Main.sx --release
+```
+
+The compiled executable accepts `--cpu-check` to run 120 sample updates, theme
+changes and narrow resizes, proving retained descriptions, measurements and
+editing selection without opening a window. Check both Debug and Release
+builds before trying the graphical gallery.
