@@ -961,3 +961,13 @@ The compiled executable accepts `--cpu-check` to run 120 sample updates, theme
 changes and narrow resizes, proving retained descriptions, measurements and
 editing selection without opening a window. Check both Debug and Release
 builds before trying the graphical gallery.
+
+## Loaded shoulder and elbow
+
+[ArticulatedPose](Sources/Physics3D/ArticulatedPose/README.md) combines a
+three-axis shoulder with a bending elbow, two 2 kg members, a fixed white
+pivot and a moving cyan elbow. Opposite poses, recentering, pause and reset
+show the elbow’s local frame and gravity-loaded elastic equilibrium. From
+the workspace or owning Spec group root run
+`silex run Silex-Examples/Sources/Physics3D/ArticulatedPose/Main.sx --release`.
+[Guide français](Sources/Physics3D/ArticulatedPose/README.fr.md).
