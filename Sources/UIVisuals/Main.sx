@@ -1,0 +1,147 @@
+use GFX.UI
+use GFX.Canvas
+use GFX.Color
+use GFX.Assets.Image as AssetImage
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.UI.Input as UIInput
+use GFX.Viewer
+use GFX.Window.Cursor
+use STD.Math
+use STD.Process
+use Module.Trace.Trace
+
+func illustration() AssetImage {
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.fill(Canvas.Rect(Math.Vec2(),Math.Vec2(120.0,60.0)),Canvas.Fill.solid(Color.cyan_500()))
+        painter.fill(Canvas.Rect(Math.Vec2(60.0,0.0),Math.Vec2(60.0)),Canvas.Fill.solid(Color.blue_500()))
+        painter.fill(Canvas.Circle(Math.Vec2(25.0,30.0),18.0),Canvas.Fill.solid(Color.white()))
+        painter.fill(Canvas.Rect(Math.Vec2(84.0,12.0),Math.Vec2(24.0,36.0),4.0),Canvas.Fill.solid(Color.orange_500()))
+    })
+    return drawing.rasterize(120,60)
+}
+class VisualForm {
+    var picture:AssetImage = illustration()
+    var running:UI.State<bool> = UI.State<bool>(true)
+    var hidden:UI.State<bool> = UI.State<bool>(false)
+    var bright:UI.State<bool> = UI.State<bool>(false)
+    var amount:UI.State<float> = UI.State<float>(0.4)
+    var calls:UI.State<int> = UI.State<int>(0)
+    var text:UI.State<str> = UI.State<str>("Édition conservée")
+    var field_focus:UI.Focus = UI.Focus()
+    var trace:Trace?
+    var preview:UI.CustomView?
+    var command:UI.Command?
+    var descriptions:int = 0
+    init() {
+        self.trace = Trace(self.running,self.bright)
+        self.preview = UI.CustomView(self.trace!)
+        self.command = UI.Command("Enregistrer",self.activate,icon:self.icon())
+    }
+    func icon() UI.Image {
+        var icon = UI.Image(self.picture); icon.style.width = 24.0; icon.style.height = 24.0; return icon
+    }
+    func activate() { self.calls.set(self.calls.value() + 1) }
+    func toggle_running() { self.running.set(!self.running.value()) }
+    func toggle_hidden() { self.hidden.set(!self.hidden.value()) }
+    func toggle_theme() { self.bright.set(!self.bright.value()) }
+    func fit_sample(label:str,fit:UI.ImageFit,opacity:float = 1.0) UI.View {
+        var image = UI.Image(self.picture,fit)
+        image.style.width = 144.0; image.style.height = 100.0; image.style.opacity = opacity
+        image.style.background = Color.slate_800(); image.style.border = UI.Border(1.0,Color.slate_500())
+        return UI.Column([UI.Text(label),image])
+    }
+    func describe(reads:UI.Reads) UI.View {
+        self.descriptions++
+        let running = reads.read(self.running)
+        var theme = UI.Theme.dark(); if reads.read(self.bright) { theme = UI.Theme.light() }
+        var control = UI.Style(); control.height = 40.0
+        var field = UI.TextField(self.text,style:control)
+        var progress = UI.Progress(self.amount); progress.style.height = 10.0
+        var unknown = UI.Progress(); if !running { unknown = UI.Progress(1.0) }
+        unknown.style.height = 10.0
+        var dynamic = UI.Column([UI.Text("Progression indéterminée et échantillons Canvas"),unknown,self.preview!])
+        dynamic.style.hidden = reads.read(self.hidden)
+        var motion = "Pause (F3)"; if !running { motion = "Reprendre (F3)" }
+        var visibility = "Masquer animation (F4)"; if self.hidden.value() { visibility = "Afficher animation (F4)" }
+        var fits = UI.Row([self.fit_sample("contain",UI.ImageFit.contain),self.fit_sample("cover",UI.ImageFit.cover),
+            self.fit_sample("fill",UI.ImageFit.fill),self.fit_sample("none",UI.ImageFit.none),
+            self.fit_sample("scale_down",UI.ImageFit.scale_down),self.fit_sample("opacité 40 %",UI.ImageFit.cover,0.4)],wrap:true)
+        var root = UI.Column([UI.Text("Images, icônes et progression — J4"),
+            UI.Text("Tab / Maj+Tab · F2 : thème · F3 : pause · F4 : masquage · saisie conservée."),
+            UI.Row([UI.Button("Clair / sombre (F2)",self.toggle_theme,style:control),
+                UI.Button(motion,self.toggle_running,style:control),UI.Button(visibility,self.toggle_hidden,style:control)],wrap:true),
+            UI.FocusTarget(self.field_focus,field),fits,
+            UI.Row([UI.Button("Bouton avec icône",self.activate,style:control,icon:self.icon()),
+                UI.Menu("Fichier",[UI.MenuItem.command(self.command!)])],wrap:true),
+            UI.Toolbar([self.command!]),UI.Text("Actions reconnues : $(reads.read(self.calls))"),
+            UI.Text("Progression déterminée : déplacez le curseur"),UI.Slider(self.amount),progress,dynamic])
+        root.style.padding = UI.Insets(20.0)
+        var viewport = UI.ScrollView(root); viewport.style.theme = theme
+        return viewport
+    }
+}
+class VisualSession:Canvas.Session {
+    var form:VisualForm = VisualForm()
+    private var runtime:UI.Runtime?
+    init() { self.runtime = UI.Runtime(UI.Reactive(self.form.describe)) }
+    func ui() UI.Runtime { return self.runtime! }
+    func drawing(width:int,height:int) Canvas { return self.ui().drawing(width,height) }
+    func update(delta:float) bool { return self.ui().update(delta) }
+    func handle(event:@Events.Event) bool {
+        match event {
+            key_pressed(value) => {
+                if !value.repeated && value.key == Keyboard.Key.f2 { self.form.toggle_theme(); return true }
+                if !value.repeated && value.key == Keyboard.Key.f3 { self.form.toggle_running(); return true }
+                if !value.repeated && value.key == Keyboard.Key.f4 { self.form.toggle_hidden(); return true }
+            }
+            else => {}
+        }
+        var runtime = self.ui(); return UIInput.handle(runtime,event)
+    }
+    func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
+    func check_cpu() {
+        var drawing = self.drawing(1020,780)
+        self.form.field_focus.request(); let focused = self.update(0.0)
+        var runtime = self.ui(); let ended = runtime.key_pressed(Keyboard.Key.end)
+        assert(runtime.key_pressed(Keyboard.Key.left,Keyboard.Modifiers(shift:true)))
+        drawing = self.drawing(1020,780)
+        let descriptions = self.form.descriptions
+        let measurements = self.form.trace!.measurements
+        for sample in 0...120 {
+            assert(self.update(0.016)); drawing = self.drawing(1020,780)
+        }
+        assert(self.form.descriptions == descriptions && self.form.trace!.measurements == measurements)
+        assert(self.form.trace!.updates == 120 && self.accepts_text_input())
+        assert(runtime.insert_text("X")); assert(self.form.text.value() == "Édition conservéX")
+        for width in [1020,480,160,1] {
+            self.form.toggle_theme(); let changed = self.update(0.0); drawing = self.drawing(width,780)
+            assert(self.accepts_text_input())
+        }
+        let before = self.form.trace!.updates
+        self.form.hidden.set(true); let hidden = self.update(0.0); drawing = self.drawing(1020,780)
+        let moved = runtime.key_pressed(Keyboard.Key.tab)
+        assert(!self.update(0.1) && self.form.trace!.updates == before)
+        self.form.hidden.set(false); assert(self.update(0.1)); drawing = self.drawing(1020,780)
+        self.form.running.set(false); let stopped = self.update(0.0); drawing = self.drawing(1020,780)
+        assert(!self.update(0.1))
+        assert(self.form.trace!.preparations > 100)
+        print("UIVisuals CPU : OK")
+    }
+}
+func main() {
+    var cpu = false
+    match (try Process.arguments()) {
+        success(arguments) => { for argument in arguments { if argument == "--cpu-check" { cpu = true } } }
+        failure(error) => { panic(error.detail) }
+    }
+    var session = VisualSession()
+    if cpu { session.check_cpu(); return }
+    let code = Viewer.show(session,Viewer.CanvasSettings(width:1020,height:780,title:"Silex — Images et progression J4"))
+    if code != 0 { panic("visuals viewer failed") }
+}
+test "actual gallery streams samples with retained descriptions layout focus and source images" {
+    var session = VisualSession(); session.check_cpu()
+}

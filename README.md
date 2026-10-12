@@ -947,6 +947,21 @@ owning Spec group run
 `silex run Silex-Examples/Sources/Physics3D/LoadedSwingTwist/Main.sx --release`.
 [Guide français](Sources/Physics3D/LoadedSwingTwist/README.fr.md).
 
+[UIVisuals](Sources/UIVisuals/Main.sx) compares all five image fits, icon actions,
+bound and indeterminate progress, and a retained application plot. Use F2 to
+change theme, F3 to pause, F4 to hide the animated group, and edit the text while
+resizing. Icon actions share a counter across a button, menu and toolbar.
+From the workspace or Spec group root:
+
+```sh
+silex run Silex-Examples/Sources/UIVisuals/Main.sx --release
+```
+
+The compiled executable accepts `--cpu-check` to run 120 sample updates, theme
+changes and narrow resizes, proving retained descriptions, measurements and
+editing selection without opening a window. Check both Debug and Release
+builds before trying the graphical gallery.
+
 ## Loaded shoulder and elbow
 
 [ArticulatedPose](Sources/Physics3D/ArticulatedPose/README.md) combines a
@@ -956,6 +971,17 @@ show the elbow’s local frame and gravity-loaded elastic equilibrium. From
 the workspace or owning Spec group root run
 `silex run Silex-Examples/Sources/Physics3D/ArticulatedPose/Main.sx --release`.
 [Guide français](Sources/Physics3D/ArticulatedPose/README.fr.md).
+
+
+## Text history and word navigation
+
+[UITextEditing](Sources/UITextEditing/README.md) combines short, long and multiline
+fields with grouped undo/redo, Unicode word movement and selection, retained
+history across theme changes and automatic caret scrolling. From the workspace
+or owning Spec group root run
+`silex run Silex-Examples/Sources/UITextEditing/Main.sx --release`.
+The compiled executable accepts `--cpu-check` for a windowless Debug/Release
+check. [Guide français](Sources/UITextEditing/README.fr.md).
 
 ## Ragdoll hierarchy and independent poses
 

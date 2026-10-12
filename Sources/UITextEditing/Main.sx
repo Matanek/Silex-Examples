@@ -1,0 +1,151 @@
+use GFX.UI
+use GFX.Canvas
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.UI.Input as UIInput
+use GFX.Viewer
+use GFX.Window
+use GFX.Window.Cursor
+use STD.Process
+
+func long_line() str {
+    var value = ""
+    for index in 0...8 { value += "Été été · 世界 · 👩‍💻 · mots séparés\u{a0}par un espace Unicode. " }
+    return value
+}
+func paragraphs() str {
+    var value = "Première ligne : éditez, sélectionnez puis annulez."
+    for index in 0...14 { value += "\nLigne $(index + 2) : café été 👩‍💻 — le caret reste visible." }
+    return value
+}
+class EditingForm {
+    var short:UI.State<str> = UI.State<str>("Silex — été 👩‍💻")
+    var long:UI.State<str> = UI.State<str>(long_line())
+    var area:UI.State<str> = UI.State<str>(paragraphs())
+    var bright:UI.State<bool> = UI.State<bool>(false)
+    var changes:UI.State<int> = UI.State<int>(0)
+    var short_focus:UI.Focus = UI.Focus()
+    var long_focus:UI.Focus = UI.Focus()
+    var area_focus:UI.Focus = UI.Focus()
+    func edited(value:str) { self.changes.set(self.changes.value() + 1) }
+    func toggle_theme() { self.bright.set(!self.bright.value()) }
+    func reset() {
+        self.short.set("Silex — été 👩‍💻"); self.long.set(long_line()); self.area.set(paragraphs())
+    }
+    func focus_short() { self.short_focus.request() }
+    func focus_long() { self.long_focus.request() }
+    func focus_area() { self.area_focus.request() }
+    func describe(reads:UI.Reads) UI.View {
+        var theme = UI.Theme.dark(); if reads.read(self.bright) { theme = UI.Theme.light() }
+        var style = UI.Style(); style.height = 44.0; style.padding = UI.Insets(10.0)
+        var short = UI.TextField(self.short, on_change:self.edited, style:style)
+        var long = UI.TextField(self.long, on_change:self.edited, style:style)
+        var area = UI.TextArea(self.area, on_change:self.edited, style:style); area.style.height = 200.0
+        var root = UI.Column([
+            UI.Text("Édition de texte — historique et mots"),
+            UI.Text("Cmd/Ctrl+Z : annuler · Maj+Cmd/Ctrl+Z ou Ctrl+Y : rétablir."),
+            UI.Text("Option/Ctrl+flèches : mots · ajouter Maj pour sélectionner."),
+            UI.Text("Option/Ctrl+retour arrière : effacer un mot · F2 : thème · F3 : réinitialiser."),
+            UI.Row([UI.Button("Clair / sombre",self.toggle_theme,style:style),
+                UI.Button("Valeurs initiales",self.reset,style:style)],wrap:true),
+            UI.Row([UI.Button("Champ court",self.focus_short,style:style),
+                UI.Button("Ligne longue",self.focus_long,style:style),
+                UI.Button("Texte multiligne",self.focus_area,style:style)],wrap:true),
+            UI.Text("Champ court : accents combinés et emoji"),
+            UI.Keyed("short",UI.FocusTarget(self.short_focus,short)),
+            UI.Text("Ligne longue : sélectionnez et vérifiez le défilement"),
+            UI.Keyed("long",UI.FocusTarget(self.long_focus,long)),
+            UI.Text("Texte multiligne : modifiez plusieurs lignes puis annulez"),
+            UI.Keyed("area",UI.FocusTarget(self.area_focus,area)),
+            UI.Text("Notifications d’édition, undo et redo : $(reads.read(self.changes))"),
+            UI.Text("Changer de thème conserve l’historique. Une valeur externe différente le réinitialise.")
+        ])
+        root.style.padding = UI.Insets(20.0); root.style.gap = 10.0
+        var viewport = UI.ScrollView(root); viewport.style.theme = theme
+        return viewport
+    }
+}
+class EditingSession:Canvas.Session {
+    var form:EditingForm = EditingForm()
+    private var runtime:UI.Runtime?
+    init() { self.runtime = UI.Runtime(UI.Reactive(self.form.describe)) }
+    func ui() UI.Runtime { return self.runtime! }
+    func drawing(width:int,height:int) Canvas { return self.ui().drawing(width,height) }
+    func update(delta:float) bool { return self.ui().update(delta) }
+    func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
+    func handle(event:@Events.Event) bool {
+        match event { key_pressed(value) => {
+            if !value.repeated && value.key == Keyboard.Key.f2 { self.form.toggle_theme(); return true }
+            if !value.repeated && value.key == Keyboard.Key.f3 { self.form.reset(); return true }
+        }; else => {} }
+        var runtime = self.ui(); return UIInput.handle(runtime,event)
+    }
+    func check_cpu() {
+        var drawing = self.drawing(900,760)
+        for layer in drawing.prepared(900,760).text_layers() {
+            for run in layer.glyph_runs() { assert(run.missing_glyph_count() == 0) }
+        }
+        var runtime = self.ui(); self.form.short_focus.request(); assert(self.update(0.0))
+        let original = self.form.short.value()
+        assert(runtime.insert_text(" a")); assert(runtime.insert_text("b"))
+        assert(self.form.short.value() == original + " ab")
+        assert(runtime.key_pressed(Keyboard.Key.z,Keyboard.Modifiers(system:true)))
+        assert(self.form.short.value() == original)
+        assert(runtime.key_pressed(Keyboard.Key.z,Keyboard.Modifiers(system:true,shift:true)))
+        assert(self.form.short.value() == original + " ab" && self.form.changes.value() == 4)
+        self.form.toggle_theme(); assert(self.update(0.0)); drawing = self.drawing(900,760)
+        assert(runtime.key_pressed(Keyboard.Key.z,Keyboard.Modifiers(system:true)))
+        assert(self.form.short.value() == original)
+        self.form.long_focus.request(); assert(self.update(0.0)); drawing = self.drawing(900,760)
+        let ended_long = runtime.key_pressed(Keyboard.Key.end); assert(runtime.insert_text("suffix"))
+        assert(runtime.key_pressed(Keyboard.Key.left,Keyboard.Modifiers(alt:true,shift:true)))
+        assert(runtime.insert_text("replacement")); assert(runtime.key_pressed(Keyboard.Key.z,Keyboard.Modifiers(system:true)))
+        assert(self.form.long.value() == long_line() + "suffix")
+        self.form.area_focus.request(); assert(self.update(0.0)); drawing = self.drawing(900,760)
+        let ended_area = runtime.key_pressed(Keyboard.Key.end); assert(runtime.key_pressed(Keyboard.Key.enter))
+        assert(runtime.insert_text("new line")); assert(runtime.key_pressed(Keyboard.Key.z,Keyboard.Modifiers(system:true)))
+        assert(self.form.area.value() == paragraphs() + "\n")
+        assert(runtime.key_pressed(Keyboard.Key.z,Keyboard.Modifiers(system:true)))
+        assert(self.form.area.value() == paragraphs())
+        for width in [900,480,200,1] {
+            drawing = self.drawing(width,760); self.form.toggle_theme(); let changed = self.update(0.0)
+            drawing = self.drawing(width,760); assert(self.accepts_text_input())
+        }
+        self.form.short_focus.request(); let focused = self.update(0.0)
+        assert(runtime.insert_text("external reset")); self.form.reset(); let reset = self.update(0.0)
+        let ignored = runtime.key_pressed(Keyboard.Key.z,Keyboard.Modifiers(system:true))
+        assert(self.form.short.value() == original)
+        print("UITextEditing CPU : OK")
+    }
+}
+func main() {
+    var cpu = false
+    for argument in Process.arguments() { if argument == "--cpu-check" { cpu = true } }
+    var session = EditingSession()
+    if cpu { session.check_cpu(); return }
+    let code = Viewer.show(session,Viewer.CanvasSettings(width:900,height:760,title:"Silex — Édition de texte J4"))
+    if code != 0 { panic("text editing viewer failed") }
+}
+test "actual gallery keeps undo word selection and multiline history through theme changes and resize" {
+    var session = EditingSession(); session.check_cpu()
+}
+
+func letter_event(key:Keyboard.Key, code:uint32, shift:bool = false) Events.Event {
+    return Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:1 as uint32),
+        keyboard:Keyboard.KeyboardId(value:1 as uint32),key:key,keycode:code,raw:0 as uint16,
+        repeated:false,modifiers:Keyboard.Modifiers(system:true,shift:shift),
+        timestamp:Events.Timestamp(nanoseconds:1 as uint)))
+}
+test "actual gallery undo and redo follow logical AZERTY events" {
+    var session = EditingSession(); var drawing = session.drawing(900,760)
+    session.form.short_focus.request(); let focused = session.update(0.0)
+    let original = session.form.short.value()
+    assert(session.handle(Events.Event.text_input(Events.TextInputEvent(
+        window:Window.Id(value:1 as uint32),text:"abc",timestamp:Events.Timestamp(nanoseconds:1 as uint)))))
+    assert(session.form.short.value() == original + "abc")
+    assert(session.handle(letter_event(Keyboard.Key.w,122 as uint32)))
+    assert(session.form.short.value() == original)
+    assert(session.handle(letter_event(Keyboard.Key.w,122 as uint32,shift:true)))
+    assert(session.form.short.value() == original + "abc")
+}
