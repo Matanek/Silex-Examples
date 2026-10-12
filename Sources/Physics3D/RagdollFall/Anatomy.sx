@@ -1,0 +1,105 @@
+use GFX.Physics
+use Physics3D.RagdollPose.Model
+use STD.Math
+
+// Joint X is flexion; mirrored Z limits keep shoulders and hips outside the torso.
+package func joint_settings(index:int) Physics.SwingTwistConstraint3DSettings {
+    var joint=Physics.SwingTwistConstraint3DSettings()
+    if index==1 {
+        joint.minimum_twist=-0.35;joint.maximum_twist=0.35
+        joint.swing_limits=Physics.SwingLimits3D.cone(Math.Vec2(0.45,0.35))
+    } else if index==2 || index==4 {
+        joint.minimum_twist=-1.6;joint.maximum_twist=0.7
+        var minimum_z=-1.8;var maximum_z=0.0
+        if index==4 { minimum_z=0.0;maximum_z=1.8 }
+        joint.swing_limits=Physics.SwingLimits3D.pyramid(Math.Vec2(-0.1,minimum_z),Math.Vec2(0.1,maximum_z))
+    } else if index==3 || index==5 {
+        joint.minimum_twist=-2.35;joint.maximum_twist=0.0
+        joint.swing_limits=Physics.SwingLimits3D.cone(Math.Vec2())
+    } else if index==6 || index==8 {
+        joint.minimum_twist=-1.3;joint.maximum_twist=0.5
+        var minimum_z=-0.75;var maximum_z=0.12
+        if index==8 { minimum_z=-0.12;maximum_z=0.75 }
+        joint.swing_limits=Physics.SwingLimits3D.pyramid(Math.Vec2(-0.25,minimum_z),Math.Vec2(0.25,maximum_z))
+    } else if index==7 || index==9 {
+        joint.minimum_twist=0.0;joint.maximum_twist=2.4
+        joint.swing_limits=Physics.SwingLimits3D.cone(Math.Vec2())
+    }
+    return joint
+}
+
+package func settings(model:@Model.RagdollPoseModel) Physics.Ragdoll3DSettings {
+    var parts:Physics.RagdollPart3D[] = []
+    var index=0
+    while index<10 {
+        let part=model.settings.part(index)
+        parts.append(Physics.RagdollPart3D(part.parent,part.body,local_transform:part.local_transform,
+            body_offset:part.body_offset,joint:joint_settings(index)))
+        index++
+    }
+    return Physics.Ragdoll3DSettings(parts,self_collision:true)
+}
+
+package func pose(model:@Model.RagdollPoseModel,instance:int) Physics.Transform3D[] {
+    var result=model.desired_pose(instance)
+    if instance==0 {
+        for index in [2,4] {
+            var sign=-1.0;if index==4 { sign=1.0 }
+            result[index]=Physics.Transform3D(result[index].position,Math.Quat.angle_axis(sign*1.15,Math.Vec3(0.0,0.0,1.0)))
+            result[index+1]=Physics.Transform3D(result[index+1].position,Math.Quat.angle_axis(-0.45,Math.Vec3(1.0,0.0,0.0)))
+        }
+        for index in [6,8] {
+            result[index]=Physics.Transform3D(result[index].position,Math.Quat.angle_axis(-0.35,Math.Vec3(1.0,0.0,0.0)))
+            result[index+1]=Physics.Transform3D(result[index+1].position,Math.Quat.angle_axis(0.7,Math.Vec3(1.0,0.0,0.0)))
+        }
+    }
+    return result
+}
+
+package func limit_error(joint:@Physics.SwingTwistConstraint3D) float {
+    let twist=joint.twist_angle()
+    var error=Math.max(0.0,Math.max(joint.minimum_twist()-twist,twist-joint.maximum_twist()))
+    let swing=joint.swing_angles()
+    match joint.swing_limits() {
+        pyramid(minimum,maximum) => {
+            error=Math.max(error,Math.max(minimum.x-swing.x,swing.x-maximum.x))
+            error=Math.max(error,Math.max(minimum.y-swing.y,swing.y-maximum.y))
+        }
+        cone(angles) => {
+            // Neck has an ellipse; elbows and knees lock both swing axes.
+            if angles.x==0.0 || angles.y==0.0 {
+                error=Math.max(error,Math.max(Math.abs(swing.x)-angles.x,Math.abs(swing.y)-angles.y))
+            } else {
+                let y=Math.tan(swing.x*0.5);let z=Math.tan(swing.y*0.5)
+                let norm=Math.sqrt(1.0+y*y+z*z)
+                let scaled_y=y/norm/Math.sin(angles.x*0.5)
+                let scaled_z=z/norm/Math.sin(angles.y*0.5)
+                let radius=Math.sqrt(scaled_y*scaled_y+scaled_z*scaled_z)
+                error=Math.max(error,(radius-1.0)*Math.max(angles.x,angles.y))
+            }
+        }
+    }
+    return error
+}
+
+// Independent oriented-box SAT witness, used only by headless tests and smokes.
+package func overlap(first:Physics.Transform3D,first_size:Math.Vec3,
+    second:Physics.Transform3D,second_size:Math.Vec3) float
+{
+    let basis:Math.Vec3[] = [Math.Vec3(1.0,0.0,0.0),Math.Vec3(0.0,1.0,0.0),Math.Vec3(0.0,0.0,1.0)]
+    var a:Math.Vec3[] = [];var b:Math.Vec3[] = [];var axes:Math.Vec3[] = []
+    for axis in basis { a.append(first.rotation.rotate(axis));b.append(second.rotation.rotate(axis)) }
+    for axis in a { axes.append(axis) }
+    for axis in b { axes.append(axis) }
+    for x in a { for y in b { let cross=x.cross(y);if cross.length()>0.000001 { axes.append(cross.normalized()) } } }
+    let half_a:float[] = [first_size.x*0.5,first_size.y*0.5,first_size.z*0.5]
+    let half_b:float[] = [second_size.x*0.5,second_size.y*0.5,second_size.z*0.5]
+    let delta=second.position.subtract(first.position)
+    var separation=-1000.0
+    for axis in axes {
+        var radius=0.0;var i=0
+        while i<3 { radius+=Math.abs(axis.dot(a[i]))*half_a[i]+Math.abs(axis.dot(b[i]))*half_b[i];i++ }
+        separation=Math.max(separation,Math.abs(delta.dot(axis))-radius)
+    }
+    return Math.max(0.0,-separation)
+}

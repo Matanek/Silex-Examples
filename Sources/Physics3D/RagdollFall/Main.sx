@@ -1,0 +1,297 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Scene3D
+use GFX.UI
+use GFX.Physics
+use Physics3D.RagdollFall.Model
+use Physics3D.RagdollFall.Controls
+use Physics3D.ArticulatedPose.Controls as InputCheck
+use STD.Math
+use STD.Process
+use STD.Time.Stopwatch
+
+class RagdollFallScene {
+    var model:Model.RagdollFallModel=Model.RagdollFallModel()
+    var controls:Controls.RagdollFallControls=Controls.RagdollFallControls()
+    var ui:UI.Session
+    var panel:ECS.Entity=ECS.Entity()
+    var bodies:ECS.Entity[]=[]
+    var markers:ECS.Entity[]=[]
+    var previous:Physics.Transform3D[]=[]
+    var current:Physics.Transform3D[]=[]
+    var accumulator:float=0.0
+    var telemetry:float=0.0
+    var smoke:bool=false
+    var smoke_phase:int=0
+    var pause_frames:int=0
+    var held_pose:Physics.Transform3D[]=[]
+    var profile:bool=false
+    var profile_phase:int=-1
+    var profile_frames:int=0
+    var profile_drawings:int=0
+    var profile_clock:Stopwatch=Stopwatch()
+    init() { self.ui=UI.Session(self.controls.describe()) }
+}
+func visual(world:&Resources.World,mesh:Scene3D.MeshHandle,size:Math.Vec3,color:Color) ECS.Entity {
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(scale:size))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.7)))
+}
+func sync_previous(state:&RagdollFallScene) { state.model.write_pose(state.previous);state.accumulator=0.0 }
+func update_labels(state:&RagdollFallScene,simulation:@Application.Simulation) {
+    var label="Pause (Espace)";if simulation.is_paused() { label="Reprendre (Espace)" }
+    if state.controls.pause_text.value()!=label { state.controls.pause_text.set(label) }
+    let measurement=state.model.measurement()
+    if state.controls.measure.value()!=measurement { state.controls.measure.set(measurement) }
+}
+func perform(state:&RagdollFallScene,simulation:&Application.Simulation) {
+    var changed=false
+    while state.controls.resets>0 {
+        changed=true
+        state.controls.resets--;state.model.reset();sync_previous(state);simulation.pause()
+        state.controls.feedback.set("Assemblages recréés — or bras levés, bleu détendu, en pause.")
+    }
+    while state.controls.releases>0 {
+        changed=true
+        state.controls.releases--;state.model.release();sync_previous(state);simulation.resume()
+        state.controls.feedback.set("Chute vers le sol — P pousse le torse or pendant la simulation.")
+    }
+    while state.controls.pushes>0 {
+        changed=true
+        state.controls.pushes--
+        if state.model.finished() { state.model.release();sync_previous(state) }
+        state.model.push();simulation.resume()
+        state.controls.feedback.set("Impulsion sur le torse or — simulation en cours ; le bleu suit sa chute de référence.")
+    }
+    while state.controls.pauses>0 {
+        changed=true
+        state.controls.pauses--
+        if simulation.is_paused() {
+            if state.model.finished() { state.model.release();sync_previous(state) }
+            simulation.resume();state.controls.feedback.set("Simulation reprise — Espace pour mettre en pause.")
+        } else { simulation.pause();state.controls.feedback.set("En pause — les vingt membres restent figés.") }
+    }
+    if changed { update_labels(state,simulation) }
+}
+func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&RagdollFallScene,simulation:&Application.Simulation) {
+    let cube=meshes.add(Scene3D.Geometry.Cube.make())
+    for instance in [0,1] {
+        var color=Color.bytes(238,177,75);if instance==1 { color=Color.bytes(75,165,225) }
+        for size in state.model.anatomy.sizes {
+            state.bodies.append(visual(world,cube,size,color))
+            state.markers.append(visual(world,cube,Math.Vec3(0.08),Color.bytes(245,245,245)))
+        }
+    }
+    let floor=visual(world,cube,Math.Vec3(20.0,0.2,20.0),Color.bytes(70,88,105))
+    world.update<Components.Transform3D>(floor,func(t:&Components.Transform3D) { t.position=Math.Vec3(0.0,-0.1,0.0) })
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.55)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5)))
+    simulation.pause();sync_previous(state);update_labels(state,simulation)
+    state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform(position:Math.Vec2()))
+        ..with(Scene2D.Canvas(state.ui.drawing(1180,285),1180,285) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+            ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+    if state.profile || state.smoke { state.profile_clock.restart() }
+}
+func profile_frame(state:&RagdollFallScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    state.profile_frames++
+    let elapsed=state.profile_clock.get_elapsed_seconds()
+    var transition=false
+    if state.profile_phase==-1 && elapsed>=0.5 { transition=true }
+    else if (state.profile_phase==0 || state.profile_phase==2) && elapsed>=2.0 { transition=true }
+    else if (state.profile_phase==1 || state.profile_phase==3) && state.model.finished() { transition=true }
+    if !transition { return }
+    if state.profile_phase>=0 {
+        let fps=state.profile_frames as float/elapsed
+        print("PROFILE scene phase $(state.profile_phase), frames $(state.profile_frames), wall s $(elapsed), fps $(fps), drawings $(state.profile_drawings)")
+    }
+    state.profile_phase++;state.profile_frames=0;state.profile_drawings=0;state.profile_clock.restart()
+    if state.profile_phase==1 { state.controls.release();state.controls.push();perform(state,simulation) }
+    if state.profile_phase==3 { state.controls.reset();state.controls.release();perform(state,simulation) }
+    if state.profile_phase==4 { controller.stop() }
+}
+func update(world:&Resources.World,input:@Resources.InputState,state:&RagdollFallScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if !state.smoke {
+        for event in input.events() { if !state.controls.handle(event) { let handled=state.ui.handle(event) } }
+        perform(state,simulation)
+    } else {
+        state.profile_frames++
+        if state.smoke_phase==0 { state.controls.release();state.controls.push();perform(state,simulation);state.smoke_phase=1 }
+        if state.smoke_phase==1 && state.model.elapsed()>=0.2 {
+            state.controls.pause();perform(state,simulation);state.model.write_pose(state.held_pose);state.smoke_phase=2
+        } else if state.smoke_phase==2 {
+            assert(simulation.is_paused() && simulation.delta()==0.0)
+            state.model.write_pose(state.current)
+            var i=0;while i<20 { assert(state.current[i]==state.held_pose[i]);i++ }
+            state.pause_frames++
+            if state.pause_frames==8 { state.controls.pause();perform(state,simulation);state.smoke_phase=3 }
+        } else if state.smoke_phase==3 && state.model.finished() {
+            assert(state.model.contact_steps>120);state.model.verify()
+            state.controls.reset();state.controls.release();perform(state,simulation);state.smoke_phase=4
+        } else if state.smoke_phase==4 && state.model.finished() {
+            assert(state.model.contact_steps>120);state.model.verify()
+            print("Ragdoll fall smoke: anatomical limits, internal separation, floor impacts, impulse, anchors, pause, reset and rendered transforms verified");controller.stop()
+            let elapsed=state.profile_clock.get_elapsed_seconds()
+            print("SMOKE frames $(state.profile_frames), wall s $(elapsed), fps $(state.profile_frames as float/elapsed)")
+        }
+    }
+    state.accumulator+=simulation.delta()
+    let delta=1.0/120.0
+    while state.accumulator>=delta && !simulation.is_paused() {
+        state.model.write_pose(state.previous);state.model.step(delta);state.accumulator-=delta
+        if state.smoke { state.model.verify() }
+        if state.model.finished() {
+            simulation.pause();sync_previous(state)
+            state.controls.feedback.set("Simulation terminée — pose figée. Libérer ou P recommence depuis les poses initiales.")
+            update_labels(state,simulation)
+        }
+    }
+    state.telemetry+=simulation.delta()
+    if state.telemetry>=0.1 { state.telemetry=0.0;update_labels(state,simulation) }
+    if state.ui.update(0.0) {
+        world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(1180,285)) })
+        if state.profile { state.profile_drawings++ }
+    }
+    if state.profile { profile_frame(state,simulation,controller) }
+}
+func blended(first:Physics.Transform3D,second:Physics.Transform3D,alpha:float) Physics.Transform3D {
+    var rotation=second.rotation;if first.rotation.dot(rotation)<0.0 { rotation=rotation.multiply(-1.0) }
+    return Physics.Transform3D(first.position.lerp(second.position,alpha),first.rotation.multiply(1.0-alpha).add(rotation.multiply(alpha)).normalized())
+}
+func render(world:&Resources.World,state:&RagdollFallScene) {
+    state.model.write_pose(state.current)
+    let alpha=Math.clamp(state.accumulator*120.0,0.0,1.0)
+    var i=0
+    while i<20 {
+        let pose=blended(state.previous[i],state.current[i],alpha)
+        let position=pose.point(state.model.anatomy.offsets[i%10])
+        world.update<Components.Transform3D>(state.bodies[i],func(t:&Components.Transform3D) { t.position=position;t.rotation=pose.rotation })
+        world.update<Components.Transform3D>(state.markers[i],func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
+        if state.smoke {
+            assert(world.get<Components.Transform3D>(state.bodies[i]).position.nearly_equal(position,0.00001))
+            assert(world.get<Components.Transform3D>(state.markers[i]).position.nearly_equal(pose.position,0.00001))
+            assert(world.get<Components.Transform3D>(state.bodies[i]).rotation==pose.rotation)
+        }
+        i++
+    }
+}
+func camera_settings() Plugins.ViewportCamera3D.Settings {
+    return Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,3.8,0.0)
+        ..vertical_fov=0.9 ..distance=11.0 ..yaw=Math.radians(-20.0) ..pitch=Math.radians(-18.0)
+        ..zoom_speed=0.0 ..scroll_zoom_speed=0.0 ..orbit_sensitivity=0.0 ..pan_sensitivity=0.0
+}
+func verify_framing(state:@RagdollFallScene) {
+    let settings=camera_settings()
+    var controller=Resources.ViewportCamera3D(settings)
+    var camera=Scene3D.Camera(vertical_fov:settings.vertical_fov)
+    let transform=controller.transform()
+    let viewport=Math.Vec2(1280.0,800.0)
+    let signs:int[]=[-1,1]
+    for instance in state.model.anatomy.instances {
+        var i=0
+        while i<10 {
+            let pose=instance.body(i).transform();let half=state.model.anatomy.sizes[i].multiply(0.5)
+            for x in signs { for y in signs { for z in signs {
+                let corner=pose.point(Math.Vec3(half.x*x as float,half.y*y as float,half.z*z as float))
+                let point=camera.project(corner,transform,viewport)!
+                if point.y<300.0 { print("Rejected framing: part $(i), screen Y $(point.y), panel ends at 285") }
+                assert(point.x>20.0 && point.x<1260.0 && point.y>300.0 && point.y<780.0)
+            } } }
+            i++
+        }
+    }
+    for x in signs {
+        let point=camera.project(Math.Vec3(1.6*x as float,0.0,0.0),transform,viewport)!
+        assert(point.y>300.0 && point.y<780.0)
+    }
+}
+func verify_interactions() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=RagdollFallScene();var simulation=Application.Simulation()
+    startup(world,meshes,state,simulation);state.model.verify();assert(simulation.is_paused())
+    verify_framing(state)
+    InputCheck.click(state.ui,290.0,109.0);perform(state,simulation)
+    assert(!simulation.is_paused() && state.model.pushes==1)
+    assert(state.model.anatomy.instances[0].body(0).linear_velocity().length()>0.1)
+    assert(state.model.anatomy.instances[1].body(0).linear_velocity()==Math.Vec3())
+    var step=0;while step<24 { state.model.step(1.0/120.0);state.model.verify();step++ }
+    sync_previous(state);render(world,state)
+    assert(world.get<Components.Transform3D>(state.bodies[0]).position.nearly_equal(state.model.anatomy.instances[0].body(0).position(),0.00001))
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.space,32 as uint32)));perform(state,simulation);assert(simulation.is_paused())
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.space,32 as uint32,true)));perform(state,simulation);assert(simulation.is_paused())
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.r,112 as uint32,true)));perform(state,simulation);assert(state.model.pushes==1)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.r,112 as uint32)));perform(state,simulation)
+    assert(!simulation.is_paused() && state.model.pushes==2)
+    var old=state.model.anatomy.instances[0]
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.p,114 as uint32)));perform(state,simulation)
+    assert(simulation.is_paused() && !old.is_valid() && state.model.steps==0 && state.model.pushes==0)
+    let changed=state.ui.update(0.0);var drawing=state.ui.drawing(1180,285)
+    InputCheck.click(state.ui,100.0,109.0);perform(state,simulation);assert(!simulation.is_paused())
+    InputCheck.click(state.ui,100.0,155.0);perform(state,simulation);assert(simulation.is_paused())
+    let changed_pause=state.ui.update(0.0);drawing=state.ui.drawing(1180,285)
+    InputCheck.click(state.ui,100.0,155.0);perform(state,simulation);assert(!simulation.is_paused())
+    InputCheck.click(state.ui,480.0,109.0);perform(state,simulation);assert(simulation.is_paused() && state.model.steps==0)
+}
+test "ragdoll fall controls deliver impulses, pause, replay, reset and rendered transforms" { verify_interactions() }
+test "idle command polling leaves telemetry to its scheduled refresh" {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=RagdollFallScene();var simulation=Application.Simulation()
+    startup(world,meshes,state,simulation)
+    let before=state.controls.measure.value()
+    state.model.step(1.0/120.0);perform(state,simulation)
+    assert(state.controls.measure.value()==before)
+    update_labels(state,simulation)
+    assert(state.controls.measure.value()!=before)
+}
+
+func profile_cost() {
+    var state=RagdollFallScene();var world=Resources.World();var meshes=Resources.Meshes3D();var simulation=Application.Simulation()
+    startup(world,meshes,state,simulation)
+    var clock=Stopwatch();var drawings=0
+    var frame=0
+    while frame<30 {
+        perform(state,simulation)
+        if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(1180,285)) }) }
+        frame++
+    }
+    clock.restart();frame=0
+    while frame<240 {
+        perform(state,simulation)
+        if state.ui.update(0.0) {
+            world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(1180,285)) })
+            drawings++
+        }
+        frame++
+    }
+    print("PROFILE idle frames 240, drawings $(drawings), ms $(clock.get_elapsed_milliseconds())")
+    state.model.release();state.model.push();frame=0
+    while frame<480 { state.model.step(1.0/120.0);frame++ }
+    state.model.verify();state.model.reset();state.model.push();frame=0
+    clock.restart()
+    while frame<480 { state.model.step(1.0/120.0);frame++ }
+    let physics_ms=clock.get_elapsed_milliseconds();state.model.verify()
+    print("PROFILE physics steps 480, simulated ms 4000, wall ms $(physics_ms)")
+}
+func main() {
+    var state=RagdollFallScene();var arguments=Process.arguments()
+    for argument in arguments {
+        if argument=="--profile-cost" { profile_cost();return }
+        if argument=="--profile-scene" { state.profile=true }
+        if argument=="--physics-check" { Model.verify_dynamics();Model.verify_self_collision();Model.verify_flexion();return }
+        if argument=="--controls-check" { verify_interactions();print("Ragdoll fall: UI, logical keys, pause, impulse, reset and transforms verified");return }
+        if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
+    }
+    var title="Mannequins articulés — chute, collisions et impulsion"
+    if state.profile { title="PROFIL AUTOMATIQUE — chute ragdoll — fermeture à la fin" }
+    if state.smoke { title="TEST AUTOMATIQUE — chute ragdoll — fermeture à la fin" }
+    Application() ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.ViewportCamera3D(camera_settings()))
+        ..add_system(Application.Schedule.startup,startup)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}
