@@ -138,6 +138,7 @@ class ComboSession:Canvas.Session {
     func handle(event:@Events.Event) bool { var current = self.runtime; return UIInput.handle(current, event) }
     func pointer_cursor() Cursor { return self.runtime.pointer_cursor() }
     func accepts_text_input() bool { return self.runtime.accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.runtime.text_input_target() }
     func edit(target:UI.Focus, text:str) {
         target.request(); let changed = self.update(0.0)
         var drawing = self.drawing(1140, 760)

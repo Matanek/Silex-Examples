@@ -198,6 +198,7 @@ class ScrollSession:Canvas.Session {
 
     func pointer_cursor() Cursor { return self.runtime.pointer_cursor() }
     func accepts_text_input() bool { return self.runtime.accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.runtime.text_input_target() }
 
     func check_horizontal_cpu(width:int, flipped:bool, smooth:bool) {
         self.model.smoothing.set(smooth)

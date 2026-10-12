@@ -1,4 +1,4 @@
-# Text history and word navigation
+# Text editing and IME composition
 
 The gallery combines a short field, a long line and multiline text.
 It uses GFX.UI bindings, identities and viewports without an application-owned
@@ -32,8 +32,8 @@ Release to stop, replace the selection, then undo to recover text and selection.
 
 The executable accepts `--cpu-check`: it exercises history, words, themes, held
 selection and 900/480/200/1 widths without opening a window. Debug/Release tests qualify this
-mode; trying the graphical gallery is separate. IME and touch are not
-demonstrated here.
+mode. CPU checks also exercise provisional IME events. Native IME testing
+remains separate; touch gestures remain to be implemented.
 
 [Guide français](README.fr.md).
 
@@ -41,3 +41,11 @@ Bundled fallback fonts display the gallery’s ideographs and monochrome emojis.
 Letter shortcuts follow the logical keyboard layout, including Cmd+Z on AZERTY.
 CPU checks also verify that actual drawing has no missing glyphs and exercise
 the event bridge.
+
+To test a real IME on macOS, activate a system Japanese or Chinese input source,
+click a field and compose a word. Preedit is underlined; the notification counter
+has not changed yet. Choose a candidate and commit: the counter increases once,
+and Cmd+Z undoes the whole word. Compose again and press Escape: the previous
+value and focus remain. Also try multiline text and a scrolled field; the
+candidate window should follow the visible caret. F2 preserves active preedit;
+switching fields or replacing the value with F3 cancels it.

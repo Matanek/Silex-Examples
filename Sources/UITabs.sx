@@ -171,6 +171,7 @@ class TabsSession:Canvas.Session {
     }
     func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
     func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.ui().text_input_target() }
     func check_cpu() {
         var drawing = self.drawing(960, 700)
         self.model.project_field.request()

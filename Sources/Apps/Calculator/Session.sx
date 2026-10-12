@@ -37,6 +37,7 @@ public class CalculatorSession:Canvas.Session {
     func pointer_cursor() Cursor { return self.ui.pointer_cursor() }
 
     func accepts_text_input() bool { return self.ui.accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.ui.text_input_target() }
 
     module func shortcut_key(key:Keyboard.Key, keycode:uint32) bool {
         if keycode >= 48 as uint32 && keycode <= 57 as uint32 {

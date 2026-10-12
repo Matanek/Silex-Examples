@@ -147,6 +147,7 @@ class PanelsSession:Canvas.Session {
     func handle(event:@Events.Event) bool { var runtime = self.ui(); return UIInput.handle(runtime, event) }
     func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
     func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.ui().text_input_target() }
     func check_cpu() {
         var drawing = self.drawing(1000, 740)
         self.model.field_focus.request()

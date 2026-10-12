@@ -45,7 +45,7 @@ class EditingForm {
         var long = UI.TextField(self.long, on_change:self.edited, style:style)
         var area = UI.TextArea(self.area, on_change:self.edited, style:style); area.style.height = 200.0
         var root = UI.Column([
-            UI.Text("Édition de texte — historique et mots"),
+            UI.Text("Édition de texte — historique, mots et IME"),
             UI.Text("Cmd/Ctrl+Z : annuler · Maj+Cmd/Ctrl+Z ou Ctrl+Y : rétablir."),
             UI.Text("Option/Ctrl+flèches : mots · ajouter Maj pour sélectionner."),
             UI.Text("Glissez hors du champ et maintenez sans bouger ; relâchez pour arrêter."),
@@ -55,6 +55,8 @@ class EditingForm {
             UI.Row([UI.Button("Champ court",self.focus_short,style:style),
                 UI.Button("Ligne longue",self.focus_long,style:style),
                 UI.Button("Texte multiligne",self.focus_area,style:style)],wrap:true),
+            UI.Text("IME : activez une saisie japonaise ou chinoise, composez puis validez ou annulez."),
+            UI.Text("Le texte provisoire est souligné ; les notifications attendent sa validation."),
             UI.Text("Champ court : accents combinés et emoji"),
             UI.Keyed("short",UI.FocusTarget(self.short_focus,short)),
             UI.Text("Ligne longue : sélectionnez et vérifiez le défilement"),
@@ -77,6 +79,7 @@ class EditingSession:Canvas.Session {
     func drawing(width:int,height:int) Canvas { return self.ui().drawing(width,height) }
     func update(delta:float) bool { return self.ui().update(delta) }
     func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.ui().text_input_target() }
     func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
     func handle(event:@Events.Event) bool {
         match event { key_pressed(value) => {
@@ -107,6 +110,26 @@ class EditingSession:Canvas.Session {
         assert(self.form.long.value() != original)
         assert(self.handle(letter_event(Keyboard.Key.w,122 as uint32)))
         assert(self.form.long.value() == original)
+    }
+    func check_ime() {
+        var runtime = self.ui(); var drawing = self.drawing(900,760)
+        self.form.short_focus.request(); let focused = self.update(0.0)
+        let original = self.form.short.value(); let notifications = self.form.changes.value()
+        let id = self.text_input_target()!.id
+        assert(self.handle(Events.Event.text_editing(Events.TextEditingEvent(
+            window:Window.Id(value:1 as uint32),text:"日本",start:2,length:0,
+            timestamp:Events.Timestamp(nanoseconds:1 as uint)))))
+        drawing = self.drawing(900,760)
+        assert(self.form.short.value() == original && self.form.changes.value() == notifications)
+        self.form.toggle_theme(); let themed = self.update(0.0); drawing = self.drawing(900,760)
+        assert(self.text_input_target()!.id == id)
+        assert(runtime.key_pressed(Keyboard.Key.escape)); drawing = self.drawing(900,760)
+        assert(self.accepts_text_input() && self.form.short.value() == original)
+        assert(self.text_input_target()!.id != id)
+        assert(runtime.compose_text("仮",1,0)); assert(runtime.insert_text("日本"))
+        assert(self.form.short.value() == original + "日本" && self.form.changes.value() == notifications + 1)
+        assert(runtime.key_pressed(Keyboard.Key.z,Keyboard.Modifiers(system:true)))
+        assert(self.form.short.value() == original)
     }
     func check_cpu() {
         var drawing = self.drawing(900,760)
@@ -144,6 +167,7 @@ class EditingSession:Canvas.Session {
         let ignored = runtime.key_pressed(Keyboard.Key.z,Keyboard.Modifiers(system:true))
         assert(self.form.short.value() == original)
         var selection = EditingSession(); selection.check_selection()
+        var ime = EditingSession(); ime.check_ime()
         print("UITextEditing CPU : OK")
     }
 }
@@ -216,4 +240,8 @@ func mouse_move_event(position:Math.Vec2) Events.Event {
 }
 test "actual gallery keeps scrolling held selection through mouse events and stops on release" {
     var session = EditingSession(); session.check_selection()
+}
+
+test "actual gallery composition keeps bindings and notifications committed" {
+    var session = EditingSession(); session.check_ime()
 }

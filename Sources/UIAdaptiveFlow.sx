@@ -126,6 +126,7 @@ class AdaptiveSession:Canvas.Session {
     func handle(event:@Events.Event) bool { return self.ui.handle(event) }
     func pointer_cursor() Cursor { return self.ui.pointer_cursor() }
     func accepts_text_input() bool { return self.ui.accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.ui.text_input_target() }
     func finished() bool { return self.smoke && self.elapsed >= 1.0 }
 }
 

@@ -1,4 +1,4 @@
-# Historique et navigation de texte
+# Édition de texte et composition IME
 
 La galerie compose un champ court, une ligne longue et un texte multiligne.
 Elle utilise les bindings, identités et viewports de GFX.UI sans gestionnaire
@@ -32,10 +32,20 @@ restant dans la fenêtre. Relâchez pour arrêter, remplacez la sélection puis
 annulez pour retrouver le texte et la sélection.
 
 Le binaire accepte `--cpu-check` : il exerce historique, mots, thèmes, sélection
-maintenue et tailles 900/480/200/1 sans ouvrir de fenêtre. Les tests Debug/Release qualifient ce mode ;
-l’essai graphique reste distinct. IME et tactile ne sont pas démontrés ici.
+maintenue, événements de composition IME et tailles 900/480/200/1 sans ouvrir
+de fenêtre. Les tests Debug/Release qualifient ce mode ; l’essai IME natif reste
+distinct. Le tactile reste à compléter.
 
 La police de repli embarquée affiche les idéogrammes et les emojis de la galerie,
 ces derniers en monochrome. Les raccourcis alphabétiques suivent la disposition
 logique du clavier, notamment Cmd+Z sur AZERTY. Le mode CPU vérifie aussi
 l’absence de glyphes manquants dans le dessin réel et le trajet des événements.
+
+Pour essayer l’IME réel sur macOS, activez une source de saisie japonaise ou
+chinoise du système, cliquez un champ puis composez un mot. Le provisoire est
+souligné ; le compteur de notifications ne change pas encore. Choisissez un
+candidat et validez : le compteur augmente une fois et Cmd+Z annule tout le mot.
+Composez à nouveau puis appuyez sur Échap : la valeur précédente et le focus
+restent. Essayez aussi le texte multiligne et un champ défilé ; la fenêtre de
+candidats doit suivre le caret visible. F2 conserve une composition en cours ;
+changer de champ ou imposer une autre valeur avec F3 l’annule.

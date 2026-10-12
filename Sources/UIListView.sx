@@ -161,6 +161,7 @@ class ProjectListSession:Canvas.Session {
     }
     func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
     func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.ui().text_input_target() }
     func check_cpu() {
         for width in [960, 420, 100, 1] {
             var first = self.drawing(width, 720)

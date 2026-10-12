@@ -84,6 +84,7 @@ class MenuSession:Canvas.Session {
     func update(delta:float) bool { return self.current!.update(delta) }
     func handle(event:@Events.Event) bool { var runtime = self.current!; return UIInput.handle(runtime, event) }
     func accepts_text_input() bool { return self.current!.accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.current!.text_input_target() }
     func pointer_cursor() Cursor { return self.current!.pointer_cursor() }
     func check_cpu() {
         var runtime = self.current!
