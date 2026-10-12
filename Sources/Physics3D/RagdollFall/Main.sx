@@ -142,9 +142,40 @@ func render(world:&Resources.World,state:&RagdollFallScene) {
         i++
     }
 }
+func camera_settings() Plugins.ViewportCamera3D.Settings {
+    return Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,3.8,0.0)
+        ..vertical_fov=0.9 ..distance=11.0 ..yaw=Math.radians(-20.0) ..pitch=Math.radians(-18.0)
+        ..zoom_speed=0.0 ..scroll_zoom_speed=0.0 ..orbit_sensitivity=0.0 ..pan_sensitivity=0.0
+}
+func verify_framing(state:@RagdollFallScene) {
+    let settings=camera_settings()
+    var controller=Resources.ViewportCamera3D(settings)
+    var camera=Scene3D.Camera(vertical_fov:settings.vertical_fov)
+    let transform=controller.transform()
+    let viewport=Math.Vec2(1280.0,800.0)
+    let signs:int[]=[-1,1]
+    for instance in state.model.anatomy.instances {
+        var i=0
+        while i<10 {
+            let pose=instance.body(i).transform();let half=state.model.anatomy.sizes[i].multiply(0.5)
+            for x in signs { for y in signs { for z in signs {
+                let corner=pose.point(Math.Vec3(half.x*x as float,half.y*y as float,half.z*z as float))
+                let point=camera.project(corner,transform,viewport)!
+                if point.y<300.0 { print("Rejected framing: part $(i), screen Y $(point.y), panel ends at 285") }
+                assert(point.x>20.0 && point.x<1260.0 && point.y>300.0 && point.y<780.0)
+            } } }
+            i++
+        }
+    }
+    for x in signs {
+        let point=camera.project(Math.Vec3(1.6*x as float,0.0,0.0),transform,viewport)!
+        assert(point.y>300.0 && point.y<780.0)
+    }
+}
 func verify_interactions() {
     var world=Resources.World();var meshes=Resources.Meshes3D();var state=RagdollFallScene();var simulation=Application.Simulation()
     startup(world,meshes,state,simulation);state.model.verify();assert(simulation.is_paused())
+    verify_framing(state)
     InputCheck.click(state.ui,290.0,109.0);perform(state,simulation)
     assert(!simulation.is_paused() && state.model.pushes==1)
     assert(state.model.anatomy.instances[0].body(0).linear_velocity().length()>0.1)
@@ -180,9 +211,7 @@ func main() {
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
         ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
-        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,2.0,0.0)
-            ..vertical_fov=0.9 ..distance=11.0 ..yaw=Math.radians(-20.0) ..pitch=Math.radians(-18.0)
-            ..zoom_speed=0.0 ..scroll_zoom_speed=0.0 ..orbit_sensitivity=0.0 ..pan_sensitivity=0.0))
+        ..add_plugin(Plugins.ViewportCamera3D(camera_settings()))
         ..add_system(Application.Schedule.startup,startup)
         ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
         ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
