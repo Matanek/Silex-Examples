@@ -9,6 +9,7 @@ synchronisation automatique.
 
 | Démonstration | Source actuelle | Origine |
 | --- | --- | --- |
+| Historique et navigation de texte | `Sources/UITextEditing/Main.sx` | composition publique : undo/redo regroupés, mots Unicode, champs longs et multiligne, thème et caret conservé |
 | Épaule et coude sous charge | `Sources/Physics3D/ArticulatedPose/Main.sx` | composition qualifiée : quatre servos, repère mobile du coude, deux poses opposées, recentrage, pause et mesures locales |
 | Trois servos swing/twist sous charge | `Sources/Physics3D/LoadedSwingTwist/Main.sx` | création propre au catalogue : trois cibles composées sous gravité, charge déportée, repères moteur colorés, inversion, recentrage, pause et mesures |
 | Servo de crémaillère et fins de rail | `Sources/Physics3D/RackServo/Main.sx` | création propre au catalogue : deux cibles explicites, butées, retour au centre, pause et mesures physiques |

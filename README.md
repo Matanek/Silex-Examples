@@ -971,3 +971,14 @@ show the elbow’s local frame and gravity-loaded elastic equilibrium. From
 the workspace or owning Spec group root run
 `silex run Silex-Examples/Sources/Physics3D/ArticulatedPose/Main.sx --release`.
 [Guide français](Sources/Physics3D/ArticulatedPose/README.fr.md).
+
+
+## Text history and word navigation
+
+[UITextEditing](Sources/UITextEditing/README.md) combines short, long and multiline
+fields with grouped undo/redo, Unicode word movement and selection, retained
+history across theme changes and automatic caret scrolling. From the workspace
+or owning Spec group root run
+`silex run Silex-Examples/Sources/UITextEditing/Main.sx --release`.
+The compiled executable accepts `--cpu-check` for a windowless Debug/Release
+check. [Guide français](Sources/UITextEditing/README.fr.md).
