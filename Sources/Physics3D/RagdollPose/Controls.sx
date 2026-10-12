@@ -1,0 +1,59 @@
+use GFX.Color
+use GFX.Input
+use GFX.Input.Events
+use GFX.UI
+
+package class RagdollPoseControls {
+    var variant:int = 0
+    var has_pose:bool = false
+    var releases:int = 0
+    var resets:int = 0
+    var pauses:int = 0
+    var automatic:bool = false
+    var pause_text:UI.State<str> = UI.State<str>("Reprendre (Espace)")
+    var feedback:UI.State<str> = UI.State<str>("En pause — imposez une pose, puis libérez les mannequins.")
+    var measure:UI.State<str> = UI.State<str>("")
+    func relaxed() { self.variant = 0;self.has_pose = true }
+    func folded() { self.variant = 1;self.has_pose = true }
+    func release() { self.releases++ }
+    func reset() { self.resets++ }
+    func pause() { self.pauses++ }
+    func button(text:str,action:func()) UI.Button {
+        var button = UI.Button(text,action)
+        button.style.width = 180.0;button.style.height = 38.0
+        button.style.background = Color.slate_700();button.style.radius = 5.0
+        return button
+    }
+    func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause) }
+    func status(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.feedback)) }
+    func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
+    func describe() UI.View {
+        var title = UI.Text("Deux mannequins articulés — une hiérarchie, deux poses indépendantes");title.style.height = 34.0
+        var help = UI.Text("Or à gauche : pose modifiable · Bleu à droite : référence · Points blancs : repères d’articulation");help.style.height = 24.0
+        var poses = UI.Row([self.button("Pose détendue",self.relaxed),self.button("Bras levés",self.folded),self.button("Libérer / rejouer",self.release)])
+        poses.style.gap = 10.0
+        var management = UI.Row([self.button("Remettre à zéro (R)",self.reset),UI.Reactive(self.pause_button)])
+        management.style.gap = 10.0
+        var rows:UI.View[] = [title,help,poses,management,UI.Reactive(self.status),UI.Reactive(self.metrics),
+            UI.Text("La pose est imposée immédiatement ; la chute est physique, sans sol ni moteur. Espace : pause · R : reset · Échap : quitter.")]
+        if self.automatic { rows = [UI.Text("TEST AUTOMATIQUE — fermeture à la fin"),UI.Reactive(self.metrics)] }
+        var root = UI.Column(rows)
+        root.style.padding = UI.Insets(16.0);root.style.gap = 8.0
+        root.style.background = Color.slate_900().with_alpha(0.94);root.style.foreground = Color.slate_100();root.style.radius = 8.0
+        return root
+    }
+    func handle(event:@Events.Event) bool {
+        if self.automatic { return false }
+        match event {
+            key_pressed(key) => {
+                let reset = key.keycode == 114 as uint32 || key.keycode == 82 as uint32 || (key.keycode == 0 as uint32 && key.key == Input.Key.r)
+                if key.key == Input.Key.space || reset {
+                    if !key.repeated { if reset { self.reset() } else { self.pause() } }
+                    return true
+                }
+            }
+            else => {}
+        }
+        return false
+    }
+}

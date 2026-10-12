@@ -982,3 +982,13 @@ or owning Spec group root run
 `silex run Silex-Examples/Sources/UITextEditing/Main.sx --release`.
 The compiled executable accepts `--cpu-check` for a windowless Debug/Release
 check. [Guide français](Sources/UITextEditing/README.fr.md).
+
+## Ragdoll hierarchy and independent poses
+
+[RagdollPose](Sources/Physics3D/RagdollPose/README.md) creates two ten-part
+mannequins from one hierarchy. Change the gold mannequin's pose while the blue
+one remains a reference, then release both into a short physical free fall.
+Pause, replay and reset expose the joint frames and assembly lifetime. From
+the workspace or owning Spec group root run
+`silex run Silex-Examples/Sources/Physics3D/RagdollPose/Main.sx --release`.
+[Guide français](Sources/Physics3D/RagdollPose/README.fr.md).
