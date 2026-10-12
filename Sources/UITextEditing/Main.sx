@@ -1,7 +1,10 @@
 use GFX.UI
 use GFX.Canvas
+use GFX.Canvas.Command.Text as CanvasText
 use GFX.Input.Events
 use GFX.Input.Keyboard
+use GFX.Input.Pointer
+use STD.Math
 use GFX.UI.Input as UIInput
 use GFX.Viewer
 use GFX.Window
@@ -45,6 +48,7 @@ class EditingForm {
             UI.Text("Édition de texte — historique et mots"),
             UI.Text("Cmd/Ctrl+Z : annuler · Maj+Cmd/Ctrl+Z ou Ctrl+Y : rétablir."),
             UI.Text("Option/Ctrl+flèches : mots · ajouter Maj pour sélectionner."),
+            UI.Text("Glissez hors du champ et maintenez sans bouger ; relâchez pour arrêter."),
             UI.Text("Option/Ctrl+retour arrière : effacer un mot · F2 : thème · F3 : réinitialiser."),
             UI.Row([UI.Button("Clair / sombre",self.toggle_theme,style:style),
                 UI.Button("Valeurs initiales",self.reset,style:style)],wrap:true),
@@ -81,6 +85,29 @@ class EditingSession:Canvas.Session {
         }; else => {} }
         var runtime = self.ui(); return UIInput.handle(runtime,event)
     }
+    func check_selection() {
+        var drawing = self.drawing(900,760)
+        let original = self.form.long.value()
+        let bounds = long_text_bounds(drawing,original)
+        let inside = Math.Vec2(bounds.position.x + 2.0,bounds.position.y + 12.0)
+        let outside = Math.Vec2(bounds.position.x + bounds.size.x + 18.0,inside.y)
+        let pressed = self.handle(mouse_button_event(inside,true))
+        let moved = self.handle(mouse_move_event(outside))
+        drawing = self.drawing(900,760)
+        let before = long_text_origin(drawing,original)
+        let notifications = self.form.changes.value()
+        for index in 0...10 { let changed = self.update(0.1); drawing = self.drawing(900,760) }
+        assert(long_text_origin(drawing,original).x < before.x)
+        assert(self.form.long.value() == original && self.form.changes.value() == notifications)
+        let released = self.handle(mouse_button_event(outside,false))
+        drawing = self.drawing(900,760); let stopped = long_text_origin(drawing,original)
+        for index in 0...10 { let changed = self.update(0.1); drawing = self.drawing(900,760) }
+        assert(long_text_origin(drawing,original) == stopped)
+        var runtime = self.ui(); assert(runtime.insert_text("!"))
+        assert(self.form.long.value() != original)
+        assert(self.handle(letter_event(Keyboard.Key.w,122 as uint32)))
+        assert(self.form.long.value() == original)
+    }
     func check_cpu() {
         var drawing = self.drawing(900,760)
         for layer in drawing.prepared(900,760).text_layers() {
@@ -116,6 +143,7 @@ class EditingSession:Canvas.Session {
         assert(runtime.insert_text("external reset")); self.form.reset(); let reset = self.update(0.0)
         let ignored = runtime.key_pressed(Keyboard.Key.z,Keyboard.Modifiers(system:true))
         assert(self.form.short.value() == original)
+        var selection = EditingSession(); selection.check_selection()
         print("UITextEditing CPU : OK")
     }
 }
@@ -148,4 +176,44 @@ test "actual gallery undo and redo follow logical AZERTY events" {
     assert(session.form.short.value() == original)
     assert(session.handle(letter_event(Keyboard.Key.w,122 as uint32,shift:true)))
     assert(session.form.short.value() == original + "abc")
+}
+
+func long_text_origin(drawing:@Canvas, text:str) Math.Vec2 {
+    if let value = find_text_command(drawing.commands(),text) { return value.position }
+    panic("long field text was not drawn")
+}
+func long_text_bounds(drawing:@Canvas, text:str) Canvas.Rect {
+    if let value = find_text_command(drawing.commands(),text) {
+        if let clip = value.clip { return clip }
+    }
+    panic("long field has no text clip")
+}
+func find_text_command(commands:@Canvas.Command[], text:str) CanvasText? {
+    for command in commands {
+        match command {
+            text(value) => { if value.value == text { return value } }
+            layer(value) => {
+                if let found = find_text_command(value.commands(),text) { return found }
+            }
+            else => {}
+        }
+    }
+    return null
+}
+func mouse_button_event(position:Math.Vec2, down:bool) Events.Event {
+    let value = Events.MouseButtonEvent(window:Window.Id(value:1 as uint32),
+        mouse:Pointer.MouseId(value:1 as uint32),button:Pointer.MouseButton.left,
+        down:down,clicks:1 as uint8,position:position,
+        timestamp:Events.Timestamp(nanoseconds:1 as uint))
+    if down { return Events.Event.mouse_button_pressed(value) }
+    return Events.Event.mouse_button_released(value)
+}
+func mouse_move_event(position:Math.Vec2) Events.Event {
+    return Events.Event.mouse_moved(Events.MouseMotionEvent(window:Window.Id(value:1 as uint32),
+        mouse:Pointer.MouseId(value:1 as uint32),buttons:1 as uint32,
+        position:position,delta:Math.Vec2(),relative:false,
+        timestamp:Events.Timestamp(nanoseconds:1 as uint)))
+}
+test "actual gallery keeps scrolling held selection through mouse events and stops on release" {
+    var session = EditingSession(); session.check_selection()
 }
