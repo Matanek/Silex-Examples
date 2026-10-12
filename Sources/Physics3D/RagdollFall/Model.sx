@@ -1,24 +1,32 @@
 use GFX.Physics
 use Physics3D.RagdollPose.Model as Anatomy
+use Physics3D.RagdollFall.Anatomy as Limits
 use STD.Math
 
 package class RagdollFallModel {
-    var anatomy:Anatomy.RagdollPoseModel = Anatomy.RagdollPoseModel(Physics.World3DSettings() ..position_iterations=8)
+    var anatomy:Anatomy.RagdollPoseModel = Anatomy.RagdollPoseModel(Physics.World3DSettings() ..position_iterations=32)
     var steps:int = 0
     var delta:float = 1.0 / 120.0
     var pushes:int = 0
     var contact_steps:int = 0
     var maximum_anchor:float = 0.0
     var lowest_corner:float = 0.0
+    var maximum_limit_error:float = 0.0
+    var maximum_overlap:float = 0.0
     init() {
+        self.configure_anatomy()
         self.anatomy.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
             ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=0.6)
         self.reset()
     }
-    func reset() { self.anatomy.reset();self.anatomy.set_pose(1);self.release() }
+    private func configure_anatomy() { self.anatomy.settings=Limits.settings(self.anatomy) }
+    func reset() { self.anatomy.reset();self.release() }
     func release() {
-        self.anatomy.restore_pose();self.steps=0;self.pushes=0;self.contact_steps=0
+        var instance=0
+        while instance<2 { self.anatomy.instances[instance].set_local_pose(Limits.pose(self.anatomy,instance));instance++ }
+        self.steps=0;self.pushes=0;self.contact_steps=0
         self.maximum_anchor=0.0;self.lowest_corner=0.0
+        self.maximum_limit_error=0.0;self.maximum_overlap=0.0
     }
     func push() {
         var torso=self.anatomy.instances[0].body(0)
@@ -48,10 +56,27 @@ package class RagdollFallModel {
                 assert(pose.position.length()<40.0 && v.length()<40.0 && w.length()<100.0)
                 assert(Math.abs(pose.rotation.dot(pose.rotation)-1.0)<0.0001)
                 if i>0 {
-                    let error=instance.joint(i)!.anchor_error().length()
+                    var joint=instance.joint(i)!
+                    let error=joint.anchor_error().length()
                     self.maximum_anchor=Math.max(self.maximum_anchor,error)
                     if error>=0.04 { print("Rejected anchor at $(self.elapsed()) s, part $(i), error $(error), pushes $(self.pushes), contacts $(self.anatomy.world.contact_count())") }
                     assert(error<0.04)
+                    let angular_error=Limits.limit_error(joint)
+                    self.maximum_limit_error=Math.max(self.maximum_limit_error,angular_error)
+                    if angular_error>=0.08 { print("Rejected anatomical limit at $(self.elapsed()) s, part $(i), error $(angular_error), twist $(joint.twist_angle()), pushes $(self.pushes)") }
+                    assert(angular_error<0.08)
+                }
+                var other=i+1
+                while other<10 {
+                    // Also observe the filtered upper-arm/torso pair: shoulder limits
+                    // must keep the arm outside the chest without a contact at its joint.
+                    if self.anatomy.parents[other]!=i || (i==0 && (other==2 || other==4)) {
+                        let depth=Limits.overlap(pose,self.anatomy.sizes[i],instance.body(other).transform(),self.anatomy.sizes[other])
+                        self.maximum_overlap=Math.max(self.maximum_overlap,depth)
+                        if depth>=0.05 { print("Rejected internal overlap at $(self.elapsed()) s, parts $(i)/$(other), depth $(depth), pushes $(self.pushes)") }
+                        assert(depth<0.05)
+                    }
+                    other++
                 }
                 let half=self.anatomy.sizes[i].multiply(0.5)
                 for x in signs { for y in signs { for z in signs {
@@ -83,14 +108,76 @@ package func verify_dynamics() {
             var step=0
             while step<rate*4 { model.step(1.0/rate);model.verify();step++ }
             assert(model.finished() && model.contact_steps>rate)
-            print("Ragdoll fall $(rate) Hz, impulse $(pushed): max anchor $(model.maximum_anchor), lowest corner $(model.lowest_corner)")
+            print("Ragdoll fall $(rate) Hz, impulse $(pushed): max anchor $(model.maximum_anchor), lowest corner $(model.lowest_corner), angular error $(model.maximum_limit_error), overlap $(model.maximum_overlap)")
             var old=model.anatomy.instances[0];model.reset()
             assert(!old.is_valid() && model.steps==0 && model.pushes==0)
             model.verify()
             if pushed { model.push() }
             step=0
             while step<rate*4 { model.step(1.0/rate);model.verify();step++ }
+            print("Recreated ragdoll $(rate) Hz, impulse $(pushed): max anchor $(model.maximum_anchor), lowest corner $(model.lowest_corner), angular error $(model.maximum_limit_error), overlap $(model.maximum_overlap)")
         }
     }
 }
-test "two ten-part ragdolls retain anchors and floor bounds after asymmetric impulses at both rates" { verify_dynamics() }
+test "anatomical ragdolls retain limits, internal separation, anchors and floor bounds at both rates" { verify_dynamics() }
+
+package func verify_self_collision() {
+    var model=RagdollFallModel()
+    for collisions in [false,true] {
+        var parts:Physics.RagdollPart3D[] = []
+        var index=0
+        while index<10 { parts.append(model.anatomy.settings.part(index));index++ }
+        for tested_part in [2,3] {
+            var world=Physics.World3D(Physics.World3DSettings() ..gravity=Math.Vec3())
+            var ragdoll=world.create_ragdoll(Physics.Ragdoll3DSettings(parts,self_collision:collisions))
+            index=0
+            while index<10 {
+                if index>0 { ragdoll.joint(index)!.set_enabled(false) }
+                if index!=0 && index!=tested_part { ragdoll.body(index).set_enabled(false) }
+                index++
+            }
+            var limb=ragdoll.body(tested_part);var torso=ragdoll.body(0)
+            limb.set_transform(Physics.Transform3D(torso.position().add(Math.Vec3(0.3,0.0,0.0))))
+            limb.set_linear_velocity(Math.Vec3(-1.0,0.0,0.0))
+            world.step(1.0/120.0)
+            if collisions && tested_part==3 {
+                var contacts:Physics.Contact3D[] = [];world.write_contacts(contacts)
+                assert(contacts.count()==1 && contacts[0].normal_impulse()>0.0)
+                assert((contacts[0].first_body().same_body(torso) && contacts[0].second_body().same_body(limb)) ||
+                    (contacts[0].second_body().same_body(torso) && contacts[0].first_body().same_body(limb)))
+                var step=0
+                while step<60 { world.step(1.0/120.0);step++ }
+                assert(Limits.overlap(torso.transform(),model.anatomy.sizes[0],limb.transform(),model.anatomy.sizes[3])<0.005)
+            } else { assert(world.contact_count()==0) }
+        }
+    }
+}
+test "forearms collide with the torso while adjacent upper arms remain filtered" { verify_self_collision() }
+
+package func verify_flexion() {
+    var model=RagdollFallModel()
+    for index in [3,5,7,9] {
+        for maximum in [false,true] {
+            var world=Physics.World3D(Physics.World3DSettings() ..gravity=Math.Vec3() ..position_iterations=32)
+            var ragdoll=world.create_ragdoll(model.anatomy.settings)
+            var joint=ragdoll.joint(index)!
+            var angle=joint.minimum_twist()-0.5
+            if maximum { angle=joint.maximum_twist()+0.2 }
+            var pose:Physics.Transform3D[] = [];ragdoll.write_local_pose(pose)
+            pose[index]=Physics.Transform3D(pose[index].position,Math.Quat.angle_axis(angle,Math.Vec3(1.0,0.0,0.0)))
+            ragdoll.set_local_pose(pose)
+            var part=0
+            while part<10 {
+                if part>0 && part!=index { ragdoll.joint(part)!.set_enabled(false) }
+                if part!=index && part!=model.anatomy.parents[index] { ragdoll.body(part).set_enabled(false) }
+                part++
+            }
+            assert(Limits.limit_error(joint)>0.19)
+            var step=0
+            while step<30 { world.step(1.0/120.0);step++ }
+            assert(Limits.limit_error(joint)<0.001 && joint.anchor_error().length()<0.001)
+            assert(joint.twist_motor()==null && joint.swing_motor()==null)
+        }
+    }
+}
+test "both elbows and knees correct forward and backward violations without motors" { verify_flexion() }

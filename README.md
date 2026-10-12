@@ -970,7 +970,8 @@ the workspace or owning Spec group root run
 ## Ragdoll fall and impulse
 
 [RagdollFall](Sources/Physics3D/RagdollFall/README.md) reuses the ten-part anatomy
-with a visible floor and an off-center impulse on the gold torso. Blue provides
+with anatomical joint limits, nonadjacent internal collisions, a visible floor
+and an off-center impulse on the gold torso. Blue provides
 a reference fall. Release/replay, impulse, pause and reset work through buttons
 and logical keys; simulation pauses automatically after four seconds.
 From the workspace or Spec group root:

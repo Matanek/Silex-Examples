@@ -26,8 +26,8 @@ package class RagdollFallControls {
     func status(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.feedback)) }
     func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
     func describe() UI.View {
-        var title=UI.Text("Mannequins en chute — impulsion et contact au sol");title.style.height=34.0
-        var help=UI.Text("Or : bras levés et torse à pousser · Bleu : chute de référence · Points blancs : articulations");help.style.height=24.0
+        var title=UI.Text("Mannequins articulés — chute, collisions et impulsion");title.style.height=34.0
+        var help=UI.Text("Coudes et genoux en flexion · Épaules et hanches bornées · Or : torse à pousser · Bleu : référence");help.style.height=24.0
         var actions=UI.Row([self.button("Libérer / rejouer",self.release),self.button("Pousser le torse (P)",self.push),self.button("Remettre à zéro (R)",self.reset)])
         actions.style.gap=10.0
         var rows:UI.View[]=[title,help,actions,UI.Reactive(self.pause_button),UI.Reactive(self.status),UI.Reactive(self.metrics),
