@@ -1003,3 +1003,15 @@ and logical keys; simulation pauses automatically after four seconds.
 From the workspace or Spec group root:
 `silex run Silex-Examples/Sources/Physics3D/RagdollFall/Main.sx --release`.
 [Guide français](Sources/Physics3D/RagdollFall/README.fr.md).
+
+## Ragdoll motorized pose tracking
+
+[RagdollDrive](Sources/Physics3D/RagdollDrive/README.md) holds two ten-part
+mannequins by their fixed torsos. Gold follows selected targets with bounded
+motors; blue holds neutral. Push gold's forearm, release its motors and resume
+the selected target, while anatomical limits and internal collisions remain
+active. Pause and recreation are available. This isolates joint tracking and
+does not demonstrate standing balance.
+
+`silex run Silex-Examples/Sources/Physics3D/RagdollDrive/Main.sx --release`.
+[Guide français](Sources/Physics3D/RagdollDrive/README.fr.md).

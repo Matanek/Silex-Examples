@@ -1,0 +1,141 @@
+use GFX.Physics
+use Physics3D.RagdollPose.Model as Anatomy
+use Physics3D.RagdollFall.Anatomy as Limits
+use STD.Math
+
+package class RagdollDriveModel {
+    var anatomy:Anatomy.RagdollPoseModel=Anatomy.RagdollPoseModel(Physics.World3DSettings() ..position_iterations=32)
+    var variant:int=1
+    var motors:bool=true
+    var steps:int=0
+    var pushes:int=0
+    init() { self.configure();self.reset() }
+    private func configure() {
+        var bounded=Limits.settings(self.anatomy)
+        var parts:Physics.RagdollPart3D[]=[]
+        var i=0
+        while i<10 {
+            let part=bounded.part(i);var body=part.body
+            if i==0 { body.body_type=Physics.BodyType3D.fixed;body.mass_properties=null }
+            parts.append(Physics.RagdollPart3D(part.parent,body,local_transform:part.local_transform,body_offset:part.body_offset,joint:part.joint))
+            i++
+        }
+        self.anatomy.settings=Physics.Ragdoll3DSettings(parts,self_collision:true)
+    }
+    func target(variant:int,instance:int) Physics.Transform3D[] {
+        var pose=self.anatomy.desired_pose(instance)
+        var sign=-1.0
+        for i in [2,4] {
+            if i==4 { sign=1.0 }
+            var elevation=0.18;var forward=0.0;var elbow=-0.1
+            if variant==1 { elevation=0.75;forward=-0.65;elbow=-0.9 }
+            if variant==2 { elevation=0.35;forward=-1.05;elbow=-1.3 }
+            pose[i]=Physics.Transform3D(pose[i].position,Math.Quat.angle_axis(sign*elevation,Math.Vec3(0.0,0.0,1.0)).multiply(Math.Quat.angle_axis(forward,Math.Vec3(1.0,0.0,0.0))))
+            pose[i+1]=Physics.Transform3D(pose[i+1].position,Math.Quat.angle_axis(elbow,Math.Vec3(1.0,0.0,0.0)))
+        }
+        for i in [6,8] {
+            var hip=0.0;var knee=0.1
+            if variant==1 { hip=-0.2;knee=0.45 }
+            if variant==2 { hip=-0.45;knee=0.9 }
+            pose[i]=Physics.Transform3D(pose[i].position,Math.Quat.angle_axis(hip,Math.Vec3(1.0,0.0,0.0)))
+            pose[i+1]=Physics.Transform3D(pose[i+1].position,Math.Quat.angle_axis(knee,Math.Vec3(1.0,0.0,0.0)))
+        }
+        return pose
+    }
+    func select(variant:int) {
+        assert(variant>=0 && variant<=2)
+        self.variant=variant;self.motors=true
+        self.anatomy.instances[0].drive_to_local_pose(self.target(variant,0),120.0,400.0,40.0)
+    }
+    func toggle() {
+        if self.motors { self.anatomy.instances[0].stop_motors();self.motors=false }
+        else { self.select(self.variant) }
+    }
+    func push() {
+        var forearm=self.anatomy.instances[0].body(3)
+        forearm.apply_impulse(Math.Vec3(0.0,0.0,1.0),forearm.world_center_of_mass().add(Math.Vec3(0.0,-0.1,0.0)))
+        self.pushes++
+    }
+    func reset() {
+        self.anatomy.reset();self.steps=0;self.pushes=0
+        for i in [0,1] { self.anatomy.instances[i].set_local_pose(self.target(0,i)) }
+        self.anatomy.instances[1].drive_to_local_pose(self.target(0,1),120.0,400.0,40.0)
+        self.select(1)
+    }
+    func step(delta:float) { self.anatomy.world.step(delta);self.steps++ }
+    func write_pose(output:&Physics.Transform3D[]) { self.anatomy.write_pose(output) }
+    func verify() {
+        assert(self.anatomy.world.body_count()==20 && self.anatomy.world.swing_twist_constraint_count()==18)
+        var number=0
+        for instance in self.anatomy.instances {
+            let root=self.target(0,number)[0]
+            assert(instance.body(0).position().nearly_equal(root.point(self.anatomy.offsets[0]),0.00001))
+            assert(instance.body(0).linear_velocity()==Math.Vec3())
+            var i=0
+            while i<10 {
+                var body=instance.body(i)
+                assert(body.position().length()<20.0 && body.linear_velocity().length()<40.0 && body.angular_velocity().length()<100.0)
+                if i>0 {
+                    var joint=instance.joint(i)!
+                    let anchor=joint.anchor_error().length();let angular=Limits.limit_error(joint)
+                    if anchor>=0.04 || angular>=0.08 { print("Rejected drive step $(self.steps), part $(i), anchor $(anchor), limit $(angular), variant $(self.variant)") }
+                    assert(anchor<0.04 && angular<0.08)
+                    let torque=joint.motor_torque();assert(Math.abs(torque.x)<120.001 && Math.abs(torque.y)<120.001 && Math.abs(torque.z)<120.001)
+                    if number==0 && !self.motors { assert(torque.length()<0.00001) }
+                }
+                var other=i+1
+                while other<10 {
+                    if self.anatomy.parents[other]!=i || (i==0 && (other==2 || other==4)) {
+                        let overlap=Limits.overlap(body.transform(),self.anatomy.sizes[i],instance.body(other).transform(),self.anatomy.sizes[other])
+                        if overlap>=0.05 { print("Rejected drive overlap $(overlap), parts $(i)/$(other), step $(self.steps)") }
+                        assert(overlap<0.05)
+                    }
+                    other++
+                }
+                i++
+            }
+            number++
+        }
+    }
+    func verify_target() {
+        for instance in [0,1] {
+            var variant=self.variant;if instance==1 { variant=0 }
+            let desired=self.target(variant,instance)
+            for i in [1,2,3,4,5,6,7,8,9] {
+                let error=2.0*Math.acos(Math.clamp(Math.abs(self.anatomy.instances[instance].joint(i)!.orientation().dot(desired[i].rotation)),0.0,1.0))
+                if error>=0.08 { print("Rejected target $(variant), instance $(instance), part $(i), error $(error)") }
+                assert(error<0.08)
+            }
+        }
+    }
+    func measurement() str {
+        var mode="moteurs actifs";if !self.motors { mode="membres libres" }
+        return "Or : pose $(self.variant), $(mode) | Bleu : neutre | Impulsions : $(self.pushes) | Contacts : $(self.anatomy.world.contact_count())"
+    }
+}
+
+package func verify_drive() {
+    for rate in [60,120] {
+        var model=RagdollDriveModel();model.verify()
+        for variant in [1,2,0] {
+            var before:Physics.Transform3D[]=[];var after:Physics.Transform3D[]=[]
+            model.write_pose(before);model.select(variant);model.write_pose(after)
+            for i in [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] { assert(before[i]==after[i]) }
+            model.push()
+            var step=0
+            while step<rate*4 { model.step(1.0/rate);model.verify();step++ }
+            model.verify_target()
+        }
+        let held=model.anatomy.instances[0].body(3).rotation()
+        model.toggle();assert(!model.motors)
+        var step=0;while step<rate { model.step(1.0/rate);model.verify();step++ }
+        assert(Math.abs(held.dot(model.anatomy.instances[0].body(3).rotation()))<0.9999)
+        model.toggle();assert(model.motors)
+        step=0;while step<rate*4 { model.step(1.0/rate);model.verify();step++ }
+        model.verify_target()
+        var old=model.anatomy.instances[0];model.reset();assert(!old.is_valid() && model.steps==0 && model.pushes==0)
+        model.verify()
+        print("Ragdoll drive $(rate) Hz: opposed poses, neutral, impulse, passive release, resume and reset verified")
+    }
+}
+test "two anatomical ragdolls follow motor targets and release without teleporting" { verify_drive() }
