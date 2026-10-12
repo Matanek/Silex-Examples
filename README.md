@@ -966,3 +966,13 @@ Pause, replay and reset expose the joint frames and assembly lifetime. From
 the workspace or owning Spec group root run
 `silex run Silex-Examples/Sources/Physics3D/RagdollPose/Main.sx --release`.
 [Guide français](Sources/Physics3D/RagdollPose/README.fr.md).
+
+## Ragdoll fall and impulse
+
+[RagdollFall](Sources/Physics3D/RagdollFall/README.md) reuses the ten-part anatomy
+with a visible floor and an off-center impulse on the gold torso. Blue provides
+a reference fall. Release/replay, impulse, pause and reset work through buttons
+and logical keys; simulation pauses automatically after four seconds.
+From the workspace or Spec group root:
+`silex run Silex-Examples/Sources/Physics3D/RagdollFall/Main.sx --release`.
+[Guide français](Sources/Physics3D/RagdollFall/README.fr.md).
