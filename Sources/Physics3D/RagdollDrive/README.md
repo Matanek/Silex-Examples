@@ -1,8 +1,9 @@
 # Follow a pose and release the limbs
 
-Both mannequins hang from their fixed torsos. Blue holds a neutral pose. Gold's
-motors follow a target and can resist an impulse; when they stop, its limbs
-hang under gravity. Anatomical limits and nonadjacent internal collisions stay
+Both mannequins hang from their fixed torsos. Blue holds a neutral pose.
+Gold starts without motors: its limbs fall and swing under gravity. P applies a 6 N·s
+forearm impulse. M or a target enables motorized holding; M then releases it.
+Anatomical limits and nonadjacent internal collisions stay
 active. [Guide français](README.fr.md).
 
 From the workspace or Spec group root:
@@ -28,7 +29,9 @@ and impacts.
 
 Simulation runs at 120 Hz with 32 position correction passes and interpolated
 rendering. Motors have 120 N·m per-axis budgets, stiffness 400 N·m/rad and
-damping 40 N·m·s/rad. Targets change on commands; metrics and UI refresh at
+damping 8 N·m·s/rad for gold, 40 for blue. Gold can visibly oscillate after an
+impulse instead of damping the reaction almost immediately.
+Targets change on commands; metrics and UI refresh at
 10 Hz or after an actual action. Detailed geometric observations run only in
 tests and smokes.
 

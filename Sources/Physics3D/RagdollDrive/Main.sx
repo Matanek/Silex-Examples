@@ -65,7 +65,7 @@ func perform(state:&RagdollDriveScene,simulation:&Application.Simulation) {
     }
     while state.controls.resets>0 {
         changed=true;state.controls.resets--;state.model.reset();sync_previous(state);simulation.resume()
-        state.controls.feedback.set("Assemblages recréés — or vers la pose ouverte, bleu vers le neutre.")
+        state.controls.feedback.set("Assemblages recréés — or libre sous gravité, bleu maintenu au neutre.")
     }
     while state.controls.pauses>0 {
         changed=true;state.controls.pauses--
@@ -95,13 +95,13 @@ func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&RagdollDri
 }
 func smoke_commands(state:&RagdollDriveScene,simulation:&Application.Simulation,controller:&Application.Controller) {
     state.frames++
-    if state.smoke_phase==0 && state.model.steps>=480 {
-        state.model.verify_target();verify_framing(state);state.controls.pose_two();state.controls.push();perform(state,simulation);state.smoke_phase=1
-    } else if state.smoke_phase==1 && state.model.steps>=960 {
+    if state.smoke_phase==0 && state.model.steps>=240 {
+        assert(!state.model.motors);verify_framing(state);state.controls.pose_two();state.controls.push();perform(state,simulation);state.smoke_phase=1
+    } else if state.smoke_phase==1 && state.model.steps>=720 {
         state.model.verify_target();verify_framing(state);state.controls.toggle();perform(state,simulation);state.smoke_phase=2
-    } else if state.smoke_phase==2 && state.model.steps>=1080 {
+    } else if state.smoke_phase==2 && state.model.steps>=840 {
         assert(!state.model.motors);state.controls.neutral();perform(state,simulation);state.smoke_phase=3
-    } else if state.smoke_phase==3 && state.model.steps>=1560 {
+    } else if state.smoke_phase==3 && state.model.steps>=1320 {
         state.model.verify_target();verify_framing(state);state.controls.pause();perform(state,simulation);state.model.write_pose(state.held_pose);state.smoke_phase=4
     } else if state.smoke_phase==4 {
         assert(simulation.is_paused() && simulation.delta()==0.0)
@@ -109,8 +109,8 @@ func smoke_commands(state:&RagdollDriveScene,simulation:&Application.Simulation,
         var i=0;while i<20 { assert(state.current[i]==state.held_pose[i]);i++ }
         state.pause_frames++
         if state.pause_frames==8 { state.controls.reset();perform(state,simulation);state.smoke_phase=5 }
-    } else if state.smoke_phase==5 && state.model.steps>=480 {
-        state.model.verify_target();verify_framing(state)
+    } else if state.smoke_phase==5 && state.model.steps>=240 {
+        assert(!state.model.motors);verify_framing(state)
         print("Ragdoll drive smoke: target changes, impulse, motor release, neutral, exact pause, reset and rendered transforms verified")
         let elapsed=state.clock.get_elapsed_seconds()
         print("SMOKE frames $(state.frames), wall s $(elapsed), fps $(state.frames as float/elapsed)")
@@ -187,7 +187,7 @@ func verify_framing(state:@RagdollDriveScene) {
 }
 func verify_interactions() {
     var world=Resources.World();var meshes=Resources.Meshes3D();var state=RagdollDriveScene();var simulation=Application.Simulation()
-    startup(world,meshes,state,simulation);state.model.verify();verify_framing(state)
+    startup(world,meshes,state,simulation);state.model.verify();verify_framing(state);assert(!state.model.motors)
     assert(!simulation.is_paused())
     assert(state.controls.handle(InputCheck.key_event(Input.Key.num0,0 as uint32)));perform(state,simulation);assert(state.model.variant==0)
     assert(state.controls.handle(InputCheck.key_event(Input.Key.num1,0 as uint32)));perform(state,simulation);assert(state.model.variant==1)
@@ -210,7 +210,7 @@ test "motor pose controls deliver targets, release, impulse, pause and recreatio
 func main() {
     var state=RagdollDriveScene();var arguments=Process.arguments()
     for argument in arguments {
-        if argument=="--physics-check" { Model.verify_drive();return }
+        if argument=="--physics-check" { Model.verify_drive();Model.verify_reaction();return }
         if argument=="--controls-check" { verify_interactions();print("Ragdoll drive: UI, keyboard, pose commands, pause, reset and transforms verified");return }
         if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
     }

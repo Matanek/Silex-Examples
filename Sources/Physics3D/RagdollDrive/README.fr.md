@@ -1,9 +1,9 @@
 # Suivre une pose et relâcher les membres
 
 Les deux mannequins sont suspendus par leur torse fixe. Le bleu maintient une
-pose neutre. Les moteurs de l’or suivent une cible et peuvent résister à une
-impulsion ; lorsqu’ils s’arrêtent, les membres pendent sous gravité. Les limites
-anatomiques et collisions internes non voisines restent actives.
+pose neutre. L’or démarre sans moteurs : ses membres retombent et oscillent sous gravité. P applique une impulsion de 6 N·s sur
+l’avant-bras. M ou une cible active le maintien motorisé ; M le relâche ensuite.
+Les limites anatomiques et collisions internes non voisines restent actives.
 
 Depuis la racine du workspace ou du groupe de Spec :
 
@@ -28,7 +28,9 @@ l’équilibre debout ni une commande de déplacement mondial. Le parcours voisi
 
 La simulation utilise 120 Hz et 32 passes de correction, avec interpolation au
 rendu. Les moteurs ont un budget de 120 N·m par axe, une raideur de 400 N·m/rad
-et un amortissement de 40 N·m·s/rad. Leurs cibles changent aux commandes ; la
+et un amortissement de 8 N·m·s/rad pour l’or, 40 pour le bleu.
+Le maintien de l’or laisse une réaction oscillante à l’impulsion au lieu de
+l’amortir presque immédiatement. Leurs cibles changent aux commandes ; la
 mesure et l’interface sont actualisées à 10 Hz ou après une action effective.
 Les observations géométriques détaillées sont réservées aux tests et au smoke.
 

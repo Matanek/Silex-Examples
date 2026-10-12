@@ -6,7 +6,7 @@ use STD.Math
 package class RagdollDriveModel {
     var anatomy:Anatomy.RagdollPoseModel=Anatomy.RagdollPoseModel(Physics.World3DSettings() ..position_iterations=32)
     var variant:int=1
-    var motors:bool=true
+    var motors:bool=false
     var steps:int=0
     var pushes:int=0
     init() { self.configure();self.reset() }
@@ -45,7 +45,7 @@ package class RagdollDriveModel {
     func select(variant:int) {
         assert(variant>=0 && variant<=2)
         self.variant=variant;self.motors=true
-        self.anatomy.instances[0].drive_to_local_pose(self.target(variant,0),120.0,400.0,40.0)
+        self.anatomy.instances[0].drive_to_local_pose(self.target(variant,0),120.0,400.0,8.0)
     }
     func toggle() {
         if self.motors { self.anatomy.instances[0].stop_motors();self.motors=false }
@@ -53,14 +53,15 @@ package class RagdollDriveModel {
     }
     func push() {
         var forearm=self.anatomy.instances[0].body(3)
-        forearm.apply_impulse(Math.Vec3(0.0,0.0,1.0),forearm.world_center_of_mass().add(Math.Vec3(0.0,-0.1,0.0)))
+        forearm.apply_impulse(Math.Vec3(0.0,0.0,6.0),forearm.world_center_of_mass().add(Math.Vec3(0.0,-0.1,0.0)))
         self.pushes++
     }
     func reset() {
         self.anatomy.reset();self.steps=0;self.pushes=0
-        for i in [0,1] { self.anatomy.instances[i].set_local_pose(self.target(0,i)) }
+        for i in [0,1] { var variant=0;if i==0 { variant=1 }
+            self.anatomy.instances[i].set_local_pose(self.target(variant,i)) }
         self.anatomy.instances[1].drive_to_local_pose(self.target(0,1),120.0,400.0,40.0)
-        self.select(1)
+        self.variant=1;self.motors=false;self.anatomy.instances[0].stop_motors()
     }
     func step(delta:float) { self.anatomy.world.step(delta);self.steps++ }
     func write_pose(output:&Physics.Transform3D[]) { self.anatomy.write_pose(output) }
@@ -139,3 +140,35 @@ package func verify_drive() {
     }
 }
 test "two anatomical ragdolls follow motor targets and release without teleporting" { verify_drive() }
+
+package func verify_reaction() {
+    for rate in [60,120] {
+        var model=RagdollDriveModel();assert(!model.motors)
+        var arm=model.anatomy.instances[0].body(3)
+        let initial=arm.rotation()
+        var step=0
+        while step<rate { model.step(1.0/rate);model.verify();step++ }
+        let movement=2.0*Math.acos(Math.clamp(Math.abs(initial.dot(arm.rotation())),0.0,1.0))
+        assert(movement>0.4)
+        var pose:Physics.Transform3D[]=[];model.write_pose(pose)
+        let before=arm.linear_velocity();let reference=model.anatomy.instances[1].body(3).linear_velocity()
+        model.push()
+        assert(arm.linear_velocity().subtract(before).nearly_equal(Math.Vec3(0.0,0.0,3.0),0.00001))
+        assert(model.anatomy.instances[1].body(3).linear_velocity()==reference)
+        var after:Physics.Transform3D[]=[];model.write_pose(after)
+        var i=0;while i<20 { assert(pose[i]==after[i]);i++ }
+        model.select(1);step=0
+        while step<rate*4 { model.step(1.0/rate);model.verify();step++ }
+        model.verify_target()
+        let held=arm.rotation();model.push();var excursion=0.0;step=0
+        while step<rate*4 {
+            model.step(1.0/rate);model.verify()
+            excursion=Math.max(excursion,2.0*Math.acos(Math.clamp(Math.abs(held.dot(arm.rotation())),0.0,1.0)));step++
+        }
+        assert(excursion>0.1 && excursion<0.5);model.verify_target()
+        assert(2.0*Math.acos(Math.clamp(Math.abs(held.dot(arm.rotation())),0.0,1.0))<0.03)
+        print("Physical reaction $(rate) Hz: gravity excursion $(movement) rad, powered impulse excursion $(excursion) rad; velocity changes by 3 m/s without placement")
+    }
+}
+
+test "gravity and impulse produce visible physical motion with and without motors" { verify_reaction() }
