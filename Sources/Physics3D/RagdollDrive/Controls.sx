@@ -9,6 +9,7 @@ package class RagdollDriveControls {
     var pushes:int=0
     var resets:int=0
     var pauses:int=0
+    var supports:int=0
     var automatic:bool=false
     var pause_text:UI.State<str> = UI.State<str>("Pause (Espace)")
     var feedback:UI.State<str> = UI.State<str>("L’or est libre sous gravité — poussez son bras, puis activez ses moteurs avec M.")
@@ -20,6 +21,7 @@ package class RagdollDriveControls {
     func push() { self.pushes++ }
     func reset() { self.resets++ }
     func pause() { self.pauses++ }
+    func support() { self.supports++ }
     func button(text:str,action:func()) UI.Button {
         var button=UI.Button(text,action)
         button.style.width=180.0;button.style.height=38.0
@@ -31,10 +33,10 @@ package class RagdollDriveControls {
     func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
     func describe() UI.View {
         var title=UI.Text("Mannequins — suivre une pose, résister, relâcher");title.style.height=34.0
-        var help=UI.Text("Torses suspendus · Or : libre au départ · Bleu : neutre · Limites anatomiques et collisions internes actives");help.style.height=24.0
+        var help=UI.Text("T : suspension ou sol · Or : libre au départ · Bleu : maintien neutre · Limites et collisions internes actives");help.style.height=24.0
         var targets=UI.Row([self.button("Maintenir ouverte (1)",self.pose_one),self.button("Maintenir repliée (2)",self.pose_two),self.button("Neutre (0)",self.neutral),self.button("Maintenir / relâcher (M)",self.toggle)])
         targets.style.gap=10.0
-        var actions=UI.Row([self.button("Pousser le bras (P)",self.push),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button)])
+        var actions=UI.Row([self.button("Pousser le bras (P)",self.push),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button),self.button("Suspension / sol (T)",self.support)])
         actions.style.gap=10.0
         var rows:UI.View[]=[title,help,targets,actions,UI.Reactive(self.status),UI.Reactive(self.metrics),UI.Text("P donne une impulsion nette. M reprend le maintien physique ou relâche les membres. Échap : quitter. La simulation continue sans pause automatique.")]
         if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — commande de pose — fermeture à la fin"),UI.Reactive(self.metrics)] }
@@ -51,10 +53,11 @@ package class RagdollDriveControls {
                 let reset=code==114 as uint32 || code==82 as uint32 || (code==0 as uint32 && key.key==Input.Key.r)
                 let push=code==112 as uint32 || code==80 as uint32 || (code==0 as uint32 && key.key==Input.Key.p)
                 let motor=code==109 as uint32 || code==77 as uint32 || (code==0 as uint32 && key.key==Input.Key.m)
+                let support=code==116 as uint32 || code==84 as uint32 || (code==0 as uint32 && key.key==Input.Key.t)
                 let one=code==49 as uint32 || (code==0 as uint32 && key.key==Input.Key.num1);let two=code==50 as uint32 || (code==0 as uint32 && key.key==Input.Key.num2);let zero=code==48 as uint32 || (code==0 as uint32 && key.key==Input.Key.num0)
-                if key.key==Input.Key.space || reset || push || motor || one || two || zero {
+                if key.key==Input.Key.space || reset || push || motor || support || one || two || zero {
                     if !key.repeated {
-                        if reset { self.reset() } else if push { self.push() } else if motor { self.toggle() }
+                        if reset { self.reset() } else if support { self.support() } else if push { self.push() } else if motor { self.toggle() }
                         else if one { self.pose_one() } else if two { self.pose_two() } else if zero { self.neutral() } else { self.pause() }
                     }
                     return true

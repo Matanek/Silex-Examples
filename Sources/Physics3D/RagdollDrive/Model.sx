@@ -7,21 +7,31 @@ package class RagdollDriveModel {
     var anatomy:Anatomy.RagdollPoseModel=Anatomy.RagdollPoseModel(Physics.World3DSettings() ..position_iterations=32)
     var variant:int=1
     var motors:bool=false
+    var suspended:bool=true
+    private var floor:Physics.RigidBody3D?=null
+    private var mobile_settings:Physics.Ragdoll3DSettings
     var steps:int=0
     var pushes:int=0
-    init() { self.configure();self.reset() }
+    init() { self.mobile_settings=Limits.settings(self.anatomy);self.configure();self.reset() }
     private func configure() {
-        var bounded=Limits.settings(self.anatomy)
+        var bounded=self.mobile_settings
         var parts:Physics.RagdollPart3D[]=[]
         var i=0
         while i<10 {
             let part=bounded.part(i);var body=part.body
-            if i==0 { body.body_type=Physics.BodyType3D.fixed;body.mass_properties=null }
+            if i==0 && self.suspended { body.body_type=Physics.BodyType3D.fixed;body.mass_properties=null }
             parts.append(Physics.RagdollPart3D(part.parent,body,local_transform:part.local_transform,body_offset:part.body_offset,joint:part.joint))
             i++
         }
         self.anatomy.settings=Physics.Ragdoll3DSettings(parts,self_collision:true)
+        if self.suspended {
+            if var floor=self.floor { self.anatomy.world.destroy_rigid_body(floor);self.floor=null }
+        } else if self.floor==null {
+            self.floor=self.anatomy.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+                ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=0.6)
+        }
     }
+    func switch_support() { self.suspended=!self.suspended;self.configure();self.reset() }
     func target(variant:int,instance:int) Physics.Transform3D[] {
         var pose=self.anatomy.desired_pose(instance)
         var sign=-1.0
@@ -66,16 +76,27 @@ package class RagdollDriveModel {
     func step(delta:float) { self.anatomy.world.step(delta);self.steps++ }
     func write_pose(output:&Physics.Transform3D[]) { self.anatomy.write_pose(output) }
     func verify() {
-        assert(self.anatomy.world.body_count()==20 && self.anatomy.world.swing_twist_constraint_count()==18)
+        var expected_bodies=20;if !self.suspended { expected_bodies++ }
+        assert(self.anatomy.world.body_count()==expected_bodies && self.anatomy.world.swing_twist_constraint_count()==18)
         var number=0
         for instance in self.anatomy.instances {
             let root=self.target(0,number)[0]
-            assert(instance.body(0).position().nearly_equal(root.point(self.anatomy.offsets[0]),0.00001))
-            assert(instance.body(0).linear_velocity()==Math.Vec3())
+            if self.suspended {
+                assert(instance.body(0).position().nearly_equal(root.point(self.anatomy.offsets[0]),0.00001))
+                assert(instance.body(0).linear_velocity()==Math.Vec3())
+            }
             var i=0
             while i<10 {
                 var body=instance.body(i)
                 assert(body.position().length()<20.0 && body.linear_velocity().length()<40.0 && body.angular_velocity().length()<100.0)
+                if !self.suspended {
+                    let signs:int[]=[-1,1];let half=self.anatomy.sizes[i].multiply(0.5)
+                    for x in signs { for y in signs { for z in signs {
+                        let corner=body.transform().point(Math.Vec3(half.x*x as float,half.y*y as float,half.z*z as float))
+                        if corner.y<=-0.05 { print("Rejected drive floor at step $(self.steps), part $(i), corner Y $(corner.y)") }
+                        assert(corner.y>-0.05)
+                    } } }
+                }
                 if i>0 {
                     var joint=instance.joint(i)!
                     let anchor=joint.anchor_error().length();let angular=Limits.limit_error(joint)
@@ -111,7 +132,8 @@ package class RagdollDriveModel {
     }
     func measurement() str {
         var mode="moteurs actifs";if !self.motors { mode="membres libres" }
-        return "Or : pose $(self.variant), $(mode) | Bleu : neutre | Impulsions : $(self.pushes) | Contacts : $(self.anatomy.world.contact_count())"
+        var support="torses suspendus";if !self.suspended { support="torses mobiles · sol physique" }
+        return "$(support) | Or : pose $(self.variant), $(mode) | Bleu : neutre | Impulsions : $(self.pushes) | Contacts : $(self.anatomy.world.contact_count())"
     }
 }
 
@@ -172,3 +194,30 @@ package func verify_reaction() {
 }
 
 test "gravity and impulse produce visible physical motion with and without motors" { verify_reaction() }
+
+package func verify_floor_drive() {
+    for rate in [60,120] {
+        var model=RagdollDriveModel();var previous=model.anatomy.instances[0]
+        model.switch_support();assert(!model.suspended && !previous.is_valid());model.verify()
+        let start=model.anatomy.instances[0].body(0).position()
+        var step=0
+        while step<rate*2 { model.step(1.0/rate);model.verify();step++ }
+        print("Floor arrival $(rate) Hz: torso Y $(model.anatomy.instances[0].body(0).position().y), start $(start.y), contacts $(model.anatomy.world.contact_count())")
+        assert(model.anatomy.world.contact_count()>0 && model.anatomy.instances[0].body(0).position().y<start.y-1.0)
+        for variant in [1,2,0] {
+            var before:Physics.Transform3D[]=[];var after:Physics.Transform3D[]=[]
+            model.write_pose(before);model.select(variant);model.push();model.write_pose(after)
+            var i=0;while i<20 { assert(before[i]==after[i]);i++ }
+            step=0;while step<rate*3 { model.step(1.0/rate);model.verify();step++ }
+        }
+        model.toggle();assert(!model.motors);model.push()
+        step=0;while step<rate { model.step(1.0/rate);model.verify();step++ }
+        previous=model.anatomy.instances[0];model.reset();assert(!previous.is_valid() && !model.suspended);model.verify()
+        previous=model.anatomy.instances[0];model.switch_support()
+        assert(model.suspended && !previous.is_valid());model.verify()
+        model.switch_support();model.verify();assert(model.anatomy.world.body_count()==21)
+        print("Floor drive $(rate) Hz: falling mobile torsos, contacts, target efforts, impulse, release and support recreation verified")
+    }
+}
+
+test "motor pose efforts compose with falling mobile torsos and floor contacts" { verify_floor_drive() }
