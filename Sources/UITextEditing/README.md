@@ -31,3 +31,8 @@ mode; trying the graphical gallery is separate. IME, touch and pointer selection
 held outside the field are not demonstrated here.
 
 [Guide français](README.fr.md).
+
+Bundled fallback fonts display the gallery’s ideographs and monochrome emojis.
+Letter shortcuts follow the logical keyboard layout, including Cmd+Z on AZERTY.
+CPU checks also verify that actual drawing has no missing glyphs and exercise
+the event bridge.

@@ -4,6 +4,7 @@ use GFX.Input.Events
 use GFX.Input.Keyboard
 use GFX.UI.Input as UIInput
 use GFX.Viewer
+use GFX.Window
 use GFX.Window.Cursor
 use STD.Process
 
@@ -82,6 +83,9 @@ class EditingSession:Canvas.Session {
     }
     func check_cpu() {
         var drawing = self.drawing(900,760)
+        for layer in drawing.prepared(900,760).text_layers() {
+            for run in layer.glyph_runs() { assert(run.missing_glyph_count() == 0) }
+        }
         var runtime = self.ui(); self.form.short_focus.request(); assert(self.update(0.0))
         let original = self.form.short.value()
         assert(runtime.insert_text(" a")); assert(runtime.insert_text("b"))
@@ -125,4 +129,23 @@ func main() {
 }
 test "actual gallery keeps undo word selection and multiline history through theme changes and resize" {
     var session = EditingSession(); session.check_cpu()
+}
+
+func letter_event(key:Keyboard.Key, code:uint32, shift:bool = false) Events.Event {
+    return Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:1 as uint32),
+        keyboard:Keyboard.KeyboardId(value:1 as uint32),key:key,keycode:code,raw:0 as uint16,
+        repeated:false,modifiers:Keyboard.Modifiers(system:true,shift:shift),
+        timestamp:Events.Timestamp(nanoseconds:1 as uint)))
+}
+test "actual gallery undo and redo follow logical AZERTY events" {
+    var session = EditingSession(); var drawing = session.drawing(900,760)
+    session.form.short_focus.request(); let focused = session.update(0.0)
+    let original = session.form.short.value()
+    assert(session.handle(Events.Event.text_input(Events.TextInputEvent(
+        window:Window.Id(value:1 as uint32),text:"abc",timestamp:Events.Timestamp(nanoseconds:1 as uint)))))
+    assert(session.form.short.value() == original + "abc")
+    assert(session.handle(letter_event(Keyboard.Key.w,122 as uint32)))
+    assert(session.form.short.value() == original)
+    assert(session.handle(letter_event(Keyboard.Key.w,122 as uint32,shift:true)))
+    assert(session.form.short.value() == original + "abc")
 }

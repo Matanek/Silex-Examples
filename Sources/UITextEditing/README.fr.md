@@ -29,3 +29,8 @@ Le binaire accepte `--cpu-check` : il exerce historique, mots, thèmes et taille
 900/480/200/1 sans ouvrir de fenêtre. Les tests Debug/Release qualifient ce mode ;
 l’essai graphique reste distinct. IME, tactile et sélection pointeur maintenue
 hors champ ne sont pas démontrés ici.
+
+La police de repli embarquée affiche les idéogrammes et les emojis de la galerie,
+ces derniers en monochrome. Les raccourcis alphabétiques suivent la disposition
+logique du clavier, notamment Cmd+Z sur AZERTY. Le mode CPU vérifie aussi
+l’absence de glyphes manquants dans le dessin réel et le trajet des événements.
