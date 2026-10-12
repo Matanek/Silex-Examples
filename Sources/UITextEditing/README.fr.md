@@ -25,10 +25,15 @@ les valeurs d’origine : les historiques dont la valeur change sont réinitiali
 La ligne longue et le texte multiligne révèlent le caret après édition, navigation
 et undo/redo. Redimensionnez la fenêtre pour vérifier les mêmes gestes.
 
-Le binaire accepte `--cpu-check` : il exerce historique, mots, thèmes et tailles
-900/480/200/1 sans ouvrir de fenêtre. Les tests Debug/Release qualifient ce mode ;
-l’essai graphique reste distinct. IME, tactile et sélection pointeur maintenue
-hors champ ne sont pas démontrés ici.
+Cliquez dans la ligne longue, glissez au-delà du bord gauche ou droit et gardez
+le bouton appuyé sans bouger : texte et sélection continuent d’avancer.
+Dans le texte multiligne, essayez aussi le haut, le bas et une diagonale, en
+restant dans la fenêtre. Relâchez pour arrêter, remplacez la sélection puis
+annulez pour retrouver le texte et la sélection.
+
+Le binaire accepte `--cpu-check` : il exerce historique, mots, thèmes, sélection
+maintenue et tailles 900/480/200/1 sans ouvrir de fenêtre. Les tests Debug/Release qualifient ce mode ;
+l’essai graphique reste distinct. IME et tactile ne sont pas démontrés ici.
 
 La police de repli embarquée affiche les idéogrammes et les emojis de la galerie,
 ces derniers en monochrome. Les raccourcis alphabétiques suivent la disposition

@@ -25,10 +25,15 @@ initial values: histories whose value changes are reset. The long line and
 multiline field reveal the caret after editing, navigation and undo/redo.
 Resize the window to check the same gestures.
 
-The executable accepts `--cpu-check`: it exercises history, words, themes and
-900/480/200/1 widths without opening a window. Debug/Release tests qualify this
-mode; trying the graphical gallery is separate. IME, touch and pointer selection
-held outside the field are not demonstrated here.
+Click the long line, drag beyond its left or right edge, then hold the button
+without moving: text and selection continue advancing. In multiline text,
+also try the top, bottom and a diagonal, while staying inside the window.
+Release to stop, replace the selection, then undo to recover text and selection.
+
+The executable accepts `--cpu-check`: it exercises history, words, themes, held
+selection and 900/480/200/1 widths without opening a window. Debug/Release tests qualify this
+mode; trying the graphical gallery is separate. IME and touch are not
+demonstrated here.
 
 [Guide français](README.fr.md).
 
