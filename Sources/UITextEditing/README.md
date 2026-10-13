@@ -57,3 +57,10 @@ field body to pan; hold a handle beyond an edge to extend selection. Escape
 cancels the simulated gesture. Notifications wait for an edit; Cmd+Z retains
 its ordinary role. Hardware `finger_*` events are also forwarded, but mouse
 simulation and CPU tests do not constitute hardware touchscreen evidence.
+
+“Défilement lissé” starts checked and applies the same wheel follow to the page
+and fields. “Transférer le scroll à la page” starts unchecked: wheel input or
+panning stays inside a field at its boundary. Checking it allows transfer.
+Fields without overflow let input through. Compare both options with slow,
+fast and reversed gestures; editing notifications and selection remain intact.
+The real gallery CPU check covers intermediate positions, containment and transfer.

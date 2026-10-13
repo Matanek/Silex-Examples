@@ -58,3 +58,11 @@ du bord prolonge la sélection. Échap annule le geste simulé. Les notification
 restent inchangées jusqu’à l’édition ; Cmd+Z conserve son rôle habituel.
 Les événements `finger_*` d’un écran tactile sont également transmis, mais la
 simulation souris et les tests CPU ne constituent pas une preuve matérielle.
+
+La case « Défilement lissé », cochée au départ, applique le même suivi de molette
+à la page et aux champs. « Transférer le scroll à la page » est décochée : la
+molette ou le glissement restent dans le champ lorsqu’il atteint une limite.
+Cocher la case autorise le transfert. Un champ sans débordement laisse passer
+le geste. Comparer les deux options avec un geste lent, rapide puis inversé ;
+les notifications et la sélection restent inchangées. Le contrôle CPU de la
+vraie galerie couvre les mouvements intermédiaires, la limite et le transfert.

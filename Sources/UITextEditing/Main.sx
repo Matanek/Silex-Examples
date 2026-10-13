@@ -27,6 +27,9 @@ class EditingForm {
     var area:UI.State<str> = UI.State<str>(paragraphs())
     var bright:UI.State<bool> = UI.State<bool>(false)
     var touch_mode:UI.State<bool> = UI.State<bool>(false)
+    var smooth:UI.State<bool> = UI.State<bool>(true)
+    var scroll_chain:UI.State<bool> = UI.State<bool>(false)
+    var page_scroll:UI.ScrollState = UI.ScrollState(0.0)
     var changes:UI.State<int> = UI.State<int>(0)
     var short_focus:UI.Focus = UI.Focus()
     var long_focus:UI.Focus = UI.Focus()
@@ -42,9 +45,10 @@ class EditingForm {
     func describe(reads:UI.Reads) UI.View {
         var theme = UI.Theme.dark(); if reads.read(self.bright) { theme = UI.Theme.light() }
         var style = UI.Style(); style.height = 44.0; style.padding = UI.Insets(10.0)
-        var short = UI.TextField(self.short, on_change:self.edited, style:style)
-        var long = UI.TextField(self.long, on_change:self.edited, style:style)
-        var area = UI.TextArea(self.area, on_change:self.edited, style:style); area.style.height = 200.0
+        let smooth = reads.read(self.smooth); let chain = reads.read(self.scroll_chain)
+        var short = UI.TextField(self.short, on_change:self.edited, style:style,smooth_scroll:smooth,scroll_chain:chain)
+        var long = UI.TextField(self.long, on_change:self.edited, style:style,smooth_scroll:smooth,scroll_chain:chain)
+        var area = UI.TextArea(self.area, on_change:self.edited, style:style,smooth_scroll:smooth,scroll_chain:chain); area.style.height = 200.0
         var touch_hint = "F4 : simulation tactile à la souris. Tap : caret ; maintien : mot ; poignées : sélection."
         if reads.read(self.touch_mode) { touch_hint = "SIMULATION TACTILE — souris = doigt ; glissez le texte pour défiler, Échap annule le geste." }
         var root = UI.Column([
@@ -61,6 +65,8 @@ class EditingForm {
                 UI.Button("Texte multiligne",self.focus_area,style:style)],wrap:true),
             UI.Text("IME : activez une saisie japonaise ou chinoise, composez puis validez ou annulez."),
             UI.Text("Le texte provisoire est souligné ; les notifications attendent sa validation."),
+            UI.Row([UI.Checkbox("Défilement lissé",self.smooth),
+                UI.Checkbox("Transférer le scroll à la page",self.scroll_chain)],wrap:true),
             UI.Text("Champ court : accents combinés et emoji"),
             UI.Keyed("short",UI.FocusTarget(self.short_focus,short)),
             UI.Text("Ligne longue : sélectionnez et vérifiez le défilement"),
@@ -71,7 +77,7 @@ class EditingForm {
             UI.Text("Changer de thème conserve l’historique. Une valeur externe différente le réinitialise.")
         ])
         root.style.padding = UI.Insets(20.0); root.style.gap = 10.0
-        var viewport = UI.ScrollView(root); viewport.style.theme = theme
+        var viewport = UI.ScrollView(root,state:self.page_scroll,smooth_scroll:smooth); viewport.style.theme = theme
         return viewport
     }
 }
@@ -140,6 +146,41 @@ class EditingSession:Canvas.Session {
         return Events.TouchEvent(touch:Events.TouchId(value:42 as uint),finger:Events.FingerId(value:1 as uint),
             window:Window.Id(value:1 as uint32),position:Math.Vec2(point.x / width,point.y / height),
             delta:Math.Vec2(),pressure:1.0,timestamp:Events.Timestamp(nanoseconds:1 as uint))
+    }
+    func check_wheel() {
+        self.form.area_focus.request()
+        let focused = self.update(0.0)
+        var drawing = self.drawing(900,760)
+        let line = "Ligne 15 : café été 👩‍💻 — le caret reste visible."
+        let command = find_text_command(drawing.commands(),line)!
+        let point = Math.Vec2(command.position.x + 2.0,command.position.y + 3.0)
+        let notifications = self.form.changes.value(); let original = self.form.area.value()
+        var runtime = self.ui()
+        assert(runtime.pointer_scrolled(point,Math.Vec2(0.0,0.1)))
+        drawing = self.drawing(900,760)
+        assert(find_text_command(drawing.commands(),line)!.position == command.position)
+        let advanced = self.update(1.0 / 120.0); drawing = self.drawing(900,760)
+        let moved = find_text_command(drawing.commands(),line)!.position
+        assert(moved.y > command.position.y && moved.y < command.position.y + 4.8)
+        let settled = self.update(1.0); drawing = self.drawing(900,760)
+        assert(runtime.pointer_scrolled(point,Math.Vec2(0.0,-1000.0)))
+        let at_end = self.update(1.0); drawing = self.drawing(900,760)
+        let page = self.form.page_scroll.offset()
+        assert(!runtime.pointer_scrolled(point,Math.Vec2(0.0,-1.0)))
+        assert(self.form.page_scroll.offset() == page)
+        assert(runtime.pointer_scrolled(Math.Vec2(4.0,4.0),Math.Vec2(0.0,0.25)))
+        assert(self.form.page_scroll.offset() == page)
+        let page_frame = self.update(1.0 / 120.0)
+        assert(self.form.page_scroll.offset() < page)
+        let page_settled = self.update(1.0); drawing = self.drawing(900,760)
+        let current = find_text_command(drawing.commands(),line)!
+        self.form.scroll_chain.set(true); let enabled = self.update(0.0)
+        drawing = self.drawing(900,760)
+        let before = self.form.page_scroll.offset()
+        assert(runtime.pointer_scrolled(Math.Vec2(current.position.x + 2.0,current.position.y + 3.0),Math.Vec2(0.0,-0.25)))
+        let transferred = self.update(1.0)
+        assert(self.form.page_scroll.offset() > before)
+        assert(self.form.area.value() == original && self.form.changes.value() == notifications)
     }
     func check_touch() {
         self.form.touch_mode.set(true)
@@ -243,6 +284,7 @@ class EditingSession:Canvas.Session {
         var selection = EditingSession(); selection.check_selection()
         var ime = EditingSession(); ime.check_ime()
         var touch = EditingSession(simulated:true); touch.check_touch()
+        var wheel = EditingSession(); wheel.check_wheel()
         print("UITextEditing CPU : OK")
     }
 }
@@ -336,4 +378,8 @@ func touch_handle_count(commands:@Canvas.Command[]) int {
         else => {}
     } }
     return count
+}
+
+test "actual gallery smooths editor and page wheels and makes transfer optional" {
+    var session = EditingSession(); session.check_wheel()
 }
