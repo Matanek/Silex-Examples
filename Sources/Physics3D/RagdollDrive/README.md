@@ -16,11 +16,18 @@ silex run Silex-Examples/Sources/Physics3D/RagdollDrive/Main.sx --release
 Use the buttons or keys:
 
 - **1 / 2 / 0**: open, folded or neutral target for gold;
+- **3**: request elbow and knee angles beyond their stops;
 - **P**: impulse on gold's forearm;
 - **M**: stop its motors, then resume towards the selected target;
 - **T**: choose suspension or floor and recreate both mannequins;
 - **Space**: pause or resume;
 - **R**: recreate the assemblies; **Escape**: quit.
+
+Request **3** retains the open target’s shoulders and hips, but requests
+−2.8 rad at the elbows and 2.8 rad at the knees. Their limits remain −2.35
+and 2.4 rad: joints bound the gesture, and contacts may block it before a stop.
+The panel reports four excessive requests while their motors are active.
+An excessive target does not place any member.
 
 Changing the target preserves poses and velocities: motors progressively turn
 the limbs. A new target resumes the motors. R and mode changes are the only
@@ -42,6 +49,10 @@ tests and smokes.
 `--physics-check` and `--controls-check` validate the model and controls without
 a window; `--smoke` exercises target changes, impulse, release, resume, pause,
 reset and both modes in a window that closes automatically. On the compiled
-binary, `--floor` starts the interactive scene directly on the floor. A completed
+binary, `--floor` starts the interactive scene directly on the floor and
+`--limits` selects the excessive request without placing members.
+`--limits-check` isolates its headless recipe; `--physics-check` includes it
+alongside the previous cases. Smoke checks the request in both modes before
+returning to suspension. A completed
 smoke requires its final marker, not only exit code zero. Its frame rate is a local sample,
 without a comparative FPS claim.
