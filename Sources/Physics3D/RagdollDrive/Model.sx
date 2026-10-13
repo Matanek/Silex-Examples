@@ -38,14 +38,16 @@ package class RagdollDriveModel {
         for i in [2,4] {
             if i==4 { sign=1.0 }
             var elevation=0.18;var forward=0.0;var elbow=-0.1
-            if variant==1 { elevation=0.75;forward=-0.65;elbow=-0.9 }
+            if variant==1 || variant==3 { elevation=0.75;forward=-0.65;elbow=-0.9 }
+            if variant==3 { elbow=-2.8 }
             if variant==2 { elevation=0.35;forward=-1.05;elbow=-1.3 }
             pose[i]=Physics.Transform3D(pose[i].position,Math.Quat.angle_axis(sign*elevation,Math.Vec3(0.0,0.0,1.0)).multiply(Math.Quat.angle_axis(forward,Math.Vec3(1.0,0.0,0.0))))
             pose[i+1]=Physics.Transform3D(pose[i+1].position,Math.Quat.angle_axis(elbow,Math.Vec3(1.0,0.0,0.0)))
         }
         for i in [6,8] {
             var hip=0.0;var knee=0.1
-            if variant==1 { hip=-0.2;knee=0.45 }
+            if variant==1 || variant==3 { hip=-0.2;knee=0.45 }
+            if variant==3 { knee=2.8 }
             if variant==2 { hip=-0.45;knee=0.9 }
             pose[i]=Physics.Transform3D(pose[i].position,Math.Quat.angle_axis(hip,Math.Vec3(1.0,0.0,0.0)))
             pose[i+1]=Physics.Transform3D(pose[i+1].position,Math.Quat.angle_axis(knee,Math.Vec3(1.0,0.0,0.0)))
@@ -53,7 +55,7 @@ package class RagdollDriveModel {
         return pose
     }
     func select(variant:int) {
-        assert(variant>=0 && variant<=2)
+        assert(variant>=0 && variant<=3)
         self.variant=variant;self.motors=true
         self.anatomy.instances[0].drive_to_local_pose(self.target(variant,0),120.0,400.0,8.0)
     }
@@ -119,10 +121,33 @@ package class RagdollDriveModel {
             number++
         }
     }
+    func excessive_requests() int {
+        if !self.motors || self.variant!=3 { return 0 }
+        var count=0
+        for part in [3,5,7,9] {
+            var joint=self.anatomy.instances[0].joint(part)!
+            if let motor=joint.twist_motor() {
+                if let angle=motor.target_angle {
+                    if angle<joint.minimum_twist()-0.2 || angle>joint.maximum_twist()+0.2 { count++ }
+                }
+            }
+        }
+        return count
+    }
+    func verify_excessive_request() {
+        assert(self.excessive_requests()==4)
+        let desired=self.target(3,0)
+        for part in [3,5,7,9] {
+            let orientation=self.anatomy.instances[0].joint(part)!.orientation()
+            let error=2.0*Math.acos(Math.clamp(Math.abs(orientation.dot(desired[part].rotation)),0.0,1.0))
+            assert(error>0.25)
+        }
+    }
     func verify_target() {
         for instance in [0,1] {
             var variant=self.variant;if instance==1 { variant=0 }
             let desired=self.target(variant,instance)
+            if instance==0 && variant==3 { self.verify_excessive_request();continue }
             for i in [1,2,3,4,5,6,7,8,9] {
                 let error=2.0*Math.acos(Math.clamp(Math.abs(self.anatomy.instances[instance].joint(i)!.orientation().dot(desired[i].rotation)),0.0,1.0))
                 if error>=0.08 { print("Rejected target $(variant), instance $(instance), part $(i), error $(error)") }
@@ -221,3 +246,40 @@ package func verify_floor_drive() {
 }
 
 test "motor pose efforts compose with falling mobile torsos and floor contacts" { verify_floor_drive() }
+
+package func verify_excessive_request() {
+    for rate in [60,120] { for support in [0,1] { for delay in [0,2] {
+        var model=RagdollDriveModel();if support==1 { model.switch_support() }
+        var step=0;while step<rate*delay { model.step(1.0/rate);model.verify();step++ }
+        var before:Physics.Transform3D[]=[];var after:Physics.Transform3D[]=[];model.write_pose(before)
+        var velocities:Math.Vec3[]=[];var angular:Math.Vec3[]=[];var orientations:Math.Quat[]=[]
+        for instance in model.anatomy.instances { for part in [0,1,2,3,4,5,6,7,8,9] {
+            velocities.append(instance.body(part).linear_velocity());angular.append(instance.body(part).angular_velocity())
+        } }
+        for part in [3,5,7,9] { orientations.append(model.anatomy.instances[0].joint(part)!.orientation()) }
+        model.select(3);assert(model.excessive_requests()==4);model.write_pose(after)
+        var i=0;for instance in model.anatomy.instances { for part in [0,1,2,3,4,5,6,7,8,9] {
+            assert(before[i]==after[i] && instance.body(part).linear_velocity()==velocities[i] && instance.body(part).angular_velocity()==angular[i]);i++
+        } }
+        var excursion=0.0;step=0
+        while step<rate*4 {
+            model.step(1.0/rate);model.verify();i=0
+            for part in [3,5,7,9] {
+                let q=model.anatomy.instances[0].joint(part)!.orientation()
+                excursion=Math.max(excursion,2.0*Math.acos(Math.clamp(Math.abs(q.dot(orientations[i])),0.0,1.0)));i++
+            }
+            step++
+        }
+        model.verify_excessive_request();assert(excursion>0.1)
+        model.toggle();assert(model.excessive_requests()==0);model.push()
+        step=0;while step<rate { model.step(1.0/rate);model.verify();step++ }
+        model.toggle();assert(model.excessive_requests()==4)
+        step=0;while step<rate*3 { model.step(1.0/rate);model.verify();step++ }
+        model.verify_excessive_request();model.select(0)
+        step=0;while step<rate*4 { model.step(1.0/rate);model.verify();step++ }
+        if model.suspended { model.verify_target() }
+        model.reset();model.verify();assert(model.variant==1 && !model.motors)
+        print("Excessive request $(rate) Hz support $(support) delay $(delay): four targets exceed stops, observed excursion $(excursion), geometry, release, return and recreation verified")
+    } } }
+}
+test "excessive elbow and knee targets remain physical and bounded in suspension and on a floor" { verify_excessive_request() }

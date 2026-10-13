@@ -16,11 +16,18 @@ silex run Silex-Examples/Sources/Physics3D/RagdollDrive/Main.sx --release
 Utiliser les boutons ou les touches :
 
 - **1 / 2 / 0** : pose ouverte, repliée ou neutre pour l’or ;
+- **3** : demander des coudes et genoux au-delà de leurs butées ;
 - **P** : impulsion sur l’avant-bras or ;
 - **M** : arrêter ses moteurs, puis les reprendre vers la cible choisie ;
 - **T** : choisir suspension ou sol et recréer les deux mannequins ;
 - **Espace** : mettre en pause ou reprendre ;
 - **R** : recréer les assemblages ; **Échap** : quitter.
+
+La demande **3** conserve les épaules et hanches de la cible ouverte, mais
+demande −2,8 rad aux coudes et 2,8 rad aux genoux. Leurs limites restent
+−2,35 et 2,4 rad : les articulations bornent le geste et les contacts peuvent
+le bloquer avant la butée. Le panneau indique quatre demandes hors limites
+quand leurs moteurs sont actifs. Une cible excessive ne force aucun membre.
 
 Le changement de cible conserve les poses et vitesses ; seuls les moteurs
 orientent progressivement les membres. Une nouvelle cible reprend les moteurs.
@@ -45,6 +52,10 @@ Les options `--physics-check` et `--controls-check` valident le modèle et les
 commandes sans fenêtre ; `--smoke` parcourt les changements de cible, impulsion,
 arrêt, reprise, pause, reset et les deux modes dans une fenêtre qui se ferme
 automatiquement.
-Sur le binaire compilé, `--floor` démarre directement l’interactif au sol.
+Sur le binaire compilé, `--floor` démarre directement l’interactif au sol,
+et `--limits` sélectionne la demande excessive sans placer les membres.
+`--limits-check` isole sa recette sans fenêtre ; `--physics-check` l’inclut
+avec les parcours précédents. Le smoke contrôle cette demande dans les deux
+modes, puis revient à la suspension.
 Un smoke terminé exige son marqueur final, pas seulement un code de sortie nul.
 La cadence qu’il affiche constitue un échantillon local, sans comparaison FPS.
