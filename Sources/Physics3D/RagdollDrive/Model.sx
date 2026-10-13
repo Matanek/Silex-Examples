@@ -12,6 +12,13 @@ package class RagdollDriveModel {
     private var mobile_settings:Physics.Ragdoll3DSettings
     var steps:int=0
     var pushes:int=0
+    var shots:int=0
+    var projectile_impacts:int=0
+    var projectile_impulse:float=0.0
+    var projectile:Physics.RigidBody3D?=null
+    private var projectile_age:float=0.0
+    private var projectile_hit:bool=false
+    private var projectile_contacts:Physics.Contact3D[]=[]
     init() { self.mobile_settings=Limits.settings(self.anatomy);self.configure();self.reset() }
     private func configure() {
         var bounded=self.mobile_settings
@@ -68,17 +75,64 @@ package class RagdollDriveModel {
         forearm.apply_impulse(Math.Vec3(0.0,0.0,6.0),forearm.world_center_of_mass().add(Math.Vec3(0.0,-0.1,0.0)))
         self.pushes++
     }
+    private func clear_projectile() {
+        if var body=self.projectile { self.anatomy.world.destroy_rigid_body(body) }
+        self.projectile=null;self.projectile_age=0.0;self.projectile_hit=false;self.projectile_contacts.clear()
+    }
+    func shoot() {
+        self.clear_projectile()
+        var forearm=self.anatomy.instances[0].body(3)
+        let target=forearm.world_center_of_mass()
+        var start=target.add(Math.Vec3(0.0,0.0,-1.2));start.y=Math.max(start.y,0.4)
+        let velocity=forearm.linear_velocity().add(Math.Vec3(0.0,(target.y-start.y)/0.2,6.0))
+        self.projectile=self.anatomy.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.5)))
+            ..transform=Physics.Transform3D(start) ..linear_velocity=velocity
+            ..mass_properties=Physics.MassProperties3D(1.0,Math.Vec3(1.0/24.0))
+            ..allow_sleep=false ..continuous_collision=true ..friction=0.4 ..restitution=0.15)
+        self.shots++;self.projectile_impulse=0.0
+    }
+    private func observe_projectile(delta:float) {
+        if var projectile=self.projectile {
+            self.projectile_age+=delta
+            if !self.projectile_hit && self.projectile_age<=1.0 {
+                self.anatomy.world.write_contacts(self.projectile_contacts)
+                for contact in self.projectile_contacts {
+                    if contact.first_body().same_body(projectile) || contact.second_body().same_body(projectile) {
+                        for part in [0,1,2,3,4,5,6,7,8,9] {
+                            var member=self.anatomy.instances[0].body(part)
+                            if (contact.first_body().same_body(member) || contact.second_body().same_body(member)) && contact.normal_impulse()>0.00001 {
+                                self.projectile_hit=true;self.projectile_impacts++;self.projectile_impulse=contact.normal_impulse();break
+                            }
+                        }
+                        if self.projectile_hit { break }
+                    }
+                }
+            }
+            if self.projectile_age>=3.0 { self.clear_projectile() }
+        }
+    }
     func reset() {
-        self.anatomy.reset();self.steps=0;self.pushes=0
+        self.clear_projectile();self.anatomy.reset();self.steps=0;self.pushes=0;self.shots=0;self.projectile_impacts=0;self.projectile_impulse=0.0
         for i in [0,1] { var variant=0;if i==0 { variant=1 }
             self.anatomy.instances[i].set_local_pose(self.target(variant,i)) }
         self.anatomy.instances[1].drive_to_local_pose(self.target(0,1),120.0,400.0,40.0)
         self.variant=1;self.motors=false;self.anatomy.instances[0].stop_motors()
     }
-    func step(delta:float) { self.anatomy.world.step(delta);self.steps++ }
+    func step(delta:float) { self.anatomy.world.step(delta);self.observe_projectile(delta);self.steps++ }
     func write_pose(output:&Physics.Transform3D[]) { self.anatomy.write_pose(output) }
     func verify() {
         var expected_bodies=20;if !self.suspended { expected_bodies++ }
+        if var projectile=self.projectile {
+            expected_bodies++
+            assert(projectile.is_valid() && projectile.linear_velocity().length()<40.0 && projectile.angular_velocity().length()<300.0)
+            if !self.suspended {
+                let signs:int[]=[-1,1]
+                for x in signs { for y in signs { for z in signs {
+                    assert(projectile.transform().point(Math.Vec3(0.25*x as float,0.25*y as float,0.25*z as float)).y> -0.05)
+                } } }
+            }
+        }
         assert(self.anatomy.world.body_count()==expected_bodies && self.anatomy.world.swing_twist_constraint_count()==18)
         var number=0
         for instance in self.anatomy.instances {
@@ -158,7 +212,7 @@ package class RagdollDriveModel {
     func measurement() str {
         var mode="moteurs actifs";if !self.motors { mode="membres libres" }
         var support="torses suspendus";if !self.suspended { support="torses mobiles · sol physique" }
-        return "$(support) | Or : pose $(self.variant), $(mode) | Bleu : neutre | Impulsions : $(self.pushes) | Contacts : $(self.anatomy.world.contact_count())"
+        return "$(support) | Or : pose $(self.variant), $(mode) | Bleu neutre | P : $(self.pushes) | Blocs : $(self.shots), impacts : $(self.projectile_impacts) | Contacts : $(self.anatomy.world.contact_count())"
     }
 }
 

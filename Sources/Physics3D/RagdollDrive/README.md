@@ -18,6 +18,7 @@ Use the buttons or keys:
 - **1 / 2 / 0**: open, folded or neutral target for gold;
 - **3**: request elbow and knee angles beyond their stops;
 - **P**: impulse on gold's forearm;
+- **B**: launch a red block towards that arm and observe its physical impact;
 - **M**: stop its motors, then resume towards the selected target;
 - **T**: choose suspension or floor and recreate both mannequins;
 - **Space**: pause or resume;
@@ -29,9 +30,15 @@ and 2.4 rad: joints bound the gesture, and contacts may block it before a stop.
 The panel reports four excessive requests while their motors are active.
 An excessive target does not place any member.
 
+The block flies and transfers its impact through contact: B changes no
+mannequin pose or velocity when firing. The impact counter increases only
+after a measured contact with gold. Only one block is active; a new shot
+replaces it, and it disappears after about three seconds. R and T remove it.
+B resumes after a pause; Space freezes the projectile too.
+
 Changing the target preserves poses and velocities: motors progressively turn
 the limbs. A new target resumes the motors. R and mode changes are the only
-immediate placements in this demo. Fixed torsos make the joints observable without the
+immediate mannequin placements in this demo. Fixed torsos make the joints observable without the
 whole assembly falling; this demonstrates neither standing balance nor world
 translation control. In floor mode, motors act on contacting limbs while the
 torsos remain fully mobile: a target does not impose a pose, and contacts may
@@ -46,13 +53,18 @@ Targets change on commands; metrics and UI refresh at
 10 Hz or after an actual action. Detailed geometric observations run only in
 tests and smokes.
 
+On the compiled binary, `--projectile-check` qualifies firing, contact and
+response without a window at 60/120 Hz in both support modes, with active or
+released motors. It also compares an identical mannequin without a block.
+
 `--physics-check` and `--controls-check` validate the model and controls without
 a window; `--smoke` exercises target changes, impulse, release, resume, pause,
-reset and both modes in a window that closes automatically. On the compiled
+reset, then block flight/impact in both modes, with interpolated rendering
+and visibility checked in a window that closes automatically. On the compiled
 binary, `--floor` starts the interactive scene directly on the floor and
 `--limits` selects the excessive request without placing members.
 `--limits-check` isolates its headless recipe; `--physics-check` includes it
-alongside the previous cases. Smoke checks the request in both modes before
-returning to suspension. A completed
+alongside the previous cases. Smoke checks the request and then block firing in both support modes.
+A completed
 smoke requires its final marker, not only exit code zero. Its frame rate is a local sample,
 without a comparative FPS claim.

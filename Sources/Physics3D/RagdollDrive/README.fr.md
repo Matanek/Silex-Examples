@@ -18,6 +18,7 @@ Utiliser les boutons ou les touches :
 - **1 / 2 / 0** : pose ouverte, repliée ou neutre pour l’or ;
 - **3** : demander des coudes et genoux au-delà de leurs butées ;
 - **P** : impulsion sur l’avant-bras or ;
+- **B** : lancer un bloc rouge vers ce bras et observer son choc physique ;
 - **M** : arrêter ses moteurs, puis les reprendre vers la cible choisie ;
 - **T** : choisir suspension ou sol et recréer les deux mannequins ;
 - **Espace** : mettre en pause ou reprendre ;
@@ -29,9 +30,15 @@ demande −2,8 rad aux coudes et 2,8 rad aux genoux. Leurs limites restent
 le bloquer avant la butée. Le panneau indique quatre demandes hors limites
 quand leurs moteurs sont actifs. Une cible excessive ne force aucun membre.
 
+Le bloc vole puis transmet son choc par contact : B ne change aucune pose
+ou vitesse du mannequin lors du tir. Le compteur d’impacts augmente seulement
+après un contact mesuré avec l’or. Un seul bloc est actif ; un nouveau tir
+le remplace, et il disparaît après environ trois secondes. R et T le retirent.
+B reprend la simulation après une pause ; Espace fige aussi le projectile.
+
 Le changement de cible conserve les poses et vitesses ; seuls les moteurs
 orientent progressivement les membres. Une nouvelle cible reprend les moteurs.
-R et le changement de mode sont les seuls placements immédiats de cette démo.
+R et le changement de mode sont les seuls placements immédiats des mannequins.
 Le torse fixe permet
 l’observation des articulations sans chute de l’ensemble : il ne démontre ni
 l’équilibre debout ni une commande de déplacement mondial. Dans le mode sol,
@@ -48,14 +55,19 @@ l’amortir presque immédiatement. Leurs cibles changent aux commandes ; la
 mesure et l’interface sont actualisées à 10 Hz ou après une action effective.
 Les observations géométriques détaillées sont réservées aux tests et au smoke.
 
+Sur le binaire compilé, `--projectile-check` qualifie sans fenêtre le tir,
+le contact et la réaction à 60/120 Hz dans les deux supports, avec moteurs
+actifs ou libres. Ce parcours compare aussi un mannequin témoin sans bloc.
+
 Les options `--physics-check` et `--controls-check` valident le modèle et les
 commandes sans fenêtre ; `--smoke` parcourt les changements de cible, impulsion,
-arrêt, reprise, pause, reset et les deux modes dans une fenêtre qui se ferme
+arrêt, reprise, pause, reset, puis deux vols/impacts de bloc dans les deux
+modes, avec rendu interpolé et visibilité vérifiés dans une fenêtre qui se ferme
 automatiquement.
 Sur le binaire compilé, `--floor` démarre directement l’interactif au sol,
 et `--limits` sélectionne la demande excessive sans placer les membres.
 `--limits-check` isole sa recette sans fenêtre ; `--physics-check` l’inclut
-avec les parcours précédents. Le smoke contrôle cette demande dans les deux
-modes, puis revient à la suspension.
+avec les parcours précédents. Le smoke contrôle cette demande puis les tirs
+de bloc dans les deux modes.
 Un smoke terminé exige son marqueur final, pas seulement un code de sortie nul.
 La cadence qu’il affiche constitue un échantillon local, sans comparaison FPS.
