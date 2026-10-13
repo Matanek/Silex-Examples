@@ -10,6 +10,7 @@ synchronisation automatique.
 | Démonstration | Source actuelle | Origine |
 | --- | --- | --- |
 | Historique et navigation de texte | `Sources/UITextEditing/Main.sx` | composition publique : undo/redo regroupés, mots Unicode, champs longs et multiligne, thème et caret conservé |
+| Arbres de données | `Sources/UITreeView/Main.sx` | composition publique : 50 000 feuilles, branche profonde, ouverture, sélection, clavier, mutations et édition virtualisée |
 | Épaule et coude sous charge | `Sources/Physics3D/ArticulatedPose/Main.sx` | composition qualifiée : quatre servos, repère mobile du coude, deux poses opposées, recentrage, pause et mesures locales |
 | Hiérarchie et poses ragdoll | `Sources/Physics3D/RagdollPose/Main.sx` | deux mannequins à dix membres, poses indépendantes, repères d’articulation, chute libre courte, pause et recréation |
 | Chute et impulsion ragdoll | `Sources/Physics3D/RagdollFall/Main.sx` | deux mannequins aux articulations bornées, collisions internes non voisines, impulsion sur le torse or, sol, pause et recréation |

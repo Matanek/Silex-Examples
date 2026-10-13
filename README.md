@@ -1019,3 +1019,13 @@ available. This does not demonstrate standing balance.
 
 `silex run Silex-Examples/Sources/Physics3D/RagdollDrive/Main.sx --release`.
 [Guide français](Sources/Physics3D/RagdollDrive/README.fr.md).
+
+
+## Hierarchical data trees
+
+`Sources/UITreeView/Main.sx` explores 50,000 leaves and a deep branch with
+stable selection, disclosure controls, hierarchical keyboard navigation,
+filtering, mutation and an editable row. Wheel scrolling is smoothed and the
+counter reports constructed row descriptions. [Guide](Sources/UITreeView/README.md).
+
+`silex run Silex-Examples/Sources/UITreeView/Main.sx --release`.

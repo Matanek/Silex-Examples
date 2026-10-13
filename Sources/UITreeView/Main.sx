@@ -1,0 +1,207 @@
+use GFX.UI
+use GFX.Canvas
+use GFX.Viewer
+use GFX.Window
+use GFX.Window.Cursor
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use STD.Process
+
+func tree_key(value:int) str { return "entry-$(value)" }
+func caption(value:str, size:float = 16.0) UI.Text {
+    var text = UI.Text(value); text.style.font_size = size; return text
+}
+class Hierarchy {
+    let reversed:bool
+    let removed:bool
+    init(reversed:bool, removed:bool) { self.reversed = reversed; self.removed = removed }
+    func children(value:int) int[] {
+        if value < 0 { if value > -200 { return [value - 1] } return [] }
+        if value >= 20 { return [] }
+        var items:int[] = []; var i = 0
+        while i < 2500 {
+            var item = 1000 + value * 2500 + i
+            if self.reversed { item = 1000 + value * 2500 + 2499 - i }
+            if !self.removed || item != 1000 { items.append(item) }
+            i++
+        }
+        return items
+    }
+}
+class TreeDemo {
+    var roots:UI.State<int[]> = UI.State<int[]>([])
+    var expanded:UI.State<str[]> = UI.State<str[]>([])
+    var selected:UI.State<str?> = UI.State<str?>(null)
+    var selections:UI.State<str[]> = UI.State<str[]>([])
+    var multiple:UI.State<bool> = UI.State<bool>(false)
+    var reversed:UI.State<bool> = UI.State<bool>(false)
+    var removed:UI.State<bool> = UI.State<bool>(false)
+    var light:UI.State<bool> = UI.State<bool>(false)
+    var summary:UI.State<str> = UI.State<str>("")
+    var name:UI.State<str> = UI.State<str>("Feuille éditable — 1000")
+    var scroll:UI.ScrollState = UI.ScrollState(0.0)
+    var focus:UI.Focus = UI.Focus()
+    var built:int = 0
+    var last_batch:int = 0
+    init() { self.all() }
+    func all() {
+        var roots:int[] = []; var i = 0
+        while i < 20 { roots.append(i); i++ }
+        self.roots.set(roots); self.expanded.set([tree_key(0)]); self.selected.set(null); self.selections.set([])
+        self.focus.request()
+    }
+    func filter() {
+        var roots:int[] = []; var i = 0
+        while i < 20 { roots.append(i); i += 2 }
+        self.roots.set(roots)
+    }
+    func reverse() { self.reversed.set(!self.reversed.value()) }
+    func remove() { self.removed.set(!self.removed.value()) }
+    func empty() { self.roots.set([]) }
+    func collapse() { self.expanded.set([]); self.focus.request() }
+    func expand() {
+        var keys:str[] = []
+        for root in self.roots.value() { keys.append(tree_key(root)) }
+        self.expanded.set(keys); self.focus.request()
+    }
+    func deep() {
+        var keys:str[] = []; var value = -1
+        while value > -200 { keys.append(tree_key(value)); value-- }
+        self.roots.set([-1]); self.expanded.set(keys)
+        self.selected.set(tree_key(-200)); self.selections.set([tree_key(-200)])
+        self.focus.request()
+    }
+    func theme() { self.light.set(!self.light.value()) }
+    func row(value:int) UI.View {
+        self.built++
+        if value == 1000 { return UI.TextField(self.name, smooth_scroll:true, scroll_chain:false) }
+        if value < 0 { return caption("Niveau $(-value) — clé $(value)") }
+        if value < 20 { return caption("Dossier $(value + 1) · 2 500 feuilles") }
+        return caption("Feuille $(value) — identité $(tree_key(value))")
+    }
+    func tree(reads:UI.Reads) UI.View {
+        var data = Hierarchy(reads.read(self.reversed), reads.read(self.removed))
+        let roots = reads.read(self.roots)
+        var style = UI.Style(); style.flex = 1.0; style.radius = 6.0
+        var view:UI.View = UI.Text("")
+        if reads.read(self.multiple) {
+            view = UI.TreeView<int>(roots, tree_key, data.children, self.row,
+                selection:self.selections, expanded:self.expanded, state:self.scroll,
+                style:style, smooth_scroll:true, scroll_chain:false,
+                empty:caption("Arbre vide — cliquer sur 50 000 feuilles"))
+        } else {
+            view = UI.TreeView<int>(roots, tree_key, data.children, self.row,
+                selection:self.selected, expanded:self.expanded, state:self.scroll,
+                style:style, smooth_scroll:true, scroll_chain:false,
+                empty:caption("Arbre vide — cliquer sur 50 000 feuilles"))
+        }
+        return UI.FocusTarget(self.focus, view)
+    }
+    func status(reads:UI.Reads) UI.View { return caption(reads.read(self.summary), 14.0) }
+    func describe(reads:UI.Reads) UI.View {
+        var controls = UI.Row([
+            UI.Button("50 000 feuilles", self.all), UI.Button("Dossiers pairs", self.filter),
+            UI.Button("Inverser enfants", self.reverse), UI.Button("Retirer / ajouter 1000", self.remove),
+            UI.Button("Tout ouvrir", self.expand), UI.Button("Replier", self.collapse),
+            UI.Button("200 niveaux", self.deep), UI.Button("Vider", self.empty), UI.Button("Clair / sombre", self.theme)
+        ], wrap:true); controls.style.gap = 8.0
+        var root = UI.Column([
+            caption("Arbres de données — TreeView J4", 26.0),
+            caption("Flèche : ouvrir / fermer · Ligne : sélectionner · Tab, Haut/Bas, Gauche/Droite"),
+            controls, UI.Checkbox("Sélection multiple · Maj + Haut/Bas pour étendre", self.multiple),
+            UI.Reactive(self.tree), UI.Reactive(self.status),
+            caption("La sélection garde sa clé quand une branche se replie. La feuille 1000 est éditable.", 14.0)
+        ])
+        root.style.padding = UI.Insets(16.0); root.style.gap = 10.0
+        root.style.theme = UI.Theme.dark()
+        if reads.read(self.light) { root.style.theme = UI.Theme.light() }
+        return root
+    }
+    func update_status() bool {
+        var selection = self.selected.value() ?? "aucune"
+        if self.multiple.value() { selection = "$(self.selections.value().count()) clés" }
+        let value = "Sélection : $(selection) · $(self.expanded.value().count()) branches ouvertes · descriptions : $(self.built) (lot : $(self.last_batch))"
+        if self.summary.value() == value { return false }
+        self.summary.set(value); return true
+    }
+}
+class TreeSession:Canvas.Session {
+    var model:TreeDemo = TreeDemo()
+    var session:UI.Session?
+    init() { self.session = UI.Session(UI.Reactive(self.model.describe)) }
+    func ui() UI.Session { return self.session! }
+    func drawing(width:int, height:int) Canvas {
+        let before = self.model.built
+        var result = self.ui().drawing(width, height)
+        self.model.last_batch = self.model.built - before
+        return result
+    }
+    func update(delta:float) bool {
+        let changed = self.ui().update(delta)
+        return self.model.update_status() || changed
+    }
+    func handle(event:@Events.Event) bool { return self.ui().handle(event) }
+    func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
+    func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.ui().text_input_target() }
+    func check_cpu() {
+        for width in [960, 420] {
+            self.model.all(); var first = self.drawing(width, 760)
+            let before = self.model.built; var idle = self.drawing(width, 760)
+            assert(self.model.built == before)
+            self.model.expand(); var expanded = self.drawing(width, 760)
+            assert(self.model.built - before < 60)
+            self.model.scroll.set_offset(self.model.scroll.maximum_offset())
+            var last = self.drawing(width, 760)
+            let stable = self.model.built
+            for step in [0, 1, 2] { self.update(0.01); var idle_frame = self.drawing(width, 760) }
+            assert(self.model.built == stable)
+            self.model.deep(); var deep = self.drawing(width, 760)
+            assert(self.model.selected.value() == tree_key(-200) && self.model.scroll.offset() == self.model.scroll.maximum_offset())
+            self.model.collapse(); var collapsed = self.drawing(width, 760)
+            assert(self.model.selected.value() == tree_key(-200) && self.model.scroll.offset() == 0.0)
+            self.model.all(); var restored = self.drawing(width, 760)
+            self.model.reverse(); var reversed = self.drawing(width, 760)
+            self.model.filter(); var filtered = self.drawing(width, 760)
+            self.model.empty(); var empty = self.drawing(width, 760)
+            self.model.all(); var ready = self.drawing(width, 760)
+        }
+        var tiny = self.drawing(1, 1)
+        print("UITreeView CPU : OK")
+    }
+}
+func navigation_event(key:Keyboard.Key) Events.Event {
+    return Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:1 as uint32),
+        keyboard:Keyboard.KeyboardId(value:1 as uint32), key:key, keycode:0 as uint32,
+        raw:0 as uint16, repeated:false, modifiers:Keyboard.Modifiers(),
+        timestamp:Events.Timestamp(nanoseconds:1 as uint)))
+}
+test "actual tree gallery routes hierarchical key events and retains navigation through theme" {
+    var session = TreeSession(); session.model.deep()
+    var drawing = session.drawing(960, 760)
+    assert(session.handle(navigation_event(Keyboard.Key.left)))
+    assert(session.model.selected.value() == tree_key(-199))
+    drawing = session.drawing(960, 760)
+    assert(session.handle(navigation_event(Keyboard.Key.home)))
+    drawing = session.drawing(960, 760)
+    assert(session.model.selected.value() == tree_key(-1) && session.model.scroll.offset() == 0.0)
+    assert(session.handle(navigation_event(Keyboard.Key.left)))
+    drawing = session.drawing(960, 760)
+    assert(session.handle(navigation_event(Keyboard.Key.right)))
+    drawing = session.drawing(960, 760)
+    assert(session.handle(navigation_event(Keyboard.Key.right)))
+    assert(session.model.selected.value() == tree_key(-2))
+    session.model.theme(); drawing = session.drawing(960, 760)
+    assert(session.handle(navigation_event(Keyboard.Key.down)))
+    assert(session.model.selected.value() == tree_key(-3))
+}
+
+test "actual tree gallery bounds rows while exploring wide deep filtered and empty data" {
+    var session = TreeSession(); session.check_cpu()
+}
+func main() {
+    var session = TreeSession()
+    for argument in Process.arguments() { if argument == "--cpu-check" { session.check_cpu(); return } }
+    let code = Viewer.show(session, Viewer.CanvasSettings(width:960, height:760, title:"Silex — Arbres de données J4"))
+    if code != 0 { panic("TreeView viewer failed") }
+}
