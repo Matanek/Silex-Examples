@@ -1012,7 +1012,9 @@ motors; blue holds neutral. Push gold's forearm, release its motors and resume
 the selected target, while anatomical limits and internal collisions remain
 active. T switches between suspension and mobile torsos falling onto a physical
 floor, where target efforts interact with contacts. 3 requests elbow/knee
-angles beyond their stops to observe the physically bounded gesture. Pause and recreation are
+angles beyond their stops to observe the physically bounded gesture. B launches
+a red block towards the forearm; flight and measured contacts transfer the
+impact to the joints. Pause and recreation are
 available. This does not demonstrate standing balance.
 
 `silex run Silex-Examples/Sources/Physics3D/RagdollDrive/Main.sx --release`.

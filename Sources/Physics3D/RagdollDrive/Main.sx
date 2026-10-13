@@ -11,6 +11,7 @@ use GFX.UI
 use GFX.Physics
 use Physics3D.RagdollDrive.Model
 use Physics3D.RagdollDrive.Controls
+use Physics3D.RagdollDrive.ProjectileCheck
 use Physics3D.ArticulatedPose.Controls as InputCheck
 use STD.Math
 use STD.Process
@@ -23,6 +24,9 @@ class RagdollDriveScene {
     var panel:ECS.Entity=ECS.Entity()
     var bodies:ECS.Entity[]=[]
     var markers:ECS.Entity[]=[]
+    var projectile_entity:ECS.Entity=ECS.Entity()
+    var previous_projectile:Physics.Transform3D?=null
+    var projectile_start:Math.Vec3=Math.Vec3()
     var previous:Physics.Transform3D[]=[]
     var current:Physics.Transform3D[]=[]
     var accumulator:float=0.0
@@ -39,7 +43,7 @@ func visual(world:&Resources.World,mesh:Scene3D.MeshHandle,size:Math.Vec3,color:
     return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(scale:size))
         ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.7)))
 }
-func sync_previous(state:&RagdollDriveScene) { state.model.write_pose(state.previous);state.accumulator=0.0 }
+func sync_previous(state:&RagdollDriveScene) { state.model.write_pose(state.previous);state.previous_projectile=null;state.accumulator=0.0 }
 func update_labels(state:&RagdollDriveScene,simulation:@Application.Simulation) {
     var label="Pause (Espace)";if simulation.is_paused() { label="Reprendre (Espace)" }
     if state.controls.pause_text.value()!=label { state.controls.pause_text.set(label) }
@@ -72,6 +76,11 @@ func perform(state:&RagdollDriveScene,simulation:&Application.Simulation) {
         changed=true;state.controls.pushes--;state.model.push();simulation.resume()
         state.controls.feedback.set("Impulsion sur l’avant-bras or — observez la résistance ou le mouvement libre.")
     }
+    while state.controls.shots>0 {
+        changed=true;state.controls.shots--;state.model.shoot();simulation.resume()
+        state.previous_projectile=copy state.model.projectile!.transform()
+        state.controls.feedback.set("Bloc lancé vers le bras or — le choc vient du contact physique. Un bloc à la fois, visible 3 s.")
+    }
     while state.controls.resets>0 {
         changed=true;state.controls.resets--;state.model.reset();sync_previous(state);simulation.resume()
         state.controls.feedback.set("Assemblages recréés dans le mode courant — or libre, bleu maintenu au neutre.")
@@ -79,7 +88,7 @@ func perform(state:&RagdollDriveScene,simulation:&Application.Simulation) {
     while state.controls.pauses>0 {
         changed=true;state.controls.pauses--
         if simulation.is_paused() { simulation.resume();state.controls.feedback.set("Simulation reprise.") }
-        else { simulation.pause();state.controls.feedback.set("En pause — les vingt membres sont figés.") }
+        else { simulation.pause();state.controls.feedback.set("Simulation en pause — membres et bloc restent figés.") }
     }
     if changed { update_labels(state,simulation) }
 }
@@ -92,6 +101,8 @@ func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&RagdollDri
             state.markers.append(visual(world,cube,Math.Vec3(0.08),Color.bytes(245,245,245)))
         }
     }
+    state.projectile_entity=visual(world,cube,Math.Vec3(0.5),Color.bytes(255,92,65))
+    world.update<Components.Mesh3D>(state.projectile_entity,func(mesh:&Components.Mesh3D) { mesh.visible=false })
     let floor=visual(world,cube,Math.Vec3(20.0,0.2,20.0),Color.bytes(70,88,105))
     world.update<Components.Transform3D>(floor,func(t:&Components.Transform3D) { t.position=Math.Vec3(0.0,-0.1,0.0) })
     world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.55)))
@@ -130,6 +141,21 @@ func smoke_commands(state:&RagdollDriveScene,simulation:&Application.Simulation,
         assert(!state.model.motors);state.controls.support();perform(state,simulation);state.smoke_phase=9
     } else if state.smoke_phase==9 && state.model.steps>=240 {
         assert(state.model.suspended && state.model.anatomy.world.body_count()==20);verify_framing(state)
+        state.controls.shoot();perform(state,simulation)
+        state.projectile_start=copy state.model.projectile!.position();verify_projectile_framing(state);state.smoke_phase=10
+    } else if state.smoke_phase==10 && state.model.steps>=360 {
+        assert(state.model.projectile_impacts==1 && state.model.projectile_impulse>0.00001)
+        assert(state.model.projectile!.position().subtract(state.projectile_start).length()>0.1);verify_framing(state)
+        state.controls.support();perform(state,simulation);assert(state.model.projectile==null);state.smoke_phase=11
+    } else if state.smoke_phase==11 && state.model.steps>=240 {
+        assert(!state.model.suspended);state.controls.shoot();perform(state,simulation)
+        state.projectile_start=copy state.model.projectile!.position();verify_projectile_framing(state);state.smoke_phase=12
+    } else if state.smoke_phase==12 && state.model.steps>=360 {
+        assert(state.model.projectile_impacts==1 && state.model.projectile_impulse>0.00001)
+        assert(state.model.projectile!.position().subtract(state.projectile_start).length()>0.1);verify_framing(state)
+        state.controls.reset();perform(state,simulation)
+        assert(state.model.projectile==null && state.model.shots==0 && state.model.anatomy.world.body_count()==21)
+        print("Ragdoll block smoke: visible flight, measured anatomical contacts, both supports, interpolated projectile and reset verified")
         print("Ragdoll drive smoke: target changes, impulse, motor release, neutral, exact pause, reset and rendered transforms verified")
         print("Ragdoll excessive smoke: four requests beyond elbow/knee stops remain bounded in both support modes")
         print("Ragdoll floor smoke: mobile torsos, physical floor, target effort, impulse and support recreation verified")
@@ -146,7 +172,10 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&RagdollDri
     state.accumulator+=simulation.delta()
     let delta=1.0/120.0
     while state.accumulator>=delta && !simulation.is_paused() {
-        state.model.write_pose(state.previous);state.model.step(delta);state.accumulator-=delta
+        state.model.write_pose(state.previous)
+        state.previous_projectile=null
+        if var projectile=state.model.projectile { state.previous_projectile=copy projectile.transform() }
+        state.model.step(delta);state.accumulator-=delta
         if state.smoke { state.model.verify() }
     }
     state.telemetry+=simulation.delta()
@@ -175,6 +204,23 @@ func render(world:&Resources.World,state:&RagdollDriveScene) {
         }
         i++
     }
+    var visible=false
+    if var projectile=state.model.projectile {
+        visible=true;let current=projectile.transform();var previous=current
+        if let stored=state.previous_projectile { previous=stored }
+        let pose=blended(previous,current,alpha)
+        world.update<Components.Transform3D>(state.projectile_entity,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
+        if state.smoke {
+            assert(world.get<Components.Transform3D>(state.projectile_entity).position.nearly_equal(pose.position,0.00001))
+            assert(world.get<Components.Transform3D>(state.projectile_entity).rotation==pose.rotation)
+            if state.model.projectile_impacts==0 { verify_projectile_framing(state) }
+        }
+    }
+    if world.get<Components.Mesh3D>(state.projectile_entity).visible!=visible {
+        world.update<Components.Mesh3D>(state.projectile_entity,func(mesh:&Components.Mesh3D) { mesh.visible=visible })
+    }
+    if state.smoke { assert(world.get<Components.Mesh3D>(state.projectile_entity).visible==visible) }
+
 }
 func camera_settings() Plugins.ViewportCamera3D.Settings {
     return Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,3.8,0.0)
@@ -206,6 +252,18 @@ func verify_framing(state:@RagdollDriveScene) {
     for x in signs {
         let point=camera.project(Math.Vec3(1.6*x as float,0.0,0.0),transform,viewport)!
         assert(point.y>300.0 && point.y<780.0)
+    }
+}
+func verify_projectile_framing(state:@RagdollDriveScene) {
+    if var projectile=state.model.projectile {
+        let settings=camera_settings();var controller=Resources.ViewportCamera3D(settings)
+        var camera=Scene3D.Camera(vertical_fov:settings.vertical_fov);let transform=controller.transform()
+        let signs:int[]=[-1,1]
+        for x in signs { for y in signs { for z in signs {
+            let corner=projectile.transform().point(Math.Vec3(0.25*x as float,0.25*y as float,0.25*z as float))
+            let point=camera.project(corner,transform,Math.Vec2(1280.0,800.0))!
+            assert(point.x>20.0 && point.x<1260.0 && point.y>300.0 && point.y<780.0)
+        } } }
     }
 }
 func verify_interactions() {
@@ -240,6 +298,21 @@ func verify_interactions() {
     state.controls.pose_one();perform(state,simulation)
     assert(state.controls.handle(InputCheck.key_event(Input.Key.num3,51 as uint32,true)));perform(state,simulation);assert(state.model.variant==1)
     assert(state.controls.handle(InputCheck.key_event(Input.Key.num3,51 as uint32)));perform(state,simulation);assert(state.model.variant==3)
+    simulation.pause();let arm=copy state.model.anatomy.instances[0].body(3).transform()
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.b,98 as uint32)));perform(state,simulation)
+    assert(!simulation.is_paused() && state.model.shots==1 && state.model.projectile!=null)
+    assert(state.model.anatomy.instances[0].body(3).transform()==arm);verify_projectile_framing(state)
+    var block=state.model.projectile!;let position=copy block.position()
+    render(world,state);assert(world.get<Components.Mesh3D>(state.projectile_entity).visible)
+    assert(world.get<Components.Transform3D>(state.projectile_entity).position==position)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.b,98 as uint32,true)));perform(state,simulation)
+    assert(state.model.shots==1 && block.is_valid())
+    InputCheck.click(state.ui,850.0,155.0);perform(state,simulation);assert(state.model.shots==2 && !block.is_valid())
+    block=state.model.projectile!;state.controls.pause();perform(state,simulation)
+    render(world,state);assert(state.model.projectile!.position()==block.position() && simulation.is_paused())
+    state.controls.reset();perform(state,simulation);render(world,state)
+    assert(!block.is_valid() && state.model.projectile==null && !world.get<Components.Mesh3D>(state.projectile_entity).visible)
+
 }
 test "motor pose controls deliver targets, release, impulse, pause and recreation" { verify_interactions() }
 func verify_floor_framing() {
@@ -260,8 +333,9 @@ func main() {
     for argument in arguments {
         if argument=="--floor" { start_floor=true }
         if argument=="--limits" { start_limits=true }
+        if argument=="--projectile-check" { ProjectileCheck.verify_projectile();return }
         if argument=="--limits-check" { Model.verify_excessive_request();return }
-        if argument=="--physics-check" { Model.verify_drive();Model.verify_reaction();Model.verify_floor_drive();Model.verify_excessive_request();return }
+        if argument=="--physics-check" { Model.verify_drive();Model.verify_reaction();Model.verify_floor_drive();Model.verify_excessive_request();ProjectileCheck.verify_projectile();return }
         if argument=="--controls-check" { verify_interactions();print("Ragdoll drive: UI, keyboard, pose commands, pause, reset and transforms verified");return }
         if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
     }
