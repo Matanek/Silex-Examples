@@ -34,7 +34,7 @@ annulez pour retrouver le texte et la sélection.
 Le binaire accepte `--cpu-check` : il exerce historique, mots, thèmes, sélection
 maintenue, événements de composition IME et tailles 900/480/200/1 sans ouvrir
 de fenêtre. Les tests Debug/Release qualifient ce mode ; l’essai IME natif reste
-distinct. Le tactile reste à compléter.
+distinct. Les gestes tactiles sont décrits ci-dessous.
 
 La police de repli embarquée affiche les idéogrammes et les emojis de la galerie,
 ces derniers en monochrome. Les raccourcis alphabétiques suivent la disposition
@@ -49,3 +49,12 @@ Composez à nouveau puis appuyez sur Échap : la valeur précédente et le focus
 restent. Essayez aussi le texte multiligne et un champ défilé ; la fenêtre de
 candidats doit suivre le caret visible. F2 conserve une composition en cours ;
 changer de champ ou imposer une autre valeur avec F3 l’annule.
+
+Pour essayer les poignées sur desktop, démarrez le binaire avec `--touch-simulation`
+ou utilisez `F4`. Le libellé SIMULATION TACTILE confirme le mode : un clic place
+le caret, un maintien sélectionne le mot, puis les bulles déplacent les
+extrémités. Faire glisser le corps du champ défile ; maintenir une poignée hors
+du bord prolonge la sélection. Échap annule le geste simulé. Les notifications
+restent inchangées jusqu’à l’édition ; Cmd+Z conserve son rôle habituel.
+Les événements `finger_*` d’un écran tactile sont également transmis, mais la
+simulation souris et les tests CPU ne constituent pas une preuve matérielle.

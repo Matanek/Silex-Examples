@@ -33,7 +33,7 @@ Release to stop, replace the selection, then undo to recover text and selection.
 The executable accepts `--cpu-check`: it exercises history, words, themes, held
 selection and 900/480/200/1 widths without opening a window. Debug/Release tests qualify this
 mode. CPU checks also exercise provisional IME events. Native IME testing
-remains separate; touch gestures remain to be implemented.
+remains separate; touch gestures are described below.
 
 [Guide français](README.fr.md).
 
@@ -49,3 +49,11 @@ and Cmd+Z undoes the whole word. Compose again and press Escape: the previous
 value and focus remain. Also try multiline text and a scrolled field; the
 candidate window should follow the visible caret. F2 preserves active preedit;
 switching fields or replacing the value with F3 cancels it.
+
+To try handles on desktop, start the binary with `--touch-simulation` or use `F4`.
+The SIMULATION TACTILE caption confirms the mode: click to place the caret,
+hold to select a word, then drag the bubbles to move its endpoints. Drag the
+field body to pan; hold a handle beyond an edge to extend selection. Escape
+cancels the simulated gesture. Notifications wait for an edit; Cmd+Z retains
+its ordinary role. Hardware `finger_*` events are also forwarded, but mouse
+simulation and CPU tests do not constitute hardware touchscreen evidence.

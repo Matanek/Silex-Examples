@@ -26,6 +26,7 @@ class EditingForm {
     var long:UI.State<str> = UI.State<str>(long_line())
     var area:UI.State<str> = UI.State<str>(paragraphs())
     var bright:UI.State<bool> = UI.State<bool>(false)
+    var touch_mode:UI.State<bool> = UI.State<bool>(false)
     var changes:UI.State<int> = UI.State<int>(0)
     var short_focus:UI.Focus = UI.Focus()
     var long_focus:UI.Focus = UI.Focus()
@@ -44,8 +45,11 @@ class EditingForm {
         var short = UI.TextField(self.short, on_change:self.edited, style:style)
         var long = UI.TextField(self.long, on_change:self.edited, style:style)
         var area = UI.TextArea(self.area, on_change:self.edited, style:style); area.style.height = 200.0
+        var touch_hint = "F4 : simulation tactile à la souris. Tap : caret ; maintien : mot ; poignées : sélection."
+        if reads.read(self.touch_mode) { touch_hint = "SIMULATION TACTILE — souris = doigt ; glissez le texte pour défiler, Échap annule le geste." }
         var root = UI.Column([
-            UI.Text("Édition de texte — historique, mots et IME"),
+            UI.Text("Édition de texte — historique, IME et tactile"),
+            UI.Text(touch_hint),
             UI.Text("Cmd/Ctrl+Z : annuler · Maj+Cmd/Ctrl+Z ou Ctrl+Y : rétablir."),
             UI.Text("Option/Ctrl+flèches : mots · ajouter Maj pour sélectionner."),
             UI.Text("Glissez hors du champ et maintenez sans bouger ; relâchez pour arrêter."),
@@ -74,19 +78,89 @@ class EditingForm {
 class EditingSession:Canvas.Session {
     var form:EditingForm = EditingForm()
     private var runtime:UI.Runtime?
-    init() { self.runtime = UI.Runtime(UI.Reactive(self.form.describe)) }
+    private var width:int = 0
+    private var height:int = 0
+    private var last_touch:Math.Vec2 = Math.Vec2()
+    init(simulated:bool = false) {
+        self.form.touch_mode.set(simulated)
+        self.runtime = UI.Runtime(UI.Reactive(self.form.describe))
+    }
     func ui() UI.Runtime { return self.runtime! }
-    func drawing(width:int,height:int) Canvas { return self.ui().drawing(width,height) }
+    func drawing(width:int,height:int) Canvas {
+        self.width = width; self.height = height
+        return self.ui().drawing(width,height)
+    }
     func update(delta:float) bool { return self.ui().update(delta) }
     func accepts_text_input() bool { return self.ui().accepts_text_input() }
     func text_input_target() Canvas.TextInputTarget? { return self.ui().text_input_target() }
     func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
     func handle(event:@Events.Event) bool {
         match event { key_pressed(value) => {
+            if !value.repeated && value.key == Keyboard.Key.f4 {
+                var runtime = self.ui()
+                let canceled = UIInput.handle(runtime,Events.Event.finger_canceled(self.simulated_contact(self.last_touch)))
+                self.form.touch_mode.set(!self.form.touch_mode.value()); return true
+            }
+            if !value.repeated && value.key == Keyboard.Key.escape && self.form.touch_mode.value() {
+                var runtime = self.ui()
+                if UIInput.handle(runtime,Events.Event.finger_canceled(self.simulated_contact(self.last_touch))) { return true }
+            }
             if !value.repeated && value.key == Keyboard.Key.f2 { self.form.toggle_theme(); return true }
             if !value.repeated && value.key == Keyboard.Key.f3 { self.form.reset(); return true }
         }; else => {} }
-        var runtime = self.ui(); return UIInput.handle(runtime,event)
+        var runtime = self.ui()
+        if self.form.touch_mode.value() && self.width > 0 && self.height > 0 {
+            match event {
+                mouse_moved(value) => {
+                    if value.mouse.is_touch() { return false }
+                    self.last_touch = value.position
+                    return UIInput.handle(runtime,Events.Event.finger_moved(self.simulated_contact(value.position)))
+                }
+                mouse_button_pressed(value) => {
+                    if value.mouse.is_touch() { return false }
+                    if value.button == Pointer.MouseButton.left {
+                        self.last_touch = value.position
+                        return UIInput.handle(runtime,Events.Event.finger_pressed(self.simulated_contact(value.position)))
+                    }
+                }
+                mouse_button_released(value) => {
+                    if value.mouse.is_touch() { return false }
+                    if value.button == Pointer.MouseButton.left {
+                        self.last_touch = value.position
+                        return UIInput.handle(runtime,Events.Event.finger_released(self.simulated_contact(value.position)))
+                    }
+                }
+                else => {}
+            }
+        }
+        return UIInput.handle(runtime,event)
+    }
+    private func simulated_contact(point:Math.Vec2) Events.TouchEvent {
+        let width = Math.max(1.0,self.width as float); let height = Math.max(1.0,self.height as float)
+        return Events.TouchEvent(touch:Events.TouchId(value:42 as uint),finger:Events.FingerId(value:1 as uint),
+            window:Window.Id(value:1 as uint32),position:Math.Vec2(point.x / width,point.y / height),
+            delta:Math.Vec2(),pressure:1.0,timestamp:Events.Timestamp(nanoseconds:1 as uint))
+    }
+    func check_touch() {
+        self.form.touch_mode.set(true)
+        var drawing = self.drawing(900,760)
+        let original = self.form.short.value()
+        let command = find_text_command(drawing.commands(),original)!
+        let point = Math.Vec2(command.position.x + 2.0,command.position.y + 8.0)
+        let notifications = self.form.changes.value()
+        assert(self.handle(mouse_button_event(point,true)))
+        let held = self.update(0.5); drawing = self.drawing(900,760)
+        let bubbles = touch_handle_count(drawing.commands())
+        assert(bubbles == 2 && self.form.short.value() == original && self.form.changes.value() == notifications)
+        assert(self.handle(mouse_button_event(point,false)))
+        var runtime = self.ui()
+        assert(runtime.key_pressed(Keyboard.Key.f1))
+        drawing = self.drawing(900,760); assert(touch_handle_count(drawing.commands()) == 0)
+        assert(!runtime.key_pressed(Keyboard.Key.f1))
+        assert(runtime.insert_text("X"))
+        assert(self.form.short.value() == "X — été 👩‍💻" && self.form.changes.value() == notifications + 1)
+        assert(runtime.key_pressed(Keyboard.Key.z,Keyboard.Modifiers(system:true)))
+        assert(self.form.short.value() == original)
     }
     func check_selection() {
         var drawing = self.drawing(900,760)
@@ -168,13 +242,17 @@ class EditingSession:Canvas.Session {
         assert(self.form.short.value() == original)
         var selection = EditingSession(); selection.check_selection()
         var ime = EditingSession(); ime.check_ime()
+        var touch = EditingSession(simulated:true); touch.check_touch()
         print("UITextEditing CPU : OK")
     }
 }
 func main() {
-    var cpu = false
-    for argument in Process.arguments() { if argument == "--cpu-check" { cpu = true } }
-    var session = EditingSession()
+    var cpu = false; var simulated = false
+    for argument in Process.arguments() {
+        if argument == "--cpu-check" { cpu = true }
+        if argument == "--touch-simulation" { simulated = true }
+    }
+    var session = EditingSession(simulated:simulated)
     if cpu { session.check_cpu(); return }
     let code = Viewer.show(session,Viewer.CanvasSettings(width:900,height:760,title:"Silex — Édition de texte J4"))
     if code != 0 { panic("text editing viewer failed") }
@@ -244,4 +322,18 @@ test "actual gallery keeps scrolling held selection through mouse events and sto
 
 test "actual gallery composition keeps bindings and notifications committed" {
     var session = EditingSession(); session.check_ime()
+}
+
+test "actual gallery simulation delivers a held finger selection through mouse events" {
+    var session = EditingSession(simulated:true); session.check_touch()
+}
+
+func touch_handle_count(commands:@Canvas.Command[]) int {
+    var count = 0
+    for command in commands { match command {
+        fill_circle(value) => { if value.shape.radius == 6.0 { count++ } }
+        layer(value) => { count += touch_handle_count(value.commands()) }
+        else => {}
+    } }
+    return count
 }
