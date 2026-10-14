@@ -2,50 +2,55 @@ use GFX.Physics
 use Physics3D.RagdollDrive.Model
 use STD.Math
 
-package func verify_direction(direction:int) {
-    for rate in [60,120] { for support in [0,1] { for powered in [0,1] {
-        var model=Model.RagdollDriveModel();var control=Model.RagdollDriveModel()
-        if support==1 { model.switch_support();control.switch_support() }
-        if powered==1 { model.select(1);control.select(1) }
-        var selected=0;while selected<direction { model.cycle_direction();selected++ }
-        assert(model.shot_direction==direction)
-        var step=0
-        while step<rate*2 { model.step(1.0/rate);control.step(1.0/rate);model.verify();control.verify();step++ }
-        var poses:Physics.Transform3D[]=[];var velocities:Math.Vec3[]=[];var spins:Math.Vec3[]=[]
-        for instance in model.anatomy.instances { for part in [0,1,2,3,4,5,6,7,8,9] {
-            poses.append(copy instance.body(part).transform());velocities.append(copy instance.body(part).linear_velocity());spins.append(copy instance.body(part).angular_velocity())
-        } }
-        model.shoot();var stale=model.projectile!;model.shoot();assert(!stale.is_valid() && model.shots==2)
-        model.verify()
-        var index=0
-        for instance in model.anatomy.instances { for part in [0,1,2,3,4,5,6,7,8,9] {
-            assert(instance.body(part).transform()==poses[index] && instance.body(part).linear_velocity()==velocities[index] && instance.body(part).angular_velocity()==spins[index]);index++
-        } }
-        var difference=0.0;var excursion=0.0;step=0
-        while step<rate*4 {
-            model.step(1.0/rate);control.step(1.0/rate);model.verify();control.verify()
-            if model.projectile_impacts>0 {
-                for part in [0,1,2,3,4,5,6,7,8,9] {
-                    difference=Math.max(difference,model.anatomy.instances[0].body(part).linear_velocity().subtract(control.anatomy.instances[0].body(part).linear_velocity()).length())
-                    if step<rate { excursion=Math.max(excursion,model.anatomy.instances[0].body(part).position().subtract(control.anatomy.instances[0].body(part).position()).length()) }
-                }
+package func verify_case(direction:int,rate:int,support:int,powered:int) {
+    var model=Model.RagdollDriveModel();var control=Model.RagdollDriveModel()
+    if support==1 { model.switch_support();control.switch_support() }
+    if powered==1 { model.select(1);control.select(1) }
+    var selected=0;while selected<direction { model.cycle_direction();selected++ }
+    assert(model.shot_direction==direction)
+    var step=0
+    while step<rate*2 { model.step(1.0/rate);control.step(1.0/rate);model.verify();control.verify();step++ }
+    var poses:Physics.Transform3D[]=[];var velocities:Math.Vec3[]=[];var spins:Math.Vec3[]=[]
+    for instance in model.anatomy.instances { for part in [0,1,2,3,4,5,6,7,8,9] {
+        poses.append(copy instance.body(part).transform());velocities.append(copy instance.body(part).linear_velocity());spins.append(copy instance.body(part).angular_velocity())
+    } }
+    model.shoot();var stale=model.projectile!;model.shoot();assert(!stale.is_valid() && model.shots==2)
+    model.verify()
+    var index=0
+    for instance in model.anatomy.instances { for part in [0,1,2,3,4,5,6,7,8,9] {
+        assert(instance.body(part).transform()==poses[index] && instance.body(part).linear_velocity()==velocities[index] && instance.body(part).angular_velocity()==spins[index]);index++
+    } }
+    var difference=0.0;var excursion=0.0;var torso_excursion=0.0;step=0
+    while step<rate*4 {
+        model.step(1.0/rate);control.step(1.0/rate);model.verify();control.verify()
+        if model.projectile_impacts>0 {
+            for part in [0,1,2,3,4,5,6,7,8,9] {
+                difference=Math.max(difference,model.anatomy.instances[0].body(part).linear_velocity().subtract(control.anatomy.instances[0].body(part).linear_velocity()).length())
+                if step<rate { excursion=Math.max(excursion,model.anatomy.instances[0].body(part).position().subtract(control.anatomy.instances[0].body(part).position()).length()) }
             }
-            if step==rate {
-                if model.projectile_impacts!=1 || model.projectile_impulse<=0.00001 || difference<=0.5 || (powered==0 && excursion<=0.15) {
-                    print("Rejected block direction $(direction), rate $(rate), support $(support), motors $(powered): impacts $(model.projectile_impacts), impulse $(model.projectile_impulse), velocity response $(difference), first-second displacement $(excursion)")
-                }
-                assert(model.projectile_impacts==1 && model.projectile_impulse>0.00001 && difference>0.5 && (powered==1 || excursion>0.15))
-            }
-            step++
         }
-        if support==0 && powered==1 { model.verify_target() }
-        assert(model.projectile==null && model.projectile_impacts==1 && difference>0.5 && (powered==1 || excursion>0.15))
-        model.shoot();stale=model.projectile!;model.reset();assert(model.shot_direction==direction);assert(!stale.is_valid() && model.projectile==null && model.shots==0 && model.projectile_impacts==0)
-        model.shoot();stale=model.projectile!;model.switch_support();assert(model.shot_direction==direction);assert(!stale.is_valid() && model.projectile==null)
-        model.verify()
-        if direction==0 { print("External block $(rate) Hz support $(support) motors $(powered): measured contact, velocity response $(difference), first-second displacement $(excursion), no placement, single projectile, expiry, reset and mode verified") }
-        else { print("Oblique block $(direction) at $(rate) Hz support $(support) motors $(powered): measured contact, velocity response $(difference), first-second displacement $(excursion), no placement, single projectile, expiry, reset and mode verified") }
-    } } }
+        if model.projectile_impacts>0 && step<rate {
+            torso_excursion=Math.max(torso_excursion,model.anatomy.instances[0].body(0).position().subtract(control.anatomy.instances[0].body(0).position()).length())
+        }
+        if step==rate {
+            if model.projectile_impacts!=1 || model.projectile_impulse<=0.00001 || difference<=0.5 || (powered==0 && excursion<=0.15) || (support==1 && torso_excursion<=0.5) {
+                print("Rejected block direction $(direction), rate $(rate), support $(support), motors $(powered): impacts $(model.projectile_impacts), impulse $(model.projectile_impulse), velocity response $(difference), first-second displacement $(excursion), torso $(torso_excursion)")
+            }
+            assert(model.projectile_impacts==1 && model.projectile_impulse>0.00001 && difference>0.5 && (powered==1 || excursion>0.15) && (support==0 || torso_excursion>0.5))
+        }
+        step++
+    }
+    if support==0 && powered==1 { model.verify_target() }
+    assert(model.projectile==null && model.projectile_impacts==1 && difference>0.5 && (powered==1 || excursion>0.15) && (support==0 || torso_excursion>0.5))
+    model.shoot();stale=model.projectile!;model.reset();assert(model.shot_direction==direction);assert(!stale.is_valid() && model.projectile==null && model.shots==0 && model.projectile_impacts==0)
+    model.shoot();stale=model.projectile!;model.switch_support();assert(model.shot_direction==direction);assert(!stale.is_valid() && model.projectile==null)
+    model.verify()
+    if direction==0 { print("External block $(rate) Hz support $(support) motors $(powered): measured contact, velocity response $(difference), first-second displacement $(excursion), torso $(torso_excursion), no placement, single projectile, expiry, reset and mode verified") }
+    else { print("Oblique block $(direction) at $(rate) Hz support $(support) motors $(powered): measured contact, velocity response $(difference), first-second displacement $(excursion), torso $(torso_excursion), no placement, single projectile, expiry, reset and mode verified") }
+}
+
+package func verify_direction(direction:int) {
+    for rate in [60,120] { for support in [0,1] { for powered in [0,1] { verify_case(direction,rate,support,powered) } } }
 }
 
 package func verify_projectile() { verify_direction(0) }

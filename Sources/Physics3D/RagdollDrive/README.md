@@ -18,7 +18,7 @@ Use the buttons or keys:
 - **1 / 2 / 0**: open, folded or neutral target for gold;
 - **3**: request elbow and knee angles beyond their stops;
 - **P**: impulse on gold's forearm;
-- **B**: launch a red block towards a forearm and observe its physical impact;
+- **B**: launch a red block towards gold and observe its physical impact;
 - **C**: choose the next shot, frontal or oblique from the left/right;
 - **M**: stop its motors, then resume towards the selected target;
 - **T**: choose suspension or floor and recreate both mannequins;
@@ -39,10 +39,14 @@ B resumes after a pause; Space freezes the projectile too.
 C preserves pause and the trajectory of an already launched block. Its choice
 persists across R and T to compare the same direction in both support modes.
 Directions use the scene's initial frame; rotating the torso does not rotate
-the launcher. The block weighs 4 kg and its horizontal speed relative to the forearm is 10 m/s.
-It starts 2 m upstream to retain a 0.2 s aiming time. Oblique shots aim at the forearm
-corresponding to the selected side in the initial pose; frontal shots target
-the left forearm, as P does.
+the launcher. The block weighs 8 kg and its horizontal speed relative to the
+targeted part is 16 m/s.
+It starts 3.2 m upstream to retain a 0.2 s aiming time. The initial velocity
+compensates for gravitational drop; on the floor, the aiming height stays at
+least 30 cm above ground so the cube does not strike the floor before the torso.
+Shots then aim at the mobile torso to move the whole mannequin.
+In suspension, obliques aim at the selected side’s forearm and frontal shots
+at the left forearm; P retains its direct impulse on that arm.
 
 To start on the floor with an oblique shot selected, compile and launch the
 binary from the same root:
@@ -78,7 +82,9 @@ released motors. It also compares an identical mannequin without a block. `--obl
 exercises both obliques in their sixteen corresponding configurations, retaining
 the same limit, penetration and velocity bounds.
 In free mode, at least one limb must deviate by more than 15 cm from the control
-during the first second; suspended motorized mannequins must regain their target after impact.
+during the first second; on the floor, the torso must also deviate by more
+than 50 cm from the control. Suspended motorized mannequins must regain their
+target after impact.
 Holding intentionally reduces movement amplitude.
 
 `--physics-check` and `--controls-check` validate the model and controls without

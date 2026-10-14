@@ -1013,7 +1013,8 @@ the selected target, while anatomical limits and internal collisions remain
 active. T switches between suspension and mobile torsos falling onto a physical
 floor, where target efforts interact with contacts. 3 requests elbow/knee
 angles beyond their stops to observe the physically bounded gesture. B launches
-a red block towards a forearm; C selects frontal or left/right oblique shots. Flight and measured contacts transfer the
+a red block towards the mobile torso on the floor or a forearm in suspension;
+C selects frontal or left/right oblique shots. Flight and measured contacts transfer the
 impact to the joints. Pause and recreation are
 available. This does not demonstrate standing balance.
 

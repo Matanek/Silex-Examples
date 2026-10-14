@@ -93,16 +93,19 @@ package class RagdollDriveModel {
     }
     func shoot() {
         self.clear_projectile()
-        var arm=3;if self.shot_direction==2 { arm=5 }
-        var forearm=self.anatomy.instances[0].body(arm)
-        let target=forearm.world_center_of_mass()
+        var part=0
+        if self.suspended { part=3;if self.shot_direction==2 { part=5 } }
+        var target_body=self.anatomy.instances[0].body(part)
+        var target=target_body.world_center_of_mass()
+        // Keep the cube above the floor on approach, including when the torso lies flat.
+        if !self.suspended { target.y=Math.max(target.y,0.3) }
         let direction=self.launch_direction()
-        var start=target.subtract(direction.multiply(2.0));start.y=Math.max(start.y,0.4)
-        let velocity=forearm.linear_velocity().add(direction.multiply(10.0).add(Math.Vec3(0.0,(target.y-start.y)/0.2,0.0)))
+        var start=target.subtract(direction.multiply(3.2));start.y=Math.max(start.y,0.4)
+        let velocity=target_body.linear_velocity().add(direction.multiply(16.0).add(Math.Vec3(0.0,(target.y-start.y)/0.2,0.0))).subtract(self.anatomy.world.gravity().multiply(0.1))
         self.projectile=self.anatomy.world.create_rigid_body(Physics.RigidBody3DSettings()
             ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.5)))
             ..transform=Physics.Transform3D(start) ..linear_velocity=velocity
-            ..mass_properties=Physics.MassProperties3D(4.0,Math.Vec3(4.0/24.0))
+            ..mass_properties=Physics.MassProperties3D(8.0,Math.Vec3(8.0/24.0))
             ..allow_sleep=false ..continuous_collision=true ..friction=0.4 ..restitution=0.15)
         self.shots++;self.projectile_impulse=0.0
     }
