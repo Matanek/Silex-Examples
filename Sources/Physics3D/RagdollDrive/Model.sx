@@ -97,12 +97,12 @@ package class RagdollDriveModel {
         var forearm=self.anatomy.instances[0].body(arm)
         let target=forearm.world_center_of_mass()
         let direction=self.launch_direction()
-        var start=target.subtract(direction.multiply(1.2));start.y=Math.max(start.y,0.4)
-        let velocity=forearm.linear_velocity().add(direction.multiply(6.0).add(Math.Vec3(0.0,(target.y-start.y)/0.2,0.0)))
+        var start=target.subtract(direction.multiply(2.0));start.y=Math.max(start.y,0.4)
+        let velocity=forearm.linear_velocity().add(direction.multiply(10.0).add(Math.Vec3(0.0,(target.y-start.y)/0.2,0.0)))
         self.projectile=self.anatomy.world.create_rigid_body(Physics.RigidBody3DSettings()
             ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.5)))
             ..transform=Physics.Transform3D(start) ..linear_velocity=velocity
-            ..mass_properties=Physics.MassProperties3D(1.0,Math.Vec3(1.0/24.0))
+            ..mass_properties=Physics.MassProperties3D(4.0,Math.Vec3(4.0/24.0))
             ..allow_sleep=false ..continuous_collision=true ..friction=0.4 ..restitution=0.15)
         self.shots++;self.projectile_impulse=0.0
     }

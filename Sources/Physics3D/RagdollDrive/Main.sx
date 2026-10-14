@@ -86,7 +86,7 @@ func perform(state:&RagdollDriveScene,simulation:&Application.Simulation) {
     while state.controls.shots>0 {
         changed=true;state.controls.shots--;state.model.shoot();simulation.resume()
         state.previous_projectile=copy state.model.projectile!.transform()
-        state.controls.feedback.set("Bloc lancé vers le bras or ($(state.model.direction_name())) — le choc vient du contact physique. Un bloc à la fois, visible 3 s.")
+        state.controls.feedback.set("Bloc de 4 kg · $(state.model.direction_name()) — le contact transmet le choc. Un bloc à la fois, visible 3 s.")
     }
     while state.controls.resets>0 {
         changed=true;state.controls.resets--;state.model.reset();sync_previous(state);simulation.resume()
@@ -355,7 +355,7 @@ func verify_direction_controls() {
     state.controls.shoot();perform(state,simulation);assert(!simulation.is_paused())
     var block=state.model.projectile!;let position=copy block.position();let velocity=copy block.linear_velocity();let spin=copy block.angular_velocity()
     let arm_velocity=state.model.anatomy.instances[0].body(3).linear_velocity()
-    assert(Math.abs(velocity.x-arm_velocity.x-3.6)<0.00001 && Math.abs(velocity.z-arm_velocity.z-4.8)<0.00001)
+    assert(Math.abs(velocity.x-arm_velocity.x-6.0)<0.00001 && Math.abs(velocity.z-arm_velocity.z-8.0)<0.00001)
     verify_projectile_framing(state);render(world,state);simulation.pause()
     state.controls.direction();perform(state,simulation)
     assert(state.model.shot_direction==2 && simulation.is_paused() && block.position()==position && block.linear_velocity()==velocity && block.angular_velocity()==spin)

@@ -39,7 +39,8 @@ B resumes after a pause; Space freezes the projectile too.
 C preserves pause and the trajectory of an already launched block. Its choice
 persists across R and T to compare the same direction in both support modes.
 Directions use the scene's initial frame; rotating the torso does not rotate
-the launcher. Speed relative to the forearm remains 6 m/s. Oblique shots aim at the forearm
+the launcher. The block weighs 4 kg and its horizontal speed relative to the forearm is 10 m/s.
+It starts 2 m upstream to retain a 0.2 s aiming time. Oblique shots aim at the forearm
 corresponding to the selected side in the initial pose; frontal shots target
 the left forearm, as P does.
 
@@ -76,6 +77,9 @@ response without a window at 60/120 Hz in both support modes, with active or
 released motors. It also compares an identical mannequin without a block. `--oblique-check`
 exercises both obliques in their sixteen corresponding configurations, retaining
 the same limit, penetration and velocity bounds.
+In free mode, at least one limb must deviate by more than 15 cm from the control
+during the first second; suspended motorized mannequins must regain their target after impact.
+Holding intentionally reduces movement amplitude.
 
 `--physics-check` and `--controls-check` validate the model and controls without
 a window; `--smoke` exercises target changes, impulse, release, resume, pause,

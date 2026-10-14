@@ -39,7 +39,8 @@ B reprend la simulation après une pause ; Espace fige aussi le projectile.
 C conserve la pause et la trajectoire du bloc déjà lancé. Son choix reste
 sélectionné après R et T, pour comparer la même direction dans les deux modes.
 Les directions se rapportent au repère initial de la scène ; une rotation du
-torse ne réoriente pas le lanceur. La vitesse relative au bras reste 6 m/s. Les obliques visent l’avant-bras
+torse ne réoriente pas le lanceur. Le bloc pèse 4 kg et sa vitesse horizontale relative au bras est de 10 m/s.
+Il part 2 m en amont pour conserver une visée à 0,2 s. Les obliques visent l’avant-bras
 correspondant au côté choisi dans la pose initiale ; le tir frontal vise
 l’avant-bras gauche, comme P.
 
@@ -78,6 +79,9 @@ le contact et la réaction à 60/120 Hz dans les deux supports, avec moteurs
 actifs ou libres. Ce parcours compare aussi un mannequin témoin sans bloc. `--oblique-check`
 exerce les deux obliques dans les seize configurations correspondantes ;
 les mêmes bornes de limites, pénétration et vitesse restent appliquées.
+En mode libre, au moins un membre doit s’écarter de plus de 15 cm du témoin
+pendant la première seconde ; les mannequins suspendus motorisés doivent retrouver leur
+cible après le choc. Le maintien réduit volontairement l’amplitude du mouvement.
 
 Les options `--physics-check` et `--controls-check` valident le modèle et les
 commandes sans fenêtre ; `--smoke` parcourt les changements de cible, impulsion,
