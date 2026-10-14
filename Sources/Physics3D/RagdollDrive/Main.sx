@@ -33,7 +33,7 @@ class RagdollDriveScene {
     var telemetry:float=0.0
     var smoke:bool=false
     var smoke_phase:int=0
-    var oblique_case:int=0
+    var direction_case:int=0
     var pause_frames:int=0
     var held_pose:Physics.Transform3D[]=[]
     var frames:int=0
@@ -120,11 +120,11 @@ func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&RagdollDri
             ..space=Scene2D.CanvasSpace.viewport ..layer=100))
     if state.smoke { state.clock.restart() }
 }
-func prepare_oblique_smoke(state:&RagdollDriveScene,simulation:&Application.Simulation) {
-    let suspended=state.oblique_case<2
+func prepare_direction_smoke(state:&RagdollDriveScene,simulation:&Application.Simulation) {
+    let suspended=state.direction_case<3
     if state.model.suspended!=suspended { state.controls.support() } else { state.controls.reset() }
     perform(state,simulation)
-    let direction=1+state.oblique_case%2
+    let direction=1+state.direction_case%3
     while state.model.shot_direction!=direction { state.controls.direction();perform(state,simulation) }
     state.smoke_phase=13
 }
@@ -174,17 +174,18 @@ func smoke_commands(state:&RagdollDriveScene,simulation:&Application.Simulation,
         print("Ragdoll drive smoke: target changes, impulse, motor release, neutral, exact pause, reset and rendered transforms verified")
         print("Ragdoll excessive smoke: four requests beyond elbow/knee stops remain bounded in both support modes")
         print("Ragdoll floor smoke: mobile torsos, physical floor, target effort, impulse and support recreation verified")
-        prepare_oblique_smoke(state,simulation)
+        prepare_direction_smoke(state,simulation)
     } else if state.smoke_phase==13 && state.model.steps>=240 {
         verify_framing(state);state.controls.shoot();perform(state,simulation)
         state.projectile_start=copy state.model.projectile!.position();verify_projectile_framing(state);state.smoke_phase=14
     } else if state.smoke_phase==14 && state.model.steps>=360 {
         assert(state.model.projectile_impacts==1 && state.model.projectile_impulse>0.00001)
         assert(state.model.projectile!.position().subtract(state.projectile_start).length()>0.1);verify_framing(state)
-        state.oblique_case++
-        if state.oblique_case<4 { prepare_oblique_smoke(state,simulation) }
+        state.direction_case++
+        if state.direction_case<6 { prepare_direction_smoke(state,simulation) }
         else {
             print("Ragdoll oblique smoke: both directions and supports, physical hits, framing and interpolated projectile verified")
+            print("Ragdoll rear smoke: retained previous frontal trajectory, both supports, physical hits and framing verified")
             let elapsed=state.clock.get_elapsed_seconds()
             print("SMOKE frames $(state.frames), wall s $(elapsed), fps $(state.frames as float/elapsed)")
             controller.stop()
@@ -350,17 +351,29 @@ func verify_direction_controls() {
     assert(state.controls.direction_text.value()=="Tir : oblique gauche (C)")
     assert(state.controls.handle(InputCheck.key_event(Input.Key.c,99 as uint32,true)));perform(state,simulation);assert(state.model.shot_direction==1)
     assert(state.controls.handle(InputCheck.key_event(Input.Key.c,0 as uint32)));perform(state,simulation);assert(state.model.shot_direction==2)
-    InputCheck.click(state.ui,1056.0,155.0);perform(state,simulation);assert(state.model.shot_direction==0 && simulation.is_paused())
-    assert(state.controls.handle(InputCheck.key_event(Input.Key.c,67 as uint32)));perform(state,simulation);assert(state.model.shot_direction==1)
+    InputCheck.click(state.ui,1056.0,155.0);perform(state,simulation);assert(state.model.shot_direction==3 && simulation.is_paused())
+    assert(state.controls.direction_text.value()=="Tir : arrière (C)")
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.c,67 as uint32)));perform(state,simulation);assert(state.model.shot_direction==0)
+    assert(state.controls.direction_text.value()=="Tir : face (C)")
     state.controls.shoot();perform(state,simulation);assert(!simulation.is_paused())
     var block=state.model.projectile!;let position=copy block.position();let velocity=copy block.linear_velocity();let spin=copy block.angular_velocity()
-    let arm_velocity=state.model.anatomy.instances[0].body(3).linear_velocity()
-    assert(Math.abs(velocity.x-arm_velocity.x-9.6)<0.00001 && Math.abs(velocity.z-arm_velocity.z-12.8)<0.00001)
+    var target_leg=state.model.anatomy.instances[0].body(7)
+    assert(Math.abs(velocity.x-target_leg.linear_velocity().x)<0.00001 && Math.abs(velocity.z-target_leg.linear_velocity().z+16.0)<0.00001)
+    assert(Math.abs(position.z-target_leg.world_center_of_mass().z-3.2)<0.00001 && Math.abs(position.x-target_leg.world_center_of_mass().x)<0.00001)
     verify_projectile_framing(state);render(world,state);simulation.pause()
-    state.controls.direction();perform(state,simulation)
-    assert(state.model.shot_direction==2 && simulation.is_paused() && block.position()==position && block.linear_velocity()==velocity && block.angular_velocity()==spin)
-    state.controls.reset();perform(state,simulation);assert(!block.is_valid() && state.model.shot_direction==2)
-    state.controls.support();perform(state,simulation);assert(!state.model.suspended && state.model.shot_direction==2)
+    for direction in [1,2,3] {
+        state.controls.direction();perform(state,simulation)
+        assert(state.model.shot_direction==direction && simulation.is_paused() && block.position()==position && block.linear_velocity()==velocity && block.angular_velocity()==spin)
+    }
+    state.controls.reset();perform(state,simulation);assert(!block.is_valid() && state.model.shot_direction==3)
+    state.controls.support();perform(state,simulation);assert(!state.model.suspended && state.model.shot_direction==3)
+    state.controls.shoot();perform(state,simulation);block=state.model.projectile!
+    var torso=state.model.anatomy.instances[0].body(0)
+    assert(Math.abs(block.linear_velocity().x-torso.linear_velocity().x)<0.00001 && Math.abs(block.linear_velocity().z-torso.linear_velocity().z-16.0)<0.00001)
+    assert(Math.abs(block.position().z-torso.world_center_of_mass().z+3.2)<0.00001)
+    verify_projectile_framing(state);render(world,state)
+    state.controls.direction();perform(state,simulation);assert(state.model.shot_direction==0)
+
 }
 test "direction changes affect only future shots and preserve pause and live projectile" { verify_direction_controls() }
 
@@ -386,8 +399,9 @@ func main() {
         if argument=="--limits" { start_limits=true }
         if argument=="--oblique-check" { ProjectileCheck.verify_oblique();return }
         if argument=="--projectile-check" { ProjectileCheck.verify_projectile();return }
+        if argument=="--rear-check" { ProjectileCheck.verify_rear();return }
         if argument=="--limits-check" { Model.verify_excessive_request();return }
-        if argument=="--physics-check" { Model.verify_drive();Model.verify_reaction();Model.verify_floor_drive();Model.verify_excessive_request();ProjectileCheck.verify_projectile();ProjectileCheck.verify_oblique();return }
+        if argument=="--physics-check" { Model.verify_drive();Model.verify_reaction();Model.verify_floor_drive();Model.verify_excessive_request();ProjectileCheck.verify_projectile();ProjectileCheck.verify_oblique();ProjectileCheck.verify_rear();return }
         if argument=="--controls-check" { verify_interactions();verify_direction_controls();print("Ragdoll drive: UI, keyboard, pose commands, pause, reset and transforms verified");return }
         if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
     }
@@ -401,10 +415,10 @@ func main() {
     }
     if start_oblique && !state.smoke {
         state.model.cycle_direction()
-        state.controls.feedback.set("C choisit face ou oblique ; B lance un bloc ; M compare maintien et liberté, T les deux supports.")
+        state.controls.feedback.set("C choisit face, arrière ou oblique ; B lance un bloc ; M compare maintien et liberté, T les deux supports.")
     }
-    var title="Mannequins — suivre une pose, résister, relâcher"
-    if start_oblique { title="Mannequins — chocs frontaux et obliques" }
+    var title="Mannequins — poses et chocs"
+    if start_oblique { title="Mannequins — chocs de face, arrière et obliques" }
     if state.smoke { title="TEST AUTOMATIQUE — pose motorisée — fermeture à la fin" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))

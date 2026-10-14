@@ -45,7 +45,7 @@ package class RagdollDriveControls {
         targets.style.gap=10.0
         var actions=UI.Row([self.button("Pousser le bras (P)",self.push),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button),self.button("Suspension / sol (T)",self.support),self.button("Lancer un bloc (B)",self.shoot),UI.Reactive(self.direction_button)])
         actions.style.gap=10.0
-        var rows:UI.View[]=[title,help,targets,actions,UI.Reactive(self.status),UI.Reactive(self.metrics),UI.Text("C choisit face / obliques. B lance un bloc physique, visible 3 s. P pousse le bras. M maintient ou relâche. Échap : quitter.")]
+        var rows:UI.View[]=[title,help,targets,actions,UI.Reactive(self.status),UI.Reactive(self.metrics),UI.Text("C choisit face / obliques / arrière. B lance un bloc physique, visible 3 s. P pousse le bras. M maintient ou relâche. Échap : quitter.")]
         if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — commande de pose — fermeture à la fin"),UI.Reactive(self.metrics)] }
         var root=UI.Column(rows)
         root.style.padding=UI.Insets(16.0);root.style.gap=8.0

@@ -46,6 +46,7 @@ package func verify_case(direction:int,rate:int,support:int,powered:int) {
     model.shoot();stale=model.projectile!;model.switch_support();assert(model.shot_direction==direction);assert(!stale.is_valid() && model.projectile==null)
     model.verify()
     if direction==0 { print("External block $(rate) Hz support $(support) motors $(powered): measured contact, velocity response $(difference), first-second displacement $(excursion), torso $(torso_excursion), no placement, single projectile, expiry, reset and mode verified") }
+    else if direction==3 { print("Rear block $(rate) Hz support $(support) motors $(powered): measured contact, velocity response $(difference), first-second displacement $(excursion), torso $(torso_excursion), no placement, single projectile, expiry, reset and mode verified") }
     else { print("Oblique block $(direction) at $(rate) Hz support $(support) motors $(powered): measured contact, velocity response $(difference), first-second displacement $(excursion), torso $(torso_excursion), no placement, single projectile, expiry, reset and mode verified") }
 }
 
@@ -54,8 +55,11 @@ package func verify_direction(direction:int) {
 }
 
 package func verify_projectile() { verify_direction(0) }
+package func verify_rear() { verify_direction(3) }
 package func verify_oblique() { for direction in [1,2] { verify_direction(direction) } }
 
 test "oblique blocks contact anatomical bodies in both supports and motor states" { verify_oblique() }
 
 test "external block contacts anatomical bodies and changes their velocity without a pose command" { verify_projectile() }
+
+test "rear blocks retain the previous frontal trajectory in both supports and motor states" { verify_rear() }
