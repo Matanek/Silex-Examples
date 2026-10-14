@@ -1029,3 +1029,13 @@ filtering, mutation and an editable row. Wheel scrolling is smoothed and the
 counter reports constructed row descriptions. [Guide](Sources/UITreeView/README.md).
 
 `silex run Silex-Examples/Sources/UITreeView/Main.sx --release`.
+
+## Sortable data tables
+
+`Sources/UITableView/Main.sx` explores 50,000 keyed rows with stable sorting,
+resizable columns, single/multiple selection, filtering, themes and an editable
+cell. Headers remain fixed vertically and both rails remain visible. Counters
+report cell descriptions and comparisons, without FPS claims.
+[Guide](Sources/UITableView/README.md). From the workspace or Spec group root:
+`silex run Silex-Examples/Sources/UITableView/Main.sx --release`.
+Use `-- --cpu-check` for the pure CPU path without opening a window.

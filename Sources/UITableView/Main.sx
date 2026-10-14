@@ -1,0 +1,186 @@
+use GFX.UI
+use GFX.Canvas
+use GFX.Viewer
+use GFX.Window
+use GFX.Window.Cursor
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use STD.Process
+
+func caption(value:str, size:float = 16.0) UI.Text {
+    var text = UI.Text(value); text.style.font_size = size; return text
+}
+class TableDemo {
+    var items:UI.State<int[]> = UI.State<int[]>([])
+    var selected:UI.State<str?> = UI.State<str?>(null)
+    var selections:UI.State<str[]> = UI.State<str[]>([])
+    var multiple:UI.State<bool> = UI.State<bool>(false)
+    var light:UI.State<bool> = UI.State<bool>(false)
+    var sort:UI.State<UI.TableSort?> = UI.State<UI.TableSort?>(null)
+    var name_width:UI.State<float> = UI.State<float>(300.0)
+    var name:UI.State<str> = UI.State<str>("Entrée éditable — été 🙂")
+    var summary:UI.State<str> = UI.State<str>("")
+    var scroll:UI.ScrollState = UI.ScrollState(0.0)
+    var horizontal:UI.ScrollState = UI.ScrollState(0.0)
+    var focus:UI.Focus = UI.Focus()
+    var filtered:bool = false
+    var removed:bool = false
+    var keys:int = 0
+    var comparisons:int = 0
+    var cells:int = 0
+    var last_batch:int = 0
+    init() { self.all() }
+    func key(value:int) str { self.keys++; return "entry-$(value)" }
+    func id_cell(value:int) UI.View { self.cells++; return caption("$(value)") }
+    func name_cell(value:int) UI.View {
+        self.cells++
+        if value == 100 { return UI.TextField(self.name, smooth_scroll:true, scroll_chain:false) }
+        return caption("Entrée $(value) — été 🙂")
+    }
+    func group_cell(value:int) UI.View { self.cells++; return caption("Groupe $(value % 10)") }
+    func score_cell(value:int) UI.View { self.cells++; return caption("$(value * 37 % 997)") }
+    func by_id(first:int, second:int) int { self.comparisons++; return first - second }
+    func by_group(first:int, second:int) int { self.comparisons++; return first % 10 - second % 10 }
+    func by_score(first:int, second:int) int { self.comparisons++; return first * 37 % 997 - second * 37 % 997 }
+    func rebuild() {
+        var items:int[] = []; var i = 0
+        while i < 50000 {
+            if (!self.filtered || i % 2 == 0) && (!self.removed || i != 100) { items.append(i) }
+            i++
+        }
+        self.items.set(items)
+    }
+    func all() {
+        self.filtered = false; self.removed = false; self.rebuild()
+        self.selected.set(null); self.selections.set([]); self.sort.set(null); self.focus.request()
+    }
+    func filter() { self.filtered = !self.filtered; self.rebuild() }
+    func remove() { self.removed = !self.removed; self.rebuild() }
+    func empty() { self.items.set([]) }
+    func theme() { self.light.set(!self.light.value()) }
+    func reveal() {
+        self.selected.set("entry-100"); self.selections.set(["entry-100"]); self.focus.request()
+    }
+    func reset_width() { self.name_width.set(300.0) }
+    func table(reads:UI.Reads) UI.View {
+        var columns:UI.TableColumn<int>[] = [
+            UI.TableColumn<int>("id", "Identifiant", self.id_cell, width:140.0, compare:self.by_id),
+            UI.TableColumn<int>("name", "Nom — ligne 100 éditable", self.name_cell,
+                width:self.name_width, minimum_width:160.0, compare:self.by_id),
+            UI.TableColumn<int>("group", "Groupe", self.group_cell, width:180.0, compare:self.by_group),
+            UI.TableColumn<int>("score", "Score", self.score_cell, width:160.0, compare:self.by_score)
+        ]
+        var style = UI.Style(); style.flex = 1.0; style.radius = 6.0
+        var view:UI.View = UI.Text("")
+        let items = reads.read(self.items)
+        if reads.read(self.multiple) {
+            view = UI.TableView<int>(items, self.key, columns, selection:self.selections,
+                sort:self.sort, state:self.scroll, horizontal_state:self.horizontal, row_height:44.0,
+                smooth_scroll:true, scroll_chain:false, style:style, empty:caption("Aucune ligne"))
+        } else {
+            view = UI.TableView<int>(items, self.key, columns, selection:self.selected,
+                sort:self.sort, state:self.scroll, horizontal_state:self.horizontal, row_height:44.0,
+                smooth_scroll:true, scroll_chain:false, style:style, empty:caption("Aucune ligne"))
+        }
+        return UI.FocusTarget(self.focus, view)
+    }
+    func status(reads:UI.Reads) UI.View {
+        var text = caption(reads.read(self.summary), 13.0); text.style.height = 36.0
+        return text
+    }
+    func describe(reads:UI.Reads) UI.View {
+        var controls = UI.Row([
+            UI.Button("50 000 lignes", self.all), UI.Button("Filtrer pairs", self.filter),
+            UI.Button("Retirer / ajouter 100", self.remove), UI.Button("Révéler 100", self.reveal),
+            UI.Button("Vide", self.empty), UI.Button("Largeur initiale", self.reset_width),
+            UI.Button("Clair / sombre", self.theme)
+        ], wrap:true)
+        var root = UI.Column([
+            caption("Tableaux de données — TableView J4", 26.0),
+            caption("En-tête : trier · Bord droit : redimensionner", 14.0),
+            caption("Tri : croissant, décroissant, ordre initial", 14.0),
+            controls, UI.Checkbox("Sélection multiple · Maj + Haut/Bas", self.multiple),
+            UI.Reactive(self.table), UI.Reactive(self.status),
+            caption("Tab : en-têtes, poignées, lignes · Fin : dernière ligne", 13.0)
+        ])
+        root.style.padding = UI.Insets(16.0); root.style.gap = 10.0
+        root.style.theme = UI.Theme.dark()
+        if reads.read(self.light) { root.style.theme = UI.Theme.light() }
+        return root
+    }
+    func update_status() bool {
+        var selection = self.selected.value() ?? "aucune"
+        if self.multiple.value() { selection = "$(self.selections.value().count()) clés" }
+        let value = "Sélection : $(selection) · $(self.items.value().count()) lignes\nCellules décrites : $(self.cells) (lot $(self.last_batch)) · comparaisons : $(self.comparisons)"
+        if self.summary.value() == value { return false }
+        self.summary.set(value); return true
+    }
+}
+class TableSession:Canvas.Session {
+    var model:TableDemo = TableDemo()
+    var session:UI.Session?
+    init() { self.session = UI.Session(UI.Reactive(self.model.describe)) }
+    func ui() UI.Session { return self.session! }
+    func drawing(width:int, height:int) Canvas {
+        let before = self.model.cells
+        var result = self.ui().drawing(width, height)
+        self.model.last_batch = self.model.cells - before
+        return result
+    }
+    func update(delta:float) bool { let changed = self.ui().update(delta); return self.model.update_status() || changed }
+    func handle(event:@Events.Event) bool { return self.ui().handle(event) }
+    func pointer_cursor() Cursor { return self.ui().pointer_cursor() }
+    func accepts_text_input() bool { return self.ui().accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.ui().text_input_target() }
+    func check_cpu() {
+        for width in [960, 420] {
+            self.model.all(); var first = self.drawing(width, 760)
+            assert(self.model.scroll.viewport_extent() > 0.0 && self.model.last_batch < 100)
+            let before = self.model.cells; let keys = self.model.keys; let comparisons = self.model.comparisons
+            var idle = self.drawing(width, 760)
+            assert(self.model.cells == before && self.model.keys == keys && self.model.comparisons == comparisons)
+            self.model.reveal(); var revealed = self.drawing(width, 760)
+            assert(self.model.selected.value() == "entry-100" && self.model.scroll.offset() > 0.0)
+            self.model.sort.set(UI.TableSort("id", true)); var sorted = self.drawing(width, 760)
+            assert(self.model.selected.value() == "entry-100" && self.model.scroll.offset() > 2000000.0)
+            let sorted_count = self.model.comparisons; let indexed = self.model.keys
+            self.model.name_width.set(320.0); var resized = self.drawing(width, 760)
+            assert(self.model.comparisons == sorted_count && self.model.keys == indexed && self.model.last_batch < 100)
+            let stable = self.model.cells
+            for step in [0, 1, 2] { self.update(0.01); var frame = self.drawing(width, 760) }
+            assert(self.model.cells == stable && self.model.comparisons == sorted_count)
+            self.model.filter(); var filtered = self.drawing(width, 760)
+            self.model.remove(); var removed = self.drawing(width, 760)
+            assert(self.model.selected.value() == "entry-100")
+            self.model.empty(); var empty = self.drawing(width, 760)
+            self.model.all(); var ready = self.drawing(width, 760)
+        }
+        var tiny = self.drawing(1, 1)
+        print("UITableView CPU : OK")
+    }
+}
+func key_event(key:Keyboard.Key) Events.Event {
+    return Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:1 as uint32),
+        keyboard:Keyboard.KeyboardId(value:1 as uint32), key:key, keycode:0 as uint32,
+        raw:0 as uint16, repeated:false, modifiers:Keyboard.Modifiers(),
+        timestamp:Events.Timestamp(nanoseconds:1 as uint)))
+}
+test "actual table gallery keeps its selected key across sorting and routes keyboard events" {
+    var session = TableSession(); session.model.reveal()
+    var drawing = session.drawing(960, 760)
+    session.model.sort.set(UI.TableSort("id", true)); drawing = session.drawing(960, 760)
+    assert(session.handle(key_event(Keyboard.Key.down)))
+    assert(session.model.selected.value() == "entry-99")
+    session.model.theme(); drawing = session.drawing(960, 760)
+    assert(session.handle(key_event(Keyboard.Key.down)))
+    assert(session.model.selected.value() == "entry-98")
+}
+test "actual table gallery bounds cells during sorting resizing filtering and empty data" {
+    var session = TableSession(); session.check_cpu()
+}
+func main() {
+    var session = TableSession()
+    for argument in Process.arguments() { if argument == "--cpu-check" { session.check_cpu(); return } }
+    let code = Viewer.show(session, Viewer.CanvasSettings(width:960, height:760, title:"Silex — Tableaux de données J4"))
+    if code != 0 { panic("TableView viewer failed") }
+}
