@@ -8,6 +8,8 @@ package class RagdollDriveControls {
     var toggles:int=0
     var pushes:int=0
     var shots:int=0
+    var directions:int=0
+    var direction_text:UI.State<str> = UI.State<str>("Tir : face (C)")
     var resets:int=0
     var pauses:int=0
     var supports:int=0
@@ -22,6 +24,7 @@ package class RagdollDriveControls {
     func toggle() { self.toggles++ }
     func push() { self.pushes++ }
     func shoot() { self.shots++ }
+    func direction() { self.directions++ }
     func reset() { self.resets++ }
     func pause() { self.pauses++ }
     func support() { self.supports++ }
@@ -31,6 +34,7 @@ package class RagdollDriveControls {
         button.style.background=Color.slate_700();button.style.radius=5.0
         return button
     }
+    func direction_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.direction_text),self.direction) }
     func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause) }
     func status(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.feedback)) }
     func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
@@ -39,9 +43,9 @@ package class RagdollDriveControls {
         var help=UI.Text("T : suspension ou sol · Or : libre au départ · Bleu : maintien neutre · 3 : tester les butées · Collisions internes actives");help.style.height=24.0
         var targets=UI.Row([self.button("Maintenir ouverte (1)",self.pose_one),self.button("Maintenir repliée (2)",self.pose_two),self.button("Neutre (0)",self.neutral),self.button("Maintenir / relâcher (M)",self.toggle),self.button("Tester les butées (3)",self.pose_three)])
         targets.style.gap=10.0
-        var actions=UI.Row([self.button("Pousser le bras (P)",self.push),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button),self.button("Suspension / sol (T)",self.support),self.button("Lancer un bloc (B)",self.shoot)])
+        var actions=UI.Row([self.button("Pousser le bras (P)",self.push),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button),self.button("Suspension / sol (T)",self.support),self.button("Lancer un bloc (B)",self.shoot),UI.Reactive(self.direction_button)])
         actions.style.gap=10.0
-        var rows:UI.View[]=[title,help,targets,actions,UI.Reactive(self.status),UI.Reactive(self.metrics),UI.Text("B lance un bloc physique, visible 3 s. P pousse directement le bras. M maintient ou relâche. Échap : quitter.")]
+        var rows:UI.View[]=[title,help,targets,actions,UI.Reactive(self.status),UI.Reactive(self.metrics),UI.Text("C choisit face / obliques. B lance un bloc physique, visible 3 s. P pousse le bras. M maintient ou relâche. Échap : quitter.")]
         if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — commande de pose — fermeture à la fin"),UI.Reactive(self.metrics)] }
         var root=UI.Column(rows)
         root.style.padding=UI.Insets(16.0);root.style.gap=8.0
@@ -56,12 +60,13 @@ package class RagdollDriveControls {
                 let reset=code==114 as uint32 || code==82 as uint32 || (code==0 as uint32 && key.key==Input.Key.r)
                 let push=code==112 as uint32 || code==80 as uint32 || (code==0 as uint32 && key.key==Input.Key.p)
                 let shoot=code==98 as uint32 || code==66 as uint32 || (code==0 as uint32 && key.key==Input.Key.b)
+                let direction=code==99 as uint32 || code==67 as uint32 || (code==0 as uint32 && key.key==Input.Key.c)
                 let motor=code==109 as uint32 || code==77 as uint32 || (code==0 as uint32 && key.key==Input.Key.m)
                 let support=code==116 as uint32 || code==84 as uint32 || (code==0 as uint32 && key.key==Input.Key.t)
                 let one=code==49 as uint32 || (code==0 as uint32 && key.key==Input.Key.num1);let two=code==50 as uint32 || (code==0 as uint32 && key.key==Input.Key.num2);let three=code==51 as uint32 || (code==0 as uint32 && key.key==Input.Key.num3);let zero=code==48 as uint32 || (code==0 as uint32 && key.key==Input.Key.num0)
-                if key.key==Input.Key.space || reset || push || shoot || motor || support || one || two || three || zero {
+                if key.key==Input.Key.space || reset || push || shoot || direction || motor || support || one || two || three || zero {
                     if !key.repeated {
-                        if reset { self.reset() } else if support { self.support() } else if push { self.push() } else if shoot { self.shoot() } else if motor { self.toggle() }
+                        if reset { self.reset() } else if support { self.support() } else if push { self.push() } else if shoot { self.shoot() } else if direction { self.direction() } else if motor { self.toggle() }
                         else if one { self.pose_one() } else if two { self.pose_two() } else if three { self.pose_three() } else if zero { self.neutral() } else { self.pause() }
                     }
                     return true

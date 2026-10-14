@@ -2,11 +2,13 @@ use GFX.Physics
 use Physics3D.RagdollDrive.Model
 use STD.Math
 
-package func verify_projectile() {
+package func verify_direction(direction:int) {
     for rate in [60,120] { for support in [0,1] { for powered in [0,1] {
         var model=Model.RagdollDriveModel();var control=Model.RagdollDriveModel()
         if support==1 { model.switch_support();control.switch_support() }
         if powered==1 { model.select(1);control.select(1) }
+        var selected=0;while selected<direction { model.cycle_direction();selected++ }
+        assert(model.shot_direction==direction)
         var step=0
         while step<rate*2 { model.step(1.0/rate);control.step(1.0/rate);model.verify();control.verify();step++ }
         var poses:Physics.Transform3D[]=[];var velocities:Math.Vec3[]=[];var spins:Math.Vec3[]=[]
@@ -27,15 +29,26 @@ package func verify_projectile() {
                     difference=Math.max(difference,model.anatomy.instances[0].body(part).linear_velocity().subtract(control.anatomy.instances[0].body(part).linear_velocity()).length())
                 }
             }
-            if step==rate { assert(model.projectile_impacts==1 && model.projectile_impulse>0.00001 && difference>0.001) }
+            if step==rate {
+                if model.projectile_impacts!=1 || model.projectile_impulse<=0.00001 || difference<=0.001 {
+                    print("Rejected block direction $(direction), rate $(rate), support $(support), motors $(powered): impacts $(model.projectile_impacts), impulse $(model.projectile_impulse), velocity response $(difference)")
+                }
+                assert(model.projectile_impacts==1 && model.projectile_impulse>0.00001 && difference>0.001)
+            }
             step++
         }
         assert(model.projectile==null && model.projectile_impacts==1 && difference>0.001)
-        model.shoot();stale=model.projectile!;model.reset();assert(!stale.is_valid() && model.projectile==null && model.shots==0 && model.projectile_impacts==0)
-        model.shoot();stale=model.projectile!;model.switch_support();assert(!stale.is_valid() && model.projectile==null)
+        model.shoot();stale=model.projectile!;model.reset();assert(model.shot_direction==direction);assert(!stale.is_valid() && model.projectile==null && model.shots==0 && model.projectile_impacts==0)
+        model.shoot();stale=model.projectile!;model.switch_support();assert(model.shot_direction==direction);assert(!stale.is_valid() && model.projectile==null)
         model.verify()
-        print("External block $(rate) Hz support $(support) motors $(powered): measured contact, velocity response $(difference), no placement, single projectile, expiry, reset and mode verified")
+        if direction==0 { print("External block $(rate) Hz support $(support) motors $(powered): measured contact, velocity response $(difference), no placement, single projectile, expiry, reset and mode verified") }
+        else { print("Oblique block $(direction) at $(rate) Hz support $(support) motors $(powered): measured contact, velocity response $(difference), no placement, single projectile, expiry, reset and mode verified") }
     } } }
 }
+
+package func verify_projectile() { verify_direction(0) }
+package func verify_oblique() { for direction in [1,2] { verify_direction(direction) } }
+
+test "oblique blocks contact anatomical bodies in both supports and motor states" { verify_oblique() }
 
 test "external block contacts anatomical bodies and changes their velocity without a pose command" { verify_projectile() }
