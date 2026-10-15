@@ -1,10 +1,9 @@
-# Steering, brakes and suspension
+# Drive with an engine, tires and suspension
 
-A 100 kg chassis drops onto four suspended wheels. Springs support its weight;
-white rods show their length and green pads identify ground supports. White
-hub bars rotate with the physical wheel angles. Tires are passive: ground
-contact spins them. Steering turns the front wheels; brakes slow their rotors and contact transfers
-force. P launches the chassis by impulse; the powertrain remains future work.
+A 100 kg chassis rests on four suspended wheels. A 30 N·m engine drives the
+rear wheels through an automatic gearbox. Tire contacts accelerate, turn and
+brake the vehicle. White hub bars show physical rotation; the yellow strip
+marks the front. The camera follows the chassis over a metric ground grid.
 
 From the workspace root:
 
@@ -12,35 +11,42 @@ From the workspace root:
 silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release
 ```
 
-After landing, **P** launches the vehicle, **←/→** turn and **F** stops it.
-**↑** centers the wheels. Steering remains selected after releasing a key until
-another choice. Left/right follow the vehicle frame, marked by its yellow strip.
-**F/H** activate or release their brakes. Repeat with **G** to compare without
-grip: wheels steer but the vehicle slides even with brakes active. The camera follows the
-chassis while the metric ground grid makes travel visible. Buttons perform
-the same actions as keyboard keys. The yellow strip marks the chassis front (+Z).
+After landing, **Z** accelerates forward, **S** requests reverse and **X**
+releases throttle. These inputs remain selected after releasing the key.
+**←/→** select maintained steering; **↑** centers it. **F/H** activate or
+release their brakes. **R** starts fresh with released throttle and straight
+wheels. Buttons perform the same actions.
 
-- **P / Push forward** applies a 200 N·s impulse along the chassis forward
-  direction. Ground contact spins the tires, sharing the initial motion.
-- **←/→ / Steer** selects a maintained 18° front-wheel angle; **↑** centers it.
-- **F / Brake** activates/releases all four brakes, limited to 1500 N·m per wheel.
-- **H / Handbrake** activates/releases only the rear brakes, limited to 20 N·m.
-- **V / Push sideways** applies 200 N·s laterally. Tire grip resists drift;
-  without tires, lateral velocity persists.
-- **G / Grip** switches mode and **recreates** the vehicle above the ground.
-  The no-grip mode retains suspension but removes virtual tires: wheels
-  remain unspun and transmit no tangential force.
-- **B / Jump** applies a vertical 500 N·s impulse, losing then regaining support.
-- **C / Overload** applies downward force for two seconds, compressing the
-  suspensions to their stops before they recover.
-- **Space / Pause** freezes chassis motion, wheel angles and overload time.
-- **R / Recreate** preserves the selected mode and recreates the vehicle above ground. R and G release brakes and center steering.
+- **Z / Accelerate** selects 60 % throttle and forward direction.
+- **S / Reverse** selects 50 % and reverse direction. The gearbox opens then
+  engages its clutch; a vehicle traveling forward must first slow down.
+- **X / Release** sets throttle to zero. Tires continue rolling.
+- **←/→ / Steer** selects 18° front-wheel steering; **↑** centers it. Left/right
+  follow the vehicle frame marked by its yellow strip, rather than screen edges.
+- **F / Brake** activates/releases all four 1500 N·m wheel brakes.
+- **H / Handbrake** activates/releases only the 20 N·m rear brakes.
+- **G / Grip** changes mode and recreates the vehicle. Without grip, suspension
+  still supports the chassis and rotors remain engine-connected, but friction
+  curves are zero. Z spins wheels without propelling the chassis; P produces
+  a slide the wheel brakes cannot stop.
+- **P / Push forward** applies a 200 N·s impulse along chassis forward,
+  separate from the engine. **V** applies the same impulse sideways.
+- **B / Jump** applies 500 N·s vertically, losing then regaining support.
+- **C / Overload** adds downward force for two seconds, compressing suspensions
+  to their stops before they recover.
+- **Space / Pause** freezes chassis, wheels, engine RPM and overload time.
+- **R / Recreate** preserves grip mode, releases throttle and brakes, centers
+  steering and recreates the vehicle above ground.
 - **Escape** closes the window.
 
-Physical actions and recreation resume a paused simulation. A new overload
-replaces its remaining duration with two seconds. Successive pushes accumulate;
-keyboard auto-repeat is ignored. The panel shows mode, speed, height, support
-count, steering angle and total normal force. At rest: about 88 cm, four supports and 981 N.
+Throttle, steering and brakes combine. Use X before testing a stop, then F for
+service braking; press F again to release it. Actions resume a paused simulation;
+keyboard repeat is ignored. G and R reset all inputs.
+
+The panel shows speed, steering, height, supports and suspension forces, then
+engine RPM, gear, clutch and throttle. Gear 0 means neutral; negative gears
+mean reverse. Gear changes are automatic. At rest: about 88 cm, four supports
+and 981 N.
 
 ## Verification
 
@@ -51,19 +57,20 @@ silex compile Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --relea
 .silex/vehicle-suspension --smoke
 ```
 
-The **TEST AUTOMATIQUE** run closes after dropping, jumping, losing/regaining
-support, overloading, pausing, rolling, pushing, comparing grip modes, turning, stopping and rear braking. It
-checks physical values, rendered transforms and framing through the actual
-ECS camera. Ordinary controls are hidden in this mode. Headless paths check
-physics at 60/120 Hz and keyboard/button events. They do not replace observing
-visual readability.
+The **TEST AUTOMATIQUE** run closes after suspension, rolling, grip, steering
+and brake checks, then acceleration, reverse, stopping, powered wheels without
+grip and engine pause. Let it close normally. It checks physics, rendered
+transforms and framing through the actual ECS camera. Headless paths verify
+physics at 60/120 Hz and keyboard/button input; they do not replace observing
+the rendering.
 
-Simulation advances at 120 Hz. Rendering interpolates poses, lengths, steering and angles
-with unwrapping across ±2π. Meshes are created once and shared; the grid moves
-only at five-meter boundaries. The panel refreshes at most ten times per second
-and after commands. Supports are observed at the start of a step, while the
-final pose is interpolated; this may slightly offset a pad during an impact.
+Simulation runs at 120 Hz, with rendered interpolation of poses, lengths and
+angles. Meshes are created once and shared, the grid moves at five-meter
+boundaries, and the panel updates at most ten times per second or after input.
+Supports sampled at step start may appear slightly offset from the final
+interpolated pose during an impact.
 
-SDK guides: [suspension](../../../../Packages/GFX.Physics/Docs/EN/VehicleSuspension3D.md)
-[passive tires](../../../../Packages/GFX.Physics/Docs/EN/PassiveTires3D.md)
-and [wheel controls](../../../../Packages/GFX.Physics/Docs/EN/VehicleControls3D.md).
+SDK guides: [suspension](../../../../Packages/GFX.Physics/Docs/EN/VehicleSuspension3D.md),
+[tires](../../../../Packages/GFX.Physics/Docs/EN/PassiveTires3D.md),
+[steering and brakes](../../../../Packages/GFX.Physics/Docs/EN/VehicleControls3D.md)
+and [powertrain](../../../../Packages/GFX.Physics/Docs/EN/VehiclePowertrain3D.md).

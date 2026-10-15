@@ -2,7 +2,11 @@ use GFX.Physics
 use STD.Math
 func create_vehicle(world:Physics.World3D, grip:bool) Physics.WheeledVehicle3D {
     var wheels:Physics.Wheel3DSettings[]=[]
-    var tire:Physics.Tire3DSettings?=null;if grip { tire=Physics.Tire3DSettings() }
+    var tire=Physics.Tire3DSettings()
+    if !grip {
+        let none=Physics.TireFrictionCurve3D([Math.Vec2(0.0,0.0)])
+        tire=Physics.Tire3DSettings(longitudinal_friction:none,lateral_friction:none)
+    }
     let sides:int[]=[-1,1]
     for x in sides { for z in sides {
         var turn=0.0;var hand=20.0
@@ -14,7 +18,9 @@ func create_vehicle(world:Physics.World3D, grip:bool) Physics.WheeledVehicle3D {
         Physics.RigidBody3DSettings() ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.4,0.4,2.4)))
             ..transform=Physics.Transform3D(Math.Vec3(0.0,1.4,0.0)) ..allow_sleep=false
             ..mass_properties=Physics.MassProperties3D(100.0,Math.Vec3(100.0))
-            ..linear_damping=0.0 ..angular_damping=0.0,wheels))
+            ..linear_damping=0.0 ..angular_damping=0.0,wheels,
+        engine:Physics.VehicleEngine3DSettings(maximum_torque:30.0),
+        differentials:[Physics.VehicleDifferential3DSettings(0,2)]))
 }
 
 package class SuspensionModel {
@@ -22,6 +28,7 @@ package class SuspensionModel {
     var vehicle:Physics.WheeledVehicle3D
     var grip:bool=true
     var pushes:int=0
+    var throttle:float=0.0
     var steering:float=0.0
     var braking:bool=false
     var handbraking:bool=false
@@ -36,13 +43,14 @@ package class SuspensionModel {
     }
     func reset() {
         self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world,self.grip)
-        self.load_remaining=0.0;self.steps=0;self.jumps=0;self.loads=0;self.pushes=0;self.steering=0.0;self.braking=false;self.handbraking=false
+        self.load_remaining=0.0;self.steps=0;self.jumps=0;self.loads=0;self.pushes=0;self.steering=0.0;self.throttle=0.0;self.braking=false;self.handbraking=false
     }
     func apply_controls() {
         var brake=0.0;var hand=0.0;if self.braking { brake=1.0 }
         if self.handbraking { hand=1.0 }
-        self.vehicle.set_controls(steering:self.steering,brake:brake,handbrake:hand)
+        self.vehicle.set_controls(steering:self.steering,brake:brake,handbrake:hand,throttle:self.throttle)
     }
+    func accelerate(value:float) { self.throttle=value;self.apply_controls() }
     func steer(value:float) { self.steering=value;self.apply_controls() }
     func toggle_brake() { self.braking=!self.braking;self.apply_controls() }
     func toggle_handbrake() { self.handbraking=!self.handbraking;self.apply_controls() }
@@ -158,3 +166,26 @@ package func verify_driving() {
     print("Vehicle driving scene: mirrored turns, service stop, rear handbrake, release, reset and no-grip comparison verified at 60/120 Hz")
 }
 test "vehicle steering and brakes act through real tire contact" { verify_driving() }
+
+package func verify_powered() {
+    for rate in [60,120] {
+        var drive=SuspensionModel();settle(drive,rate,2);drive.accelerate(0.6);settle(drive,rate,3)
+        assert(drive.vehicle.chassis().position().z>1.0 && drive.vehicle.chassis().linear_velocity().z>0.5)
+        assert(drive.vehicle.powertrain().gear>0 && drive.vehicle.powertrain().engine_rpm>=1000.0)
+        drive.accelerate(0.0);drive.toggle_brake();settle(drive,rate,3)
+        assert(drive.vehicle.chassis().linear_velocity().length()<0.03)
+        var reverse=SuspensionModel();settle(reverse,rate,2);reverse.accelerate(-0.5);settle(reverse,rate,3)
+        assert(reverse.vehicle.chassis().position().z< -1.0 && reverse.vehicle.powertrain().gear<0)
+        reverse.accelerate(0.0);reverse.toggle_brake();settle(reverse,rate,3)
+        assert(reverse.vehicle.chassis().linear_velocity().length()<0.03)
+        var turn=SuspensionModel();settle(turn,rate,2);turn.steer(0.4);turn.accelerate(0.6);settle(turn,rate,3)
+        assert(turn.vehicle.chassis().position().x< -0.2)
+        var slide=SuspensionModel();slide.toggle_grip();settle(slide,rate,2);slide.accelerate(0.6);settle(slide,rate,2)
+        assert(Math.abs(slide.vehicle.chassis().position().z)<0.01 && slide.vehicle.wheel(0).angular_velocity>1.0)
+        slide.accelerate(0.0);slide.toggle_brake();settle(slide,rate,2)
+        assert(Math.abs(slide.vehicle.chassis().position().z)<0.01)
+        slide.reset();assert(slide.throttle==0.0 && slide.vehicle.powertrain().gear==0)
+    }
+    print("Powered driving scene: engine acceleration, reverse, braking, powered turn, no-grip wheel spin and reset verified at 60/120 Hz")
+}
+test "visible powered vehicle accelerates and reverses only through tire contact" { verify_powered() }

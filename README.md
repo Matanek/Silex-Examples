@@ -1043,19 +1043,22 @@ report cell descriptions and comparisons, without FPS claims.
 `silex run Silex-Examples/Sources/UITableView/Main.sx --release`.
 Use `-- --cpu-check` for the pure CPU path without opening a window.
 
-## Steering, brakes, tire grip and suspension
+## Powered driving, steering and suspension
 
 [VehicleSuspension](Sources/Physics3D/VehicleSuspension/README.md) drops a 100 kg
 chassis onto four suspended wheels. B jumps, C overloads for two seconds, Space
 pauses and R recreates. Green pads show support lost in flight and regained on
 landing. P pushes forward and spins passive tires through ground contact; V
-pushes sideways to test lateral grip. G recreates the vehicle without tires
+pushes sideways to test lateral grip. G recreates the vehicle with zero tire friction
 for a sliding comparison. White hub bars show physical rotation, a yellow strip
 marks the front, and the following camera keeps the metric ground grid visible.
 Left/right arrows select maintained front-wheel steering; Up centers it. F toggles
 the service brake, H the rear handbrake. R/G release brakes and center steering.
-The rendered wheels follow their physical steering angles. Propulsion and
-transmission remain future work.
+The rendered wheels follow their physical steering angles. Z selects maintained forward throttle, S reverse, and X releases throttle.
+A 30 N·m engine drives the rear wheels through an automatic gearbox; RPM,
+gear and clutch are visible. The no-grip comparison retains rotors with zero
+friction curves, so powered wheels spin without propelling the chassis. R/G
+also release throttle.
 
 `silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release`.
 [Guide français](Sources/Physics3D/VehicleSuspension/README.fr.md).

@@ -45,6 +45,7 @@ class SuspensionScene {
     var phase_start:int=0
     var pause_frames:int=0
     var held:Physics.Transform3D=Physics.Transform3D()
+    var held_rpm:float=0.0
     var held_load:float=0.0
     var lost:bool=false
     var returned:bool=false
@@ -68,6 +69,11 @@ func labels(state:&SuspensionScene,simulation:@Application.Simulation) {
     var hand="Frein main libre (H)";if state.model.handbraking { hand="Frein main actif (H)" }
     if state.controls.brake_text.value()!=brake { state.controls.brake_text.set(brake) }
     if state.controls.handbrake_text.value()!=hand { state.controls.handbrake_text.set(hand) }
+    let power=state.model.vehicle.powertrain()
+    let rpm=Math.round(power.engine_rpm) as int;let clutch=Math.round(power.clutch*100.0) as int;let throttle=Math.round(state.model.throttle*100.0) as int
+    var shift="";if power.switching_gear { shift=" · changement en cours" }
+    let power_text="Moteur $(rpm) RPM · rapport $(power.gear) · embrayage $(clutch)% · accélérateur $(throttle)%$(shift) · Z/S/X : commandes maintenues"
+    if state.controls.power_measure.value()!=power_text { state.controls.power_measure.set(power_text) }
     let turn=Math.round(Math.degrees(state.model.vehicle.wheel(1).steering_angle)) as int
     let height=Math.round(state.model.vehicle.chassis().position().y*100.0) as int
     let force=Math.round(state.model.force()) as int
@@ -84,6 +90,11 @@ func perform(state:&SuspensionScene,simulation:&Application.Simulation) {
         state.controls.grips--;state.model.toggle_grip();remember(state);state.accumulator=0.0;simulation.resume();changed=true
         state.controls.feedback.set("Comparaison changée — véhicule recréé. P pousse devant ; V pousse de côté. Les repères du sol indiquent le déplacement.")
     }
+    if state.controls.throttles.count()>0 {
+        for throttle in state.controls.throttles { state.model.accelerate(throttle) }
+        state.controls.throttles=[];simulation.resume();changed=true
+        state.controls.feedback.set("Accélérateur choisi — Z avance, S recule, X relâche. La boîte choisit ses rapports ; les pneus transmettent le couple.")
+    }
     if state.controls.directions.count()>0 {
         for direction in state.controls.directions { state.model.steer(direction) }
         state.controls.directions=[];simulation.resume();changed=true
@@ -99,7 +110,7 @@ func perform(state:&SuspensionScene,simulation:&Application.Simulation) {
     }
     while state.controls.forwards>0 {
         state.controls.forwards--;state.model.push_forward();simulation.resume();changed=true
-        state.controls.feedback.set("Poussée vers l’avant — avec adhérence, le contact entraîne les jantes blanches. Aucun moteur.")
+        state.controls.feedback.set("Poussée vers l’avant — avec adhérence, le contact entraîne les jantes blanches. P reste une impulsion distincte du moteur.")
     }
     while state.controls.sideways>0 {
         state.controls.sideways--;state.model.push_sideways();simulation.resume();changed=true
@@ -147,11 +158,11 @@ func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Suspension
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5)))
     simulation.resume();remember(state);labels(state,simulation)
     state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform(position:Math.Vec2()))
-        ..with(Scene2D.Canvas(state.ui.drawing(1180,294),1180,294) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+        ..with(Scene2D.Canvas(state.ui.drawing(1180,368),1180,368) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
             ..space=Scene2D.CanvasSpace.viewport ..layer=100))
 }
 func camera_settings() Plugins.ViewportCamera3D.Settings {
-    return Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,2.1,0.0)
+    return Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,2.85,0.0)
         ..vertical_fov=0.9 ..distance=9.0 ..yaw=Math.radians(-25.0) ..pitch=Math.radians(-20.0)
         ..zoom_speed=0.0 ..scroll_zoom_speed=0.0 ..orbit_sensitivity=0.0 ..pan_sensitivity=0.0
 }
@@ -162,14 +173,14 @@ func verify_framing(world:@Resources.World,state:@SuspensionScene,view:Scene3D.T
     let sides:int[]=[-1,1]
     for x in sides { for y in sides { for z in sides {
         let point=camera.project(pose.point(Math.Vec3(1.02*x as float,0.2*y as float,1.3*z as float)),view,Math.Vec2(1280.0,800.0))!
-        assert(point.x>20.0 && point.x<1260.0 && point.y>304.0 && point.y<780.0)
+        assert(point.x>20.0 && point.x<1260.0 && point.y>378.0 && point.y<780.0)
     } } }
     for i in [0,1,2,3] {
         let tire=world.get<Components.Transform3D>(state.tires[i])
         for x in sides { for y in sides { for z in sides {
             let corner=tire.position.add(tire.rotation.rotate(Math.Vec3(0.3*x as float,0.1*y as float,0.3*z as float)))
             let point=camera.project(corner,view,Math.Vec2(1280.0,800.0))!
-            assert(point.x>20.0 && point.x<1260.0 && point.y>304.0 && point.y<780.0)
+            assert(point.x>20.0 && point.x<1260.0 && point.y>378.0 && point.y<780.0)
         } } }
     }
 }
@@ -234,8 +245,39 @@ func smoke_commands(state:&SuspensionScene,simulation:&Application.Simulation,co
     } else if state.phase==18 && state.model.steps-state.phase_start>=360 {
         assert(state.model.vehicle.chassis().linear_velocity().length()<0.02)
         for i in [1,3] { assert(state.model.vehicle.wheel(i).brake_torque==0.0) }
-        print("Driving smoke: suspension, rolling, grip comparison, physical steering, service stop, rear handbrake, pause, recreation and rendered wheel/camera transforms verified")
-        controller.stop()
+        state.controls.reset();perform(state,simulation);state.phase=19
+    } else if state.phase==19 && state.model.steps>=240 {
+        state.controls.forward_drive();perform(state,simulation);state.phase_start=state.model.steps;state.phase=20
+    } else if state.phase==20 && state.model.steps-state.phase_start>=360 {
+        assert(state.model.vehicle.chassis().position().z>1.0 && state.model.vehicle.powertrain().gear>0)
+        state.controls.coast();state.controls.brake();perform(state,simulation);state.phase_start=state.model.steps;state.phase=21
+    } else if state.phase==21 && state.model.steps-state.phase_start>=360 {
+        assert(state.model.vehicle.chassis().linear_velocity().length()<0.03)
+        state.controls.reset();perform(state,simulation);state.phase=22
+    } else if state.phase==22 && state.model.steps>=240 {
+        state.controls.reverse_drive();perform(state,simulation);state.phase_start=state.model.steps;state.phase=23
+    } else if state.phase==23 && state.model.steps-state.phase_start>=360 {
+        assert(state.model.vehicle.chassis().position().z< -1.0 && state.model.vehicle.powertrain().gear<0)
+        state.controls.coast();state.controls.brake();perform(state,simulation);state.phase_start=state.model.steps;state.phase=24
+    } else if state.phase==24 && state.model.steps-state.phase_start>=360 {
+        assert(state.model.vehicle.chassis().linear_velocity().length()<0.03)
+        state.controls.toggle_grip();perform(state,simulation);state.phase=25
+    } else if state.phase==25 && state.model.steps>=240 {
+        state.controls.forward_drive();perform(state,simulation);state.phase_start=state.model.steps;state.phase=26
+    } else if state.phase==26 && state.model.steps-state.phase_start>=240 {
+        assert(Math.abs(state.model.vehicle.chassis().position().z)<0.01 && state.model.vehicle.wheel(0).angular_velocity>1.0)
+        state.controls.pause();perform(state,simulation);state.held_rpm=state.model.vehicle.powertrain().engine_rpm
+        state.held=copy state.model.vehicle.chassis().transform();state.pause_frames=0;state.held_angles=[]
+        for i in [0,1,2,3] { state.held_angles.append(state.model.vehicle.wheel(i).rotation_angle) }
+        state.phase=27
+    } else if state.phase==27 {
+        assert(simulation.is_paused() && state.model.vehicle.powertrain().engine_rpm==state.held_rpm && state.model.vehicle.chassis().transform()==state.held)
+        for i in [0,1,2,3] { assert(state.model.vehicle.wheel(i).rotation_angle==state.held_angles[i]) }
+        state.pause_frames++
+        if state.pause_frames==8 {
+            print("Powered driving smoke: motor acceleration, reverse, braking, no-grip wheel spin, pause, suspension and rendered camera/wheel transforms verified")
+            controller.stop()
+        }
     }
 }
 func update(world:&Resources.World,input:@Resources.InputState,state:&SuspensionScene,simulation:&Application.Simulation,controller:&Application.Controller) {
@@ -265,7 +307,7 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&Suspension
     state.telemetry+=simulation.delta()
     if state.telemetry>=0.1 { state.telemetry=0.0;labels(state,simulation) }
     if state.ui.update(0.0) {
-        world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(1180,294)) })
+        world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(1180,368)) })
     }
 }
 func wheel_angle(previous:float,current:float,alpha:float) float {
@@ -311,7 +353,7 @@ func render(world:&Resources.World,state:&SuspensionScene,camera:&Resources.View
             assert(world.get<Components.Mesh3D>(state.markers[i]).visible==visible)
         }
     }
-    camera.set_target(Math.Vec3(pose.position.x,2.1,pose.position.z))
+    camera.set_target(Math.Vec3(pose.position.x,2.85,pose.position.z))
     let view=camera.transform()
     if world.is_alive(camera.entity()) {
         world.update<Components.Transform3D>(camera.entity(),func(t:&Components.Transform3D) { t.position=view.position;t.rotation=view.rotation })
@@ -388,6 +430,15 @@ func verify_controls() {
     InputCheck.click(state.ui,800.0,195.0);perform(state,simulation);assert(!state.model.braking)
     InputCheck.click(state.ui,1050.0,195.0);perform(state,simulation);assert(state.model.handbraking)
     state.controls.reset();perform(state,simulation);assert(!state.model.braking && !state.model.handbraking && state.model.steering==0.0)
+    simulation.pause();assert(state.controls.handle(InputCheck.key_event(Input.Key.z,122 as uint32)));perform(state,simulation)
+    assert(!simulation.is_paused() && state.model.throttle==0.6)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.z,90 as uint32,true)));perform(state,simulation);assert(state.model.throttle==0.6)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.x,88 as uint32)));perform(state,simulation);assert(state.model.throttle==0.0)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.s,0 as uint32)));perform(state,simulation);assert(state.model.throttle== -0.5)
+    InputCheck.click(state.ui,100.0,241.0);perform(state,simulation);assert(state.model.throttle==0.6)
+    InputCheck.click(state.ui,330.0,241.0);perform(state,simulation);assert(state.model.throttle==0.0)
+    InputCheck.click(state.ui,560.0,241.0);perform(state,simulation);assert(state.model.throttle== -0.5)
+    state.controls.reset();perform(state,simulation);assert(state.model.throttle==0.0 && state.model.vehicle.powertrain().gear==0)
     state.controls.automatic=true;assert(!state.controls.handle(InputCheck.key_event(Input.Key.b,98 as uint32)))
     print("Suspension controls: logical keys, physical fallback, uppercase, repetition, buttons, pause and recreation verified")
 }
@@ -395,12 +446,12 @@ test "vehicle controls reach actions through keys and buttons while preserving p
 func main() {
     var state=SuspensionScene()
     for argument in Process.arguments() {
-        if argument=="--physics-check" { Model.verify_physics();Model.verify_rolling();Model.verify_driving();return }
+        if argument=="--physics-check" { Model.verify_physics();Model.verify_rolling();Model.verify_driving();Model.verify_powered();return }
         if argument=="--controls-check" { verify_controls();return }
         if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
     }
-    var title="Braquage et freins — contacts physiques"
-    if state.smoke { title="TEST AUTOMATIQUE — braquage et freins — fermeture à la fin" }
+    var title="Conduite motorisée — contacts physiques"
+    if state.smoke { title="TEST AUTOMATIQUE — conduite motorisée — fermeture à la fin" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
         ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
