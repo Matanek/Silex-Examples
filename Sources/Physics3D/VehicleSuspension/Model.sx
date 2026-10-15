@@ -1,9 +1,10 @@
 use GFX.Physics
 use STD.Math
-func create_vehicle(world:Physics.World3D) Physics.WheeledVehicle3D {
+func create_vehicle(world:Physics.World3D, grip:bool) Physics.WheeledVehicle3D {
     var wheels:Physics.Wheel3DSettings[]=[]
+    var tire:Physics.Tire3DSettings?=null;if grip { tire=Physics.Tire3DSettings() }
     let sides:int[]=[-1,1]
-    for x in sides { for z in sides { wheels.append(Physics.Wheel3DSettings(Math.Vec3(0.9*x as float,0.0,z as float))) } }
+    for x in sides { for z in sides { wheels.append(Physics.Wheel3DSettings(Math.Vec3(0.9*x as float,0.0,z as float),tire:tire)) } }
     return world.create_wheeled_vehicle(Physics.WheeledVehicle3DSettings(
         Physics.RigidBody3DSettings() ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.4,0.4,2.4)))
             ..transform=Physics.Transform3D(Math.Vec3(0.0,1.4,0.0)) ..allow_sleep=false
@@ -14,19 +15,24 @@ func create_vehicle(world:Physics.World3D) Physics.WheeledVehicle3D {
 package class SuspensionModel {
     var world:Physics.World3D=Physics.World3D()
     var vehicle:Physics.WheeledVehicle3D
+    var grip:bool=true
+    var pushes:int=0
     var load_remaining:float=0.0
     var steps:int=0
     var jumps:int=0
     var loads:int=0
     init() {
         self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
-            ..shape=Physics.Shape3D.plane(Physics.Plane3D()))
-        self.vehicle=create_vehicle(self.world)
+            ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0)
+        self.vehicle=create_vehicle(self.world,self.grip)
     }
     func reset() {
-        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world)
-        self.load_remaining=0.0;self.steps=0;self.jumps=0;self.loads=0
+        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world,self.grip)
+        self.load_remaining=0.0;self.steps=0;self.jumps=0;self.loads=0;self.pushes=0
     }
+    func toggle_grip() { self.grip=!self.grip;self.reset() }
+    func push_forward() { self.vehicle.chassis().apply_impulse(self.vehicle.chassis().transform().vector(Math.Vec3(0.0,0.0,200.0)));self.pushes++ }
+    func push_sideways() { self.vehicle.chassis().apply_impulse(self.vehicle.chassis().transform().vector(Math.Vec3(200.0,0.0,0.0)));self.pushes++ }
     func jump() { self.vehicle.chassis().apply_impulse(Math.Vec3(0.0,500.0,0.0));self.jumps++ }
     func load() { self.load_remaining=2.0;self.loads++ }
     func step(delta:float) {
@@ -47,7 +53,7 @@ package class SuspensionModel {
     func verify() {
         var body=self.vehicle.chassis()
         assert(self.world.body_count()==2 && self.vehicle.wheel_count()==4)
-        assert(body.position().y>0.47 && body.position().length()<10.0 && body.linear_velocity().length()<15.0)
+        assert(body.position().y>0.47 && Math.abs(body.position().y)<10.0 && body.linear_velocity().length()<15.0)
         for i in [0,1,2,3] {
             var wheel=self.vehicle.wheel(i)
             assert(wheel.length>=0.0 && wheel.length<=0.60001 && wheel.normal_force>=0.0 && wheel.normal_force<100000.0)
@@ -84,3 +90,26 @@ package func verify_physics() {
     print("Suspension physics: rest, jump, lost/regained support, loaded stop, recovery and recreation verified at 60/120 Hz")
 }
 test "visible vehicle uses physical suspensions under weight impulse and temporary overload" { verify_physics() }
+
+package func verify_rolling() {
+    for rate in [60,120] { for grip in [false,true] { for sideways in [false,true] {
+        var model=SuspensionModel();if !grip { model.toggle_grip() }
+        var step=0;while step<rate*2 { model.step(1.0/rate as float);step++ }
+        model.verify_rest()
+        if sideways { model.push_sideways() } else { model.push_forward() }
+        step=0;while step<rate*2 { model.step(1.0/rate as float);model.verify();step++ }
+        var body=model.vehicle.chassis()
+        if !grip {
+            var distance=body.position().z;if sideways { distance=body.position().x }
+            assert(Math.abs(distance-4.0)<0.01 && model.vehicle.wheel(0).rotation_angle==0.0)
+        } else if sideways {
+            assert(Math.abs(body.linear_velocity().x)<0.02 && Math.abs(body.position().x)<0.6)
+        } else {
+            assert(body.position().z>1.5 && body.position().z<3.5 && model.vehicle.wheel(0).angular_velocity>3.0)
+        }
+        assert(model.pushes==1)
+        var old=model.vehicle;model.toggle_grip();assert(!old.is_valid() && model.grip!=grip && model.steps==0)
+    } } }
+    print("Passive rolling scene: longitudinal spin, lateral grip, slippery comparison and recreation verified at 60/120 Hz")
+}
+test "visible tires spin from contact and distinguish rolling from lateral sliding" { verify_rolling() }

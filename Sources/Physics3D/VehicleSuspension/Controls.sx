@@ -4,14 +4,22 @@ use GFX.Input.Events
 use GFX.UI
 
 package class SuspensionControls {
+    var forwards:int=0
+    var sideways:int=0
+    var grips:int=0
+    var grip_text:UI.State<str> =UI.State<str>("Adhérence active (G)")
     var jumps:int=0
     var loads:int=0
     var resets:int=0
     var pauses:int=0
     var automatic:bool=false
     var pause_text:UI.State<str> =UI.State<str>("Pause (Espace)")
-    var feedback:UI.State<str> =UI.State<str>("Le châssis tombe sous son poids. B le fait bondir ; C comprime les suspensions pendant 2 secondes.")
+    var feedback:UI.State<str> =UI.State<str>("Après la réception, P fait rouler les pneus ; V pousse de côté. G recrée le véhicule pour comparer sans adhérence.")
     var measure:UI.State<str> =UI.State<str>("")
+    func push_forward() { self.forwards++ }
+    func push_sideways() { self.sideways++ }
+    func toggle_grip() { self.grips++ }
+    func grip_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.grip_text),self.toggle_grip) }
     func jump() { self.jumps++ }
     func load() { self.loads++ }
     func reset() { self.resets++ }
@@ -27,11 +35,12 @@ package class SuspensionControls {
     func describe() UI.View {
         var actions=UI.Row([self.button("Bondir (B)",self.jump),self.button("Surcharger 2 s (C)",self.load),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button)])
         actions.style.gap=12.0
-        var title=UI.Text("Suspensions — poids, appuis et rebond");title.style.height=28.0
-        var help=UI.Text("100 kg · quatre ressorts · vert : appui au sol · roues libres, conduite à venir · Échap : quitter");help.style.height=24.0
+        var rolling=UI.Row([self.button("Pousser devant (P)",self.push_forward),self.button("Pousser de côté (V)",self.push_sideways),UI.Reactive(self.grip_button)]);rolling.style.gap=12.0
+        var title=UI.Text("Roues libres — roulement, appuis et dérive");title.style.height=28.0
+        var help=UI.Text("100 kg · jaune : avant · vert : appui · P/V : pousser · G : comparer les pneus · Échap : quitter");help.style.height=24.0
         var rows:UI.View[]=[title,help,
-            actions,UI.Reactive(self.status),UI.Reactive(self.metrics)]
-        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — suspensions — fermeture à la fin"),UI.Reactive(self.metrics)] }
+            actions,rolling,UI.Reactive(self.status),UI.Reactive(self.metrics)]
+        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — roulement — fermeture à la fin"),UI.Reactive(self.metrics)] }
         var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
         root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0
         return root
@@ -44,9 +53,12 @@ package class SuspensionControls {
                 let jump=code==98 as uint32 || code==66 as uint32 || (code==0 as uint32 && key.key==Input.Key.b)
                 let load=code==99 as uint32 || code==67 as uint32 || (code==0 as uint32 && key.key==Input.Key.c)
                 let reset=code==114 as uint32 || code==82 as uint32 || (code==0 as uint32 && key.key==Input.Key.r)
-                if jump || load || reset || key.key==Input.Key.space {
+                let forward=code==112 as uint32 || code==80 as uint32 || (code==0 as uint32 && key.key==Input.Key.p)
+                let sideways=code==118 as uint32 || code==86 as uint32 || (code==0 as uint32 && key.key==Input.Key.v)
+                let grip=code==103 as uint32 || code==71 as uint32 || (code==0 as uint32 && key.key==Input.Key.g)
+                if jump || load || reset || forward || sideways || grip || key.key==Input.Key.space {
                     if !key.repeated {
-                        if jump { self.jump() } else if load { self.load() } else if reset { self.reset() } else { self.pause() }
+                        if forward { self.push_forward() } else if sideways { self.push_sideways() } else if grip { self.toggle_grip() } else if jump { self.jump() } else if load { self.load() } else if reset { self.reset() } else { self.pause() }
                     }
                     return true
                 }

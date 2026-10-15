@@ -21,9 +21,17 @@ class SuspensionScene {
     var ui:UI.Session
     var panel:ECS.Entity=ECS.Entity()
     var chassis:ECS.Entity=ECS.Entity()
+    var nose:ECS.Entity=ECS.Entity()
     var axles:ECS.Entity[]=[]
     var tires:ECS.Entity[]=[]
     var hubs:ECS.Entity[]=[]
+    var spokes:ECS.Entity[]=[]
+    var floor:ECS.Entity=ECS.Entity()
+    var grid:ECS.Entity[]=[]
+    var grid_x:float=10000.0
+    var grid_z:float=10000.0
+    var angles:float[]=[0.0,0.0,0.0,0.0]
+    var held_angles:float[]=[]
     var springs:ECS.Entity[]=[]
     var markers:ECS.Entity[]=[]
     var previous:Physics.Transform3D=Physics.Transform3D()
@@ -33,6 +41,7 @@ class SuspensionScene {
     var telemetry:float=0.0
     var smoke:bool=false
     var phase:int=0
+    var phase_start:int=0
     var pause_frames:int=0
     var held:Physics.Transform3D=Physics.Transform3D()
     var held_load:float=0.0
@@ -49,7 +58,7 @@ func visual(world:&Resources.World,mesh:Scene3D.MeshHandle,size:Math.Vec3,color:
 }
 func remember(state:&SuspensionScene) {
     state.previous=copy state.model.vehicle.chassis().transform()
-    for i in [0,1,2,3] { state.lengths[i]=state.model.vehicle.wheel(i).length }
+    for i in [0,1,2,3] { state.lengths[i]=state.model.vehicle.wheel(i).length;state.angles[i]=state.model.vehicle.wheel(i).rotation_angle }
 }
 func labels(state:&SuspensionScene,simulation:@Application.Simulation) {
     var pause="Pause (Espace)";if simulation.is_paused() { pause="Reprendre (Espace)" }
@@ -57,11 +66,26 @@ func labels(state:&SuspensionScene,simulation:@Application.Simulation) {
     let height=Math.round(state.model.vehicle.chassis().position().y*100.0) as int
     let force=Math.round(state.model.force()) as int
     var load="Poids seul";if state.model.load_remaining>0.0 { load="Surcharge active" }
-    let text="$(load) · hauteur $(height) cm · appuis $(state.model.supports())/4 · effort $(force) N · bonds $(state.model.jumps)"
+    var grip="Adhérence active (G)";if !state.model.grip { grip="Sans adhérence (G)" }
+    if state.controls.grip_text.value()!=grip { state.controls.grip_text.set(grip) }
+    let speed=Math.round(state.model.vehicle.chassis().linear_velocity().length()*100.0) as int
+    let text="$(grip) · $(speed) cm/s · $(load) · hauteur $(height) cm · appuis $(state.model.supports())/4 · effort $(force) N · bonds $(state.model.jumps)"
     if state.controls.measure.value()!=text { state.controls.measure.set(text) }
 }
 func perform(state:&SuspensionScene,simulation:&Application.Simulation) {
     var changed=false
+    while state.controls.grips>0 {
+        state.controls.grips--;state.model.toggle_grip();remember(state);state.accumulator=0.0;simulation.resume();changed=true
+        state.controls.feedback.set("Comparaison changée — véhicule recréé. P pousse devant ; V pousse de côté. Les repères du sol indiquent le déplacement.")
+    }
+    while state.controls.forwards>0 {
+        state.controls.forwards--;state.model.push_forward();simulation.resume();changed=true
+        state.controls.feedback.set("Poussée vers l’avant — avec adhérence, le contact entraîne les jantes blanches. Aucun moteur.")
+    }
+    while state.controls.sideways>0 {
+        state.controls.sideways--;state.model.push_sideways();simulation.resume();changed=true
+        state.controls.feedback.set("Poussée latérale — les pneus résistent à la dérive ; sans adhérence, le véhicule glisse.")
+    }
     while state.controls.jumps>0 {
         state.controls.jumps--;state.model.jump();simulation.resume();changed=true
         state.controls.feedback.set("Bond reconnu — le châssis emporte ses roues, perd ses appuis puis retombe sur ses ressorts.")
@@ -85,43 +109,48 @@ func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Suspension
     let cube=meshes.add(Scene3D.Geometry.Cube.make())
     let wheel=meshes.add(Scene3D.Geometry.Cylinder.make(0.3,0.2))
     state.chassis=visual(world,cube,Math.Vec3(1.4,0.4,2.4),Color.bytes(238,157,52))
+    state.nose=visual(world,cube,Math.Vec3(1.2,0.1,0.03),Color.bytes(250,230,85))
     for i in [0,1,2,3] {
         state.tires.append(visual(world,wheel,Math.Vec3(1.0),Color.bytes(30,36,44)))
         state.hubs.append(visual(world,wheel,Math.Vec3(0.55,1.04,0.55),Color.bytes(110,200,220)))
+        state.spokes.append(visual(world,cube,Math.Vec3(0.22,0.44,0.045),Color.bytes(245,245,250)))
         state.springs.append(visual(world,cube,Math.Vec3(0.045,0.6,0.045),Color.bytes(240,240,245)))
         state.markers.append(visual(world,cube,Math.Vec3(0.35,0.025,0.3),Color.bytes(60,230,125)))
     }
     for i in [0,1] { state.axles.append(visual(world,cube,Math.Vec3(1.85,0.06,0.06),Color.bytes(210,215,225))) }
-    let floor=visual(world,cube,Math.Vec3(12.0,0.2,12.0),Color.bytes(65,82,101))
-    world.update<Components.Transform3D>(floor,func(t:&Components.Transform3D) { t.position=Math.Vec3(0.0,-0.1,0.0) })
+    state.floor=visual(world,cube,Math.Vec3(100.0,0.2,100.0),Color.bytes(65,82,101))
+    var line=0
+    while line<62 {
+        var size=Math.Vec3(30.0,0.006,0.015);if line>=31 { size=Math.Vec3(0.015,0.006,30.0) }
+        state.grid.append(visual(world,cube,size,Color.bytes(100,118,137)));line++
+    }
     world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.55)))
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5)))
     simulation.resume();remember(state);labels(state,simulation)
     state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform(position:Math.Vec2()))
-        ..with(Scene2D.Canvas(state.ui.drawing(1180,200),1180,200) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+        ..with(Scene2D.Canvas(state.ui.drawing(1180,244),1180,244) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
             ..space=Scene2D.CanvasSpace.viewport ..layer=100))
 }
 func camera_settings() Plugins.ViewportCamera3D.Settings {
-    return Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,1.4,0.0)
+    return Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,1.6,0.0)
         ..vertical_fov=0.9 ..distance=9.0 ..yaw=Math.radians(-25.0) ..pitch=Math.radians(-20.0)
         ..zoom_speed=0.0 ..scroll_zoom_speed=0.0 ..orbit_sensitivity=0.0 ..pan_sensitivity=0.0
 }
-func verify_framing(state:@SuspensionScene) {
-    let settings=camera_settings();var controller=Resources.ViewportCamera3D(settings)
-    var camera=Scene3D.Camera(vertical_fov:settings.vertical_fov)
-    let pose=state.model.vehicle.chassis().transform()
+func verify_framing(world:@Resources.World,state:@SuspensionScene,view:Scene3D.Transform) {
+    var camera=Scene3D.Camera(vertical_fov:camera_settings().vertical_fov)
+    let body=world.get<Components.Transform3D>(state.chassis)
+    let pose=Physics.Transform3D(body.position,body.rotation)
     let sides:int[]=[-1,1]
     for x in sides { for y in sides { for z in sides {
-        let point=camera.project(pose.point(Math.Vec3(1.02*x as float,0.2*y as float,1.3*z as float)),controller.transform(),Math.Vec2(1280.0,800.0))!
-        assert(point.x>20.0 && point.x<1260.0 && point.y>210.0 && point.y<780.0)
+        let point=camera.project(pose.point(Math.Vec3(1.02*x as float,0.2*y as float,1.3*z as float)),view,Math.Vec2(1280.0,800.0))!
+        assert(point.x>20.0 && point.x<1260.0 && point.y>254.0 && point.y<780.0)
     } } }
     for i in [0,1,2,3] {
-        let wheel_settings=state.model.vehicle.wheel_settings(i)
-        let center=pose.point(wheel_settings.position.add(wheel_settings.direction.multiply(state.model.vehicle.wheel(i).length)))
+        let center=world.get<Components.Transform3D>(state.tires[i]).position
         for x in sides { for y in sides { for z in sides {
-            let corner=center.add(pose.vector(Math.Vec3(0.1*x as float,0.3*y as float,0.3*z as float)))
-            let point=camera.project(corner,controller.transform(),Math.Vec2(1280.0,800.0))!
-            assert(point.x>20.0 && point.x<1260.0 && point.y>210.0 && point.y<780.0)
+            let corner=center.add(pose.vector(Math.Vec3(0.11*x as float,0.3*y as float,0.3*z as float)))
+            let point=camera.project(corner,view,Math.Vec2(1280.0,800.0))!
+            assert(point.x>20.0 && point.x<1260.0 && point.y>254.0 && point.y<780.0)
         } } }
     }
 }
@@ -134,15 +163,43 @@ func smoke_commands(state:&SuspensionScene,simulation:&Application.Simulation,co
     } else if state.phase==2 && state.model.steps>=1080 {
         assert(state.loaded_min<0.53 && state.loaded_force>15000.0 && state.model.load_remaining==0.0)
         state.controls.load();perform(state,simulation);state.controls.pause();perform(state,simulation)
-        state.held=copy state.model.vehicle.chassis().transform();state.held_load=state.model.load_remaining;state.phase=3
+        state.held=copy state.model.vehicle.chassis().transform();state.held_load=state.model.load_remaining;state.held_angles=[]
+        for i in [0,1,2,3] { state.held_angles.append(state.model.vehicle.wheel(i).rotation_angle) }
+        state.phase=3
     } else if state.phase==3 {
         assert(simulation.is_paused() && simulation.delta()==0.0)
         assert(state.model.vehicle.chassis().transform()==state.held && state.model.load_remaining==state.held_load)
+        for i in [0,1,2,3] { assert(state.model.vehicle.wheel(i).rotation_angle==state.held_angles[i]) }
         state.pause_frames++
         if state.pause_frames==8 { state.controls.reset();perform(state,simulation);state.phase=4 }
     } else if state.phase==4 && state.model.steps>=240 {
         state.model.verify_rest()
-        print("Suspension smoke: drop, jump, lost/regained supports, overload, exact pause, recreation, framing and rendered transforms verified")
+        state.controls.push_forward();perform(state,simulation);state.phase_start=state.model.steps;state.phase=5
+    } else if state.phase==5 && state.model.steps-state.phase_start>=240 {
+        assert(state.model.vehicle.chassis().position().z>1.5 && state.model.vehicle.wheel(0).angular_velocity>3.0)
+        state.controls.pause();perform(state,simulation);state.pause_frames=0;state.held=copy state.model.vehicle.chassis().transform();state.held_angles=[]
+        for i in [0,1,2,3] { state.held_angles.append(state.model.vehicle.wheel(i).rotation_angle) }
+        state.phase=12
+    } else if state.phase==12 {
+        assert(simulation.is_paused() && state.model.vehicle.chassis().transform()==state.held)
+        for i in [0,1,2,3] { assert(state.model.vehicle.wheel(i).rotation_angle==state.held_angles[i]) }
+        state.pause_frames++
+        if state.pause_frames==8 { state.controls.toggle_grip();perform(state,simulation);state.phase=6 }
+    } else if state.phase==6 && state.model.steps>=240 {
+        state.controls.push_forward();perform(state,simulation);state.phase_start=state.model.steps;state.phase=7
+    } else if state.phase==7 && state.model.steps-state.phase_start>=240 {
+        assert(Math.abs(state.model.vehicle.chassis().position().z-2.0*(state.model.steps-state.phase_start) as float/120.0)<0.01 && state.model.vehicle.wheel(0).rotation_angle==0.0)
+        state.controls.toggle_grip();perform(state,simulation);state.phase=8
+    } else if state.phase==8 && state.model.steps>=240 {
+        state.controls.push_sideways();perform(state,simulation);state.phase_start=state.model.steps;state.phase=9
+    } else if state.phase==9 && state.model.steps-state.phase_start>=240 {
+        assert(Math.abs(state.model.vehicle.chassis().linear_velocity().x)<0.02 && Math.abs(state.model.vehicle.chassis().position().x)<0.6)
+        state.controls.toggle_grip();perform(state,simulation);state.phase=10
+    } else if state.phase==10 && state.model.steps>=240 {
+        state.controls.push_sideways();perform(state,simulation);state.phase_start=state.model.steps;state.phase=11
+    } else if state.phase==11 && state.model.steps-state.phase_start>=240 {
+        assert(Math.abs(state.model.vehicle.chassis().position().x-2.0*(state.model.steps-state.phase_start) as float/120.0)<0.01)
+        print("Rolling smoke: suspension, physical wheel spin, longitudinal/lateral pushes, grip comparison, exact pause, recreation, following ECS camera and rendered transforms verified")
         controller.stop()
     }
 }
@@ -158,7 +215,7 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&Suspension
         remember(state);let loaded=state.model.load_remaining>0.0
         state.model.step(1.0/120.0);state.accumulator-=1.0/120.0
         if state.smoke {
-            state.model.verify();verify_framing(state)
+            state.model.verify()
             if state.phase==1 {
                 if state.model.supports()==0 { state.lost=true }
                 if state.lost && state.model.supports()==4 { state.returned=true }
@@ -173,26 +230,34 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&Suspension
     state.telemetry+=simulation.delta()
     if state.telemetry>=0.1 { state.telemetry=0.0;labels(state,simulation) }
     if state.ui.update(0.0) {
-        world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(1180,200)) })
+        world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(1180,244)) })
     }
 }
-func render(world:&Resources.World,state:&SuspensionScene) {
+func wheel_angle(previous:float,current:float,alpha:float) float {
+    var change=Math.remainder(current-previous,Math.two_pi())
+    if change>Math.pi() { change-=Math.two_pi() } else if change< -Math.pi() { change+=Math.two_pi() }
+    return previous+change*alpha
+}
+func render(world:&Resources.World,state:&SuspensionScene,camera:&Resources.ViewportCamera3D) {
     let current=state.model.vehicle.chassis().transform();let alpha=Math.clamp(state.accumulator*120.0,0.0,1.0)
     var rotation=current.rotation;if state.previous.rotation.dot(rotation)<0.0 { rotation=rotation.multiply(-1.0) }
     let pose=Physics.Transform3D(state.previous.position.lerp(current.position,alpha),state.previous.rotation.multiply(1.0-alpha).add(rotation.multiply(alpha)).normalized())
     world.update<Components.Transform3D>(state.chassis,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
+    world.update<Components.Transform3D>(state.nose,func(t:&Components.Transform3D) { t.position=pose.point(Math.Vec3(0.0,0.0,1.21));t.rotation=pose.rotation })
     for i in [0,1] {
         world.update<Components.Transform3D>(state.axles[i],func(t:&Components.Transform3D) {
             t.position=pose.point(Math.Vec3(0.0,0.0,2.0*i as float-1.0));t.rotation=pose.rotation
         })
     }
-    let tire_rotation=pose.rotation.multiply(state.wheel_orientation)
     for i in [0,1,2,3] {
         let settings=state.model.vehicle.wheel_settings(i);var wheel=state.model.vehicle.wheel(i)
+        let spin=pose.rotation.multiply(Math.Quat.angle_axis(wheel_angle(state.angles[i],wheel.rotation_angle,alpha),Math.Vec3.right()))
+        let tire_rotation=spin.multiply(state.wheel_orientation)
         let length=state.lengths[i]+(wheel.length-state.lengths[i])*alpha
         let center=pose.point(settings.position.add(settings.direction.multiply(length)))
         world.update<Components.Transform3D>(state.tires[i],func(t:&Components.Transform3D) { t.position=center;t.rotation=tire_rotation })
         world.update<Components.Transform3D>(state.hubs[i],func(t:&Components.Transform3D) { t.position=center;t.rotation=tire_rotation })
+        world.update<Components.Transform3D>(state.spokes[i],func(t:&Components.Transform3D) { t.position=center;t.rotation=spin })
         world.update<Components.Transform3D>(state.springs[i],func(t:&Components.Transform3D) {
             t.position=pose.point(settings.position.add(settings.direction.multiply(length*0.5)));t.rotation=pose.rotation;t.scale=Math.Vec3(0.045,Math.max(0.001,length),0.045)
         })
@@ -204,14 +269,39 @@ func render(world:&Resources.World,state:&SuspensionScene) {
         if state.smoke {
             assert(world.get<Components.Transform3D>(state.tires[i]).position.nearly_equal(center,0.00001))
             assert(world.get<Components.Transform3D>(state.tires[i]).rotation==tire_rotation)
+            assert(world.get<Components.Transform3D>(state.spokes[i]).position.nearly_equal(center,0.00001))
+            assert(world.get<Components.Transform3D>(state.spokes[i]).rotation==spin)
             assert(world.get<Components.Mesh3D>(state.markers[i]).visible==visible)
         }
     }
-    if state.smoke { assert(world.get<Components.Transform3D>(state.chassis).position.nearly_equal(pose.position,0.00001)) }
+    camera.set_target(Math.Vec3(pose.position.x,1.6,pose.position.z))
+    let view=camera.transform()
+    if world.is_alive(camera.entity()) {
+        world.update<Components.Transform3D>(camera.entity(),func(t:&Components.Transform3D) { t.position=view.position;t.rotation=view.rotation })
+    }
+    let grid_x=Math.floor(pose.position.x/5.0+0.5)*5.0;let grid_z=Math.floor(pose.position.z/5.0+0.5)*5.0
+    if grid_x!=state.grid_x || grid_z!=state.grid_z {
+        state.grid_x=grid_x;state.grid_z=grid_z
+        world.update<Components.Transform3D>(state.floor,func(t:&Components.Transform3D) { t.position=Math.Vec3(grid_x,-0.1,grid_z) })
+        var i=0
+        for line in state.grid {
+            var position=Math.Vec3(grid_x,0.004,grid_z+(i-15) as float)
+            if i>=31 { position=Math.Vec3(grid_x+(i-46) as float,0.004,grid_z) }
+            world.update<Components.Transform3D>(line,func(t:&Components.Transform3D) { t.position=position });i++
+        }
+    }
+    if state.smoke {
+        assert(world.get<Components.Transform3D>(state.chassis).position.nearly_equal(pose.position,0.00001))
+        assert(world.is_alive(camera.entity()))
+        let actual=world.get<Components.Transform3D>(camera.entity())
+        assert(actual.position.nearly_equal(view.position,0.00001) && actual.rotation==view.rotation)
+        verify_framing(world,state,Scene3D.Transform(actual.position,actual.rotation))
+    }
 }
 func verify_controls() {
     var world=Resources.World();var meshes=Resources.Meshes3D();var state=SuspensionScene();var simulation=Application.Simulation()
-    startup(world,meshes,state,simulation);verify_framing(state)
+    var camera=Resources.ViewportCamera3D(camera_settings())
+    startup(world,meshes,state,simulation);render(world,state,camera);verify_framing(world,state,camera.transform())
     assert(state.controls.handle(InputCheck.key_event(Input.Key.space,32 as uint32)));perform(state,simulation);assert(simulation.is_paused())
     assert(state.controls.handle(InputCheck.key_event(Input.Key.space,32 as uint32,true)));perform(state,simulation);assert(simulation.is_paused())
     assert(state.controls.handle(InputCheck.key_event(Input.Key.x,98 as uint32)));perform(state,simulation)
@@ -220,7 +310,7 @@ func verify_controls() {
     simulation.pause();assert(state.controls.handle(InputCheck.key_event(Input.Key.c,0 as uint32)));perform(state,simulation)
     assert(!simulation.is_paused() && state.model.load_remaining==2.0)
     state.controls.pause();perform(state,simulation);let held=copy state.model.vehicle.chassis().transform();let remaining=state.model.load_remaining
-    render(world,state);assert(state.model.vehicle.chassis().transform()==held && state.model.load_remaining==remaining)
+    render(world,state,camera);assert(state.model.vehicle.chassis().transform()==held && state.model.load_remaining==remaining)
     var old=state.model.vehicle
     assert(state.controls.handle(InputCheck.key_event(Input.Key.r,82 as uint32)));perform(state,simulation)
     assert(!old.is_valid() && !simulation.is_paused() && state.model.steps==0)
@@ -230,8 +320,23 @@ func verify_controls() {
     old=state.model.vehicle;InputCheck.click(state.ui,560.0,103.0);perform(state,simulation);assert(!old.is_valid() && !simulation.is_paused())
     assert(state.controls.handle(InputCheck.key_event(Input.Key.b,0 as uint32)));perform(state,simulation);assert(state.model.jumps==1)
     assert(state.controls.handle(InputCheck.key_event(Input.Key.c,67 as uint32)));perform(state,simulation);assert(state.model.loads==1)
-    remember(state);render(world,state)
+    remember(state);render(world,state,camera)
     assert(world.get<Components.Transform3D>(state.chassis).position==state.model.vehicle.chassis().position())
+    simulation.pause();assert(state.controls.handle(InputCheck.key_event(Input.Key.x,112 as uint32)));perform(state,simulation)
+    assert(!simulation.is_paused() && state.model.pushes==1)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.p,80 as uint32,true)));perform(state,simulation);assert(state.model.pushes==1)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.v,0 as uint32)));perform(state,simulation);assert(state.model.pushes==2)
+    old=state.model.vehicle;assert(state.controls.handle(InputCheck.key_event(Input.Key.g,71 as uint32)));perform(state,simulation)
+    assert(!old.is_valid() && !state.model.grip && state.model.pushes==0)
+    InputCheck.click(state.ui,100.0,149.0);perform(state,simulation);assert(state.model.pushes==1)
+    InputCheck.click(state.ui,330.0,149.0);perform(state,simulation);assert(state.model.pushes==2)
+    old=state.model.vehicle;InputCheck.click(state.ui,560.0,149.0);perform(state,simulation)
+    assert(!old.is_valid() && state.model.grip && state.model.pushes==0)
+    assert(Math.abs(wheel_angle(6.2,0.1,0.5)-(6.2+(Math.two_pi()+0.1-6.2)*0.5))<0.00001)
+    var step=0;while step<240 { remember(state);state.model.step(1.0/120.0);step++ }
+    state.model.push_forward();step=0;while step<240 { remember(state);state.model.step(1.0/120.0);step++ }
+    render(world,state,camera);verify_framing(world,state,camera.transform())
+    assert(world.get<Components.Transform3D>(state.spokes[0]).rotation!=Math.Quat())
     state.controls.automatic=true;assert(!state.controls.handle(InputCheck.key_event(Input.Key.b,98 as uint32)))
     print("Suspension controls: logical keys, physical fallback, uppercase, repetition, buttons, pause and recreation verified")
 }
@@ -239,12 +344,12 @@ test "vehicle controls reach actions through keys and buttons while preserving p
 func main() {
     var state=SuspensionScene()
     for argument in Process.arguments() {
-        if argument=="--physics-check" { Model.verify_physics();return }
+        if argument=="--physics-check" { Model.verify_physics();Model.verify_rolling();return }
         if argument=="--controls-check" { verify_controls();return }
         if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
     }
-    var title="Suspensions — poids et rebond"
-    if state.smoke { title="TEST AUTOMATIQUE — suspensions — fermeture à la fin" }
+    var title="Roues libres — roulement et adhérence"
+    if state.smoke { title="TEST AUTOMATIQUE — roulement — fermeture à la fin" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
         ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
