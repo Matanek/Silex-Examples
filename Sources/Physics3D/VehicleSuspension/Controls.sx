@@ -4,6 +4,11 @@ use GFX.Input.Events
 use GFX.UI
 
 package class SuspensionControls {
+    var directions:float[]=[]
+    var brakes:int=0
+    var handbrakes:int=0
+    var brake_text:UI.State<str> =UI.State<str>("Frein libre (F)")
+    var handbrake_text:UI.State<str> =UI.State<str>("Frein main libre (H)")
     var forwards:int=0
     var sideways:int=0
     var grips:int=0
@@ -14,8 +19,15 @@ package class SuspensionControls {
     var pauses:int=0
     var automatic:bool=false
     var pause_text:UI.State<str> =UI.State<str>("Pause (Espace)")
-    var feedback:UI.State<str> =UI.State<str>("Après la réception, P fait rouler les pneus ; V pousse de côté. G recrée le véhicule pour comparer sans adhérence.")
+    var feedback:UI.State<str> =UI.State<str>("Après réception : P lance, ←/→ gardent le braquage, ↑ recentre, F/H activent ou libèrent les freins. G compare sans adhérence.")
     var measure:UI.State<str> =UI.State<str>("")
+    func left() { self.directions.append(-0.6) }
+    func center() { self.directions.append(0.0) }
+    func right() { self.directions.append(0.6) }
+    func brake() { self.brakes++ }
+    func handbrake() { self.handbrakes++ }
+    func brake_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.brake_text),self.brake) }
+    func handbrake_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.handbrake_text),self.handbrake) }
     func push_forward() { self.forwards++ }
     func push_sideways() { self.sideways++ }
     func toggle_grip() { self.grips++ }
@@ -36,11 +48,12 @@ package class SuspensionControls {
         var actions=UI.Row([self.button("Bondir (B)",self.jump),self.button("Surcharger 2 s (C)",self.load),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button)])
         actions.style.gap=12.0
         var rolling=UI.Row([self.button("Pousser devant (P)",self.push_forward),self.button("Pousser de côté (V)",self.push_sideways),UI.Reactive(self.grip_button)]);rolling.style.gap=12.0
-        var title=UI.Text("Roues libres — roulement, appuis et dérive");title.style.height=28.0
-        var help=UI.Text("100 kg · jaune : avant · vert : appui · P/V : pousser · G : comparer les pneus · Échap : quitter");help.style.height=24.0
+        var driving=UI.Row([self.button("Gauche (←)",self.left),self.button("Centrer (↑)",self.center),self.button("Droite (→)",self.right),UI.Reactive(self.brake_button),UI.Reactive(self.handbrake_button)]);driving.style.gap=12.0
+        var title=UI.Text("Braquage et freins — contacts physiques");title.style.height=28.0
+        var help=UI.Text("P : lancer · ←/→ : braquer, ↑ : centrer · F/H : freins · G : adhérence · jaune : avant · Échap : quitter");help.style.height=24.0
         var rows:UI.View[]=[title,help,
-            actions,rolling,UI.Reactive(self.status),UI.Reactive(self.metrics)]
-        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — roulement — fermeture à la fin"),UI.Reactive(self.metrics)] }
+            actions,rolling,driving,UI.Reactive(self.status),UI.Reactive(self.metrics)]
+        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — braquage et freins — fermeture à la fin"),UI.Reactive(self.metrics)] }
         var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
         root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0
         return root
@@ -56,9 +69,14 @@ package class SuspensionControls {
                 let forward=code==112 as uint32 || code==80 as uint32 || (code==0 as uint32 && key.key==Input.Key.p)
                 let sideways=code==118 as uint32 || code==86 as uint32 || (code==0 as uint32 && key.key==Input.Key.v)
                 let grip=code==103 as uint32 || code==71 as uint32 || (code==0 as uint32 && key.key==Input.Key.g)
-                if jump || load || reset || forward || sideways || grip || key.key==Input.Key.space {
+                let left=key.key==Input.Key.left
+                let right=key.key==Input.Key.right
+                let center=key.key==Input.Key.up
+                let brake=code==102 as uint32 || code==70 as uint32 || (code==0 as uint32 && key.key==Input.Key.f)
+                let handbrake=code==104 as uint32 || code==72 as uint32 || (code==0 as uint32 && key.key==Input.Key.h)
+                if left || right || center || brake || handbrake || jump || load || reset || forward || sideways || grip || key.key==Input.Key.space {
                     if !key.repeated {
-                        if forward { self.push_forward() } else if sideways { self.push_sideways() } else if grip { self.toggle_grip() } else if jump { self.jump() } else if load { self.load() } else if reset { self.reset() } else { self.pause() }
+                        if left { self.left() } else if right { self.right() } else if center { self.center() } else if brake { self.brake() } else if handbrake { self.handbrake() } else if forward { self.push_forward() } else if sideways { self.push_sideways() } else if grip { self.toggle_grip() } else if jump { self.jump() } else if load { self.load() } else if reset { self.reset() } else { self.pause() }
                     }
                     return true
                 }

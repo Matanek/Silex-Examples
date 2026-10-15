@@ -1043,7 +1043,7 @@ report cell descriptions and comparisons, without FPS claims.
 `silex run Silex-Examples/Sources/UITableView/Main.sx --release`.
 Use `-- --cpu-check` for the pure CPU path without opening a window.
 
-## Passive rolling, tire grip and suspension
+## Steering, brakes, tire grip and suspension
 
 [VehicleSuspension](Sources/Physics3D/VehicleSuspension/README.md) drops a 100 kg
 chassis onto four suspended wheels. B jumps, C overloads for two seconds, Space
@@ -1052,7 +1052,10 @@ landing. P pushes forward and spins passive tires through ground contact; V
 pushes sideways to test lateral grip. G recreates the vehicle without tires
 for a sliding comparison. White hub bars show physical rotation, a yellow strip
 marks the front, and the following camera keeps the metric ground grid visible.
-Engine propulsion, steering and brakes remain future work.
+Left/right arrows select maintained front-wheel steering; Up centers it. F toggles
+the service brake, H the rear handbrake. R/G release brakes and center steering.
+The rendered wheels follow their physical steering angles. Propulsion and
+transmission remain future work.
 
 `silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release`.
 [Guide français](Sources/Physics3D/VehicleSuspension/README.fr.md).
