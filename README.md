@@ -1032,3 +1032,14 @@ filtering, mutation and an editable row. Wheel scrolling is smoothed and the
 counter reports constructed row descriptions. [Guide](Sources/UITreeView/README.md).
 
 `silex run Silex-Examples/Sources/UITreeView/Main.sx --release`.
+
+## Wheel suspension, load and rebound
+
+[VehicleSuspension](Sources/Physics3D/VehicleSuspension/README.md) drops a 100 kg
+chassis onto four suspended wheels. B jumps, C overloads for two seconds, Space
+pauses and R recreates. Green pads show support lost in flight and regained on
+landing. This first vehicle scene shows suspension; tire traction and driving
+remain future work.
+
+`silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release`.
+[Guide français](Sources/Physics3D/VehicleSuspension/README.fr.md).

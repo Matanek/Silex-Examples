@@ -1,0 +1,255 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Scene3D
+use GFX.UI
+use GFX.Physics
+use Physics3D.VehicleSuspension.Model
+use Physics3D.VehicleSuspension.Controls
+use Physics3D.ArticulatedPose.Controls as InputCheck
+use STD.Math
+use STD.Process
+
+class SuspensionScene {
+    var model:Model.SuspensionModel=Model.SuspensionModel()
+    var controls:Controls.SuspensionControls=Controls.SuspensionControls()
+    var ui:UI.Session
+    var panel:ECS.Entity=ECS.Entity()
+    var chassis:ECS.Entity=ECS.Entity()
+    var axles:ECS.Entity[]=[]
+    var tires:ECS.Entity[]=[]
+    var hubs:ECS.Entity[]=[]
+    var springs:ECS.Entity[]=[]
+    var markers:ECS.Entity[]=[]
+    var previous:Physics.Transform3D=Physics.Transform3D()
+    var lengths:float[]=[0.6,0.6,0.6,0.6]
+    let wheel_orientation:Math.Quat=Math.Quat.angle_axis(Math.half_pi(),Math.Vec3.back())
+    var accumulator:float=0.0
+    var telemetry:float=0.0
+    var smoke:bool=false
+    var phase:int=0
+    var pause_frames:int=0
+    var held:Physics.Transform3D=Physics.Transform3D()
+    var held_load:float=0.0
+    var lost:bool=false
+    var returned:bool=false
+    var peak:float=0.0
+    var loaded_min:float=10.0
+    var loaded_force:float=0.0
+    init() { self.ui=UI.Session(self.controls.describe()) }
+}
+func visual(world:&Resources.World,mesh:Scene3D.MeshHandle,size:Math.Vec3,color:Color) ECS.Entity {
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(scale:size))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.7)))
+}
+func remember(state:&SuspensionScene) {
+    state.previous=copy state.model.vehicle.chassis().transform()
+    for i in [0,1,2,3] { state.lengths[i]=state.model.vehicle.wheel(i).length }
+}
+func labels(state:&SuspensionScene,simulation:@Application.Simulation) {
+    var pause="Pause (Espace)";if simulation.is_paused() { pause="Reprendre (Espace)" }
+    if state.controls.pause_text.value()!=pause { state.controls.pause_text.set(pause) }
+    let height=Math.round(state.model.vehicle.chassis().position().y*100.0) as int
+    let force=Math.round(state.model.force()) as int
+    var load="Poids seul";if state.model.load_remaining>0.0 { load="Surcharge active" }
+    let text="$(load) · hauteur $(height) cm · appuis $(state.model.supports())/4 · effort $(force) N · bonds $(state.model.jumps)"
+    if state.controls.measure.value()!=text { state.controls.measure.set(text) }
+}
+func perform(state:&SuspensionScene,simulation:&Application.Simulation) {
+    var changed=false
+    while state.controls.jumps>0 {
+        state.controls.jumps--;state.model.jump();simulation.resume();changed=true
+        state.controls.feedback.set("Bond reconnu — le châssis emporte ses roues, perd ses appuis puis retombe sur ses ressorts.")
+    }
+    while state.controls.loads>0 {
+        state.controls.loads--;state.model.load();simulation.resume();changed=true
+        state.controls.feedback.set("Surcharge reconnue — les suspensions se compriment pendant 2 s, puis se détendent sous le poids seul.")
+    }
+    while state.controls.resets>0 {
+        state.controls.resets--;state.model.reset();remember(state);state.accumulator=0.0;simulation.resume();changed=true
+        state.controls.feedback.set("Véhicule recréé — chute libre, réception et retour à l’équilibre.")
+    }
+    while state.controls.pauses>0 {
+        state.controls.pauses--;changed=true
+        if simulation.is_paused() { simulation.resume();state.controls.feedback.set("Simulation reprise.") }
+        else { simulation.pause();state.controls.feedback.set("Simulation en pause — châssis, roues et durée de surcharge figés.") }
+    }
+    if changed { labels(state,simulation) }
+}
+func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&SuspensionScene,simulation:&Application.Simulation) {
+    let cube=meshes.add(Scene3D.Geometry.Cube.make())
+    let wheel=meshes.add(Scene3D.Geometry.Cylinder.make(0.3,0.2))
+    state.chassis=visual(world,cube,Math.Vec3(1.4,0.4,2.4),Color.bytes(238,157,52))
+    for i in [0,1,2,3] {
+        state.tires.append(visual(world,wheel,Math.Vec3(1.0),Color.bytes(30,36,44)))
+        state.hubs.append(visual(world,wheel,Math.Vec3(0.55,1.04,0.55),Color.bytes(110,200,220)))
+        state.springs.append(visual(world,cube,Math.Vec3(0.045,0.6,0.045),Color.bytes(240,240,245)))
+        state.markers.append(visual(world,cube,Math.Vec3(0.35,0.025,0.3),Color.bytes(60,230,125)))
+    }
+    for i in [0,1] { state.axles.append(visual(world,cube,Math.Vec3(1.85,0.06,0.06),Color.bytes(210,215,225))) }
+    let floor=visual(world,cube,Math.Vec3(12.0,0.2,12.0),Color.bytes(65,82,101))
+    world.update<Components.Transform3D>(floor,func(t:&Components.Transform3D) { t.position=Math.Vec3(0.0,-0.1,0.0) })
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.55)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5)))
+    simulation.resume();remember(state);labels(state,simulation)
+    state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform(position:Math.Vec2()))
+        ..with(Scene2D.Canvas(state.ui.drawing(1180,200),1180,200) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+            ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+}
+func camera_settings() Plugins.ViewportCamera3D.Settings {
+    return Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,1.4,0.0)
+        ..vertical_fov=0.9 ..distance=9.0 ..yaw=Math.radians(-25.0) ..pitch=Math.radians(-20.0)
+        ..zoom_speed=0.0 ..scroll_zoom_speed=0.0 ..orbit_sensitivity=0.0 ..pan_sensitivity=0.0
+}
+func verify_framing(state:@SuspensionScene) {
+    let settings=camera_settings();var controller=Resources.ViewportCamera3D(settings)
+    var camera=Scene3D.Camera(vertical_fov:settings.vertical_fov)
+    let pose=state.model.vehicle.chassis().transform()
+    let sides:int[]=[-1,1]
+    for x in sides { for y in sides { for z in sides {
+        let point=camera.project(pose.point(Math.Vec3(1.02*x as float,0.2*y as float,1.3*z as float)),controller.transform(),Math.Vec2(1280.0,800.0))!
+        assert(point.x>20.0 && point.x<1260.0 && point.y>210.0 && point.y<780.0)
+    } } }
+    for i in [0,1,2,3] {
+        let wheel_settings=state.model.vehicle.wheel_settings(i)
+        let center=pose.point(wheel_settings.position.add(wheel_settings.direction.multiply(state.model.vehicle.wheel(i).length)))
+        for x in sides { for y in sides { for z in sides {
+            let corner=center.add(pose.vector(Math.Vec3(0.1*x as float,0.3*y as float,0.3*z as float)))
+            let point=camera.project(corner,controller.transform(),Math.Vec2(1280.0,800.0))!
+            assert(point.x>20.0 && point.x<1260.0 && point.y>210.0 && point.y<780.0)
+        } } }
+    }
+}
+func smoke_commands(state:&SuspensionScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    if state.phase==0 && state.model.steps>=240 {
+        state.model.verify_rest();state.controls.jump();perform(state,simulation);state.phase=1
+    } else if state.phase==1 && state.model.steps>=720 {
+        assert(state.lost && state.returned && state.peak>2.0);state.model.verify_rest()
+        state.controls.load();perform(state,simulation);state.phase=2
+    } else if state.phase==2 && state.model.steps>=1080 {
+        assert(state.loaded_min<0.53 && state.loaded_force>15000.0 && state.model.load_remaining==0.0)
+        state.controls.load();perform(state,simulation);state.controls.pause();perform(state,simulation)
+        state.held=copy state.model.vehicle.chassis().transform();state.held_load=state.model.load_remaining;state.phase=3
+    } else if state.phase==3 {
+        assert(simulation.is_paused() && simulation.delta()==0.0)
+        assert(state.model.vehicle.chassis().transform()==state.held && state.model.load_remaining==state.held_load)
+        state.pause_frames++
+        if state.pause_frames==8 { state.controls.reset();perform(state,simulation);state.phase=4 }
+    } else if state.phase==4 && state.model.steps>=240 {
+        state.model.verify_rest()
+        print("Suspension smoke: drop, jump, lost/regained supports, overload, exact pause, recreation, framing and rendered transforms verified")
+        controller.stop()
+    }
+}
+func update(world:&Resources.World,input:@Resources.InputState,state:&SuspensionScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if state.smoke { smoke_commands(state,simulation,controller) }
+    else {
+        for event in input.events() { if !state.controls.handle(event) { let handled=state.ui.handle(event) } }
+        perform(state,simulation)
+    }
+    state.accumulator+=simulation.delta()
+    while state.accumulator>=1.0/120.0 && !simulation.is_paused() {
+        remember(state);let loaded=state.model.load_remaining>0.0
+        state.model.step(1.0/120.0);state.accumulator-=1.0/120.0
+        if state.smoke {
+            state.model.verify();verify_framing(state)
+            if state.phase==1 {
+                if state.model.supports()==0 { state.lost=true }
+                if state.lost && state.model.supports()==4 { state.returned=true }
+                state.peak=Math.max(state.peak,state.model.vehicle.chassis().position().y)
+            }
+            if state.phase==2 && loaded {
+                state.loaded_min=Math.min(state.loaded_min,state.model.vehicle.chassis().position().y)
+                state.loaded_force=Math.max(state.loaded_force,state.model.force())
+            }
+        }
+    }
+    state.telemetry+=simulation.delta()
+    if state.telemetry>=0.1 { state.telemetry=0.0;labels(state,simulation) }
+    if state.ui.update(0.0) {
+        world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(1180,200)) })
+    }
+}
+func render(world:&Resources.World,state:&SuspensionScene) {
+    let current=state.model.vehicle.chassis().transform();let alpha=Math.clamp(state.accumulator*120.0,0.0,1.0)
+    var rotation=current.rotation;if state.previous.rotation.dot(rotation)<0.0 { rotation=rotation.multiply(-1.0) }
+    let pose=Physics.Transform3D(state.previous.position.lerp(current.position,alpha),state.previous.rotation.multiply(1.0-alpha).add(rotation.multiply(alpha)).normalized())
+    world.update<Components.Transform3D>(state.chassis,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
+    for i in [0,1] {
+        world.update<Components.Transform3D>(state.axles[i],func(t:&Components.Transform3D) {
+            t.position=pose.point(Math.Vec3(0.0,0.0,2.0*i as float-1.0));t.rotation=pose.rotation
+        })
+    }
+    let tire_rotation=pose.rotation.multiply(state.wheel_orientation)
+    for i in [0,1,2,3] {
+        let settings=state.model.vehicle.wheel_settings(i);var wheel=state.model.vehicle.wheel(i)
+        let length=state.lengths[i]+(wheel.length-state.lengths[i])*alpha
+        let center=pose.point(settings.position.add(settings.direction.multiply(length)))
+        world.update<Components.Transform3D>(state.tires[i],func(t:&Components.Transform3D) { t.position=center;t.rotation=tire_rotation })
+        world.update<Components.Transform3D>(state.hubs[i],func(t:&Components.Transform3D) { t.position=center;t.rotation=tire_rotation })
+        world.update<Components.Transform3D>(state.springs[i],func(t:&Components.Transform3D) {
+            t.position=pose.point(settings.position.add(settings.direction.multiply(length*0.5)));t.rotation=pose.rotation;t.scale=Math.Vec3(0.045,Math.max(0.001,length),0.045)
+        })
+        let visible=wheel.support()!=null
+        if world.get<Components.Mesh3D>(state.markers[i]).visible!=visible {
+            world.update<Components.Mesh3D>(state.markers[i],func(m:&Components.Mesh3D) { m.visible=visible })
+        }
+        if visible { world.update<Components.Transform3D>(state.markers[i],func(t:&Components.Transform3D) { t.position=wheel.contact_point.add(Math.Vec3(0.0,0.015,0.0)) }) }
+        if state.smoke {
+            assert(world.get<Components.Transform3D>(state.tires[i]).position.nearly_equal(center,0.00001))
+            assert(world.get<Components.Transform3D>(state.tires[i]).rotation==tire_rotation)
+            assert(world.get<Components.Mesh3D>(state.markers[i]).visible==visible)
+        }
+    }
+    if state.smoke { assert(world.get<Components.Transform3D>(state.chassis).position.nearly_equal(pose.position,0.00001)) }
+}
+func verify_controls() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=SuspensionScene();var simulation=Application.Simulation()
+    startup(world,meshes,state,simulation);verify_framing(state)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.space,32 as uint32)));perform(state,simulation);assert(simulation.is_paused())
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.space,32 as uint32,true)));perform(state,simulation);assert(simulation.is_paused())
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.x,98 as uint32)));perform(state,simulation)
+    assert(!simulation.is_paused() && state.model.jumps==1 && state.model.vehicle.chassis().linear_velocity().y==5.0)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.b,66 as uint32,true)));perform(state,simulation);assert(state.model.jumps==1)
+    simulation.pause();assert(state.controls.handle(InputCheck.key_event(Input.Key.c,0 as uint32)));perform(state,simulation)
+    assert(!simulation.is_paused() && state.model.load_remaining==2.0)
+    state.controls.pause();perform(state,simulation);let held=copy state.model.vehicle.chassis().transform();let remaining=state.model.load_remaining
+    render(world,state);assert(state.model.vehicle.chassis().transform()==held && state.model.load_remaining==remaining)
+    var old=state.model.vehicle
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.r,82 as uint32)));perform(state,simulation)
+    assert(!old.is_valid() && !simulation.is_paused() && state.model.steps==0)
+    InputCheck.click(state.ui,100.0,103.0);perform(state,simulation);assert(state.model.jumps==1)
+    InputCheck.click(state.ui,330.0,103.0);perform(state,simulation);assert(state.model.loads==1)
+    InputCheck.click(state.ui,800.0,103.0);perform(state,simulation);assert(simulation.is_paused())
+    old=state.model.vehicle;InputCheck.click(state.ui,560.0,103.0);perform(state,simulation);assert(!old.is_valid() && !simulation.is_paused())
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.b,0 as uint32)));perform(state,simulation);assert(state.model.jumps==1)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.c,67 as uint32)));perform(state,simulation);assert(state.model.loads==1)
+    remember(state);render(world,state)
+    assert(world.get<Components.Transform3D>(state.chassis).position==state.model.vehicle.chassis().position())
+    state.controls.automatic=true;assert(!state.controls.handle(InputCheck.key_event(Input.Key.b,98 as uint32)))
+    print("Suspension controls: logical keys, physical fallback, uppercase, repetition, buttons, pause and recreation verified")
+}
+test "vehicle controls reach actions through keys and buttons while preserving pause" { verify_controls() }
+func main() {
+    var state=SuspensionScene()
+    for argument in Process.arguments() {
+        if argument=="--physics-check" { Model.verify_physics();return }
+        if argument=="--controls-check" { verify_controls();return }
+        if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
+    }
+    var title="Suspensions — poids et rebond"
+    if state.smoke { title="TEST AUTOMATIQUE — suspensions — fermeture à la fin" }
+    Application() ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.ViewportCamera3D(camera_settings()))
+        ..add_system(Application.Schedule.startup,startup)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}
