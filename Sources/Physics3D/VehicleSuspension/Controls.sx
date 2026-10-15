@@ -1,0 +1,58 @@
+use GFX.Color
+use GFX.Input
+use GFX.Input.Events
+use GFX.UI
+
+package class SuspensionControls {
+    var jumps:int=0
+    var loads:int=0
+    var resets:int=0
+    var pauses:int=0
+    var automatic:bool=false
+    var pause_text:UI.State<str> =UI.State<str>("Pause (Espace)")
+    var feedback:UI.State<str> =UI.State<str>("Le châssis tombe sous son poids. B le fait bondir ; C comprime les suspensions pendant 2 secondes.")
+    var measure:UI.State<str> =UI.State<str>("")
+    func jump() { self.jumps++ }
+    func load() { self.loads++ }
+    func reset() { self.resets++ }
+    func pause() { self.pauses++ }
+    func button(text:str,action:func()) UI.Button {
+        var result=UI.Button(text,action)
+        result.style.width=220.0;result.style.height=38.0;result.style.background=Color.slate_700();result.style.radius=5.0
+        return result
+    }
+    func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause) }
+    func status(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.feedback)) }
+    func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
+    func describe() UI.View {
+        var actions=UI.Row([self.button("Bondir (B)",self.jump),self.button("Surcharger 2 s (C)",self.load),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button)])
+        actions.style.gap=12.0
+        var title=UI.Text("Suspensions — poids, appuis et rebond");title.style.height=28.0
+        var help=UI.Text("100 kg · quatre ressorts · vert : appui au sol · roues libres, conduite à venir · Échap : quitter");help.style.height=24.0
+        var rows:UI.View[]=[title,help,
+            actions,UI.Reactive(self.status),UI.Reactive(self.metrics)]
+        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — suspensions — fermeture à la fin"),UI.Reactive(self.metrics)] }
+        var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
+        root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0
+        return root
+    }
+    func handle(event:@Events.Event) bool {
+        if self.automatic { return false }
+        match event {
+            key_pressed(key) => {
+                let code=key.keycode
+                let jump=code==98 as uint32 || code==66 as uint32 || (code==0 as uint32 && key.key==Input.Key.b)
+                let load=code==99 as uint32 || code==67 as uint32 || (code==0 as uint32 && key.key==Input.Key.c)
+                let reset=code==114 as uint32 || code==82 as uint32 || (code==0 as uint32 && key.key==Input.Key.r)
+                if jump || load || reset || key.key==Input.Key.space {
+                    if !key.repeated {
+                        if jump { self.jump() } else if load { self.load() } else if reset { self.reset() } else { self.pause() }
+                    }
+                    return true
+                }
+            }
+            else => {}
+        }
+        return false
+    }
+}

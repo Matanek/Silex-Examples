@@ -1018,6 +1018,8 @@ C selects frontal, left/right oblique or rear shots. Flight and measured contact
 impact to the joints. Pause and recreation are
 available. This does not demonstrate standing balance.
 
+K lifts gold kinematically and releases it with its current velocity so gravity
+and floor contacts take over; Space also pauses the lift.
 `silex run Silex-Examples/Sources/Physics3D/RagdollDrive/Main.sx --release`.
 [Guide français](Sources/Physics3D/RagdollDrive/README.fr.md).
 
@@ -1040,3 +1042,14 @@ report cell descriptions and comparisons, without FPS claims.
 [Guide](Sources/UITableView/README.md). From the workspace or Spec group root:
 `silex run Silex-Examples/Sources/UITableView/Main.sx --release`.
 Use `-- --cpu-check` for the pure CPU path without opening a window.
+
+## Wheel suspension, load and rebound
+
+[VehicleSuspension](Sources/Physics3D/VehicleSuspension/README.md) drops a 100 kg
+chassis onto four suspended wheels. B jumps, C overloads for two seconds, Space
+pauses and R recreates. Green pads show support lost in flight and regained on
+landing. This first vehicle scene shows suspension; tire traction and driving
+remain future work.
+
+`silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release`.
+[Guide français](Sources/Physics3D/VehicleSuspension/README.fr.md).

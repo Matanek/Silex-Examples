@@ -10,6 +10,8 @@ package class RagdollDriveModel {
     var suspended:bool=true
     private var floor:Physics.RigidBody3D?=null
     private var mobile_settings:Physics.Ragdoll3DSettings
+    var lift_remaining:float=0.0
+    var lifts:int=0
     var steps:int=0
     var pushes:int=0
     var shots:int=0
@@ -64,6 +66,7 @@ package class RagdollDriveModel {
     }
     func select(variant:int) {
         assert(variant>=0 && variant<=3)
+        self.finish_lift()
         self.variant=variant;self.motors=true
         self.anatomy.instances[0].drive_to_local_pose(self.target(variant,0),120.0,400.0,8.0)
     }
@@ -72,9 +75,29 @@ package class RagdollDriveModel {
         else { self.select(self.variant) }
     }
     func push() {
+        self.finish_lift()
         var forearm=self.anatomy.instances[0].body(3)
         forearm.apply_impulse(Math.Vec3(0.0,0.0,6.0),forearm.world_center_of_mass().add(Math.Vec3(0.0,-0.1,0.0)))
         self.pushes++
+    }
+    private func finish_lift() {
+        if self.lift_remaining>0.0 {
+            self.anatomy.instances[0].resume_simulation()
+            self.lift_remaining=0.0
+        }
+    }
+    func lift() {
+        if self.lift_remaining>0.0 { return }
+        if self.suspended { self.switch_support() }
+        self.clear_projectile()
+        var ragdoll=self.anatomy.instances[0]
+        ragdoll.stop_motors();self.motors=false
+        var pose:Physics.Transform3D[]=[];ragdoll.write_pose(pose)
+        for i in [0,1,2,3,4,5,6,7,8,9] {
+            pose[i]=Physics.Transform3D(pose[i].position.add(Math.Vec3(0.0,1.2,0.5)),pose[i].rotation)
+        }
+        ragdoll.move_to_pose(pose,0.8)
+        self.lift_remaining=0.4;self.lifts++
     }
     private func clear_projectile() {
         if var body=self.projectile { self.anatomy.world.destroy_rigid_body(body) }
@@ -94,6 +117,7 @@ package class RagdollDriveModel {
         return Math.Vec3(0.0,0.0,-1.0)
     }
     func shoot() {
+        self.finish_lift()
         self.clear_projectile()
         var part=0
         if self.suspended {
@@ -136,13 +160,24 @@ package class RagdollDriveModel {
         }
     }
     func reset() {
+        self.lift_remaining=0.0;self.lifts=0
         self.clear_projectile();self.anatomy.reset();self.steps=0;self.pushes=0;self.shots=0;self.projectile_impacts=0;self.projectile_impulse=0.0
         for i in [0,1] { var variant=0;if i==0 { variant=1 }
             self.anatomy.instances[i].set_local_pose(self.target(variant,i)) }
         self.anatomy.instances[1].drive_to_local_pose(self.target(0,1),120.0,400.0,40.0)
         self.variant=1;self.motors=false;self.anatomy.instances[0].stop_motors()
     }
-    func step(delta:float) { self.anatomy.world.step(delta);self.observe_projectile(delta);self.steps++ }
+    func step(delta:float) {
+        if self.lift_remaining>0.0 {
+            let span=Math.min(delta,self.lift_remaining)
+            self.anatomy.world.step(span)
+            // Release before the scheduled target stops, preserving its velocity.
+            if self.lift_remaining-span<=0.000001 { self.finish_lift() }
+            else { self.lift_remaining-=span }
+            if delta-span>0.000001 { self.anatomy.world.step(delta-span) }
+        } else { self.anatomy.world.step(delta) }
+        self.observe_projectile(delta);self.steps++
+    }
     func write_pose(output:&Physics.Transform3D[]) { self.anatomy.write_pose(output) }
     func verify() {
         var expected_bodies=20;if !self.suspended { expected_bodies++ }
@@ -234,6 +269,7 @@ package class RagdollDriveModel {
     }
     func measurement() str {
         var mode="moteurs actifs";if !self.motors { mode="membres libres" }
+        if self.lift_remaining>0.0 { mode="soulèvement cinématique → lâcher automatique" }
         var support="torses suspendus";if !self.suspended { support="torses mobiles · sol physique" }
         return "$(support) | Or : pose $(self.variant), $(mode) | Bleu neutre | P : $(self.pushes) | Blocs : $(self.shots), impacts : $(self.projectile_impacts) | Contacts : $(self.anatomy.world.contact_count())"
     }
@@ -360,3 +396,40 @@ package func verify_excessive_request() {
     } } }
 }
 test "excessive elbow and knee targets remain physical and bounded in suspension and on a floor" { verify_excessive_request() }
+
+package func verify_lift() {
+    for rate in [60,120] { for delay in [0,2] {
+        var model=RagdollDriveModel();model.switch_support()
+        var step=0;while step<rate*delay { model.step(1.0/rate);model.verify();step++ }
+        var before:Physics.Transform3D[]=[];model.write_pose(before)
+        var blue_velocity=model.anatomy.instances[1].body(0).linear_velocity()
+        model.lift();assert(model.lifts==1 && !model.motors)
+        var after:Physics.Transform3D[]=[];model.write_pose(after)
+        for i in [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] { assert(before[i]==after[i]) }
+        assert(model.anatomy.instances[1].body(0).linear_velocity()==blue_velocity)
+        let start=model.anatomy.instances[0].body(0).position();var released=false
+        var peak=start.y;step=0
+        while step<rate*3 {
+            let was_lifting=model.lift_remaining>0.0
+            model.step(1.0/rate);model.verify()
+            var root=model.anatomy.instances[0].body(0)
+            peak=Math.max(peak,root.position().y)
+            if was_lifting && model.lift_remaining==0.0 {
+                released=true
+                assert(root.body_type()==Physics.BodyType3D.dynamic)
+                assert(root.position().subtract(start).nearly_equal(Math.Vec3(0.0,0.6,0.25),0.0001))
+                assert(root.linear_velocity().nearly_equal(Math.Vec3(0.0,1.5,0.625),0.0001))
+            }
+            step++
+        }
+        assert(released && peak>start.y+0.65 && model.anatomy.world.contact_count()>0)
+        assert(model.anatomy.instances[0].body(0).position().y<peak-0.3)
+        model.lift();model.push();assert(model.lift_remaining==0.0 && model.pushes==1)
+        model.lift();model.select(0);assert(model.lift_remaining==0.0 && model.motors)
+        model.lift();model.shoot();assert(model.lift_remaining==0.0 && model.projectile!=null)
+        model.lift();model.reset();assert(model.lift_remaining==0.0 && model.projectile==null && model.lifts==0)
+        model.lift();model.switch_support();assert(model.suspended && model.lift_remaining==0.0)
+        print("Lift $(rate) Hz delay $(delay): rise 0.6 m, moving release 1.5/0.625 m/s, fall, contacts and command interruption verified")
+    } }
+}
+test "kinematic lift hands ten members back to gravity and contacts without placement" { verify_lift() }

@@ -105,3 +105,23 @@ avec les parcours précédents et les quatre directions de tir. Le smoke contrô
 cette demande puis les tirs de face, arrière et obliques dans les deux modes.
 Un smoke terminé exige son marqueur final, pas seulement un code de sortie nul.
 La cadence qu’il affiche constitue un échantillon local, sans comparaison FPS.
+
+## Soulever puis laisser la physique reprendre
+
+K ou **Soulever / lâcher** prend la pose actuelle de l’or, déplace ses dix
+membres ensemble pendant 0,4 s, puis le lâche automatiquement. Le soulèvement
+atteint 60 cm ; le départ libre conserve 1,5 m/s vers le haut et 0,625 m/s vers
++Z. La gravité, les limites et les contacts reprennent alors. Le bleu continue
+sa simulation sans recevoir cette commande.
+
+Depuis la suspension, K passe au mode sol et recrée les mannequins avant ce
+premier soulèvement. Au sol, il repart de la pose physique courante. K pendant
+un soulèvement en cours ne le recommence pas. Espace fige aussi le compteur de
+relâchement. Une cible de pose, M, P ou B rend d’abord l’or à la simulation ;
+R et T annulent le parcours en recréant les corps. K retire un bloc déjà en vol.
+Les paramètres des tirs restent identiques.
+
+Pour démarrer directement ce parcours, lancer le binaire avec `--lift`.
+`--lift-check` vérifie sans fenêtre le départ, la chute, la reprise des contacts
+et les interruptions à 60/120 Hz. `--lift-smoke` ouvre un test automatique court
+qui contrôle aussi la pause, le cadrage et les transforms rendus.

@@ -1,0 +1,86 @@
+use GFX.Physics
+use STD.Math
+func create_vehicle(world:Physics.World3D) Physics.WheeledVehicle3D {
+    var wheels:Physics.Wheel3DSettings[]=[]
+    let sides:int[]=[-1,1]
+    for x in sides { for z in sides { wheels.append(Physics.Wheel3DSettings(Math.Vec3(0.9*x as float,0.0,z as float))) } }
+    return world.create_wheeled_vehicle(Physics.WheeledVehicle3DSettings(
+        Physics.RigidBody3DSettings() ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.4,0.4,2.4)))
+            ..transform=Physics.Transform3D(Math.Vec3(0.0,1.4,0.0)) ..allow_sleep=false
+            ..mass_properties=Physics.MassProperties3D(100.0,Math.Vec3(100.0))
+            ..linear_damping=0.0 ..angular_damping=0.0,wheels))
+}
+
+package class SuspensionModel {
+    var world:Physics.World3D=Physics.World3D()
+    var vehicle:Physics.WheeledVehicle3D
+    var load_remaining:float=0.0
+    var steps:int=0
+    var jumps:int=0
+    var loads:int=0
+    init() {
+        self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.plane(Physics.Plane3D()))
+        self.vehicle=create_vehicle(self.world)
+    }
+    func reset() {
+        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world)
+        self.load_remaining=0.0;self.steps=0;self.jumps=0;self.loads=0
+    }
+    func jump() { self.vehicle.chassis().apply_impulse(Math.Vec3(0.0,500.0,0.0));self.jumps++ }
+    func load() { self.load_remaining=2.0;self.loads++ }
+    func step(delta:float) {
+        if self.load_remaining>0.0 {
+            self.vehicle.chassis().apply_force(Math.Vec3(0.0,-20000.0,0.0))
+            self.load_remaining=Math.max(0.0,self.load_remaining-delta)
+        }
+        self.world.step(delta);self.steps++
+    }
+    func supports() int {
+        var count=0;for i in [0,1,2,3] { if self.vehicle.wheel(i).support()!=null { count++ } }
+        return count
+    }
+    func force() float {
+        var total=0.0;for i in [0,1,2,3] { total+=self.vehicle.wheel(i).normal_force }
+        return total
+    }
+    func verify() {
+        var body=self.vehicle.chassis()
+        assert(self.world.body_count()==2 && self.vehicle.wheel_count()==4)
+        assert(body.position().y>0.47 && body.position().length()<10.0 && body.linear_velocity().length()<15.0)
+        for i in [0,1,2,3] {
+            var wheel=self.vehicle.wheel(i)
+            assert(wheel.length>=0.0 && wheel.length<=0.60001 && wheel.normal_force>=0.0 && wheel.normal_force<100000.0)
+        }
+    }
+    func verify_rest() {
+        assert(self.supports()==4 && Math.abs(self.vehicle.chassis().position().y-0.875475)<0.003)
+        assert(Math.abs(self.force()-981.0)<2.0)
+    }
+}
+package func verify_physics() {
+    for rate in [60,120] {
+        var model=SuspensionModel();var i=0
+        while i<rate*2 { model.step(1.0/rate as float);model.verify();i++ }
+        model.verify_rest()
+        model.jump();var lost=false;var returned=false;var peak=0.0;i=0
+        while i<rate*4 {
+            model.step(1.0/rate as float);model.verify();peak=Math.max(peak,model.vehicle.chassis().position().y)
+            if model.supports()==0 { lost=true }
+            if lost && model.supports()==4 { returned=true }
+            i++
+        }
+        assert(lost && returned && peak>2.0);model.verify_rest()
+        model.load();var lowest=10.0;var largest_force=0.0;i=0
+        while i<rate*3 {
+            model.step(1.0/rate as float);model.verify()
+            lowest=Math.min(lowest,model.vehicle.chassis().position().y);largest_force=Math.max(largest_force,model.force());i++
+        }
+        assert(lowest<0.53 && largest_force>15000.0 && model.load_remaining==0.0)
+        i=0;while i<rate*2 { model.step(1.0/rate as float);i++ }
+        model.verify_rest()
+        var old=model.vehicle;model.reset();assert(!old.is_valid() && model.steps==0 && model.jumps==0 && model.loads==0)
+    }
+    print("Suspension physics: rest, jump, lost/regained support, loaded stop, recovery and recreation verified at 60/120 Hz")
+}
+test "visible vehicle uses physical suspensions under weight impulse and temporary overload" { verify_physics() }
