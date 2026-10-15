@@ -103,3 +103,23 @@ alongside the previous cases and all four shot directions. Smoke checks the requ
 A completed
 smoke requires its final marker, not only exit code zero. Its frame rate is a local sample,
 without a comparative FPS claim.
+
+## Lift and let physics take over
+
+K or **Soulever / lâcher** takes gold’s current pose, moves all ten members
+together for 0.4 s, then releases them automatically. The rise reaches 60 cm;
+free motion starts with 1.5 m/s upward and 0.625 m/s along +Z. Gravity, limits
+and contacts then take over. Blue continues its simulation without receiving
+this command.
+
+From suspension, K switches to floor mode and recreates both ragdolls before
+the first lift. In floor mode, it starts from the current physical pose. K does
+not restart an ongoing lift. Space also freezes the release countdown. A pose
+target, M, P or B first returns gold to simulation; R and T cancel the sequence
+by recreating the bodies. K removes any block already in flight. Shot settings
+remain unchanged.
+
+Start the binary with `--lift` to enter this sequence directly. `--lift-check`
+checks launch, fall, returning contacts and interruptions without a window at
+60/120 Hz. `--lift-smoke` opens a short automatic test that also checks pause,
+framing and rendered transforms.

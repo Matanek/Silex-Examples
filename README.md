@@ -1018,6 +1018,8 @@ C selects frontal, left/right oblique or rear shots. Flight and measured contact
 impact to the joints. Pause and recreation are
 available. This does not demonstrate standing balance.
 
+K lifts gold kinematically and releases it with its current velocity so gravity
+and floor contacts take over; Space also pauses the lift.
 `silex run Silex-Examples/Sources/Physics3D/RagdollDrive/Main.sx --release`.
 [Guide français](Sources/Physics3D/RagdollDrive/README.fr.md).
 

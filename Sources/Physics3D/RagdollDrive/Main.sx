@@ -31,6 +31,7 @@ class RagdollDriveScene {
     var current:Physics.Transform3D[]=[]
     var accumulator:float=0.0
     var telemetry:float=0.0
+    var lift_smoke:bool=false
     var smoke:bool=false
     var smoke_phase:int=0
     var direction_case:int=0
@@ -56,6 +57,10 @@ func update_labels(state:&RagdollDriveScene,simulation:@Application.Simulation) 
 }
 func perform(state:&RagdollDriveScene,simulation:&Application.Simulation) {
     var changed=false
+    while state.controls.lifts>0 {
+        changed=true;state.controls.lifts--;state.model.lift();sync_previous(state);simulation.resume()
+        state.controls.feedback.set("L’or est soulevé, puis lâché automatiquement avec sa vitesse : gravité et contacts reprennent. K recommence ; Espace suspend aussi le soulèvement.")
+    }
     for pose in state.controls.poses {
         changed=true;state.model.select(pose);simulation.resume()
         var message="Cible $(pose) choisie — les moteurs déplacent les membres or progressivement."
@@ -192,9 +197,38 @@ func smoke_commands(state:&RagdollDriveScene,simulation:&Application.Simulation,
         }
     }
 }
+func lift_smoke_commands(state:&RagdollDriveScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    state.frames++
+    if state.smoke_phase==0 && state.model.steps>=24 {
+        assert(state.model.lift_remaining>0.0)
+        verify_framing(state);state.controls.pause();perform(state,simulation)
+        state.model.write_pose(state.held_pose);state.smoke_phase=1
+    } else if state.smoke_phase==1 {
+        assert(simulation.is_paused());state.model.write_pose(state.current)
+        for i in [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] { assert(state.current[i]==state.held_pose[i]) }
+        state.pause_frames++
+        if state.pause_frames>=8 { state.controls.pause();perform(state,simulation);state.smoke_phase=2 }
+    } else if state.smoke_phase==2 && state.model.steps>=48 {
+        assert(state.model.lift_remaining==0.0 && state.model.anatomy.instances[0].body(0).body_type()==Physics.BodyType3D.dynamic)
+        verify_framing(state);state.smoke_phase=3
+    } else if state.smoke_phase==3 && state.model.steps>=360 {
+        assert(state.model.anatomy.world.contact_count()>0);verify_framing(state)
+        state.controls.lift();perform(state,simulation);assert(state.model.lifts==2);state.smoke_phase=4
+    } else if state.smoke_phase==4 && state.model.steps>=720 {
+        assert(state.model.lift_remaining==0.0 && state.model.anatomy.world.contact_count()>0);verify_framing(state)
+        state.controls.reset();perform(state,simulation);assert(state.model.lifts==0 && !state.model.suspended)
+        print("Ragdoll lift smoke: kinematic rise, exact pause, moving release, floor return, second lift, framing, rendered transforms and reset verified")
+        let elapsed=state.clock.get_elapsed_seconds()
+        print("SMOKE frames $(state.frames), wall s $(elapsed), fps $(state.frames as float/elapsed)")
+        controller.stop()
+    }
+}
 func update(world:&Resources.World,input:@Resources.InputState,state:&RagdollDriveScene,simulation:&Application.Simulation,controller:&Application.Controller) {
     if input.is_pressed(Input.Key.escape) { controller.stop() }
-    if state.smoke { smoke_commands(state,simulation,controller) }
+    if state.smoke {
+        if state.lift_smoke { lift_smoke_commands(state,simulation,controller) }
+        else { smoke_commands(state,simulation,controller) }
+    }
     else { for event in input.events() { if !state.controls.handle(event) { let handled=state.ui.handle(event) } }
         perform(state,simulation) }
     state.accumulator+=simulation.delta()
@@ -375,6 +409,27 @@ func verify_direction_controls() {
     state.controls.direction();perform(state,simulation);assert(state.model.shot_direction==0)
 
 }
+func verify_lift_controls() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=RagdollDriveScene();var simulation=Application.Simulation()
+    startup(world,meshes,state,simulation)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.k,0 as uint32)));perform(state,simulation)
+    assert(!state.model.suspended && state.model.lifts==1 && state.model.lift_remaining>0.0)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.k,107 as uint32,true)));perform(state,simulation);assert(state.model.lifts==1)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.space,32 as uint32)));perform(state,simulation);assert(simulation.is_paused())
+    state.model.write_pose(state.held_pose);let remaining=state.model.lift_remaining
+    perform(state,simulation);state.model.write_pose(state.current)
+    assert(state.model.lift_remaining==remaining && simulation.is_paused())
+    for i in [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] { assert(state.current[i]==state.held_pose[i]) }
+    state.controls.reset();perform(state,simulation)
+    InputCheck.click(state.ui,1050.0,109.0);perform(state,simulation);assert(state.model.lifts==1 && !simulation.is_paused())
+    state.controls.reset();perform(state,simulation)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.k,75 as uint32)));perform(state,simulation);assert(state.model.lifts==1)
+    state.controls.pose_one();perform(state,simulation);assert(state.model.lift_remaining==0.0 && state.model.motors)
+    state.controls.lift();perform(state,simulation);state.controls.support();perform(state,simulation)
+    assert(state.model.suspended && state.model.lift_remaining==0.0)
+}
+test "lift controls accept K and button while preserving pause and normal physics commands" { verify_lift_controls() }
+
 test "direction changes affect only future shots and preserve pause and live projectile" { verify_direction_controls() }
 
 test "motor pose controls deliver targets, release, impulse, pause and recreation" { verify_interactions() }
@@ -392,8 +447,11 @@ func verify_floor_framing() {
 test "mobile torsos and contacting limbs remain visible through the floor motor sequence" { verify_floor_framing() }
 func main() {
     var state=RagdollDriveScene();var arguments=Process.arguments()
-    var start_floor=false;var start_limits=false;var start_oblique=false
+    var start_floor=false;var start_limits=false;var start_oblique=false;var start_lift=false
     for argument in arguments {
+        if argument=="--lift" { start_lift=true }
+        if argument=="--lift-check" { Model.verify_lift();return }
+        if argument=="--lift-smoke" { state.smoke=true;state.lift_smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
         if argument=="--oblique" { start_oblique=true }
         if argument=="--floor" { start_floor=true }
         if argument=="--limits" { start_limits=true }
@@ -402,7 +460,7 @@ func main() {
         if argument=="--rear-check" { ProjectileCheck.verify_rear();return }
         if argument=="--limits-check" { Model.verify_excessive_request();return }
         if argument=="--physics-check" { Model.verify_drive();Model.verify_reaction();Model.verify_floor_drive();Model.verify_excessive_request();ProjectileCheck.verify_projectile();ProjectileCheck.verify_oblique();ProjectileCheck.verify_rear();return }
-        if argument=="--controls-check" { verify_interactions();verify_direction_controls();print("Ragdoll drive: UI, keyboard, pose commands, pause, reset and transforms verified");return }
+        if argument=="--controls-check" { verify_interactions();verify_direction_controls();verify_lift_controls();print("Ragdoll drive: UI, keyboard, pose commands, pause, reset and transforms verified");return }
         if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
     }
     if start_floor && !state.smoke {
@@ -417,8 +475,13 @@ func main() {
         state.model.cycle_direction()
         state.controls.feedback.set("C choisit face, arrière ou oblique ; B lance un bloc ; M compare maintien et liberté, T les deux supports.")
     }
+    if start_lift || state.lift_smoke {
+        state.model.lift()
+        state.controls.feedback.set("Soulèvement cinématique puis lâcher automatique : K recommence, Espace fige, M active les moteurs.")
+    }
     var title="Mannequins — poses et chocs"
     if start_oblique { title="Mannequins — chocs de face, arrière et obliques" }
+    if start_lift { title="Mannequins — soulever puis lâcher" }
     if state.smoke { title="TEST AUTOMATIQUE — pose motorisée — fermeture à la fin" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
