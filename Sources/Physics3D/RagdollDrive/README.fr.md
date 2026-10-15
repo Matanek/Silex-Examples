@@ -18,7 +18,8 @@ Utiliser les boutons ou les touches :
 - **1 / 2 / 0** : pose ouverte, repliée ou neutre pour l’or ;
 - **3** : demander des coudes et genoux au-delà de leurs butées ;
 - **P** : impulsion sur l’avant-bras or ;
-- **B** : lancer un bloc rouge vers ce bras et observer son choc physique ;
+- **B** : lancer un bloc rouge vers le mannequin or et observer son choc physique ;
+- **C** : choisir le prochain tir : face, oblique gauche, oblique droite, arrière ;
 - **M** : arrêter ses moteurs, puis les reprendre vers la cible choisie ;
 - **T** : choisir suspension ou sol et recréer les deux mannequins ;
 - **Espace** : mettre en pause ou reprendre ;
@@ -35,6 +36,32 @@ ou vitesse du mannequin lors du tir. Le compteur d’impacts augmente seulement
 après un contact mesuré avec l’or. Un seul bloc est actif ; un nouveau tir
 le remplace, et il disparaît après environ trois secondes. R et T le retirent.
 B reprend la simulation après une pause ; Espace fige aussi le projectile.
+C conserve la pause et la trajectoire du bloc déjà lancé. Son choix reste
+sélectionné après R et T, pour comparer la même direction dans les deux modes.
+Les directions se rapportent au repère initial de la scène ; une rotation du
+torse ne réoriente pas le lanceur. Le tir de face part du côté +Z et avance
+vers −Z ; le tir arrière part du côté −Z et avance vers +Z. C parcourt face,
+oblique gauche, oblique droite, arrière.
+Le bloc pèse 8 kg et sa vitesse horizontale
+relative au membre visé est de 16 m/s.
+Il part 3,2 m en amont pour conserver une visée à 0,2 s. La vitesse initiale
+compense la chute gravitationnelle ; au sol, la visée reste au moins à 30 cm
+de hauteur pour éviter que le cube ne heurte le sol avant le torse. Le tir vise
+alors le torse mobile pour entraîner l’ensemble du mannequin.
+En suspension, le tir de face vise les jambes, dégagées du torse fixe ; le tir
+arrière vise l’avant-bras gauche. Les obliques visent l’avant-bras du côté choisi.
+P garde son impulsion directe sur l’avant-bras gauche.
+
+Pour démarrer au sol avec un tir oblique sélectionné, compiler puis lancer
+le binaire depuis la même racine :
+
+```sh
+silex compile Silex-Examples/Sources/Physics3D/RagdollDrive/Main.sx --release -o .silex/ragdoll-drive
+.silex/ragdoll-drive --floor --oblique
+```
+
+Choisir une direction avec C, lancer avec B, puis comparer moteurs et membres
+libres avec M. T garde la direction et change le support.
 
 Le changement de cible conserve les poses et vitesses ; seuls les moteurs
 orientent progressivement les membres. Une nouvelle cible reprend les moteurs.
@@ -57,17 +84,24 @@ Les observations géométriques détaillées sont réservées aux tests et au sm
 
 Sur le binaire compilé, `--projectile-check` qualifie sans fenêtre le tir,
 le contact et la réaction à 60/120 Hz dans les deux supports, avec moteurs
-actifs ou libres. Ce parcours compare aussi un mannequin témoin sans bloc.
+actifs ou libres. Ce parcours compare aussi un mannequin témoin sans bloc. `--oblique-check`
+exerce les deux obliques dans les seize configurations correspondantes ;
+`--rear-check` ajoute les huit recettes arrière. Les mêmes bornes de limites,
+pénétration et vitesse restent appliquées aux quatre directions.
+En mode libre, au moins un membre doit s’écarter de plus de 15 cm du témoin
+pendant la première seconde ; au sol, le torse doit aussi se déplacer de plus
+de 50 cm par rapport au témoin. Les mannequins suspendus motorisés doivent
+retrouver leur cible après le choc. Le maintien réduit volontairement l’amplitude du mouvement.
 
 Les options `--physics-check` et `--controls-check` valident le modèle et les
 commandes sans fenêtre ; `--smoke` parcourt les changements de cible, impulsion,
-arrêt, reprise, pause, reset, puis deux vols/impacts de bloc dans les deux
+arrêt, reprise, pause, reset, puis tirs de face, arrière et deux obliques dans les deux
 modes, avec rendu interpolé et visibilité vérifiés dans une fenêtre qui se ferme
 automatiquement.
 Sur le binaire compilé, `--floor` démarre directement l’interactif au sol,
 et `--limits` sélectionne la demande excessive sans placer les membres.
 `--limits-check` isole sa recette sans fenêtre ; `--physics-check` l’inclut
-avec les parcours précédents. Le smoke contrôle cette demande puis les tirs
-de bloc dans les deux modes.
+avec les parcours précédents et les quatre directions de tir. Le smoke contrôle
+cette demande puis les tirs de face, arrière et obliques dans les deux modes.
 Un smoke terminé exige son marqueur final, pas seulement un code de sortie nul.
 La cadence qu’il affiche constitue un échantillon local, sans comparaison FPS.

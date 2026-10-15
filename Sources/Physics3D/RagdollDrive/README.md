@@ -18,7 +18,8 @@ Use the buttons or keys:
 - **1 / 2 / 0**: open, folded or neutral target for gold;
 - **3**: request elbow and knee angles beyond their stops;
 - **P**: impulse on gold's forearm;
-- **B**: launch a red block towards that arm and observe its physical impact;
+- **B**: launch a red block towards gold and observe its physical impact;
+- **C**: choose the next shot: frontal, left oblique, right oblique, rear;
 - **M**: stop its motors, then resume towards the selected target;
 - **T**: choose suspension or floor and recreate both mannequins;
 - **Space**: pause or resume;
@@ -35,6 +36,32 @@ mannequin pose or velocity when firing. The impact counter increases only
 after a measured contact with gold. Only one block is active; a new shot
 replaces it, and it disappears after about three seconds. R and T remove it.
 B resumes after a pause; Space freezes the projectile too.
+C preserves pause and the trajectory of an already launched block. Its choice
+persists across R and T to compare the same direction in both support modes.
+Directions use the scene's initial frame; rotating the torso does not rotate
+the launcher. Frontal shots start on the +Z side and travel towards −Z; rear
+shots start on the −Z side and travel towards +Z. C cycles frontal, left
+oblique, right oblique, rear.
+The block weighs 8 kg and its horizontal speed relative to the
+targeted part is 16 m/s.
+It starts 3.2 m upstream to retain a 0.2 s aiming time. The initial velocity
+compensates for gravitational drop; on the floor, the aiming height stays at
+least 30 cm above ground so the cube does not strike the floor before the torso.
+Shots then aim at the mobile torso to move the whole mannequin.
+In suspension, frontal shots aim at the legs, clear of the fixed torso; rear
+shots aim at the left forearm. Obliques aim at the selected side’s forearm.
+P retains its direct impulse on the left forearm.
+
+To start on the floor with an oblique shot selected, compile and launch the
+binary from the same root:
+
+```sh
+silex compile Silex-Examples/Sources/Physics3D/RagdollDrive/Main.sx --release -o .silex/ragdoll-drive
+.silex/ragdoll-drive --floor --oblique
+```
+
+Choose a direction with C, fire with B, then compare motors and free limbs
+with M. T retains the direction and changes support.
 
 Changing the target preserves poses and velocities: motors progressively turn
 the limbs. A new target resumes the motors. R and mode changes are the only
@@ -55,16 +82,24 @@ tests and smokes.
 
 On the compiled binary, `--projectile-check` qualifies firing, contact and
 response without a window at 60/120 Hz in both support modes, with active or
-released motors. It also compares an identical mannequin without a block.
+released motors. It also compares an identical mannequin without a block. `--oblique-check`
+exercises both obliques in their sixteen corresponding configurations, retaining
+the same limit, penetration and velocity bounds. `--rear-check` adds eight
+rear-shot recipes, with the same bounds across all four directions.
+In free mode, at least one limb must deviate by more than 15 cm from the control
+during the first second; on the floor, the torso must also deviate by more
+than 50 cm from the control. Suspended motorized mannequins must regain their
+target after impact.
+Holding intentionally reduces movement amplitude.
 
 `--physics-check` and `--controls-check` validate the model and controls without
 a window; `--smoke` exercises target changes, impulse, release, resume, pause,
-reset, then block flight/impact in both modes, with interpolated rendering
+reset, then frontal, rear and both oblique block shots in both modes, with interpolated rendering
 and visibility checked in a window that closes automatically. On the compiled
 binary, `--floor` starts the interactive scene directly on the floor and
 `--limits` selects the excessive request without placing members.
 `--limits-check` isolates its headless recipe; `--physics-check` includes it
-alongside the previous cases. Smoke checks the request and then block firing in both support modes.
+alongside the previous cases and all four shot directions. Smoke checks the request and then frontal/rear/oblique firing in both support modes.
 A completed
 smoke requires its final marker, not only exit code zero. Its frame rate is a local sample,
 without a comparative FPS claim.
