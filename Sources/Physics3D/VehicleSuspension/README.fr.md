@@ -1,16 +1,24 @@
-# Conduire avec moteur, pneus et suspensions
+# Comparer les contacts de roue sur une arête
 
 Un châssis de 100 kg repose sur quatre roues suspendues. Un moteur de 30 N·m
 entraîne les roues arrière à travers une boîte automatique. Les contacts des
 pneus font accélérer, tourner et freiner le véhicule. Les jantes blanches
 montrent leur rotation ; la bande jaune indique l’avant. La caméra suit le
-châssis et le quadrillage métrique rend le déplacement visible.
+châssis et le quadrillage métrique rend le déplacement visible. Une bande
+violette surélevée se trouve devant lui ; le mode **sphère** est choisi au départ.
 
 Depuis la racine du workspace :
 
 ```sh
 silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release
 ```
+
+Pour comparer, attendre la réception puis appuyer sur **Z** et laisser le
+véhicule traverser la bande violette. Les sphères trouvent ses arêtes et la
+caisse monte. **T** recrée le véhicule avec des contacts par rayon : refaire Z,
+les rayons passent à côté de la bande et la caisse reste sur ses appuis au sol.
+T change de nouveau le mode ; le bouton **Contacts** indique le choix courant.
+Le moteur et la bande restent identiques dans les deux parcours.
 
 Après la réception, **Z** accélère devant, **S** demande la marche arrière et
 **X** relâche l’accélérateur. Ces commandes restent choisies après relâchement
@@ -26,6 +34,11 @@ accélérateur relâché et roues droites. Les boutons ont les mêmes effets.
   gauche suivent le véhicule, repéré par sa bande jaune, et non le bord de l’écran.
 - **F / Frein** active ou libère les quatre freins de 1500 N·m par roue.
 - **H / Frein à main** active ou libère les seuls freins arrière de 20 N·m.
+- **T / Contacts** alterne rayon/sphère et recrée le véhicule, accélérateur,
+  direction et freins relâchés. La sphère balayée a un rayon de 12 cm ; le rayon
+  physique de roue reste 30 cm. La bande mesure 1,68 × 0,18 × 4 m et ses arêtes
+  passent à 6 cm des axes de roues. Ce volume de contact est une approximation,
+  il ne reproduit pas toute la forme cylindrique du pneu.
 - **G / Adhérence** change le mode et recrée le véhicule. Sans adhérence,
   les suspensions portent toujours le châssis et les rotors restent reliés au
   moteur, mais les courbes de friction sont nulles. Z fait tourner les roues
@@ -43,7 +56,7 @@ accélérateur relâché et roues droites. Les boutons ont les mêmes effets.
 Accélérateur, braquage et freins se combinent. Relâcher l’accélérateur avec X
 avant de tester un arrêt, puis F pour le frein normal. Un nouvel appui sur F
 le libère. Les actions reprennent une simulation en pause ; l’auto-répétition
-est ignorée. G et R réinitialisent toutes les commandes.
+est ignorée. G, R et T réinitialisent toutes les commandes ; G et R conservent le mode de contact choisi.
 
 Le panneau indique vitesse, braquage, hauteur, appuis et efforts de suspension,
 puis régime moteur, rapport, embrayage et accélérateur. Rapport 0 : point mort ;
@@ -61,9 +74,13 @@ silex compile Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --relea
 
 Le parcours **TEST AUTOMATIQUE** se ferme après les essais de suspension,
 roulement, adhérence, braquage et freins, puis accélération, marche arrière,
-arrêts, roues motorisées sans adhérence et pause du moteur. Attendre sa fermeture
+arrêts, roues motorisées sans adhérence et pause du moteur sur sol simple.
+Il compare ensuite le même obstacle en rayon puis en sphère : appuis de bande,
+montée de caisse, changement de mode et nouvelle pause. Attendre sa fermeture
 normale. Il contrôle physique, transforms rendus et cadrage depuis la vraie
-caméra ECS. Les parcours sans fenêtre vérifient physique à 60/120 Hz et
+caméra ECS. Les dimensions et la pose du mesh de bande sont comparées à son
+corps physique ; les points d’appui sur la bande restent dans le cadre utile.
+Les parcours sans fenêtre vérifient physique à 60/120 Hz et
 commandes clavier/boutons ; ils ne remplacent pas l’appréciation du rendu.
 
 Simulation à 120 Hz ; poses, longueurs et angles sont interpolés au rendu.

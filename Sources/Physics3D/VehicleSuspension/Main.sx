@@ -16,7 +16,7 @@ use STD.Math
 use STD.Process
 
 class SuspensionScene {
-    var model:Model.SuspensionModel=Model.SuspensionModel()
+    var model:Model.SuspensionModel
     var controls:Controls.SuspensionControls=Controls.SuspensionControls()
     var ui:UI.Session
     var panel:ECS.Entity=ECS.Entity()
@@ -26,6 +26,12 @@ class SuspensionScene {
     var tires:ECS.Entity[]=[]
     var hubs:ECS.Entity[]=[]
     var spokes:ECS.Entity[]=[]
+    var barrier:ECS.Entity=ECS.Entity()
+    var barrier_visible:bool=false
+    var obstacle_frames:int=0
+    var ray_peak:float=0.0
+    var sphere_peak:float=0.0
+    var obstacle_hits:int=0
     var floor:ECS.Entity=ECS.Entity()
     var grid:ECS.Entity[]=[]
     var grid_x:float=10000.0
@@ -52,7 +58,10 @@ class SuspensionScene {
     var peak:float=0.0
     var loaded_min:float=10.0
     var loaded_force:float=0.0
-    init() { self.ui=UI.Session(self.controls.describe()) }
+    init(obstacle:bool=false,sphere_contact:bool=false) {
+        self.model=Model.SuspensionModel(obstacle:obstacle,sphere_contact:sphere_contact)
+        self.ui=UI.Session(self.controls.describe())
+    }
 }
 func visual(world:&Resources.World,mesh:Scene3D.MeshHandle,size:Math.Vec3,color:Color) ECS.Entity {
     return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(scale:size))
@@ -65,6 +74,9 @@ func remember(state:&SuspensionScene) {
 func labels(state:&SuspensionScene,simulation:@Application.Simulation) {
     var pause="Pause (Espace)";if simulation.is_paused() { pause="Reprendre (Espace)" }
     if state.controls.pause_text.value()!=pause { state.controls.pause_text.set(pause) }
+    var contact_name="rayon";if state.model.sphere_contact { contact_name="sphère" }
+    let contact="Contacts : $(contact_name) (T)"
+    if state.controls.contact_text.value()!=contact { state.controls.contact_text.set(contact) }
     var brake="Frein libre (F)";if state.model.braking { brake="Frein actif (F)" }
     var hand="Frein main libre (H)";if state.model.handbraking { hand="Frein main actif (H)" }
     if state.controls.brake_text.value()!=brake { state.controls.brake_text.set(brake) }
@@ -72,7 +84,7 @@ func labels(state:&SuspensionScene,simulation:@Application.Simulation) {
     let power=state.model.vehicle.powertrain()
     let rpm=Math.round(power.engine_rpm) as int;let clutch=Math.round(power.clutch*100.0) as int;let throttle=Math.round(state.model.throttle*100.0) as int
     var shift="";if power.switching_gear { shift=" · changement en cours" }
-    let power_text="Moteur $(rpm) RPM · rapport $(power.gear) · embrayage $(clutch)% · accélérateur $(throttle)%$(shift) · Z/S/X : commandes maintenues"
+    let power_text="Moteur $(rpm) RPM · rapport $(power.gear) · embrayage $(clutch)% · accélérateur $(throttle)%$(shift) · contacts $(contact_name) · gaz persistants"
     if state.controls.power_measure.value()!=power_text { state.controls.power_measure.set(power_text) }
     let turn=Math.round(Math.degrees(state.model.vehicle.wheel(1).steering_angle)) as int
     let height=Math.round(state.model.vehicle.chassis().position().y*100.0) as int
@@ -86,6 +98,10 @@ func labels(state:&SuspensionScene,simulation:@Application.Simulation) {
 }
 func perform(state:&SuspensionScene,simulation:&Application.Simulation) {
     var changed=false
+    while state.controls.contact_changes>0 {
+        state.controls.contact_changes--;state.model.toggle_contact();remember(state);state.accumulator=0.0;simulation.resume();changed=true
+        state.controls.feedback.set("Contact changé et véhicule recréé — Z traverse la même bande. Le rayon passe à côté ; la sphère atteint les arêtes.")
+    }
     while state.controls.grips>0 {
         state.controls.grips--;state.model.toggle_grip();remember(state);state.accumulator=0.0;simulation.resume();changed=true
         state.controls.feedback.set("Comparaison changée — véhicule recréé. P pousse devant ; V pousse de côté. Les repères du sol indiquent le déplacement.")
@@ -148,6 +164,11 @@ func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Suspension
         state.markers.append(visual(world,cube,Math.Vec3(0.35,0.025,0.3),Color.bytes(60,230,125)))
     }
     for i in [0,1] { state.axles.append(visual(world,cube,Math.Vec3(1.85,0.06,0.06),Color.bytes(210,215,225))) }
+    state.barrier=visual(world,cube,Model.obstacle_size(),Color.bytes(156,96,205))
+    let barrier_pose=Model.obstacle_transform()
+    world.update<Components.Transform3D>(state.barrier,func(t:&Components.Transform3D) { t.position=barrier_pose.position;t.rotation=barrier_pose.rotation })
+    state.barrier_visible=state.model.obstacle
+    world.update<Components.Mesh3D>(state.barrier,func(m:&Components.Mesh3D) { m.visible=state.barrier_visible })
     state.floor=visual(world,cube,Math.Vec3(100.0,0.2,100.0),Color.bytes(65,82,101))
     var line=0
     while line<62 {
@@ -182,6 +203,20 @@ func verify_framing(world:@Resources.World,state:@SuspensionScene,view:Scene3D.T
             let point=camera.project(corner,view,Math.Vec2(1280.0,800.0))!
             assert(point.x>20.0 && point.x<1260.0 && point.y>378.0 && point.y<780.0)
         } } }
+    }
+    if state.model.obstacle {
+        let actual=world.get<Components.Transform3D>(state.barrier)
+        let physical=state.model.barrier!.transform()
+        assert(actual.position==physical.position && actual.rotation==physical.rotation && actual.scale==Model.obstacle_size())
+        for i in [0,1,2,3] {
+            let wheel=state.model.vehicle.wheel(i)
+            if let support=wheel.support() {
+                if support.same_body(state.model.barrier!) {
+                    let point=camera.project(wheel.contact_point,view,Math.Vec2(1280.0,800.0))!
+                    assert(point.x>20.0 && point.x<1260.0 && point.y>378.0 && point.y<780.0)
+                }
+            }
+        }
     }
 }
 func smoke_commands(state:&SuspensionScene,simulation:&Application.Simulation,controller:&Application.Controller) {
@@ -275,7 +310,26 @@ func smoke_commands(state:&SuspensionScene,simulation:&Application.Simulation,co
         for i in [0,1,2,3] { assert(state.model.vehicle.wheel(i).rotation_angle==state.held_angles[i]) }
         state.pause_frames++
         if state.pause_frames==8 {
-            print("Powered driving smoke: motor acceleration, reverse, braking, no-grip wheel spin, pause, suspension and rendered camera/wheel transforms verified")
+            state.model=Model.SuspensionModel(obstacle:true)
+            remember(state);state.accumulator=0.0;simulation.resume();state.phase=28
+        }
+    } else if state.phase==28 && state.model.steps>=240 {
+        state.controls.forward_drive();perform(state,simulation);state.phase_start=state.model.steps;state.obstacle_hits=0;state.phase=29
+    } else if state.phase==29 && state.model.steps-state.phase_start>=720 {
+        assert(state.obstacle_hits==0 && state.ray_peak>0.85 && state.ray_peak<0.9)
+        state.controls.toggle_contact();perform(state,simulation);state.obstacle_hits=0;state.phase=30
+    } else if state.phase==30 && state.model.steps>=240 {
+        state.controls.forward_drive();perform(state,simulation);state.phase_start=state.model.steps;state.phase=31
+    } else if state.phase==31 && state.model.steps-state.phase_start>=720 {
+        assert(state.obstacle_hits>0 && state.sphere_peak>state.ray_peak+0.08 && state.model.sphere_contact)
+        state.controls.pause();perform(state,simulation);state.held=copy state.model.vehicle.chassis().transform()
+        state.held_rpm=state.model.vehicle.powertrain().engine_rpm;state.pause_frames=0;state.phase=32
+    } else if state.phase==32 {
+        assert(simulation.is_paused() && state.model.vehicle.chassis().transform()==state.held && state.model.vehicle.powertrain().engine_rpm==state.held_rpm)
+        state.pause_frames++
+        if state.pause_frames==8 {
+            assert(state.obstacle_frames>0)
+            print("Wheel obstacle smoke: ray misses, sphere supports and lifts chassis, contact mode, powered driving, pause and rendered obstacle/camera/wheel transforms verified")
             controller.stop()
         }
     }
@@ -297,6 +351,16 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&Suspension
                 if state.model.supports()==0 { state.lost=true }
                 if state.lost && state.model.supports()==4 { state.returned=true }
                 state.peak=Math.max(state.peak,state.model.vehicle.chassis().position().y)
+            }
+            if state.phase==29 || state.phase==31 {
+                let position=state.model.vehicle.chassis().position()
+                if position.z>2.0 && position.z<8.0 {
+                    if state.phase==29 { state.ray_peak=Math.max(state.ray_peak,position.y) }
+                    else { state.sphere_peak=Math.max(state.sphere_peak,position.y) }
+                }
+                for i in [0,1,2,3] {
+                    if let support=state.model.vehicle.wheel(i).support() { if support.same_body(state.model.barrier!) { state.obstacle_hits++ } }
+                }
             }
             if state.phase==2 && loaded {
                 state.loaded_min=Math.min(state.loaded_min,state.model.vehicle.chassis().position().y)
@@ -353,6 +417,10 @@ func render(world:&Resources.World,state:&SuspensionScene,camera:&Resources.View
             assert(world.get<Components.Mesh3D>(state.markers[i]).visible==visible)
         }
     }
+    if state.barrier_visible!=state.model.obstacle {
+        state.barrier_visible=state.model.obstacle
+        world.update<Components.Mesh3D>(state.barrier,func(m:&Components.Mesh3D) { m.visible=state.barrier_visible })
+    }
     camera.set_target(Math.Vec3(pose.position.x,2.85,pose.position.z))
     let view=camera.transform()
     if world.is_alive(camera.entity()) {
@@ -375,6 +443,7 @@ func render(world:&Resources.World,state:&SuspensionScene,camera:&Resources.View
         let actual=world.get<Components.Transform3D>(camera.entity())
         assert(actual.position.nearly_equal(view.position,0.00001) && actual.rotation==view.rotation)
         verify_framing(world,state,Scene3D.Transform(actual.position,actual.rotation))
+        if state.model.obstacle { state.obstacle_frames++ }
     }
 }
 func verify_controls() {
@@ -439,19 +508,28 @@ func verify_controls() {
     InputCheck.click(state.ui,330.0,241.0);perform(state,simulation);assert(state.model.throttle==0.0)
     InputCheck.click(state.ui,560.0,241.0);perform(state,simulation);assert(state.model.throttle== -0.5)
     state.controls.reset();perform(state,simulation);assert(state.model.throttle==0.0 && state.model.vehicle.powertrain().gear==0)
+    old=state.model.vehicle;simulation.pause()
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.t,116 as uint32)));perform(state,simulation)
+    assert(!old.is_valid() && state.model.sphere_contact && !simulation.is_paused() && state.model.throttle==0.0)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.t,84 as uint32,true)));perform(state,simulation);assert(state.model.sphere_contact)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.t,0 as uint32)));perform(state,simulation);assert(!state.model.sphere_contact)
+    InputCheck.click(state.ui,800.0,241.0);perform(state,simulation);assert(state.model.sphere_contact)
+    state.controls.reset();perform(state,simulation);assert(state.model.sphere_contact)
     state.controls.automatic=true;assert(!state.controls.handle(InputCheck.key_event(Input.Key.b,98 as uint32)))
     print("Suspension controls: logical keys, physical fallback, uppercase, repetition, buttons, pause and recreation verified")
 }
 test "vehicle controls reach actions through keys and buttons while preserving pause" { verify_controls() }
 func main() {
-    var state=SuspensionScene()
+    var smoke=false
     for argument in Process.arguments() {
-        if argument=="--physics-check" { Model.verify_physics();Model.verify_rolling();Model.verify_driving();Model.verify_powered();return }
+        if argument=="--physics-check" { Model.verify_physics();Model.verify_rolling();Model.verify_driving();Model.verify_powered();Model.verify_obstacle();return }
         if argument=="--controls-check" { verify_controls();return }
-        if argument=="--smoke" { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
+        if argument=="--smoke" { smoke=true }
     }
-    var title="Conduite motorisée — contacts physiques"
-    if state.smoke { title="TEST AUTOMATIQUE — conduite motorisée — fermeture à la fin" }
+    var state=SuspensionScene(obstacle:!smoke,sphere_contact:!smoke)
+    if smoke { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
+    var title="Rayon ou sphère — franchir une arête"
+    if state.smoke { title="TEST AUTOMATIQUE — obstacle et contacts — fermeture à la fin" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
         ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())

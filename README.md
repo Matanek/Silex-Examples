@@ -1060,5 +1060,11 @@ gear and clutch are visible. The no-grip comparison retains rotors with zero
 friction curves, so powered wheels spin without propelling the chassis. R/G
 also release throttle.
 
+A purple raised band compares per-wheel ray and sphere contacts. Sphere mode
+starts selected: Z crosses the band and lifts the chassis. T recreates with
+rays, which miss its edges; repeat Z to compare. The band and motor stay the
+same. The contact button shows the mode; R/G preserve it. The swept 12 cm
+sphere approximates contact volume, while wheel radius remains 30 cm.
+
 `silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release`.
 [Guide français](Sources/Physics3D/VehicleSuspension/README.fr.md).

@@ -1,18 +1,22 @@
 use GFX.Physics
 use STD.Math
-func create_vehicle(world:Physics.World3D, grip:bool) Physics.WheeledVehicle3D {
+package func obstacle_size() Math.Vec3 { return Math.Vec3(1.68,0.18,4.0) }
+package func obstacle_transform() Physics.Transform3D { return Physics.Transform3D(Math.Vec3(0.0,0.09,5.0)) }
+func create_vehicle(world:Physics.World3D, grip:bool, sphere_contact:bool) Physics.WheeledVehicle3D {
     var wheels:Physics.Wheel3DSettings[]=[]
     var tire=Physics.Tire3DSettings()
     if !grip {
         let none=Physics.TireFrictionCurve3D([Math.Vec2(0.0,0.0)])
         tire=Physics.Tire3DSettings(longitudinal_friction:none,lateral_friction:none)
     }
+    var contact=Physics.WheelContact3D.ray
+    if sphere_contact { contact=Physics.WheelContact3D.sphere(0.12) }
     let sides:int[]=[-1,1]
     for x in sides { for z in sides {
         var turn=0.0;var hand=20.0
         if z>0 { turn=Math.radians(30.0);hand=0.0 }
         wheels.append(Physics.Wheel3DSettings(Math.Vec3(0.9*x as float,0.0,z as float),tire:tire,
-            maximum_steering_angle:turn,maximum_handbrake_torque:hand))
+            maximum_steering_angle:turn,maximum_handbrake_torque:hand,contact:contact))
     } }
     return world.create_wheeled_vehicle(Physics.WheeledVehicle3DSettings(
         Physics.RigidBody3DSettings() ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.4,0.4,2.4)))
@@ -26,6 +30,9 @@ func create_vehicle(world:Physics.World3D, grip:bool) Physics.WheeledVehicle3D {
 package class SuspensionModel {
     var world:Physics.World3D=Physics.World3D()
     var vehicle:Physics.WheeledVehicle3D
+    var obstacle:bool=false
+    var barrier:Physics.RigidBody3D?=null
+    var sphere_contact:bool=false
     var grip:bool=true
     var pushes:int=0
     var throttle:float=0.0
@@ -36,13 +43,18 @@ package class SuspensionModel {
     var steps:int=0
     var jumps:int=0
     var loads:int=0
-    init() {
+    init(obstacle:bool=false,sphere_contact:bool=false) {
+        self.obstacle=obstacle;self.sphere_contact=sphere_contact
         self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
             ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0)
-        self.vehicle=create_vehicle(self.world,self.grip)
+        if obstacle {
+            self.barrier=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+                ..shape=Physics.Shape3D.box(Physics.Box3D(obstacle_size())) ..transform=obstacle_transform() ..friction=1.0)
+        }
+        self.vehicle=create_vehicle(self.world,self.grip,self.sphere_contact)
     }
     func reset() {
-        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world,self.grip)
+        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world,self.grip,self.sphere_contact)
         self.load_remaining=0.0;self.steps=0;self.jumps=0;self.loads=0;self.pushes=0;self.steering=0.0;self.throttle=0.0;self.braking=false;self.handbraking=false
     }
     func apply_controls() {
@@ -54,6 +66,7 @@ package class SuspensionModel {
     func steer(value:float) { self.steering=value;self.apply_controls() }
     func toggle_brake() { self.braking=!self.braking;self.apply_controls() }
     func toggle_handbrake() { self.handbraking=!self.handbraking;self.apply_controls() }
+    func toggle_contact() { self.sphere_contact=!self.sphere_contact;self.reset() }
     func toggle_grip() { self.grip=!self.grip;self.reset() }
     func push_forward() { self.vehicle.chassis().apply_impulse(self.vehicle.chassis().transform().vector(Math.Vec3(0.0,0.0,200.0)));self.pushes++ }
     func push_sideways() { self.vehicle.chassis().apply_impulse(self.vehicle.chassis().transform().vector(Math.Vec3(200.0,0.0,0.0)));self.pushes++ }
@@ -76,7 +89,8 @@ package class SuspensionModel {
     }
     func verify() {
         var body=self.vehicle.chassis()
-        assert(self.world.body_count()==2 && self.vehicle.wheel_count()==4)
+        var bodies=2;if self.obstacle { bodies=3 }
+        assert(self.world.body_count()==bodies && self.vehicle.wheel_count()==4)
         assert(body.position().y>0.47 && Math.abs(body.position().y)<10.0 && body.linear_velocity().length()<15.0)
         for i in [0,1,2,3] {
             var wheel=self.vehicle.wheel(i)
@@ -189,3 +203,30 @@ package func verify_powered() {
     print("Powered driving scene: engine acceleration, reverse, braking, powered turn, no-grip wheel spin and reset verified at 60/120 Hz")
 }
 test "visible powered vehicle accelerates and reverses only through tire contact" { verify_powered() }
+
+package func verify_obstacle() {
+    for rate in [60,120] {
+        var ray=SuspensionModel(obstacle:true)
+        var sphere=SuspensionModel(obstacle:true,sphere_contact:true)
+        settle(ray,rate,2);settle(sphere,rate,2)
+        ray.accelerate(0.6);sphere.accelerate(0.6)
+        var ray_peak=0.0;var sphere_peak=0.0;var ray_hits=0;var sphere_hits=0;var step=0
+        while step<rate*6 {
+            ray.step(1.0/rate as float);sphere.step(1.0/rate as float);ray.verify();sphere.verify()
+            let rp=ray.vehicle.chassis().position();let sp=sphere.vehicle.chassis().position()
+            if rp.z>2.0 && rp.z<8.0 { ray_peak=Math.max(ray_peak,rp.y) }
+            if sp.z>2.0 && sp.z<8.0 { sphere_peak=Math.max(sphere_peak,sp.y) }
+            for i in [0,1,2,3] {
+                if let support=ray.vehicle.wheel(i).support() { if support.same_body(ray.barrier!) { ray_hits++ } }
+                if let support=sphere.vehicle.wheel(i).support() { if support.same_body(sphere.barrier!) { sphere_hits++ } }
+            }
+            step++
+        }
+        print("Obstacle $(rate) Hz: ray peak=$(ray_peak), sphere peak=$(sphere_peak), ray contacts=$(ray_hits), sphere contacts=$(sphere_hits)")
+        assert(ray_hits==0 && sphere_hits>0 && sphere_peak>ray_peak+0.08)
+        var old=sphere.vehicle;var barrier=sphere.barrier!;sphere.toggle_contact()
+        assert(!old.is_valid() && !sphere.sphere_contact && sphere.barrier!.same_body(barrier) && sphere.throttle==0.0 && sphere.steps==0)
+    }
+    print("Wheel obstacle scene: same raised band, ray misses, sphere supports and lifts chassis, mode recreation verified at 60/120 Hz")
+}
+test "spherical wheel contacts raise the driven chassis on an edge missed by central rays" { verify_obstacle() }

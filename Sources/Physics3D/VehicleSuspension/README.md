@@ -1,15 +1,22 @@
-# Drive with an engine, tires and suspension
+# Compare wheel contacts at an edge
 
 A 100 kg chassis rests on four suspended wheels. A 30 N·m engine drives the
 rear wheels through an automatic gearbox. Tire contacts accelerate, turn and
 brake the vehicle. White hub bars show physical rotation; the yellow strip
 marks the front. The camera follows the chassis over a metric ground grid.
+A raised purple band lies ahead; **sphere** mode is selected initially.
 
 From the workspace root:
 
 ```sh
 silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release
 ```
+
+To compare, wait for landing, press **Z** and let the vehicle cross the purple
+band. Sphere contacts reach its edges and lift the chassis. **T** recreates it
+with ray contacts: press Z again; the rays miss the band and the chassis keeps
+its ground supports. T switches back. The **Contacts** button shows the current
+choice. The engine and band are identical in both runs.
 
 After landing, **Z** accelerates forward, **S** requests reverse and **X**
 releases throttle. These inputs remain selected after releasing the key.
@@ -25,6 +32,11 @@ wheels. Buttons perform the same actions.
   follow the vehicle frame marked by its yellow strip, rather than screen edges.
 - **F / Brake** activates/releases all four 1500 N·m wheel brakes.
 - **H / Handbrake** activates/releases only the 20 N·m rear brakes.
+- **T / Contacts** switches ray/sphere and recreates the vehicle with throttle,
+  steering and brakes released. The cast sphere radius is 12 cm; physical wheel
+  radius remains 30 cm. The band measures 1.68 × 0.18 × 4 m, with edges 6 cm
+  from wheel axes. This contact volume is an approximation; it does not
+  reproduce the complete cylindrical tire shape.
 - **G / Grip** changes mode and recreates the vehicle. Without grip, suspension
   still supports the chassis and rotors remain engine-connected, but friction
   curves are zero. Z spins wheels without propelling the chassis; P produces
@@ -41,7 +53,7 @@ wheels. Buttons perform the same actions.
 
 Throttle, steering and brakes combine. Use X before testing a stop, then F for
 service braking; press F again to release it. Actions resume a paused simulation;
-keyboard repeat is ignored. G and R reset all inputs.
+keyboard repeat is ignored. G, R and T reset all inputs; G and R preserve the selected contact mode.
 
 The panel shows speed, steering, height, supports and suspension forces, then
 engine RPM, gear, clutch and throttle. Gear 0 means neutral; negative gears
@@ -59,8 +71,12 @@ silex compile Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --relea
 
 The **TEST AUTOMATIQUE** run closes after suspension, rolling, grip, steering
 and brake checks, then acceleration, reverse, stopping, powered wheels without
-grip and engine pause. Let it close normally. It checks physics, rendered
-transforms and framing through the actual ECS camera. Headless paths verify
+grip and engine pause on a plain floor. It then compares the same obstacle
+with rays and spheres: band supports, chassis lift, mode switching and another
+pause. Let it close normally. It checks physics, rendered
+transforms and framing through the actual ECS camera. Band mesh dimensions
+and pose are compared with its physical body; band support points stay in the
+useful frame. Headless paths verify
 physics at 60/120 Hz and keyboard/button input; they do not replace observing
 the rendering.
 
