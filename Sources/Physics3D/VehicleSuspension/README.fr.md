@@ -1,4 +1,4 @@
-# Comparer des pneus larges et étroits sur une arête
+# Ressentir les suspensions, le tangage et le roulis
 
 Un châssis de 100 kg repose sur quatre roues suspendues. Un moteur de 30 N·m
 entraîne les roues arrière à travers une boîte automatique. Les contacts des
@@ -6,6 +6,21 @@ pneus font accélérer, tourner et freiner le véhicule. Les jantes blanches
 montrent leur rotation ; la bande jaune indique l’avant. La caméra suit le
 châssis et le quadrillage métrique rend le déplacement visible. Une bande
 violette surélevée se trouve devant lui ; le mode **cylindre 40 cm** est choisi au départ.
+
+Les suspensions **souples** sont choisies au départ. **Z** fait cabrer la
+caisse ; **X puis F** fait plonger son nez au freinage. Les flèches gauche et
+droite font incliner la caisse vers l’extérieur des virages. **M** recrée
+le véhicule avec le réglage ferme précédent ; refaire les mêmes manœuvres
+pour comparer. Le bouton indique le réglage et les mesures donnent le tangage
+et le roulis physiques. Attendre la réception avant d’accélérer.
+
+Le preset souple utilise 1 200 N/m et 160 N·s/m par roue, contre 10 000 et
+1 000 pour le ferme. Sa détente maximale de 77,985 cm compense la compression
+statique plus grande et conserve une hauteur de repos d’environ 87,55 cm.
+Le moteur, la masse, l’inertie et les pneus sont identiques entre presets.
+Les rotations viennent des efforts aux contacts et des quatre suspensions.
+Les cylindres larges limitent plus le roulis que les rayons ; les détecteurs
+restent comparables avec T, sans promettre la même inclinaison.
 
 Depuis la racine du workspace :
 
@@ -38,6 +53,8 @@ accélérateur relâché et roues droites. Les boutons ont les mêmes effets.
   gauche suivent le véhicule, repéré par sa bande jaune, et non le bord de l’écran.
 - **F / Frein** active ou libère les quatre freins de 1500 N·m par roue.
 - **H / Frein à main** active ou libère les seuls freins arrière de 20 N·m.
+- **M / Suspension** alterne souple/ferme et recrée le véhicule, commandes
+  relâchées et simulation reprise. R, G et T conservent ce choix.
 - **T / Contacts** parcourt les quatre modes et recrée le véhicule, gaz,
   direction et freins relâchés. Les cylindres ont une largeur totale de 40 ou
   8 cm, un rayon de 30 cm et un axe orienté par le braquage ; le mode sphère
@@ -82,11 +99,14 @@ roulement, adhérence, braquage et freins, puis accélération, marche arrière,
 arrêts, roues motorisées sans adhérence et pause du moteur sur sol simple.
 Il compare ensuite le même obstacle en rayon, sphère, cylindre large puis
 cylindre étroit : appuis de bande, montée de caisse, changement de mode et
-pause. Attendre sa fermeture normale. Il contrôle physique, transforms rendus et cadrage depuis la vraie
+pause. Il poursuit avec le preset souple sur sol simple : cabrage, plongée,
+virages opposés, retour au repos, pause et recréation ferme/souple. Attendre
+sa fermeture normale. Il contrôle physique, transforms rendus et cadrage depuis la vraie
 caméra ECS. Les largeurs rendues des pneus/moyeux et les dimensions/pose du
 mesh de bande sont comparées à leurs réglages physiques ; les points d’appui
 sur la bande restent dans le cadre utile.
-Les parcours sans fenêtre vérifient physique à 60/120 Hz et
+Les parcours sans fenêtre vérifient physique à 60/120 Hz (dont les deux presets, les longueurs de suspension,
+le retour au repos et l’absence de balancement moteur sans adhérence) et
 commandes clavier/boutons ; ils ne remplacent pas l’appréciation du rendu.
 
 Simulation à 120 Hz ; poses, longueurs et angles sont interpolés au rendu.

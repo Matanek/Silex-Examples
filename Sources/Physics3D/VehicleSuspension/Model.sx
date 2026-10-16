@@ -18,7 +18,18 @@ package func wheel_width(mode:ContactMode) float {
 }
 package func obstacle_size() Math.Vec3 { return Math.Vec3(1.68,0.18,4.0) }
 package func obstacle_transform() Physics.Transform3D { return Physics.Transform3D(Math.Vec3(0.0,0.09,5.0)) }
-func create_vehicle(world:Physics.World3D, grip:bool, contacts:ContactMode) Physics.WheeledVehicle3D {
+package func maximum_length(soft:bool) float {
+    // Même hauteur sous 100 kg : compenser la compression statique du ressort.
+    if soft { return 0.6+245.25/1200.0-245.25/10000.0 }
+    return 0.6
+}
+package func pitch(pose:Physics.Transform3D) float {
+    return Math.asin(Math.clamp(pose.vector(Math.Vec3(0.0,0.0,1.0)).y,-1.0,1.0))
+}
+package func roll(pose:Physics.Transform3D) float {
+    return Math.atan2(pose.vector(Math.Vec3.right()).y,pose.vector(Math.Vec3.up()).y)
+}
+func create_vehicle(world:Physics.World3D, grip:bool, contacts:ContactMode, soft:bool) Physics.WheeledVehicle3D {
     var wheels:Physics.Wheel3DSettings[]=[]
     var tire=Physics.Tire3DSettings()
     if !grip {
@@ -32,12 +43,16 @@ func create_vehicle(world:Physics.World3D, grip:bool, contacts:ContactMode) Phys
         narrow => { contact=Physics.WheelContact3D.cylinder(wheel_width(contacts)) }
         else => {}
     }
+    var stiffness=10000.0;var damping=1000.0
+    if soft { stiffness=1200.0;damping=160.0 }
+    let length=maximum_length(soft)
     let sides:int[]=[-1,1]
     for x in sides { for z in sides {
         var turn=0.0;var hand=20.0
         if z>0 { turn=Math.radians(30.0);hand=0.0 }
         wheels.append(Physics.Wheel3DSettings(Math.Vec3(0.9*x as float,0.0,z as float),tire:tire,
-            maximum_steering_angle:turn,maximum_handbrake_torque:hand,contact:contact))
+            maximum_steering_angle:turn,maximum_handbrake_torque:hand,contact:contact,
+            stiffness:stiffness,damping:damping,maximum_length:length))
     } }
     return world.create_wheeled_vehicle(Physics.WheeledVehicle3DSettings(
         Physics.RigidBody3DSettings() ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.4,0.4,2.4)))
@@ -54,6 +69,7 @@ package class SuspensionModel {
     var obstacle:bool=false
     var barrier:Physics.RigidBody3D?=null
     var contacts:ContactMode=ContactMode.ray
+    var soft:bool=false
     var grip:bool=true
     var pushes:int=0
     var throttle:float=0.0
@@ -64,18 +80,18 @@ package class SuspensionModel {
     var steps:int=0
     var jumps:int=0
     var loads:int=0
-    init(obstacle:bool=false,contacts:ContactMode=ContactMode.ray) {
-        self.obstacle=obstacle;self.contacts=contacts
+    init(obstacle:bool=false,contacts:ContactMode=ContactMode.ray,soft:bool=false) {
+        self.obstacle=obstacle;self.contacts=contacts;self.soft=soft
         self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
             ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0)
         if obstacle {
             self.barrier=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
                 ..shape=Physics.Shape3D.box(Physics.Box3D(obstacle_size())) ..transform=obstacle_transform() ..friction=1.0)
         }
-        self.vehicle=create_vehicle(self.world,self.grip,self.contacts)
+        self.vehicle=create_vehicle(self.world,self.grip,self.contacts,self.soft)
     }
     func reset() {
-        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world,self.grip,self.contacts)
+        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world,self.grip,self.contacts,self.soft)
         self.load_remaining=0.0;self.steps=0;self.jumps=0;self.loads=0;self.pushes=0;self.steering=0.0;self.throttle=0.0;self.braking=false;self.handbraking=false
     }
     func apply_controls() {
@@ -96,6 +112,7 @@ package class SuspensionModel {
         }
         self.reset()
     }
+    func toggle_suspension() { self.soft=!self.soft;self.reset() }
     func toggle_grip() { self.grip=!self.grip;self.reset() }
     func push_forward() { self.vehicle.chassis().apply_impulse(self.vehicle.chassis().transform().vector(Math.Vec3(0.0,0.0,200.0)));self.pushes++ }
     func push_sideways() { self.vehicle.chassis().apply_impulse(self.vehicle.chassis().transform().vector(Math.Vec3(200.0,0.0,0.0)));self.pushes++ }
@@ -121,9 +138,10 @@ package class SuspensionModel {
         var bodies=2;if self.obstacle { bodies=3 }
         assert(self.world.body_count()==bodies && self.vehicle.wheel_count()==4)
         assert(body.position().y>0.47 && Math.abs(body.position().y)<10.0 && body.linear_velocity().length()<15.0)
+        let maximum=maximum_length(self.soft)+0.00001
         for i in [0,1,2,3] {
             var wheel=self.vehicle.wheel(i)
-            assert(wheel.length>=0.0 && wheel.length<=0.60001 && wheel.normal_force>=0.0 && wheel.normal_force<100000.0)
+            assert(wheel.length>=0.0 && wheel.length<=maximum && wheel.normal_force>=0.0 && wheel.normal_force<100000.0)
         }
     }
     func verify_rest() {
@@ -291,3 +309,55 @@ package func verify_width() {
     print("Wheel width scene: same obstacle and engine, wide cylinder supports and lifts chassis, narrow cylinder misses, recreation verified at 60/120 Hz")
 }
 test "cylindrical tire width changes real support and chassis lift on the same obstacle" { verify_width() }
+
+
+package func verify_body_motion() {
+    let directions:float[]=[-1.0,0.0,1.0]
+    let modes:ContactMode[]=[ContactMode.ray,ContactMode.wide]
+    for rate in [60,120] { for mode in modes { for direction in directions {
+        var firm=SuspensionModel(contacts:mode)
+        var soft=SuspensionModel(contacts:mode,soft:true)
+        settle(firm,rate,3);settle(soft,rate,3);firm.verify_rest();soft.verify_rest()
+        assert(Math.abs(firm.vehicle.chassis().position().y-soft.vehicle.chassis().position().y)<0.002)
+        firm.steer(direction*0.6);soft.steer(direction*0.6);firm.accelerate(0.6);soft.accelerate(0.6)
+        var fp=0.0;var sp=0.0;var fr=0.0;var sr=0.0;var travel=0.0;var lateral=0.0;var step=0
+        while step<rate*3 {
+            firm.step(1.0/rate as float);soft.step(1.0/rate as float);firm.verify();soft.verify()
+            fp=Math.max(fp,pitch(firm.vehicle.chassis().transform()));sp=Math.max(sp,pitch(soft.vehicle.chassis().transform()))
+            fr=Math.max(fr,Math.abs(roll(firm.vehicle.chassis().transform())))
+            let r=roll(soft.vehicle.chassis().transform());if Math.abs(r)>Math.abs(sr) { sr=r }
+            travel=Math.max(travel,(soft.vehicle.wheel(1).length+soft.vehicle.wheel(3).length-soft.vehicle.wheel(0).length-soft.vehicle.wheel(2).length)*0.5)
+            lateral=Math.max(lateral,Math.abs((soft.vehicle.wheel(2).length+soft.vehicle.wheel(3).length-soft.vehicle.wheel(0).length-soft.vehicle.wheel(1).length)*0.5))
+            step++
+        }
+        print("Motion peaks $(rate) Hz $(contact_name(mode)) turn=$(direction): pitch=$(Math.degrees(sp)), roll=$(Math.degrees(sr)), travel=$(travel)/$(lateral)")
+        assert(sp>0.06 && sp>fp*3.0 && travel>0.1)
+        if direction!=0.0 { assert(direction*sr< -0.02 && Math.abs(sr)>fr*3.0 && lateral>0.04) }
+        else { assert(Math.abs(sr)<0.001) }
+        firm.accelerate(0.0);soft.accelerate(0.0);firm.steer(0.0);soft.steer(0.0);firm.toggle_brake();soft.toggle_brake()
+        var fd=0.0;var sd=0.0;var rest_force=0.0;var rest_samples=0;step=0
+        while step<rate*5 {
+            firm.step(1.0/rate as float);soft.step(1.0/rate as float);firm.verify();soft.verify()
+            fd=Math.min(fd,pitch(firm.vehicle.chassis().transform()));sd=Math.min(sd,pitch(soft.vehicle.chassis().transform()))
+            if step>=rate*4 {
+                var body=soft.vehicle.chassis();let pose=body.transform()
+                assert(soft.supports()==4 && Math.abs(body.position().y-0.875475)<0.003)
+                assert(Math.abs(pitch(pose))<0.003 && Math.abs(roll(pose))<0.003 && body.linear_velocity().length()<0.03)
+                rest_force+=soft.force();rest_samples++
+            }
+            step++
+        }
+        assert(sd< -0.08 && sd<fd*3.0)
+        assert(Math.abs(pitch(soft.vehicle.chassis().transform()))<0.003 && Math.abs(roll(soft.vehicle.chassis().transform()))<0.003)
+        assert(rest_samples==rate && Math.abs(rest_force/rest_samples as float-981.0)<2.0)
+        print("Body motion $(rate) Hz $(contact_name(mode)) turn=$(direction): pitch firm=$(Math.degrees(fp)) soft=$(Math.degrees(sp)), dive firm=$(Math.degrees(fd)) soft=$(Math.degrees(sd)), roll firm=$(Math.degrees(fr)) soft=$(Math.degrees(sr)), travel=$(travel)/$(lateral)")
+        var old=soft.vehicle;soft.toggle_suspension();assert(!old.is_valid() && !soft.soft && soft.contacts==mode && soft.throttle==0.0 && !soft.braking)
+        soft.toggle_suspension();soft.reset();soft.toggle_grip();assert(soft.soft)
+    } } }
+    var slide=SuspensionModel(contacts:ContactMode.wide,soft:true);slide.toggle_grip();settle(slide,120,3)
+    slide.steer(0.6);slide.accelerate(0.6);settle(slide,120,3)
+    assert(Math.abs(pitch(slide.vehicle.chassis().transform()))<0.001 && Math.abs(roll(slide.vehicle.chassis().transform()))<0.001)
+    assert(slide.vehicle.chassis().linear_velocity().length()<0.01 && slide.vehicle.wheel(0).angular_velocity>1.0)
+    print("Body motion: spring/damper comparison, physical pitch/dive, mirrored roll, wheel travel, equal ride height, settled recovery and no-grip absence verified at 60/120 Hz")
+}
+test "soft suspensions pitch and roll under real tire forces and recover without animated angles" { verify_body_motion() }

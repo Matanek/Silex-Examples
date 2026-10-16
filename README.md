@@ -1060,6 +1060,12 @@ gear and clutch are visible. The no-grip comparison retains rotors with zero
 friction curves, so powered wheels spin without propelling the chassis. R/G
 also release throttle.
 
+Soft suspension is selected initially. Z raises the nose, X then F makes it
+dive under braking, and steering leans the chassis towards the outside of a
+turn. M recreates with the previous firm setup for comparison; R/G/T preserve
+the preset. Engine, mass, tires and resting ride height stay comparable.
+Pitch and roll telemetry comes from the physical chassis transform.
+
 A purple raised band compares ray, sphere and cylindrical wheel contacts.
 The 40 cm cylinder mode starts selected: Z crosses the band and lifts the
 chassis. T recreates with 8 cm tires, which miss its edges; repeat Z to compare.

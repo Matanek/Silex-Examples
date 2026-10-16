@@ -1,10 +1,23 @@
-# Compare wide and narrow tires at an edge
+# Feel suspension, pitch and roll
 
 A 100 kg chassis rests on four suspended wheels. A 30 N·m engine drives the
 rear wheels through an automatic gearbox. Tire contacts accelerate, turn and
 brake the vehicle. White hub bars show physical rotation; the yellow strip
 marks the front. The camera follows the chassis over a metric ground grid.
 A raised purple band lies ahead; **40 cm cylinder** mode is selected initially.
+
+**Soft suspension** is selected initially. **Z** raises the nose;
+**X then F** makes it dive under braking. Left and right arrows lean the body
+towards the outside of a turn. **M** recreates the vehicle with the previous
+firm setup; repeat the same manoeuvres to compare. The button shows the setup,
+and telemetry reports physical pitch and roll. Wait for landing before driving.
+
+The soft preset uses 1,200 N/m and 160 N·s/m per wheel, versus 10,000 and
+1,000 for firm. Its 77.985 cm maximum extension compensates for the greater
+static spring compression, preserving the roughly 87.55 cm resting height.
+Engine, mass, inertia and tires are identical between presets. Contact forces
+and the four suspensions produce body rotation. Wide cylinders limit roll
+more than rays; T retains the contact comparison without promising equal lean.
 
 From the workspace root:
 
@@ -36,6 +49,8 @@ wheels. Buttons perform the same actions.
   follow the vehicle frame marked by its yellow strip, rather than screen edges.
 - **F / Brake** activates/releases all four 1500 N·m wheel brakes.
 - **H / Handbrake** activates/releases only the 20 N·m rear brakes.
+- **M / Suspension** switches soft/firm and recreates the vehicle with controls
+  released and simulation resumed. R, G and T preserve the preset.
 - **T / Contacts** cycles all four modes and recreates the vehicle with
   throttle, steering and brakes released. Cylinders have a total width of
   40 or 8 cm, a radius of 30 cm and a steered axle; sphere mode retains its
@@ -77,11 +92,14 @@ The **TEST AUTOMATIQUE** run closes after suspension, rolling, grip, steering
 and brake checks, then acceleration, reverse, stopping, powered wheels without
 grip and engine pause on a plain floor. It then compares the same obstacle
 with rays, spheres, wide cylinders and narrow cylinders: band supports,
-chassis lift, mode switching and pause. Let it close normally. It checks physics,
+chassis lift, mode switching and pause. It then tests soft suspension on a plain
+floor: pitch, braking dive, opposite turns, recovery, pause and soft/firm
+recreation. Let it close normally. It checks physics,
 rendered transforms and framing through the actual ECS camera. Rendered tire/hub
 widths and band mesh dimensions/pose are compared with their physical settings;
 band support points stay in the useful frame. Headless paths verify
-physics at 60/120 Hz and keyboard/button input; they do not replace observing
+physics at 60/120 Hz (both presets, suspension travel, recovery and no engine
+lean without grip) and keyboard/button input; they do not replace observing
 the rendering.
 
 Simulation runs at 120 Hz, with rendered interpolation of poses, lengths and
