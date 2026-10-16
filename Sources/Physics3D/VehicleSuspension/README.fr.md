@@ -1,11 +1,11 @@
-# Comparer les contacts de roue sur une arête
+# Comparer des pneus larges et étroits sur une arête
 
 Un châssis de 100 kg repose sur quatre roues suspendues. Un moteur de 30 N·m
 entraîne les roues arrière à travers une boîte automatique. Les contacts des
 pneus font accélérer, tourner et freiner le véhicule. Les jantes blanches
 montrent leur rotation ; la bande jaune indique l’avant. La caméra suit le
 châssis et le quadrillage métrique rend le déplacement visible. Une bande
-violette surélevée se trouve devant lui ; le mode **sphère** est choisi au départ.
+violette surélevée se trouve devant lui ; le mode **cylindre 40 cm** est choisi au départ.
 
 Depuis la racine du workspace :
 
@@ -14,11 +14,15 @@ silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release
 ```
 
 Pour comparer, attendre la réception puis appuyer sur **Z** et laisser le
-véhicule traverser la bande violette. Les sphères trouvent ses arêtes et la
-caisse monte. **T** recrée le véhicule avec des contacts par rayon : refaire Z,
-les rayons passent à côté de la bande et la caisse reste sur ses appuis au sol.
-T change de nouveau le mode ; le bouton **Contacts** indique le choix courant.
-Le moteur et la bande restent identiques dans les deux parcours.
+véhicule traverser la bande violette. Les pneus de 40 cm trouvent un appui
+sur ses bords et la caisse monte. **T** recrée le même véhicule avec des pneus
+de 8 cm : refaire **Z**, ils passent à côté et la caisse garde ses appuis au sol.
+Leur largeur visible change avec leur largeur physique. Le moteur, le rayon
+de roue et la bande restent identiques.
+
+T parcourt ensuite **rayon → sphère → cylindre 40 cm → cylindre 8 cm → rayon**.
+Le bouton indique le mode courant. Les rayons centraux manquent également la
+bande ; la sphère de recherche de 12 cm atteint ses arêtes.
 
 Après la réception, **Z** accélère devant, **S** demande la marche arrière et
 **X** relâche l’accélérateur. Ces commandes restent choisies après relâchement
@@ -34,11 +38,12 @@ accélérateur relâché et roues droites. Les boutons ont les mêmes effets.
   gauche suivent le véhicule, repéré par sa bande jaune, et non le bord de l’écran.
 - **F / Frein** active ou libère les quatre freins de 1500 N·m par roue.
 - **H / Frein à main** active ou libère les seuls freins arrière de 20 N·m.
-- **T / Contacts** alterne rayon/sphère et recrée le véhicule, accélérateur,
-  direction et freins relâchés. La sphère balayée a un rayon de 12 cm ; le rayon
-  physique de roue reste 30 cm. La bande mesure 1,68 × 0,18 × 4 m et ses arêtes
-  passent à 6 cm des axes de roues. Ce volume de contact est une approximation,
-  il ne reproduit pas toute la forme cylindrique du pneu.
+- **T / Contacts** parcourt les quatre modes et recrée le véhicule, gaz,
+  direction et freins relâchés. Les cylindres ont une largeur totale de 40 ou
+  8 cm, un rayon de 30 cm et un axe orienté par le braquage ; le mode sphère
+  conserve un rayon de recherche distinct de 12 cm. La bande mesure
+  1,68 × 0,18 × 4 m et passe à 6 cm des axes de roue : 4 cm de demi-largeur
+  ne suffisent pas à la toucher, 20 cm suffisent.
 - **G / Adhérence** change le mode et recrée le véhicule. Sans adhérence,
   les suspensions portent toujours le châssis et les rotors restent reliés au
   moteur, mais les courbes de friction sont nulles. Z fait tourner les roues
@@ -75,11 +80,12 @@ silex compile Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --relea
 Le parcours **TEST AUTOMATIQUE** se ferme après les essais de suspension,
 roulement, adhérence, braquage et freins, puis accélération, marche arrière,
 arrêts, roues motorisées sans adhérence et pause du moteur sur sol simple.
-Il compare ensuite le même obstacle en rayon puis en sphère : appuis de bande,
-montée de caisse, changement de mode et nouvelle pause. Attendre sa fermeture
-normale. Il contrôle physique, transforms rendus et cadrage depuis la vraie
-caméra ECS. Les dimensions et la pose du mesh de bande sont comparées à son
-corps physique ; les points d’appui sur la bande restent dans le cadre utile.
+Il compare ensuite le même obstacle en rayon, sphère, cylindre large puis
+cylindre étroit : appuis de bande, montée de caisse, changement de mode et
+pause. Attendre sa fermeture normale. Il contrôle physique, transforms rendus et cadrage depuis la vraie
+caméra ECS. Les largeurs rendues des pneus/moyeux et les dimensions/pose du
+mesh de bande sont comparées à leurs réglages physiques ; les points d’appui
+sur la bande restent dans le cadre utile.
 Les parcours sans fenêtre vérifient physique à 60/120 Hz et
 commandes clavier/boutons ; ils ne remplacent pas l’appréciation du rendu.
 

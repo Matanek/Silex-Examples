@@ -1,8 +1,24 @@
 use GFX.Physics
 use STD.Math
+package enum ContactMode { ray; sphere; wide; narrow }
+package func contact_name(mode:ContactMode) str {
+    match mode {
+        ray => { return "rayon" }
+        sphere => { return "sphère" }
+        wide => { return "cylindre 40 cm" }
+        narrow => { return "cylindre 8 cm" }
+    }
+}
+package func wheel_width(mode:ContactMode) float {
+    match mode {
+        wide => { return 0.4 }
+        narrow => { return 0.08 }
+        else => { return 0.2 }
+    }
+}
 package func obstacle_size() Math.Vec3 { return Math.Vec3(1.68,0.18,4.0) }
 package func obstacle_transform() Physics.Transform3D { return Physics.Transform3D(Math.Vec3(0.0,0.09,5.0)) }
-func create_vehicle(world:Physics.World3D, grip:bool, sphere_contact:bool) Physics.WheeledVehicle3D {
+func create_vehicle(world:Physics.World3D, grip:bool, contacts:ContactMode) Physics.WheeledVehicle3D {
     var wheels:Physics.Wheel3DSettings[]=[]
     var tire=Physics.Tire3DSettings()
     if !grip {
@@ -10,7 +26,12 @@ func create_vehicle(world:Physics.World3D, grip:bool, sphere_contact:bool) Physi
         tire=Physics.Tire3DSettings(longitudinal_friction:none,lateral_friction:none)
     }
     var contact=Physics.WheelContact3D.ray
-    if sphere_contact { contact=Physics.WheelContact3D.sphere(0.12) }
+    match contacts {
+        sphere => { contact=Physics.WheelContact3D.sphere(0.12) }
+        wide => { contact=Physics.WheelContact3D.cylinder(wheel_width(contacts)) }
+        narrow => { contact=Physics.WheelContact3D.cylinder(wheel_width(contacts)) }
+        else => {}
+    }
     let sides:int[]=[-1,1]
     for x in sides { for z in sides {
         var turn=0.0;var hand=20.0
@@ -32,7 +53,7 @@ package class SuspensionModel {
     var vehicle:Physics.WheeledVehicle3D
     var obstacle:bool=false
     var barrier:Physics.RigidBody3D?=null
-    var sphere_contact:bool=false
+    var contacts:ContactMode=ContactMode.ray
     var grip:bool=true
     var pushes:int=0
     var throttle:float=0.0
@@ -43,18 +64,18 @@ package class SuspensionModel {
     var steps:int=0
     var jumps:int=0
     var loads:int=0
-    init(obstacle:bool=false,sphere_contact:bool=false) {
-        self.obstacle=obstacle;self.sphere_contact=sphere_contact
+    init(obstacle:bool=false,contacts:ContactMode=ContactMode.ray) {
+        self.obstacle=obstacle;self.contacts=contacts
         self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
             ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0)
         if obstacle {
             self.barrier=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
                 ..shape=Physics.Shape3D.box(Physics.Box3D(obstacle_size())) ..transform=obstacle_transform() ..friction=1.0)
         }
-        self.vehicle=create_vehicle(self.world,self.grip,self.sphere_contact)
+        self.vehicle=create_vehicle(self.world,self.grip,self.contacts)
     }
     func reset() {
-        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world,self.grip,self.sphere_contact)
+        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world,self.grip,self.contacts)
         self.load_remaining=0.0;self.steps=0;self.jumps=0;self.loads=0;self.pushes=0;self.steering=0.0;self.throttle=0.0;self.braking=false;self.handbraking=false
     }
     func apply_controls() {
@@ -66,7 +87,15 @@ package class SuspensionModel {
     func steer(value:float) { self.steering=value;self.apply_controls() }
     func toggle_brake() { self.braking=!self.braking;self.apply_controls() }
     func toggle_handbrake() { self.handbraking=!self.handbraking;self.apply_controls() }
-    func toggle_contact() { self.sphere_contact=!self.sphere_contact;self.reset() }
+    func toggle_contact() {
+        match self.contacts {
+            ray => { self.contacts=ContactMode.sphere }
+            sphere => { self.contacts=ContactMode.wide }
+            wide => { self.contacts=ContactMode.narrow }
+            narrow => { self.contacts=ContactMode.ray }
+        }
+        self.reset()
+    }
     func toggle_grip() { self.grip=!self.grip;self.reset() }
     func push_forward() { self.vehicle.chassis().apply_impulse(self.vehicle.chassis().transform().vector(Math.Vec3(0.0,0.0,200.0)));self.pushes++ }
     func push_sideways() { self.vehicle.chassis().apply_impulse(self.vehicle.chassis().transform().vector(Math.Vec3(200.0,0.0,0.0)));self.pushes++ }
@@ -207,7 +236,7 @@ test "visible powered vehicle accelerates and reverses only through tire contact
 package func verify_obstacle() {
     for rate in [60,120] {
         var ray=SuspensionModel(obstacle:true)
-        var sphere=SuspensionModel(obstacle:true,sphere_contact:true)
+        var sphere=SuspensionModel(obstacle:true,contacts:ContactMode.sphere)
         settle(ray,rate,2);settle(sphere,rate,2)
         ray.accelerate(0.6);sphere.accelerate(0.6)
         var ray_peak=0.0;var sphere_peak=0.0;var ray_hits=0;var sphere_hits=0;var step=0
@@ -225,8 +254,40 @@ package func verify_obstacle() {
         print("Obstacle $(rate) Hz: ray peak=$(ray_peak), sphere peak=$(sphere_peak), ray contacts=$(ray_hits), sphere contacts=$(sphere_hits)")
         assert(ray_hits==0 && sphere_hits>0 && sphere_peak>ray_peak+0.08)
         var old=sphere.vehicle;var barrier=sphere.barrier!;sphere.toggle_contact()
-        assert(!old.is_valid() && !sphere.sphere_contact && sphere.barrier!.same_body(barrier) && sphere.throttle==0.0 && sphere.steps==0)
+        assert(!old.is_valid() && sphere.contacts==ContactMode.wide && sphere.barrier!.same_body(barrier) && sphere.throttle==0.0 && sphere.steps==0)
     }
     print("Wheel obstacle scene: same raised band, ray misses, sphere supports and lifts chassis, mode recreation verified at 60/120 Hz")
 }
 test "spherical wheel contacts raise the driven chassis on an edge missed by central rays" { verify_obstacle() }
+
+
+package func verify_width() {
+    for rate in [60,120] {
+        var wide=SuspensionModel(obstacle:true,contacts:ContactMode.wide)
+        var narrow=SuspensionModel(obstacle:true,contacts:ContactMode.narrow)
+        settle(wide,rate,2);settle(narrow,rate,2)
+        wide.accelerate(0.6);narrow.accelerate(0.6)
+        var wide_peak=0.0;var narrow_peak=0.0;var wide_hits=0;var narrow_hits=0;var step=0
+        while step<rate*6 {
+            wide.step(1.0/rate as float);narrow.step(1.0/rate as float);wide.verify();narrow.verify()
+            let wp=wide.vehicle.chassis().position();let np=narrow.vehicle.chassis().position()
+            if wp.z>2.0 && wp.z<8.0 { wide_peak=Math.max(wide_peak,wp.y) }
+            if np.z>2.0 && np.z<8.0 { narrow_peak=Math.max(narrow_peak,np.y) }
+            for i in [0,1,2,3] {
+                if let support=wide.vehicle.wheel(i).support() { if support.same_body(wide.barrier!) { wide_hits++ } }
+                if let support=narrow.vehicle.wheel(i).support() { if support.same_body(narrow.barrier!) { narrow_hits++ } }
+            }
+            step++
+        }
+        print("Width $(rate) Hz: wide peak=$(wide_peak), narrow peak=$(narrow_peak), wide contacts=$(wide_hits), narrow contacts=$(narrow_hits)")
+        assert(wide_hits>0 && narrow_hits==0 && wide_peak>narrow_peak+0.08)
+        var old=wide.vehicle;var band=wide.barrier!;wide.toggle_contact()
+        assert(!old.is_valid() && wide.contacts==ContactMode.narrow && wide.barrier!.same_body(band) && wide.throttle==0.0)
+        wide.toggle_contact();assert(wide.contacts==ContactMode.ray)
+        wide.toggle_contact();assert(wide.contacts==ContactMode.sphere)
+        wide.toggle_contact();assert(wide.contacts==ContactMode.wide)
+        wide.reset();wide.toggle_grip();assert(wide.contacts==ContactMode.wide)
+    }
+    print("Wheel width scene: same obstacle and engine, wide cylinder supports and lifts chassis, narrow cylinder misses, recreation verified at 60/120 Hz")
+}
+test "cylindrical tire width changes real support and chassis lift on the same obstacle" { verify_width() }

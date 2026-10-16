@@ -23,7 +23,7 @@ package class SuspensionControls {
     var pauses:int=0
     var automatic:bool=false
     var pause_text:UI.State<str> =UI.State<str>("Pause (Espace)")
-    var feedback:UI.State<str> =UI.State<str>("Après réception : Z traverse la bande violette. T change rayon/sphère et recrée. X relâche, F freine. Les commandes restent choisies.")
+    var feedback:UI.State<str> =UI.State<str>("Départ : cylindre 40 cm. Z traverse la bande violette ; T puis Z compare les pneus de 8 cm. X relâche, F freine.")
     var measure:UI.State<str> =UI.State<str>("")
     func toggle_contact() { self.contact_changes++ }
     func contact_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.contact_text),self.toggle_contact) }
@@ -60,11 +60,11 @@ package class SuspensionControls {
         var rolling=UI.Row([self.button("Pousser devant (P)",self.push_forward),self.button("Pousser de côté (V)",self.push_sideways),UI.Reactive(self.grip_button)]);rolling.style.gap=12.0
         var driving=UI.Row([self.button("Gauche (←)",self.left),self.button("Centrer (↑)",self.center),self.button("Droite (→)",self.right),UI.Reactive(self.brake_button),UI.Reactive(self.handbrake_button)]);driving.style.gap=12.0
         var power=UI.Row([self.button("Accélérer (Z)",self.forward_drive),self.button("Relâcher (X)",self.coast),self.button("Reculer (S)",self.reverse_drive),UI.Reactive(self.contact_button)]);power.style.gap=12.0
-        var title=UI.Text("Rayon ou sphère — franchir une arête");title.style.height=28.0
-        var help=UI.Text("Z/S : avancer/reculer · X : relâcher · T : rayon/sphère · ←/→ : braquer · ↑ : centrer · F/H : freins · Échap : quitter");help.style.height=24.0
+        var title=UI.Text("Largeur des pneus — franchir une arête");title.style.height=28.0
+        var help=UI.Text("Z/S : avancer/reculer · X : relâcher · T : contacts · ←/→ : braquer · ↑ : centrer · F/H : freins · Échap : quitter");help.style.height=24.0
         var rows:UI.View[]=[title,help,
             actions,rolling,driving,power,UI.Reactive(self.status),UI.Reactive(self.metrics),UI.Reactive(self.power_metrics)]
-        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — obstacle et contacts — fermeture à la fin"),UI.Reactive(self.metrics),UI.Reactive(self.power_metrics)] }
+        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — largeur et contacts — fermeture à la fin"),UI.Reactive(self.metrics),UI.Reactive(self.power_metrics)] }
         var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
         root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0
         return root
