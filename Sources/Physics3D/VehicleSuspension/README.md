@@ -12,6 +12,13 @@ towards the outside of a turn. **M** recreates the vehicle with the previous
 firm setup; repeat the same manoeuvres to compare. The button shows the setup,
 and telemetry reports physical pitch and roll. Wait for landing before driving.
 
+**A** compares anti-roll bars: first drive a turn with **Z and ←/→**, press A,
+wait for landing and repeat the same manoeuvre. The body leans less towards
+the outside; the button shows the current choice. The initial setup remains
+soft with no bars, preserving the previous feel. M still compares soft/firm.
+Throttle, tires and dampers are identical between A comparisons. Straight-line
+acceleration pitch and braking dive remain present.
+
 The soft preset uses 1,200 N/m and 160 N·s/m per wheel, versus 10,000 and
 1,000 for firm. Its 77.985 cm maximum extension compensates for the greater
 static spring compression, preserving the roughly 87.55 cm resting height.
@@ -49,6 +56,9 @@ wheels. Buttons perform the same actions.
   follow the vehicle frame marked by its yellow strip, rather than screen edges.
 - **F / Brake** activates/releases all four 1500 N·m wheel brakes.
 - **H / Handbrake** activates/releases only the 20 N·m rear brakes.
+- **A / Anti-roll** enables or disables two 1000 N/m bars and recreates only
+  the vehicle, releasing controls and resuming simulation. R, M, T and G preserve
+  this choice. A pair stops coupling when either wheel loses support.
 - **M / Suspension** switches soft/firm and recreates the vehicle with controls
   released and simulation resumed. R, G and T preserve the preset.
 - **T / Contacts** cycles all four modes and recreates the vehicle with
@@ -112,3 +122,17 @@ SDK guides: [suspension](../../../../Packages/GFX.Physics/Docs/EN/VehicleSuspens
 [tires](../../../../Packages/GFX.Physics/Docs/EN/PassiveTires3D.md),
 [steering and brakes](../../../../Packages/GFX.Physics/Docs/EN/VehicleControls3D.md)
 and [powertrain](../../../../Packages/GFX.Physics/Docs/EN/VehiclePowertrain3D.md).
+
+## Check the anti-roll comparison
+
+The headless `-- --anti-roll-check` path compares opposite turns and straight
+driving with ray/wide-cylinder contacts at 60/120 Hz, braking recovery, no-grip
+absence of motion and obstacle crossings with 40/8 cm tires. The SDK produces
+these reactions at physical support points. No presentation angle is added,
+and bars do not define a maximum body-tilt angle. Their Jolt spring coupling
+also depends on the fixed time step and damping.
+
+The smoke preserves earlier scenarios, then compares both turns with bars,
+rendered transforms, pause and recreation. TEST AUTOMATIQUE windows close on
+completion. The interactive trial is for judging softness and how clearly
+this difference can be felt.

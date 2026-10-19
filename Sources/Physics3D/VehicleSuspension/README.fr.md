@@ -14,6 +14,13 @@ le véhicule avec le réglage ferme précédent ; refaire les mêmes manœuvres
 pour comparer. Le bouton indique le réglage et les mesures donnent le tangage
 et le roulis physiques. Attendre la réception avant d’accélérer.
 
+**A** compare l’anti-roulis : après un premier virage avec **Z et ←/→**,
+appuyer sur A, attendre la nouvelle réception, puis refaire la même manœuvre.
+La caisse penche moins vers l’extérieur. Le bouton indique le choix courant.
+Le départ reste souple, sans anti-roulis, comme le réglage précédent ; M permet
+toujours de comparer souple/ferme. Gaz, pneus et amortisseurs restent identiques
+entre les deux essais A. En ligne droite, le cabrage et la plongée restent présents.
+
 Le preset souple utilise 1 200 N/m et 160 N·s/m par roue, contre 10 000 et
 1 000 pour le ferme. Sa détente maximale de 77,985 cm compense la compression
 statique plus grande et conserve une hauteur de repos d’environ 87,55 cm.
@@ -53,6 +60,9 @@ accélérateur relâché et roues droites. Les boutons ont les mêmes effets.
   gauche suivent le véhicule, repéré par sa bande jaune, et non le bord de l’écran.
 - **F / Frein** active ou libère les quatre freins de 1500 N·m par roue.
 - **H / Frein à main** active ou libère les seuls freins arrière de 20 N·m.
+- **A / Anti-roulis** active ou désactive deux barres de 1000 N/m et recrée
+  seulement le véhicule, commandes relâchées et simulation reprise. R, M, T et G
+  conservent ce choix. Le couplage cesse pour une paire lorsqu’une roue perd son appui.
 - **M / Suspension** alterne souple/ferme et recrée le véhicule, commandes
   relâchées et simulation reprise. R, G et T conservent ce choix.
 - **T / Contacts** parcourt les quatre modes et recrée le véhicule, gaz,
@@ -119,3 +129,18 @@ Guides SDK : [suspensions](../../../../Packages/GFX.Physics/Docs/FR/VehicleSuspe
 [pneus](../../../../Packages/GFX.Physics/Docs/FR/PassiveTires3D.md),
 [direction et freins](../../../../Packages/GFX.Physics/Docs/FR/VehicleControls3D.md)
 et [groupe moteur](../../../../Packages/GFX.Physics/Docs/FR/VehiclePowertrain3D.md).
+
+## Vérifier la comparaison anti-roulis
+
+Le parcours sans fenêtre `-- --anti-roll-check` compare les virages opposés et
+la ligne droite en rayon/cylindre large à 60/120 Hz, la récupération après
+freinage, l’absence d’effet sans adhérence et le franchissement avec pneus
+40/8 cm. Le même SDK produit ces réactions aux points d’appui physiques.
+Le choix n’ajoute aucun angle de présentation et ne définit pas de limite
+d’inclinaison maximale. Les barres reproduisent le couplage de ressorts Jolt,
+qui dépend aussi du pas fixe et de l’amortissement.
+
+Le smoke conserve les essais précédents puis compare les deux virages avec
+barres, les transforms rendus, la pause et la recréation. Les fenêtres
+TEST AUTOMATIQUE se ferment à la fin. L’essai interactif sert à apprécier la
+souplesse et la lisibilité de cette différence.

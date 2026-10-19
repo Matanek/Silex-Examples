@@ -29,7 +29,7 @@ package func pitch(pose:Physics.Transform3D) float {
 package func roll(pose:Physics.Transform3D) float {
     return Math.atan2(pose.vector(Math.Vec3.right()).y,pose.vector(Math.Vec3.up()).y)
 }
-func create_vehicle(world:Physics.World3D, grip:bool, contacts:ContactMode, soft:bool) Physics.WheeledVehicle3D {
+func create_vehicle(world:Physics.World3D, grip:bool, contacts:ContactMode, soft:bool, anti_roll:bool) Physics.WheeledVehicle3D {
     var wheels:Physics.Wheel3DSettings[]=[]
     var tire=Physics.Tire3DSettings()
     if !grip {
@@ -54,13 +54,15 @@ func create_vehicle(world:Physics.World3D, grip:bool, contacts:ContactMode, soft
             maximum_steering_angle:turn,maximum_handbrake_torque:hand,contact:contact,
             stiffness:stiffness,damping:damping,maximum_length:length))
     } }
+    var bars:Physics.VehicleAntiRollBar3DSettings[]=[]
+    if anti_roll { bars=[Physics.VehicleAntiRollBar3DSettings(0,2),Physics.VehicleAntiRollBar3DSettings(1,3)] }
     return world.create_wheeled_vehicle(Physics.WheeledVehicle3DSettings(
         Physics.RigidBody3DSettings() ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.4,0.4,2.4)))
             ..transform=Physics.Transform3D(Math.Vec3(0.0,1.4,0.0)) ..allow_sleep=false
             ..mass_properties=Physics.MassProperties3D(100.0,Math.Vec3(100.0))
             ..linear_damping=0.0 ..angular_damping=0.0,wheels,
         engine:Physics.VehicleEngine3DSettings(maximum_torque:30.0),
-        differentials:[Physics.VehicleDifferential3DSettings(0,2)]))
+        differentials:[Physics.VehicleDifferential3DSettings(0,2)],anti_roll_bars:bars))
 }
 
 package class SuspensionModel {
@@ -70,6 +72,7 @@ package class SuspensionModel {
     var barrier:Physics.RigidBody3D?=null
     var contacts:ContactMode=ContactMode.ray
     var soft:bool=false
+    var anti_roll:bool=false
     var grip:bool=true
     var pushes:int=0
     var throttle:float=0.0
@@ -80,18 +83,18 @@ package class SuspensionModel {
     var steps:int=0
     var jumps:int=0
     var loads:int=0
-    init(obstacle:bool=false,contacts:ContactMode=ContactMode.ray,soft:bool=false) {
-        self.obstacle=obstacle;self.contacts=contacts;self.soft=soft
+    init(obstacle:bool=false,contacts:ContactMode=ContactMode.ray,soft:bool=false,anti_roll:bool=false) {
+        self.obstacle=obstacle;self.contacts=contacts;self.soft=soft;self.anti_roll=anti_roll
         self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
             ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0)
         if obstacle {
             self.barrier=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
                 ..shape=Physics.Shape3D.box(Physics.Box3D(obstacle_size())) ..transform=obstacle_transform() ..friction=1.0)
         }
-        self.vehicle=create_vehicle(self.world,self.grip,self.contacts,self.soft)
+        self.vehicle=create_vehicle(self.world,self.grip,self.contacts,self.soft,self.anti_roll)
     }
     func reset() {
-        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world,self.grip,self.contacts,self.soft)
+        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world,self.grip,self.contacts,self.soft,self.anti_roll)
         self.load_remaining=0.0;self.steps=0;self.jumps=0;self.loads=0;self.pushes=0;self.steering=0.0;self.throttle=0.0;self.braking=false;self.handbraking=false
     }
     func apply_controls() {
@@ -103,6 +106,7 @@ package class SuspensionModel {
     func steer(value:float) { self.steering=value;self.apply_controls() }
     func toggle_brake() { self.braking=!self.braking;self.apply_controls() }
     func toggle_handbrake() { self.handbraking=!self.handbraking;self.apply_controls() }
+    func toggle_anti_roll() { self.anti_roll=!self.anti_roll;self.reset() }
     func toggle_contact() {
         match self.contacts {
             ray => { self.contacts=ContactMode.sphere }
@@ -361,3 +365,63 @@ package func verify_body_motion() {
     print("Body motion: spring/damper comparison, physical pitch/dive, mirrored roll, wheel travel, equal ride height, settled recovery and no-grip absence verified at 60/120 Hz")
 }
 test "soft suspensions pitch and roll under real tire forces and recover without animated angles" { verify_body_motion() }
+
+package func verify_anti_roll() {
+    let modes:ContactMode[]=[ContactMode.ray,ContactMode.wide];let directions:float[]=[-1.0,0.0,1.0]
+    for rate in [60,120] { for mode in modes { for direction in directions {
+        var free=SuspensionModel(contacts:mode,soft:true)
+        var paired=SuspensionModel(contacts:mode,soft:true,anti_roll:true)
+        settle(free,rate,3);settle(paired,rate,3);free.verify_rest();paired.verify_rest()
+        free.steer(direction*0.6);paired.steer(direction*0.6);free.accelerate(0.6);paired.accelerate(0.6)
+        var plain_roll=0.0;var paired_roll=0.0;var plain_pitch=0.0;var paired_pitch=0.0;var step=0
+        while step<rate*3 {
+            free.step(1.0/rate as float);paired.step(1.0/rate as float);free.verify();paired.verify()
+            let a=free.vehicle.chassis().transform();let b=paired.vehicle.chassis().transform()
+            if Math.abs(roll(a))>Math.abs(plain_roll) { plain_roll=roll(a) }
+            if Math.abs(roll(b))>Math.abs(paired_roll) { paired_roll=roll(b) }
+            plain_pitch=Math.max(plain_pitch,pitch(a));paired_pitch=Math.max(paired_pitch,pitch(b));step++
+        }
+        if direction!=0.0 {
+            assert(direction*paired_roll<0.0 && Math.abs(paired_roll)<Math.abs(plain_roll)*0.8)
+        } else {
+            assert(Math.abs(paired_roll)<0.001 && Math.abs(paired_pitch-plain_pitch)<0.005 && paired_pitch>0.06)
+        }
+        free.accelerate(0.0);paired.accelerate(0.0);free.steer(0.0);paired.steer(0.0);free.toggle_brake();paired.toggle_brake()
+        var plain_dive=0.0;var paired_dive=0.0;var force=0.0;var samples=0;step=0
+        while step<rate*5 {
+            free.step(1.0/rate as float);paired.step(1.0/rate as float);free.verify();paired.verify()
+            plain_dive=Math.min(plain_dive,pitch(free.vehicle.chassis().transform()))
+            paired_dive=Math.min(paired_dive,pitch(paired.vehicle.chassis().transform()))
+            if step>=rate*4 {
+                var body=paired.vehicle.chassis();let pose=body.transform()
+                assert(paired.supports()==4 && Math.abs(body.position().y-0.875475)<0.003 && body.linear_velocity().length()<0.03)
+                assert(Math.abs(pitch(pose))<0.003 && Math.abs(roll(pose))<0.003);force+=paired.force();samples++
+            } step++
+        }
+        assert(samples==rate && Math.abs(force/samples as float-981.0)<2.0)
+        if direction==0.0 { assert(paired_dive< -0.08 && Math.abs(paired_dive-plain_dive)<0.005) }
+        print("Anti-roll $(rate) Hz $(contact_name(mode)) turn=$(direction): roll free=$(Math.degrees(plain_roll)) paired=$(Math.degrees(paired_roll)), pitch=$(Math.degrees(paired_pitch)), dive=$(Math.degrees(paired_dive))")
+        var old=paired.vehicle;var ground=paired.world.body_count();paired.toggle_anti_roll()
+        assert(!old.is_valid() && !paired.anti_roll && paired.soft && paired.contacts==mode && paired.throttle==0.0 && paired.world.body_count()==ground)
+        paired.toggle_anti_roll();paired.reset();paired.toggle_suspension();paired.toggle_contact();paired.toggle_grip();assert(paired.anti_roll)
+    } } }
+    let obstacle_modes:ContactMode[]=[ContactMode.wide,ContactMode.narrow]
+    for rate in [60,120] { for mode in obstacle_modes {
+        var model=SuspensionModel(obstacle:true,contacts:mode,soft:true,anti_roll:true)
+        settle(model,rate,3);model.accelerate(0.6);var hits=0;var step=0
+        while step<rate*6 {
+            model.step(1.0/rate as float);model.verify()
+            for i in [0,1,2,3] { if let support=model.vehicle.wheel(i).support() { if support.same_body(model.barrier!) { hits++ } } }
+            assert(model.vehicle.chassis().position().y>0.45 && model.vehicle.chassis().position().y<2.0)
+            step++
+        }
+        if mode==ContactMode.wide { assert(hits>0) } else { assert(hits==0) }
+        print("Anti-roll obstacle $(rate) Hz $(contact_name(mode)): contacts=$(hits)")
+    } }
+    var slide=SuspensionModel(contacts:ContactMode.wide,soft:true,anti_roll:true);slide.toggle_grip();settle(slide,120,3)
+    slide.steer(0.6);slide.accelerate(0.6);settle(slide,120,3)
+    assert(Math.abs(pitch(slide.vehicle.chassis().transform()))<0.001 && Math.abs(roll(slide.vehicle.chassis().transform()))<0.001)
+    assert(slide.vehicle.chassis().linear_velocity().length()<0.01)
+    print("Anti-roll scene: mirrored roll reduction, preserved straight pitch/dive, recovery, no-grip absence and preset recreation verified at 60/120 Hz")
+}
+test "paired suspensions reduce driving roll while preserving straight pitch and dive" { verify_anti_roll() }

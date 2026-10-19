@@ -1060,6 +1060,10 @@ gear and clutch are visible. The no-grip comparison retains rotors with zero
 friction curves, so powered wheels spin without propelling the chassis. R/G
 also release throttle.
 
+A compares paired anti-roll bars on the same setup, recreating the vehicle
+and reducing outside lean in turns. It starts without bars; R/M/T/G preserve
+the choice. Straight acceleration pitch and braking dive remain physical.
+
 Soft suspension is selected initially. Z raises the nose, X then F makes it
 dive under braking, and steering leans the chassis towards the outside of a
 turn. M recreates with the previous firm setup for comparison; R/G/T preserve
