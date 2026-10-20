@@ -9,6 +9,7 @@ synchronisation automatique.
 
 | Démonstration | Source actuelle | Origine |
 | --- | --- | --- |
+| Accessibilité macOS | `Sources/UIAccessibility/Main.sx` | composition publique : session UI présentée automatiquement, nom/valeur du champ, focus et activation du bouton ; qualification VoiceOver à réaliser |
 | Historique et navigation de texte | `Sources/UITextEditing/Main.sx` | composition publique : undo/redo regroupés, mots Unicode, champs longs et multiligne, thème et caret conservé |
 | Tableaux de données | `Sources/UITableView/Main.sx` | composition publique : 50 000 lignes, tri stable, largeurs, sélection, filtrage, thèmes et cellule éditable |
 | Arbres de données | `Sources/UITreeView/Main.sx` | composition publique : 50 000 feuilles, branche profonde, ouverture, sélection, clavier, mutations et édition virtualisée |

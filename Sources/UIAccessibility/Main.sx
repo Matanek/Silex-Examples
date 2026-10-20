@@ -1,0 +1,68 @@
+use GFX.UI
+use GFX.Canvas
+use GFX.Accessibility
+use GFX.Viewer
+use STD.Process
+
+class Model {
+    var name:UI.State<str> = UI.State<str>("Ada")
+    var presses:UI.State<int> = UI.State<int>(0)
+    func activate() { self.presses.set(self.presses.value() + 1) }
+    func describe(reads:UI.Reads) UI.View {
+        var title = UI.Text("Accessibilité — macOS"); title.style.font_size = 28.0
+        var root = UI.Column([
+            title,
+            UI.Text("Inspectez le champ Nom et le bouton Valider, puis essayez VoiceOver."),
+            UI.Label("Nom", UI.TextField(self.name)),
+            UI.Button("Valider", self.activate),
+            UI.Text("Nom courant : $(reads.read(self.name))"),
+            UI.Text("Activations : $(reads.read(self.presses))")
+        ])
+        root.style.padding = UI.Insets(20.0); root.style.gap = 14.0
+        return root
+    }
+}
+
+func named(source:Accessibility.Source, id:str, name:str, role:Accessibility.Role) str? {
+    var semantics = source
+    if let element = semantics.read(id) {
+        if element.name == name && element.role == role { return id }
+        var index = 0
+        while index < element.child_count {
+            if let child = semantics.child(id, index) {
+                if let found = named(semantics, child, name, role) { return found }
+            }
+            index++
+        }
+    }
+    return null
+}
+
+func check_cpu() {
+    var model = Model()
+    var session:Canvas.Session = UI.Session(UI.Reactive(model.describe))
+    var drawing = session.drawing(720, 420)
+    var source = session.accessibility_source()!
+    let root = source.root()!
+    let field = named(source, root, "Nom", Accessibility.Role.text_field)!
+    let button = named(source, root, "Valider", Accessibility.Role.button)!
+    assert(source.read(field)!.role == Accessibility.Role.text_field)
+    assert(source.perform(field, Accessibility.Request(Accessibility.Action.focus)))
+    assert(source.perform(field, Accessibility.Request(Accessibility.Action.set_value, text:"Été 👋")))
+    assert(source.perform(button, Accessibility.Request(Accessibility.Action.activate)))
+    drawing = session.drawing(720, 420)
+    assert(model.name.value() == "Été 👋" && model.presses.value() == 1)
+    assert(source.read(field)!.value == "Été 👋" && source.focused() == field)
+    print("UIAccessibility CPU : OK")
+}
+
+test "the accessibility demo edits and activates the same model through Canvas Session" { check_cpu() }
+
+func main() {
+    for argument in Process.arguments() { if argument == "--cpu-check" { check_cpu(); return } }
+    var model = Model()
+    var session = UI.Session(UI.Reactive(model.describe))
+    let code = Viewer.show(session, Viewer.CanvasSettings(width:720, height:420,
+        title:"Silex — Accessibilité macOS J5"))
+    if code != 0 { panic("Accessibility viewer failed") }
+}
