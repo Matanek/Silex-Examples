@@ -1060,6 +1060,10 @@ gear and clutch are visible. The no-grip comparison retains rotors with zero
 friction curves, so powered wheels spin without propelling the chassis. R/G
 also release throttle.
 
+O applies a real jump and roll impulse. L recreates the same vehicle with a
+45° total tilt limit: wait for landing and repeat O to compare free overturning
+with protected recovery. Soft suspension and no limit remain the initial choice.
+
 A compares paired anti-roll bars on the same setup, recreating the vehicle
 and reducing outside lean in turns. It starts without bars; R/M/T/G preserve
 the choice. Straight acceleration pitch and braking dive remain physical.

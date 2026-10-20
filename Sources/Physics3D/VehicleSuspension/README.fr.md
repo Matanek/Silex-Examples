@@ -1,4 +1,4 @@
-# Ressentir les suspensions, le tangage et le roulis
+# Ressentir les suspensions et comparer le basculement
 
 Un châssis de 100 kg repose sur quatre roues suspendues. Un moteur de 30 N·m
 entraîne les roues arrière à travers une boîte automatique. Les contacts des
@@ -20,6 +20,20 @@ La caisse penche moins vers l’extérieur. Le bouton indique le choix courant.
 Le départ reste souple, sans anti-roulis, comme le réglage précédent ; M permet
 toujours de comparer souple/ferme. Gaz, pneus et amortisseurs restent identiques
 entre les deux essais A. En ligne droite, le cabrage et la plongée restent présents.
+
+
+**O** fait bondir le châssis avec une impulsion de roulis. Pour comparer depuis
+le repos, appuyer sur R, attendre la réception puis O : sans protection, la
+voiture peut se retourner. **L** recrée le même véhicule avec une limite
+d’inclinaison totale de 45° ; attendre la réception et refaire O. La caisse
+s’incline fortement puis retrouve ses appuis. La correction est progressive,
+avec un léger dépassement transitoire de la cible.
+
+Le départ reste souple, sans barre ni limite. L conserve suspension, pneus,
+adhérence et obstacle ; R, M, T, G et A conservent le choix de limite. Les deux
+boutons ont le même effet que les touches. Le bond de 500 N·s et l’impulsion
+angulaire de 400 N·m·s sont identiques dans les deux cas ; les angles affichés
+et le rendu viennent de la simulation.
 
 Le preset souple utilise 1 200 N/m et 160 N·s/m par roue, contre 10 000 et
 1 000 pour le ferme. Sa détente maximale de 77,985 cm compense la compression
@@ -60,6 +74,10 @@ accélérateur relâché et roues droites. Les boutons ont les mêmes effets.
   gauche suivent le véhicule, repéré par sa bande jaune, et non le bord de l’écran.
 - **F / Frein** active ou libère les quatre freins de 1500 N·m par roue.
 - **H / Frein à main** active ou libère les seuls freins arrière de 20 N·m.
+- **O / Basculer** ajoute un bond et une impulsion angulaire autour de l’avant
+  du châssis. Attendre la réception d’un véhicule neuf pour comparer.
+- **L / Limite** alterne libre/45°, recrée le véhicule et reprend la simulation,
+  avec les mêmes autres réglages. La borne concerne tangage et roulis ensemble.
 - **A / Anti-roulis** active ou désactive deux barres de 1000 N/m et recrée
   seulement le véhicule, commandes relâchées et simulation reprise. R, M, T et G
   conservent ce choix. Le couplage cesse pour une paire lorsqu’une roue perd son appui.
@@ -144,3 +162,15 @@ Le smoke conserve les essais précédents puis compare les deux virages avec
 barres, les transforms rendus, la pause et la recréation. Les fenêtres
 TEST AUTOMATIQUE se ferment à la fin. L’essai interactif sert à apprécier la
 souplesse et la lisibilité de cette différence.
+
+## Vérifier le basculement et la protection
+
+`-- --tilt-check` sélectionne les 16 recettes de basculement sans fenêtre :
+60/120 Hz, impulsions opposées, rayons/cylindres, souple/ferme et barres.
+Les tests contrôlent l’impulsion réelle, le retournement libre, l’inclinaison
+protégée, les appuis et le poids moyen sur la dernière seconde de récupération.
+Les huit parcours physiques précédents restent exécutés par `--physics-check`.
+
+Le smoke poursuit les essais précédents avec les deux basculements, les poses
+physiques rendues, la pause et la recréation de limite. L’essai interactif sert
+à apprécier la lisibilité et la sensation de cette protection optionnelle.

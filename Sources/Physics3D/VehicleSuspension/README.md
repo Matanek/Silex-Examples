@@ -1,4 +1,4 @@
-# Feel suspension, pitch and roll
+# Feel suspension and compare toppling
 
 A 100 kg chassis rests on four suspended wheels. A 30 N·m engine drives the
 rear wheels through an automatic gearbox. Tire contacts accelerate, turn and
@@ -18,6 +18,19 @@ the outside; the button shows the current choice. The initial setup remains
 soft with no bars, preserving the previous feel. M still compares soft/firm.
 Throttle, tires and dampers are identical between A comparisons. Straight-line
 acceleration pitch and braking dive remain present.
+
+
+**O** launches the chassis with a jump and a roll impulse. To compare from rest,
+press R, wait for landing and press O: without protection the car can overturn.
+**L** recreates the same vehicle with a 45° total inclination limit; wait for
+landing and repeat O. The body leans strongly and then regains wheel support.
+Correction is gradual, with a small transient overshoot of the target.
+
+The initial setup stays soft, with no bars or tilt limit. L preserves suspension,
+tires, grip and obstacle; R, M, T, G and A preserve the limit choice. The two
+buttons perform the same actions as the keys. The 500 N·s jump and 400 N·m·s
+angular impulse are identical in both cases; displayed angles and rendering
+come from simulation.
 
 The soft preset uses 1,200 N/m and 160 N·s/m per wheel, versus 10,000 and
 1,000 for firm. Its 77.985 cm maximum extension compensates for the greater
@@ -56,6 +69,10 @@ wheels. Buttons perform the same actions.
   follow the vehicle frame marked by its yellow strip, rather than screen edges.
 - **F / Brake** activates/releases all four 1500 N·m wheel brakes.
 - **H / Handbrake** activates/releases only the 20 N·m rear brakes.
+- **O / Topple** adds a jump and an angular impulse around the chassis forward
+  direction. Wait for a fresh vehicle to land before comparing.
+- **L / Limit** switches free/45°, recreates the vehicle and resumes simulation
+  while preserving other settings. The bound covers combined pitch and roll.
 - **A / Anti-roll** enables or disables two 1000 N/m bars and recreates only
   the vehicle, releasing controls and resuming simulation. R, M, T and G preserve
   this choice. A pair stops coupling when either wheel loses support.
@@ -136,3 +153,15 @@ The smoke preserves earlier scenarios, then compares both turns with bars,
 rendered transforms, pause and recreation. TEST AUTOMATIQUE windows close on
 completion. The interactive trial is for judging softness and how clearly
 this difference can be felt.
+
+## Check toppling and protection
+
+`-- --tilt-check` selects the 16 headless toppling recipes: 60/120 Hz, opposite
+impulses, ray/cylinder contacts, soft/firm suspension and anti-roll bars.
+Checks cover the real impulse, free overturning, bounded tilt, support and mean
+weight during the last recovery second. `--physics-check` retains all eight
+previous physical recipes.
+
+The smoke continues the previous checks with both topples, rendered physical
+poses, pause and limit recreation. Interactive testing assesses how clearly
+this optional protection reads and feels.
