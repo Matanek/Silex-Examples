@@ -1,0 +1,349 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Scene3D
+use GFX.UI
+use GFX.Physics
+use Physics3D.VehicleHill.Model
+use Physics3D.VehicleHill.Controls
+use Physics3D.ArticulatedPose.Controls as InputCheck
+use STD.Math
+use STD.Process
+
+class HillScene {
+    var model:Model.HillModel=Model.HillModel()
+    var controls:Controls.HillControls=Controls.HillControls()
+    var ui:UI.Session
+    var panel:ECS.Entity=ECS.Entity()
+    var chassis:ECS.Entity=ECS.Entity()
+    var nose:ECS.Entity=ECS.Entity()
+    var floor:ECS.Entity=ECS.Entity()
+    var origin:ECS.Entity=ECS.Entity()
+    var tires:ECS.Entity[]=[]
+    var spokes:ECS.Entity[]=[]
+    var springs:ECS.Entity[]=[]
+    var markers:ECS.Entity[]=[]
+    var grid:ECS.Entity[]=[]
+    var grid_x:float=10000.0
+    var grid_z:float=10000.0
+    var surface_dirty:bool=true
+    var previous:Physics.Transform3D=Physics.Transform3D()
+    var lengths:float[]=[0.77985,0.77985,0.77985,0.77985]
+    var angles:float[]=[0.0,0.0,0.0,0.0]
+    let wheel_orientation:Math.Quat=Math.Quat.angle_axis(Math.half_pi(),Math.Vec3.back())
+    var accumulator:float=0.0
+    var telemetry:float=0.0
+    var smoke:bool=false
+    var smoke_pass:int=0
+    var frames:int[]=[0,0,0,0]
+    var smoke_paused:bool=false
+    var pause_frames:int=0
+    var held:Physics.Transform3D=Physics.Transform3D()
+    var held_angles:float[]=[]
+    var held_steps:int=0
+    var launch:float=0.0
+    var climbed:float=0.0
+    var rest_force:float=0.0
+    var rest_samples:int=0
+    init() { self.ui=UI.Session(self.controls.describe()) }
+}
+func visual(world:&Resources.World,mesh:Scene3D.MeshHandle,size:Math.Vec3,color:Color) ECS.Entity {
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(scale:size))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.7)))
+}
+func remember(state:&HillScene) {
+    state.previous=copy state.model.vehicle.chassis().transform()
+    for i in [0,1,2,3] { state.lengths[i]=state.model.vehicle.wheel(i).length;state.angles[i]=state.model.vehicle.wheel(i).rotation_angle }
+}
+func labels(state:&HillScene,simulation:@Application.Simulation) {
+    var pause="Pause (Espace)";if simulation.is_paused() { pause="Reprendre (Espace)" }
+    if state.controls.pause_text.value()!=pause { state.controls.pause_text.set(pause) }
+    var grip="Adhérence active (G)";if !state.model.grip { grip="Sans adhérence (G)" }
+    if state.controls.grip_text.value()!=grip { state.controls.grip_text.set(grip) }
+    var suspension="Ferme (M)";if state.model.soft { suspension="Souple (M)" }
+    if state.controls.suspension_text.value()!=suspension { state.controls.suspension_text.set(suspension) }
+    let contact="$(Model.contact_name(state.model.contact)) (T)"
+    if state.controls.contact_text.value()!=contact { state.controls.contact_text.set(contact) }
+    let distance=Math.round(state.model.progress()*10.0)/10.0
+    let speed=Math.round(state.model.speed()*36.0)/10.0
+    let supports=state.model.supports();var motion="freins serrés"
+    if state.model.motion==Model.Motion.drive { motion="gaz actifs" }
+    if state.model.motion==Model.Motion.coast { motion="roue libre" }
+    let measure="Position sur la pente $(distance) m · vitesse vers le haut $(speed) km/h · appuis $(supports)/4 · $(motion)"
+    if state.controls.measure.value()!=measure { state.controls.measure.set(measure) }
+    let motor=state.model.vehicle.powertrain();let rpm=Math.round(motor.engine_rpm) as int
+    let force=Math.round(state.model.force()) as int;let height=Math.round(state.model.height()*100.0)/1.0
+    var direction="avant";if state.model.sign<0 { direction="arrière" }
+    let power="Pente 11,5° · montée en marche $(direction) · moteur $(rpm) RPM · rapport $(motor.gear) · hauteur $(height) cm · appui $(force) N"
+    if state.controls.power.value()!=power { state.controls.power.set(power) }
+}
+func recreated(state:&HillScene,simulation:&Application.Simulation) {
+    remember(state);state.accumulator=0.0;state.surface_dirty=true;simulation.resume()
+}
+func perform(state:&HillScene,simulation:&Application.Simulation) {
+    var changed=false
+    while state.controls.grips>0 {
+        state.controls.grips--;state.model.toggle_grip();recreated(state,simulation);changed=true
+        state.controls.feedback.set("Adhérence changée et véhicule recréé. Attendre la réception puis Z ; sans adhérence, les freins ne retiennent pas la voiture.")
+    }
+    while state.controls.slopes>0 {
+        state.controls.slopes--;state.model.toggle_slope();recreated(state,simulation);changed=true
+        state.controls.feedback.set("Pente et rapport inversés. Attendre la réception puis Z pour monter dans l’autre sens ; les autres réglages sont conservés.")
+    }
+    while state.controls.suspensions>0 {
+        state.controls.suspensions--;state.model.toggle_suspension();recreated(state,simulation);changed=true
+        state.controls.feedback.set("Suspension changée et véhicule recréé. Z monte, F freine ; comparer le mouvement réel de caisse, mêmes pneus et même pente.")
+    }
+    while state.controls.contacts>0 {
+        state.controls.contacts--;state.model.toggle_contact();recreated(state,simulation);changed=true
+        state.controls.feedback.set("Contacts changés et véhicule recréé, avec la même pente, la même suspension et le même choix d’adhérence.")
+    }
+    while state.controls.resets>0 {
+        state.controls.resets--;state.model.reset();recreated(state,simulation);changed=true
+        state.controls.feedback.set("Véhicule recréé, freins serrés. Attendre la réception puis Z pour monter, X pour laisser rouler, F pour freiner.")
+    }
+    if let command=state.controls.motion {
+        state.controls.motion=null;state.model.set_motion(command);simulation.resume();changed=true
+        if command==Model.Motion.drive { state.controls.feedback.set("Gaz maintenus vers le haut de la pente. X relâche les gaz, F serre les freins. G compare sans adhérence.") }
+        if command==Model.Motion.coast { state.controls.feedback.set("Gaz et freins relâchés : la gravité peut faire redescendre la voiture. Z remonte, F freine.") }
+        if command==Model.Motion.hold { state.controls.feedback.set("Freins serrés et gaz relâchés. Avec G, comparer le maintien sur la pente et la glissade sans adhérence.") }
+    }
+    while state.controls.pauses>0 {
+        state.controls.pauses--;changed=true
+        if simulation.is_paused() { simulation.resume() }
+        else { simulation.pause();remember(state);state.accumulator=0.0 }
+    }
+    if changed { labels(state,simulation) }
+}
+func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&HillScene,simulation:&Application.Simulation) {
+    let cube=meshes.add(Scene3D.Geometry.Cube.make())
+    let wheel=meshes.add(Scene3D.Geometry.Cylinder.make(0.3,0.4))
+    state.chassis=visual(world,cube,Math.Vec3(1.4,0.4,2.4),Color.bytes(238,157,52))
+    state.nose=visual(world,cube,Math.Vec3(1.2,0.1,0.03),Color.bytes(250,230,85))
+    state.floor=visual(world,cube,Math.Vec3(200.0,0.2,200.0),Color.bytes(65,82,101))
+    state.origin=visual(world,cube,Math.Vec3(0.12,1.6,0.12),Color.bytes(245,245,250))
+    for i in [0,1,2,3] {
+        state.tires.append(visual(world,wheel,Math.Vec3(1.0),Color.bytes(30,36,44)))
+        state.spokes.append(visual(world,cube,Math.Vec3(0.44,0.44,0.045),Color.bytes(110,210,225)))
+        state.springs.append(visual(world,cube,Math.Vec3(0.045,0.6,0.045),Color.bytes(240,240,245)))
+        state.markers.append(visual(world,cube,Math.Vec3(0.35,0.025,0.3),Color.bytes(60,230,125)))
+    }
+    var line=0
+    while line<62 {
+        var size=Math.Vec3(30.0,0.006,0.015);if line>=31 { size=Math.Vec3(0.015,0.006,30.0) }
+        state.grid.append(visual(world,cube,size,Color.bytes(100,118,137)));line++
+    }
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.55)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5)))
+    simulation.resume();remember(state);labels(state,simulation)
+    state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform())
+        ..with(Scene2D.Canvas(state.ui.drawing(1180,280),1180,280) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+            ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+}
+func camera_settings() Plugins.ViewportCamera3D.Settings {
+    return Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,2.85,0.0)
+        ..vertical_fov=0.9 ..distance=9.0 ..yaw=Math.radians(-25.0) ..pitch=Math.radians(-20.0)
+        ..zoom_speed=0.0 ..scroll_zoom_speed=0.0 ..orbit_sensitivity=0.0 ..pan_sensitivity=0.0
+}
+func verify_framing(world:@Resources.World,state:@HillScene,view:Scene3D.Transform) {
+    var camera=Scene3D.Camera(vertical_fov:0.9);let sides:int[]=[-1,1]
+    let body=world.get<Components.Transform3D>(state.chassis)
+    for x in sides { for y in sides { for z in sides {
+        let corner=body.position.add(body.rotation.rotate(Math.Vec3(0.7*x as float,0.2*y as float,1.2*z as float)))
+        let point=camera.project(corner,view,Math.Vec2(1280.0,800.0))!
+        assert(point.x>20.0 && point.x<1260.0 && point.y>290.0 && point.y<780.0)
+    } } }
+    for i in [0,1,2,3] {
+        let tire=world.get<Components.Transform3D>(state.tires[i])
+        for x in sides { for y in sides { for z in sides {
+            let corner=tire.position.add(tire.rotation.rotate(Math.Vec3(0.3*x as float,0.2*y as float,0.3*z as float)))
+            let point=camera.project(corner,view,Math.Vec2(1280.0,800.0))!
+            assert(point.x>20.0 && point.x<1260.0 && point.y>290.0 && point.y<780.0)
+        } } }
+    }
+}
+func wheel_angle(previous:float,current:float,alpha:float) float {
+    var change=Math.remainder(current-previous,Math.two_pi())
+    if change>Math.pi() { change-=Math.two_pi() } else if change< -Math.pi() { change+=Math.two_pi() }
+    return previous+alpha*change
+}
+func render(world:&Resources.World,state:&HillScene,camera:&Resources.ViewportCamera3D) {
+    let current=state.model.vehicle.chassis().transform();let alpha=Math.clamp(state.accumulator*120.0,0.0,1.0)
+    var rotation=current.rotation;if state.previous.rotation.dot(rotation)<0.0 { rotation=rotation.multiply(-1.0) }
+    let pose=Physics.Transform3D(state.previous.position.lerp(current.position,alpha),state.previous.rotation.multiply(1.0-alpha).add(rotation.multiply(alpha)).normalized())
+    world.update<Components.Transform3D>(state.chassis,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
+    world.update<Components.Transform3D>(state.nose,func(t:&Components.Transform3D) { t.position=pose.point(Math.Vec3(0.0,0.0,1.21));t.rotation=pose.rotation })
+    for i in [0,1,2,3] {
+        let settings=state.model.vehicle.wheel_settings(i);var wheel=state.model.vehicle.wheel(i)
+        let length=state.lengths[i]+(wheel.length-state.lengths[i])*alpha
+        let center=pose.point(settings.position.add(settings.direction.multiply(length)))
+        let spin=pose.rotation.multiply(Math.Quat.angle_axis(wheel_angle(state.angles[i],wheel.rotation_angle,alpha),Math.Vec3.right()))
+        let tire_rotation=spin.multiply(state.wheel_orientation)
+        world.update<Components.Transform3D>(state.tires[i],func(t:&Components.Transform3D) { t.position=center;t.rotation=tire_rotation })
+        world.update<Components.Transform3D>(state.spokes[i],func(t:&Components.Transform3D) { t.position=center;t.rotation=spin })
+        world.update<Components.Transform3D>(state.springs[i],func(t:&Components.Transform3D) {
+            t.position=pose.point(settings.position.add(settings.direction.multiply(length*0.5)));t.rotation=pose.rotation;t.scale=Math.Vec3(0.045,Math.max(0.001,length),0.045)
+        })
+        let visible=wheel.support()!=null
+        if world.get<Components.Mesh3D>(state.markers[i]).visible!=visible { world.update<Components.Mesh3D>(state.markers[i],func(m:&Components.Mesh3D) { m.visible=visible }) }
+        if visible { world.update<Components.Transform3D>(state.markers[i],func(t:&Components.Transform3D) { t.position=wheel.contact_point.add(state.model.normal.multiply(0.015));t.rotation=state.model.surface_rotation }) }
+        if state.smoke {
+            assert(world.get<Components.Transform3D>(state.tires[i]).position.nearly_equal(center,0.00001))
+            assert(world.get<Components.Transform3D>(state.tires[i]).rotation==tire_rotation)
+            assert(world.get<Components.Transform3D>(state.spokes[i]).rotation==spin)
+            assert(world.get<Components.Mesh3D>(state.markers[i]).visible==visible)
+        }
+    }
+    let surface_position=state.model.surface_rotation.conjugated().rotate(pose.position)
+    let grid_x=Math.floor(surface_position.x/5.0+0.5)*5.0;let grid_z=Math.floor(surface_position.z/5.0+0.5)*5.0
+    if state.surface_dirty || grid_x!=state.grid_x || grid_z!=state.grid_z {
+        state.surface_dirty=false;state.grid_x=grid_x;state.grid_z=grid_z
+        world.update<Components.Transform3D>(state.floor,func(t:&Components.Transform3D) { t.position=state.model.surface_rotation.rotate(Math.Vec3(grid_x,-0.1,grid_z));t.rotation=state.model.surface_rotation })
+        world.update<Components.Transform3D>(state.origin,func(t:&Components.Transform3D) { t.position=state.model.surface_rotation.rotate(Math.Vec3(3.0,0.8,0.0));t.rotation=state.model.surface_rotation })
+        var i=0
+        for line in state.grid {
+            var position=Math.Vec3(grid_x,0.004,grid_z+(i-15) as float)
+            if i>=31 { position=Math.Vec3(grid_x+(i-46) as float,0.004,grid_z) }
+            world.update<Components.Transform3D>(line,func(t:&Components.Transform3D) { t.position=state.model.surface_rotation.rotate(position);t.rotation=state.model.surface_rotation });i++
+        }
+    }
+    camera.set_target(pose.position.add(Math.Vec3(0.0,1.975,0.0)));let view=camera.transform()
+    if world.is_alive(camera.entity()) { world.update<Components.Transform3D>(camera.entity(),func(t:&Components.Transform3D) { t.position=view.position;t.rotation=view.rotation }) }
+    if state.smoke {
+        assert(world.is_alive(camera.entity()))
+        let actual=world.get<Components.Transform3D>(camera.entity())
+        assert(actual.position.nearly_equal(view.position,0.00001) && actual.rotation==view.rotation)
+        assert(world.get<Components.Transform3D>(state.chassis).position.nearly_equal(pose.position,0.00001))
+        assert(world.get<Components.Transform3D>(state.chassis).rotation==pose.rotation)
+        assert(world.get<Components.Transform3D>(state.floor).rotation==state.model.surface_rotation)
+        assert(Math.abs(world.get<Components.Transform3D>(state.floor).position.dot(state.model.normal)+0.1)<0.0001)
+        verify_framing(world,state,Scene3D.Transform(actual.position,actual.rotation));state.frames[state.smoke_pass]++
+    }
+}
+func finish_smoke_pass(state:&HillScene,simulation:&Application.Simulation) {
+    assert(state.frames[state.smoke_pass]>0)
+    if state.model.grip {
+        assert(state.climbed>1.0 && Math.abs(state.model.speed())<0.05 && state.rest_samples==120)
+        assert(Math.abs(state.rest_force/120.0-981.0*Math.cos(0.2))<2.0)
+    } else { assert(Math.abs(state.model.speed()+9.81*Math.sin(0.2)*8.0)<0.002) }
+    print("Hill pass $(state.smoke_pass): soft=$(state.model.soft) grip=$(state.model.grip) sign=$(state.model.sign), climb=$(state.climbed), stopped/sliding speed=$(state.model.speed())")
+    state.controls.pause();perform(state,simulation);state.held=copy state.model.vehicle.chassis().transform();state.held_steps=state.model.steps
+    state.held_angles.clear();for i in [0,1,2,3] { state.held_angles.append(state.model.vehicle.wheel(i).rotation_angle) }
+    state.smoke_paused=true;state.pause_frames=0
+}
+func next_smoke_pass(state:&HillScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    assert(simulation.is_paused() && state.model.steps==state.held_steps && state.model.vehicle.chassis().transform()==state.held)
+    for i in [0,1,2,3] { assert(state.model.vehicle.wheel(i).rotation_angle==state.held_angles[i]) }
+    state.pause_frames++
+    if state.pause_frames<8 { return }
+    if state.smoke_pass==3 {
+        for i in [0,1,2] {
+            var old_body=state.model.vehicle.chassis();state.controls.toggle_contact();perform(state,simulation)
+            assert(!old_body.is_valid() && state.model.world.body_count()==2 && !state.model.soft && state.model.grip && state.model.sign== -1)
+        }
+        assert(state.model.contact==Model.Contact.cylinder && !simulation.is_paused())
+        print("Hill smoke: uphill drive, braking, gravity-only slide, mirrored grade, soft/firm, rendered body/wheels, pause and recreation verified")
+        controller.stop();return
+    }
+    if state.smoke_pass==0 { state.controls.toggle_grip() }
+    if state.smoke_pass==1 { state.controls.toggle_grip();state.controls.toggle_slope() }
+    if state.smoke_pass==2 { state.controls.toggle_suspension() }
+    perform(state,simulation);state.smoke_pass++;state.smoke_paused=false;state.launch=0.0;state.climbed=0.0;state.rest_force=0.0;state.rest_samples=0
+    assert(!simulation.is_paused() && state.model.steps==0 && state.model.motion==Model.Motion.hold)
+}
+func update(world:&Resources.World,input:@Resources.InputState,state:&HillScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if state.smoke { if state.smoke_paused { next_smoke_pass(state,simulation,controller) } }
+    else {
+        for event in input.events() { if !state.controls.handle(event) { let handled=state.ui.handle(event) } }
+        perform(state,simulation)
+    }
+    state.accumulator+=simulation.delta()
+    while state.accumulator>=1.0/120.0 && !simulation.is_paused() {
+        if state.smoke {
+            if state.model.steps==240 { state.launch=state.model.progress();state.controls.drive();perform(state,simulation) }
+            if state.model.steps==600 { state.climbed=state.model.progress()-state.launch;state.controls.brake();perform(state,simulation) }
+            if state.model.steps==960 { finish_smoke_pass(state,simulation);break }
+        }
+        remember(state);state.model.step(1.0/120.0);state.accumulator-=1.0/120.0
+        if state.smoke {
+            state.model.verify()
+            if state.model.grip && state.model.steps>840 {
+                assert(state.model.supports()==4 && Math.abs(state.model.height()-state.model.expected_height())<0.003)
+                state.rest_force+=state.model.force();state.rest_samples++
+            }
+        }
+    }
+    state.telemetry+=simulation.delta()
+    if state.telemetry>=0.1 { state.telemetry=0.0;labels(state,simulation) }
+    if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(1180,280)) }) }
+}
+func press(state:&HillScene,simulation:&Application.Simulation,key:Input.Key,code:uint32,repeated:bool=false) {
+    assert(state.controls.handle(InputCheck.key_event(key,code,repeated)));perform(state,simulation)
+}
+func verify_controls() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=HillScene();var simulation=Application.Simulation()
+    var camera=Resources.ViewportCamera3D(camera_settings());startup(world,meshes,state,simulation);render(world,state,camera);verify_framing(world,state,camera.transform())
+    press(state,simulation,Input.Key.space,32 as uint32);assert(simulation.is_paused())
+    press(state,simulation,Input.Key.space,32 as uint32,true);assert(simulation.is_paused())
+    press(state,simulation,Input.Key.x,122 as uint32);assert(!simulation.is_paused() && state.model.motion==Model.Motion.drive)
+    press(state,simulation,Input.Key.z,90 as uint32);assert(state.model.motion==Model.Motion.drive)
+    press(state,simulation,Input.Key.z,0 as uint32);assert(state.model.motion==Model.Motion.drive)
+    press(state,simulation,Input.Key.x,120 as uint32);assert(state.model.motion==Model.Motion.coast)
+    press(state,simulation,Input.Key.x,88 as uint32);press(state,simulation,Input.Key.x,0 as uint32);assert(state.model.motion==Model.Motion.coast)
+    press(state,simulation,Input.Key.f,102 as uint32);press(state,simulation,Input.Key.f,70 as uint32);press(state,simulation,Input.Key.f,0 as uint32);assert(state.model.motion==Model.Motion.hold)
+    press(state,simulation,Input.Key.z,122 as uint32,true);assert(state.model.motion==Model.Motion.hold)
+    var old=state.model.vehicle;var ground=state.model.ground;press(state,simulation,Input.Key.r,82 as uint32)
+    assert(!old.is_valid() && !ground.is_valid() && state.model.motion==Model.Motion.hold)
+    InputCheck.click(state.ui,100.0,103.0);perform(state,simulation);assert(state.model.motion==Model.Motion.drive)
+    InputCheck.click(state.ui,330.0,103.0);perform(state,simulation);assert(state.model.motion==Model.Motion.coast)
+    InputCheck.click(state.ui,560.0,103.0);perform(state,simulation);assert(state.model.motion==Model.Motion.hold)
+    InputCheck.click(state.ui,1070.0,103.0);perform(state,simulation);assert(simulation.is_paused())
+    old=state.model.vehicle;InputCheck.click(state.ui,800.0,103.0);perform(state,simulation);assert(!old.is_valid() && !simulation.is_paused())
+    InputCheck.click(state.ui,100.0,149.0);perform(state,simulation);assert(!state.model.grip)
+    InputCheck.click(state.ui,330.0,149.0);perform(state,simulation);assert(state.model.sign== -1 && !state.model.grip)
+    InputCheck.click(state.ui,560.0,149.0);perform(state,simulation);assert(!state.model.soft && !state.model.grip && state.model.sign== -1)
+    InputCheck.click(state.ui,800.0,149.0);perform(state,simulation);assert(state.model.contact==Model.Contact.ray && !state.model.soft)
+    press(state,simulation,Input.Key.g,103 as uint32);assert(state.model.grip)
+    press(state,simulation,Input.Key.g,71 as uint32,true);assert(state.model.grip)
+    press(state,simulation,Input.Key.g,71 as uint32);press(state,simulation,Input.Key.g,0 as uint32);assert(state.model.grip)
+    press(state,simulation,Input.Key.i,105 as uint32);assert(state.model.sign==1)
+    press(state,simulation,Input.Key.i,73 as uint32,true);assert(state.model.sign==1)
+    press(state,simulation,Input.Key.i,73 as uint32);press(state,simulation,Input.Key.i,0 as uint32);assert(state.model.sign==1)
+    press(state,simulation,Input.Key.m,109 as uint32);assert(state.model.soft)
+    press(state,simulation,Input.Key.m,77 as uint32,true);assert(state.model.soft)
+    press(state,simulation,Input.Key.m,77 as uint32);press(state,simulation,Input.Key.m,0 as uint32);assert(state.model.soft)
+    press(state,simulation,Input.Key.t,116 as uint32);assert(state.model.contact==Model.Contact.sphere)
+    press(state,simulation,Input.Key.t,84 as uint32,true);assert(state.model.contact==Model.Contact.sphere)
+    press(state,simulation,Input.Key.t,84 as uint32);press(state,simulation,Input.Key.t,0 as uint32);assert(state.model.contact==Model.Contact.ray)
+    press(state,simulation,Input.Key.r,114 as uint32);press(state,simulation,Input.Key.r,0 as uint32)
+    simulation.pause();press(state,simulation,Input.Key.r,82 as uint32,true);assert(simulation.is_paused())
+    remember(state);render(world,state,camera);let pose=copy state.model.vehicle.chassis().transform()
+    assert(world.get<Components.Transform3D>(state.chassis).position==pose.position)
+    assert(world.get<Components.Transform3D>(state.floor).rotation==state.model.surface_rotation)
+    state.controls.automatic=true;assert(!state.controls.handle(InputCheck.key_event(Input.Key.z,122 as uint32)))
+    print("Hill controls: logical/uppercase/physical keys, repetition, real buttons, pause, persistent choices and recreation verified")
+}
+test "hill controls operate the real model through keys and buttons" { verify_controls() }
+func main() {
+    var smoke=false
+    for argument in Process.arguments() {
+        if argument=="--physics-check" { Model.verify_physics();Model.verify_recreation();return }
+        if argument=="--controls-check" { verify_controls();return }
+        if argument=="--smoke" { smoke=true }
+    }
+    var state=HillScene();var title="Voiture en pente — montée, freinage et adhérence"
+    if smoke { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe());title="TEST AUTOMATIQUE — voiture en pente — fermeture à la fin" }
+    Application() ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.ViewportCamera3D(camera_settings()))
+        ..add_system(Application.Schedule.startup,startup)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}

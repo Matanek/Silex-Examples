@@ -1083,3 +1083,17 @@ radius stay the same. R/G preserve the contact mode.
 
 `silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release`.
 [Guide français](Sources/Physics3D/VehicleSuspension/README.fr.md).
+
+## Uphill driving and grip comparison
+
+[VehicleHill](Sources/Physics3D/VehicleHill/README.md) places the four-wheel-drive
+car on an 11.5° slope. Z climbs, F brakes and X coasts. G recreates without tire
+grip: suspension still supports the car, but gravity makes it slide downhill
+even with the brakes applied. I reverses the slope and gearbox direction; M
+compares soft/firm suspension and T cycles ray, sphere and cylinder contacts.
+The physical wheels and chassis are rendered with a following camera and metric
+grid. This example uses constant friction coefficients for a bounded Coulomb
+comparison, separate from the variable tire curves in VehicleSuspension.
+
+`silex run Silex-Examples/Sources/Physics3D/VehicleHill/Main.sx --release`.
+[Guide français](Sources/Physics3D/VehicleHill/README.fr.md).
