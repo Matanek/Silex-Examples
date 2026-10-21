@@ -1,7 +1,8 @@
 # Inspect and operate a UI session on macOS
 
 This interactive example presents a **Nom** field, a **Valider** button and two
-feedback lines. It passes the session directly to Viewer, with no additional
+feedback lines, as well as checkboxes, a **Profil** radio group and a
+**Volume** slider. It passes the session directly to Viewer, with no additional
 accessibility wiring in application code.
 
 From the workspace root, using the development toolchain supporting protocol
@@ -17,8 +18,21 @@ through the tool must update the same feedback lines as mouse or keyboard
 input. With VoiceOver, check label/value reading, focus navigation, typing and
 activation. Move or resize the window to check the exposed geometry.
 
-This test qualifies the initial AppKit path; it does not qualify the remaining
-controls or Linux/Windows bridges.
+The button/text-field path has been confirmed with the inspector and VoiceOver.
+To qualify the new controls:
+
+1. Activate **Notifications**: its checked state and visible feedback change.
+2. Choose **Énergique** in **Profil**: exactly one option is checked;
+   **Indisponible** remains disabled.
+3. Adjust **Volume**: initial value 12, minimum 10, maximum 20; increment and
+   decrement actions update the same state as mouse dragging.
+4. Check **Verrouiller le volume**: the slider becomes disabled and rejects
+   changes; uncheck it to restore adjustment.
+5. Toggle **Notifications** again, then return to the group and slider:
+   references remain usable after the interface is reevaluated.
+
+Headless tests cover these actions and rejection of disabled actions. They do
+not qualify the new controls with VoiceOver or the Linux/Windows bridges.
 
 `--cpu-check` verifies the model and semantic actions without a window. It does
 not verify attachment to a real window or VoiceOver.

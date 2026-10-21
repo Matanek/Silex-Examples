@@ -3,20 +3,38 @@ use GFX.Canvas
 use GFX.Accessibility
 use GFX.Viewer
 use STD.Process
+use STD.Math
 
 class Model {
     var name:UI.State<str> = UI.State<str>("Ada")
     var presses:UI.State<int> = UI.State<int>(0)
+    var notifications:UI.State<bool> = UI.State<bool>(false)
+    var profile:UI.State<str?> = UI.State<str?>("Calme")
+    var volume:UI.State<float> = UI.State<float>(12.0)
+    var locked:UI.State<bool> = UI.State<bool>(false)
     func activate() { self.presses.set(self.presses.value() + 1) }
     func describe(reads:UI.Reads) UI.View {
         var title = UI.Text("Accessibilité — macOS"); title.style.font_size = 28.0
+        var slider = UI.Slider(self.volume, minimum:10.0, maximum:20.0)
+        slider.style.disabled = reads.read(self.locked)
+        let profile = reads.read(self.profile) ?? "aucun"
         var root = UI.Column([
             title,
-            UI.Text("Inspectez le champ Nom et le bouton Valider, puis essayez VoiceOver."),
+            UI.Text("Inspectez les contrôles, puis essayez leurs actions avec VoiceOver."),
             UI.Label("Nom", UI.TextField(self.name)),
             UI.Button("Valider", self.activate),
             UI.Text("Nom courant : $(reads.read(self.name))"),
-            UI.Text("Activations : $(reads.read(self.presses))")
+            UI.Text("Activations : $(reads.read(self.presses))"),
+            UI.Checkbox("Notifications", self.notifications),
+            UI.Accessible(UI.RadioGroup<str>([
+                UI.RadioOption<str>("Calme", "Calme"),
+                UI.RadioOption<str>("Énergique", "Énergique"),
+                UI.RadioOption<str>("Indisponible", "Indisponible", disabled:true)
+            ], self.profile), "Profil"),
+            UI.Label("Volume", slider),
+            UI.Checkbox("Verrouiller le volume", self.locked),
+            UI.Text("Notifications : $(reads.read(self.notifications)) · Profil : $(profile)"),
+            UI.Text("Volume : $(reads.read(self.volume)) — plage de 10 à 20")
         ])
         root.style.padding = UI.Insets(20.0); root.style.gap = 14.0
         return root
@@ -41,7 +59,7 @@ func named(source:Accessibility.Source, id:str, name:str, role:Accessibility.Rol
 func check_cpu() {
     var model = Model()
     var session:Canvas.Session = UI.Session(UI.Reactive(model.describe))
-    var drawing = session.drawing(720, 420)
+    var drawing = session.drawing(780, 820)
     var source = session.accessibility_source()!
     let root = source.root()!
     let field = named(source, root, "Nom", Accessibility.Role.text_field)!
@@ -50,9 +68,35 @@ func check_cpu() {
     assert(source.perform(field, Accessibility.Request(Accessibility.Action.focus)))
     assert(source.perform(field, Accessibility.Request(Accessibility.Action.set_value, text:"Été 👋")))
     assert(source.perform(button, Accessibility.Request(Accessibility.Action.activate)))
-    drawing = session.drawing(720, 420)
+    drawing = session.drawing(780, 820)
     assert(model.name.value() == "Été 👋" && model.presses.value() == 1)
     assert(source.read(field)!.value == "Été 👋" && source.focused() == field)
+    let check = named(source, root, "Notifications", Accessibility.Role.checkbox)!
+    let radios = named(source, root, "Profil", Accessibility.Role.radio_group)!
+    let calm = named(source, radios, "Calme", Accessibility.Role.radio)!
+    let energetic = named(source, radios, "Énergique", Accessibility.Role.radio)!
+    let unavailable = named(source, radios, "Indisponible", Accessibility.Role.radio)!
+    assert(source.perform(check, Accessibility.Request(Accessibility.Action.activate)))
+    assert(model.notifications.value() && source.read(check)!.checked == true)
+    assert(source.perform(energetic, Accessibility.Request(Accessibility.Action.activate)))
+    assert(model.profile.value() == "Énergique")
+    assert(source.read(calm)!.checked == false && source.read(energetic)!.checked == true)
+    assert(!source.read(unavailable)!.enabled)
+    assert(!source.perform(unavailable, Accessibility.Request(Accessibility.Action.activate)))
+    let slider = named(source, root, "Volume", Accessibility.Role.slider)!
+    assert(source.read(slider)!.minimum == 10.0 && source.read(slider)!.maximum == 20.0)
+    assert(source.perform(slider, Accessibility.Request(Accessibility.Action.increment)))
+    assert(Math.abs(model.volume.value() - 12.1) < 0.001)
+    assert(source.perform(slider, Accessibility.Request(Accessibility.Action.decrement)))
+    assert(Math.abs(model.volume.value() - 12.0) < 0.001)
+    assert(source.perform(slider, Accessibility.Request(Accessibility.Action.set_value, number:100.0)))
+    assert(model.volume.value() == 20.0)
+    let lock = named(source, root, "Verrouiller le volume", Accessibility.Role.checkbox)!
+    assert(source.perform(lock, Accessibility.Request(Accessibility.Action.activate)))
+    drawing = session.drawing(780, 820)
+    assert(!source.read(slider)!.enabled)
+    assert(!source.perform(slider, Accessibility.Request(Accessibility.Action.decrement)))
+    assert(model.volume.value() == 20.0)
     print("UIAccessibility CPU : OK")
 }
 
@@ -62,7 +106,7 @@ func main() {
     for argument in Process.arguments() { if argument == "--cpu-check" { check_cpu(); return } }
     var model = Model()
     var session = UI.Session(UI.Reactive(model.describe))
-    let code = Viewer.show(session, Viewer.CanvasSettings(width:720, height:420,
+    let code = Viewer.show(session, Viewer.CanvasSettings(width:780, height:820,
         title:"Silex — Accessibilité macOS J5"))
     if code != 0 { panic("Accessibility viewer failed") }
 }
