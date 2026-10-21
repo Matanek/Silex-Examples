@@ -1,0 +1,162 @@
+use GFX.Physics
+use STD.Math
+
+package enum Contact { ray; sphere; cylinder }
+package enum Motion { hold; drive; coast }
+package func contact_name(contact:Contact) str {
+    match contact {
+        ray => { return "Rayon" }
+        sphere => { return "Sphère" }
+        cylinder => { return "Cylindre 40 cm" }
+    }
+}
+package func maximum_length(soft:bool) float {
+    if soft { return 0.77985 }
+    return 0.6
+}
+package func stiffness(soft:bool) float {
+    if soft { return 1200.0 }
+    return 10000.0
+}
+func make_ground(world:Physics.World3D,normal:Math.Vec3) Physics.RigidBody3D {
+    return world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+        ..shape=Physics.Shape3D.plane(Physics.Plane3D(normal)) ..friction=1.0)
+}
+func make_vehicle(world:Physics.World3D,rotation:Math.Quat,grip:bool,contact:Contact,soft:bool) Physics.WheeledVehicle3D {
+    var coefficient=1.0;if !grip { coefficient=0.0 }
+    let friction=Physics.TireFrictionCurve3D([Math.Vec2(0.0,coefficient)])
+    let tire=Physics.Tire3DSettings(angular_damping:0.0,longitudinal_friction:friction,lateral_friction:friction)
+    var detector=Physics.WheelContact3D.ray
+    match contact {
+        ray => {}
+        sphere => { detector=Physics.WheelContact3D.sphere(0.3) }
+        cylinder => { detector=Physics.WheelContact3D.cylinder(0.4) }
+    }
+    var damping=1000.0;if soft { damping=160.0 }
+    var wheels:Physics.Wheel3DSettings[]=[];let sides:float[]=[-1.0,1.0]
+    for x in sides { for z in sides {
+        wheels.append(Physics.Wheel3DSettings(Math.Vec3(0.6*x,0.0,z),tire:tire,contact:detector,
+            maximum_length:maximum_length(soft),stiffness:stiffness(soft),damping:damping))
+    } }
+    return world.create_wheeled_vehicle(Physics.WheeledVehicle3DSettings(
+        Physics.RigidBody3DSettings() ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.4,0.4,2.4)))
+            ..transform=Physics.Transform3D(rotation.rotate(Math.Vec3(0.0,1.15,0.0)),rotation)
+            ..mass_properties=Physics.MassProperties3D(100.0,Math.Vec3(100.0))
+            ..allow_sleep=false ..linear_damping=0.0 ..angular_damping=0.0 ..friction=0.0,wheels,
+        engine:Physics.VehicleEngine3DSettings(maximum_torque:40.0,minimum_rpm:0.0,angular_damping:0.0,torque_curve:[Math.Vec2(0.0,1.0)]),
+        transmission:Physics.VehicleTransmission3DSettings(mode:Physics.VehicleTransmissionMode3D.manual,gear_ratios:[1.0],reverse_gear_ratios:[-1.0]),
+        differentials:[Physics.VehicleDifferential3DSettings(0,2,ratio:3.0,engine_torque_ratio:0.5),Physics.VehicleDifferential3DSettings(1,3,ratio:3.0,engine_torque_ratio:0.5)]))
+}
+
+package class HillModel {
+    var world:Physics.World3D=Physics.World3D()
+    var ground:Physics.RigidBody3D
+    var vehicle:Physics.WheeledVehicle3D
+    var sign:int=1
+    var grip:bool=true
+    var soft:bool=true
+    var contact:Contact=Contact.cylinder
+    var motion:Motion=Motion.hold
+    var surface_rotation:Math.Quat
+    var normal:Math.Vec3
+    var forward:Math.Vec3
+    var steps:int=0
+    init(sign:int=1,grip:bool=true,contact:Contact=Contact.cylinder,soft:bool=true) {
+        self.sign=sign;self.grip=grip;self.contact=contact;self.soft=soft
+        let rotation=Math.Quat.angle_axis(-0.2*sign as float,Math.Vec3.right())
+        self.surface_rotation=rotation;self.normal=Physics.Plane3D(rotation.rotate(Math.Vec3.up())).normal
+        self.forward=rotation.rotate(Math.Vec3(0.0,0.0,1.0))
+        self.ground=make_ground(self.world,self.normal);self.vehicle=make_vehicle(self.world,rotation,grip,contact,soft)
+        self.vehicle.set_transmission(sign);self.vehicle.set_controls(brake:1.0)
+    }
+    func reset() {
+        self.world.destroy_wheeled_vehicle(self.vehicle);self.world.destroy_rigid_body(self.ground)
+        self.surface_rotation=Math.Quat.angle_axis(-0.2*self.sign as float,Math.Vec3.right())
+        self.normal=Physics.Plane3D(self.surface_rotation.rotate(Math.Vec3.up())).normal
+        self.forward=self.surface_rotation.rotate(Math.Vec3(0.0,0.0,1.0))
+        self.ground=make_ground(self.world,self.normal)
+        self.vehicle=make_vehicle(self.world,self.surface_rotation,self.grip,self.contact,self.soft)
+        self.vehicle.set_transmission(self.sign);self.motion=Motion.hold;self.vehicle.set_controls(brake:1.0);self.steps=0
+    }
+    func set_motion(value:Motion) {
+        self.motion=value;var throttle=0.0;var brake=0.0
+        match value {
+            drive => { throttle=0.8*self.sign as float }
+            hold => { brake=1.0 }
+            coast => {}
+        }
+        self.vehicle.set_controls(throttle:throttle,brake:brake)
+    }
+    func toggle_grip() { self.grip=!self.grip;self.reset() }
+    func toggle_slope() { self.sign= -self.sign;self.reset() }
+    func toggle_suspension() { self.soft=!self.soft;self.reset() }
+    func toggle_contact() {
+        match self.contact {
+            ray => { self.contact=Contact.sphere }
+            sphere => { self.contact=Contact.cylinder }
+            cylinder => { self.contact=Contact.ray }
+        }
+        self.reset()
+    }
+    func step(delta:float) { self.world.step(delta);if delta>0.0 { self.steps++ } }
+    func progress() float { return self.vehicle.chassis().position().dot(self.forward)*self.sign as float }
+    func speed() float { return self.vehicle.chassis().linear_velocity().dot(self.forward)*self.sign as float }
+    func height() float { return self.vehicle.chassis().position().dot(self.normal) }
+    func expected_height() float { return 0.3+maximum_length(self.soft)-981.0*Math.cos(0.2)/(4.0*stiffness(self.soft)) }
+    func supports() int { var count=0;for i in [0,1,2,3] { if self.vehicle.wheel(i).support()!=null { count++ } }
+        return count
+    }
+    func force() float { var total=0.0;for i in [0,1,2,3] { total+=self.vehicle.wheel(i).normal_force }
+        return total
+    }
+    func verify() {
+        var body=self.vehicle.chassis()
+        assert(self.world.body_count()==2 && self.vehicle.wheel_count()==4)
+        assert(self.height()>0.5 && self.height()<2.0 && body.position().length()<150.0)
+        assert(body.linear_velocity().length()<25.0 && body.angular_velocity().length()<8.0)
+        assert(Math.abs(body.rotation().length_squared()-1.0)<0.0001)
+        for i in [0,1,2,3] { var wheel=self.vehicle.wheel(i);assert(wheel.length>=0.0 && wheel.length<=maximum_length(self.soft)+0.00001 && wheel.normal_force>=0.0 && wheel.normal_force<20000.0) }
+    }
+}
+
+package func verify_physics() {
+    let signs:int[]=[-1,1];let choices:bool[]=[false,true]
+    let contacts:Contact[]=[Contact.ray,Contact.sphere,Contact.cylinder]
+    for sign in signs { for contact in contacts { for soft in choices { for grip in choices { for rate in [60,120] {
+        var model=HillModel(sign:sign,grip:grip,contact:contact,soft:soft)
+        var before=0.0;var climbed=0.0;var weight=0.0;var samples=0;var step=0
+        while step<rate*8 {
+            if step==rate*2 { before=model.progress();model.set_motion(Motion.drive) }
+            if step==rate*5 { climbed=model.progress()-before;model.set_motion(Motion.hold) }
+            model.step(1.0/rate as float);model.verify()
+            if grip && step>=rate*7 {
+                assert(model.supports()==4 && Math.abs(model.height()-model.expected_height())<0.003)
+                weight+=model.force();samples++
+            }
+            step++
+        }
+        if grip {
+            assert(climbed>1.0 && Math.abs(model.speed())<0.05 && samples==rate)
+            assert(Math.abs(weight/samples as float-981.0*Math.cos(0.2))<2.0)
+        } else {
+            assert(Math.abs(model.speed()+9.81*Math.sin(0.2)*8.0)<0.002)
+            let expected= -9.81*Math.sin(0.2)*(rate*8) as float*(rate*8+1) as float/(2.0*rate as float*rate as float)
+            assert(Math.abs(model.progress()-expected)<0.005)
+        }
+        print("Hill $(rate) Hz $(contact_name(contact)) soft=$(soft) grip=$(grip) sign=$(sign): climb=$(climbed), final speed=$(model.speed()), height=$(model.height())")
+    } } } } }
+    print("Hill physics: mirrored uphill drive, braking, gravity-only sliding and suspension recovery verified at 60/120 Hz")
+}
+package func verify_recreation() {
+    var model=HillModel();var old=model.vehicle;var floor=model.ground;var body=old.chassis()
+    model.set_motion(Motion.drive);model.step(0.0);assert(model.steps==0)
+    model.reset();assert(!old.is_valid() && !body.is_valid() && !floor.is_valid() && model.world.body_count()==2)
+    assert(model.grip && model.soft && model.sign==1 && model.contact==Contact.cylinder && model.motion==Motion.hold)
+    model.toggle_slope();model.toggle_grip();model.toggle_suspension();model.toggle_contact()
+    assert(model.sign== -1 && !model.grip && !model.soft && model.contact==Contact.ray && model.motion==Motion.hold)
+    old=model.vehicle;model.reset();assert(!old.is_valid() && model.sign== -1 && !model.grip && !model.soft && model.contact==Contact.ray)
+    model.toggle_contact();model.toggle_contact();assert(model.contact==Contact.cylinder && model.world.body_count()==2)
+    print("Hill recreation: vehicle and floor lifetime, choices, released controls and zero step verified")
+}
+test "hill drive climbs, brakes and loses grip through real tire forces" { verify_physics() }
+test "hill choices survive recreation and invalidate both old handles" { verify_recreation() }

@@ -1,0 +1,91 @@
+use GFX.Color
+use GFX.Input
+use GFX.Input.Events
+use GFX.UI
+use Physics3D.VehicleHill.Model
+
+func letter(key:@Events.KeyEvent,lower:uint32,upper:uint32,physical:Input.Key) bool {
+    return key.keycode==lower || key.keycode==upper || (key.keycode==0 as uint32 && key.key==physical)
+}
+package class HillControls {
+    var motion:Model.Motion?=null
+    var resets:int=0
+    var pauses:int=0
+    var grips:int=0
+    var slopes:int=0
+    var suspensions:int=0
+    var contacts:int=0
+    var automatic:bool=false
+    var pause_text:UI.State<str> =UI.State<str>("Pause (Espace)")
+    var grip_text:UI.State<str> =UI.State<str>("Adhérence active (G)")
+    var suspension_text:UI.State<str> =UI.State<str>("Souple (M)")
+    var contact_text:UI.State<str> =UI.State<str>("Cylindre 40 cm (T)")
+    var feedback:UI.State<str> =UI.State<str>("Attendre la réception puis Z pour monter. F freine ; G compare sans adhérence. Les gaz restent actifs jusqu’à X ou F.")
+    var measure:UI.State<str> =UI.State<str>("")
+    var power:UI.State<str> =UI.State<str>("")
+    func drive() { self.motion=Model.Motion.drive }
+    func coast() { self.motion=Model.Motion.coast }
+    func brake() { self.motion=Model.Motion.hold }
+    func reset() { self.resets++ }
+    func pause() { self.pauses++ }
+    func toggle_grip() { self.grips++ }
+    func toggle_slope() { self.slopes++ }
+    func toggle_suspension() { self.suspensions++ }
+    func toggle_contact() { self.contacts++ }
+    func button(text:str,action:func()) UI.Button {
+        var button=UI.Button(text,action)
+        button.style.width=220.0;button.style.height=38.0;button.style.radius=5.0;button.style.background=Color.slate_700()
+        return button
+    }
+    func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause) }
+    func grip_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.grip_text),self.toggle_grip) }
+    func suspension_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.suspension_text),self.toggle_suspension) }
+    func contact_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.contact_text),self.toggle_contact) }
+    func status(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.feedback)) }
+    func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
+    func engine_metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.power)) }
+    func describe() UI.View {
+        var actions=UI.Row([self.button("Monter (Z)",self.drive),self.button("Roue libre (X)",self.coast),self.button("Freiner (F)",self.brake),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button)])
+        actions.style.gap=12.0
+        var choices=UI.Row([UI.Reactive(self.grip_button),self.button("Autre sens (I)",self.toggle_slope),UI.Reactive(self.suspension_button),UI.Reactive(self.contact_button)])
+        choices.style.gap=12.0
+        var title=UI.Text("Voiture en pente — montée, freinage et adhérence");title.style.height=28.0
+        var help=UI.Text("Z : monter · X : roue libre · F : freiner · G : adhérence · I : sens de pente · M : suspension · T : contacts · R : recréer · Échap : quitter");help.style.height=24.0
+        var rows:UI.View[]=[title,help,actions,choices,UI.Reactive(self.status),UI.Reactive(self.metrics),UI.Reactive(self.engine_metrics)]
+        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — conduite en pente — fermeture à la fin"),UI.Reactive(self.metrics),UI.Reactive(self.engine_metrics)] }
+        var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
+        root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0
+        return root
+    }
+    func handle(event:@Events.Event) bool {
+        if self.automatic { return false }
+        match event {
+            key_pressed(key) => {
+                let drive=letter(key,122 as uint32,90 as uint32,Input.Key.z)
+                let coast=letter(key,120 as uint32,88 as uint32,Input.Key.x)
+                let brake=letter(key,102 as uint32,70 as uint32,Input.Key.f)
+                let reset=letter(key,114 as uint32,82 as uint32,Input.Key.r)
+                let grip=letter(key,103 as uint32,71 as uint32,Input.Key.g)
+                let slope=letter(key,105 as uint32,73 as uint32,Input.Key.i)
+                let suspension=letter(key,109 as uint32,77 as uint32,Input.Key.m)
+                let contact=letter(key,116 as uint32,84 as uint32,Input.Key.t)
+                if drive || coast || brake || reset || grip || slope || suspension || contact || key.key==Input.Key.space {
+                    if !key.repeated {
+                        if drive { self.drive() }
+                        else if coast { self.coast() }
+                        else if brake { self.brake() }
+                        else if reset { self.reset() }
+                        else if grip { self.toggle_grip() }
+                        else if slope { self.toggle_slope() }
+                        else if suspension { self.toggle_suspension() }
+                        else if contact { self.toggle_contact() }
+                        else { self.pause() }
+                    }
+                    return true
+                }
+            }
+            else => {}
+        }
+        return false
+    }
+}
