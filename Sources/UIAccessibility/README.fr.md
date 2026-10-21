@@ -5,6 +5,12 @@ ainsi que des cases à cocher, un groupe **Profil**, un curseur **Volume** et
 leurs lignes de retour. La session se passe directement à Viewer : aucun
 câblage d’accessibilité supplémentaire dans l’application.
 
+Le bouton **Masquer les contours des cases et radios** permet de comparer le
+contour par défaut et `FocusAppearance.none()`. Il agit sur les deux cases et
+sur le groupe ; le slider conserve son réglage de focus habituel. La navigation
+et l’activation restent disponibles. Le thème sombre fournit des libellés
+clairs sur le fond du Viewer, et la page défile si la fenêtre est trop petite.
+
 Depuis la racine du workspace, avec la toolchain de développement qui prend en
 charge les méthodes de protocole avec corps :
 

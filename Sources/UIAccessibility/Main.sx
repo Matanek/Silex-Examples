@@ -12,32 +12,42 @@ class Model {
     var profile:UI.State<str?> = UI.State<str?>("Calme")
     var volume:UI.State<float> = UI.State<float>(12.0)
     var locked:UI.State<bool> = UI.State<bool>(false)
+    var hidden_focus:UI.State<bool> = UI.State<bool>(false)
     func activate() { self.presses.set(self.presses.value() + 1) }
+    func toggle_focus() { self.hidden_focus.set(!self.hidden_focus.value()) }
     func describe(reads:UI.Reads) UI.View {
         var title = UI.Text("Accessibilité — macOS"); title.style.font_size = 28.0
         var slider = UI.Slider(self.volume, minimum:10.0, maximum:20.0)
         slider.style.disabled = reads.read(self.locked)
+        var choices = UI.Style()
+        var focus_label = "Masquer les contours des cases et radios"
+        if reads.read(self.hidden_focus) {
+            choices.focus = UI.FocusAppearance.none()
+            focus_label = "Afficher les contours des cases et radios"
+        }
         let profile = reads.read(self.profile) ?? "aucun"
         var root = UI.Column([
             title,
-            UI.Text("Inspectez les contrôles, puis essayez leurs actions avec VoiceOver."),
+            UI.Text("Essayez les contrôles et l’option de contour. Tab conserve la navigation."),
+            UI.Button(focus_label, self.toggle_focus),
             UI.Label("Nom", UI.TextField(self.name)),
             UI.Button("Valider", self.activate),
             UI.Text("Nom courant : $(reads.read(self.name))"),
             UI.Text("Activations : $(reads.read(self.presses))"),
-            UI.Checkbox("Notifications", self.notifications),
+            UI.Checkbox("Notifications", self.notifications, style:choices),
             UI.Accessible(UI.RadioGroup<str>([
                 UI.RadioOption<str>("Calme", "Calme"),
                 UI.RadioOption<str>("Énergique", "Énergique"),
                 UI.RadioOption<str>("Indisponible", "Indisponible", disabled:true)
-            ], self.profile), "Profil"),
+            ], self.profile, style:choices), "Profil"),
             UI.Label("Volume", slider),
-            UI.Checkbox("Verrouiller le volume", self.locked),
+            UI.Checkbox("Verrouiller le volume", self.locked, style:choices),
             UI.Text("Notifications : $(reads.read(self.notifications)) · Profil : $(profile)"),
             UI.Text("Volume : $(reads.read(self.volume)) — plage de 10 à 20")
         ])
         root.style.padding = UI.Insets(20.0); root.style.gap = 14.0
-        return root
+        root.style.theme = UI.Theme.dark()
+        return UI.ScrollView(root, smooth_scroll:true)
     }
 }
 
@@ -54,6 +64,27 @@ func named(source:Accessibility.Source, id:str, name:str, role:Accessibility.Rol
         }
     }
     return null
+}
+
+func visible_text(commands:Canvas.Command[]) int {
+    var count = 0
+    for command in commands { match command {
+        text(value) => {
+            let color = value.style.color
+            assert(color.r > 0.5 && color.g > 0.5 && color.b > 0.5 && color.a > 0.0)
+            count++
+        }
+        layer(value) => { count += visible_text(value.commands()) }
+        else => {}
+    } }
+    return count
+}
+
+test "the dark accessibility demo paints readable labels instead of dark text on the viewer background" {
+    var model = Model()
+    var session = UI.Session(UI.Reactive(model.describe))
+    var drawing = session.drawing(780, 820)
+    assert(visible_text(drawing.commands()) >= 10)
 }
 
 func check_cpu() {
@@ -97,6 +128,12 @@ func check_cpu() {
     assert(!source.read(slider)!.enabled)
     assert(!source.perform(slider, Accessibility.Request(Accessibility.Action.decrement)))
     assert(model.volume.value() == 20.0)
+    let toggle = named(source, root, "Masquer les contours des cases et radios", Accessibility.Role.button)!
+    assert(source.perform(toggle, Accessibility.Request(Accessibility.Action.activate)))
+    drawing = session.drawing(780, 820)
+    assert(model.hidden_focus.value() && visible_text(drawing.commands()) >= 10)
+    assert(source.perform(toggle, Accessibility.Request(Accessibility.Action.activate)))
+    assert(!model.hidden_focus.value())
     print("UIAccessibility CPU : OK")
 }
 

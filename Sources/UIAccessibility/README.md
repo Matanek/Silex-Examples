@@ -5,6 +5,12 @@ feedback lines, as well as checkboxes, a **Profil** radio group and a
 **Volume** slider. It passes the session directly to Viewer, with no additional
 accessibility wiring in application code.
 
+The **Masquer les contours des cases et radios** button compares the default
+outline with `FocusAppearance.none()`. It applies to both checkboxes and the
+radio group; the slider keeps its usual focus setting. Navigation and activation
+remain available. The dark theme provides light labels against the Viewer
+background, and the page scrolls when the window is too small.
+
 From the workspace root, using the development toolchain supporting protocol
 method bodies:
 
