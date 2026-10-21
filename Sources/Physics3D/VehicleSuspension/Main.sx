@@ -37,6 +37,11 @@ class SuspensionScene {
     var narrow_frames:int=0
     var body_pitch:float=0.0
     var body_dive:float=0.0
+    var free_tilt_peak:float=0.0
+    var limited_tilt_peak:float=0.0
+    var topple_frames:int=0
+    var topple_rest_force:float=0.0
+    var topple_rest_samples:int=0
     var anti_left:float=0.0
     var anti_right:float=0.0
     var body_left:float=0.0
@@ -87,6 +92,8 @@ func remember(state:&SuspensionScene) {
 func labels(state:&SuspensionScene,simulation:@Application.Simulation) {
     var pause="Pause (Espace)";if simulation.is_paused() { pause="Reprendre (Espace)" }
     if state.controls.pause_text.value()!=pause { state.controls.pause_text.set(pause) }
+    var tilt="Limite inactive (L)";if state.model.limited_tilt { tilt="Limite 45° (L)" }
+    if state.controls.tilt_text.value()!=tilt { state.controls.tilt_text.set(tilt) }
     var anti_roll="Anti-roulis inactif (A)";if state.model.anti_roll { anti_roll="Anti-roulis actif (A)" }
     if state.controls.anti_roll_text.value()!=anti_roll { state.controls.anti_roll_text.set(anti_roll) }
     var suspension="Ferme (M)";if state.model.soft { suspension="Souple (M)" }
@@ -94,6 +101,7 @@ func labels(state:&SuspensionScene,simulation:@Application.Simulation) {
     let body_pose=state.model.vehicle.chassis().transform()
     let pitch=Math.round(Math.degrees(Model.pitch(body_pose))*10.0)/10.0
     let roll=Math.round(Math.degrees(Model.roll(body_pose))*10.0)/10.0
+    let tilt_angle=Math.round(Math.degrees(Model.tilt(body_pose))*10.0)/10.0
     let contact_name=Model.contact_name(state.model.contacts)
     let contact="$(contact_name) (T)"
     if state.controls.contact_text.value()!=contact { state.controls.contact_text.set(contact) }
@@ -104,7 +112,7 @@ func labels(state:&SuspensionScene,simulation:@Application.Simulation) {
     let power=state.model.vehicle.powertrain()
     let rpm=Math.round(power.engine_rpm) as int;let clutch=Math.round(power.clutch*100.0) as int;let throttle=Math.round(state.model.throttle*100.0) as int
     var shift="";if power.switching_gear { shift=" · changement en cours" }
-    let power_text="Moteur $(rpm) RPM · rapport $(power.gear) · embrayage $(clutch)% · accélérateur $(throttle)%$(shift) · tangage $(pitch)° · roulis $(roll)°"
+    let power_text="Moteur $(rpm) RPM · rapport $(power.gear) · embrayage $(clutch)% · accélérateur $(throttle)%$(shift) · tangage $(pitch)° · roulis $(roll)° · inclinaison $(tilt_angle)°"
     if state.controls.power_measure.value()!=power_text { state.controls.power_measure.set(power_text) }
     let turn=Math.round(Math.degrees(state.model.vehicle.wheel(1).steering_angle)) as int
     let height=Math.round(state.model.vehicle.chassis().position().y*100.0) as int
@@ -118,6 +126,14 @@ func labels(state:&SuspensionScene,simulation:@Application.Simulation) {
 }
 func perform(state:&SuspensionScene,simulation:&Application.Simulation) {
     var changed=false
+    while state.controls.tilt_changes>0 {
+        state.controls.tilt_changes--;state.model.toggle_tilt_limit();remember(state);state.accumulator=0.0;simulation.resume();changed=true
+        state.controls.feedback.set("Limite changée et véhicule recréé — attendre la réception puis O pour comparer le même basculement, libre ou limité à 45°.")
+    }
+    while state.controls.topples>0 {
+        state.controls.topples--;state.model.topple();simulation.resume();changed=true
+        state.controls.feedback.set("Basculement lancé — le châssis bondit avec une impulsion de roulis. L recrée l’autre réglage ; attendre la réception puis refaire O.")
+    }
     while state.controls.anti_roll_changes>0 {
         state.controls.anti_roll_changes--;state.model.toggle_anti_roll();remember(state);state.accumulator=0.0;simulation.resume();changed=true
         state.controls.feedback.set("Anti-roulis changé et véhicule recréé — Z puis ←/→ : comparer l’inclinaison de caisse. A conserve la suspension et les pneus choisis.")
@@ -222,6 +238,7 @@ func verify_framing(world:@Resources.World,state:@SuspensionScene,view:Scene3D.T
     let sides:int[]=[-1,1]
     for x in sides { for y in sides { for z in sides {
         let point=camera.project(pose.point(Math.Vec3(1.02*x as float,0.2*y as float,1.3*z as float)),view,Math.Vec2(1280.0,800.0))!
+        if state.phase>=51 && (point.y<=378.0 || point.y>=780.0) { print("Topple framing phase=$(state.phase) y=$(point.y) body=$(pose.position.y)") }
         assert(point.x>20.0 && point.x<1260.0 && point.y>378.0 && point.y<780.0)
     } } }
     for i in [0,1,2,3] {
@@ -229,6 +246,7 @@ func verify_framing(world:@Resources.World,state:@SuspensionScene,view:Scene3D.T
         for x in sides { for y in sides { for z in sides {
             let corner=tire.position.add(tire.rotation.rotate(Math.Vec3(0.3*x as float,0.1*y as float,0.3*z as float)))
             let point=camera.project(corner,view,Math.Vec2(1280.0,800.0))!
+            if state.phase>=51 && (point.y<=378.0 || point.y>=780.0) { print("Topple framing phase=$(state.phase) y=$(point.y) body=$(pose.position.y)") }
             assert(point.x>20.0 && point.x<1260.0 && point.y>378.0 && point.y<780.0)
         } } }
     }
@@ -241,6 +259,7 @@ func verify_framing(world:@Resources.World,state:@SuspensionScene,view:Scene3D.T
             if let support=wheel.support() {
                 if support.same_body(state.model.barrier!) {
                     let point=camera.project(wheel.contact_point,view,Math.Vec2(1280.0,800.0))!
+                    if state.phase>=51 && (point.y<=378.0 || point.y>=780.0) { print("Topple framing phase=$(state.phase) y=$(point.y) body=$(pose.position.y)") }
                     assert(point.x>20.0 && point.x<1260.0 && point.y>378.0 && point.y<780.0)
                 }
             }
@@ -425,6 +444,31 @@ func smoke_commands(state:&SuspensionScene,simulation:&Application.Simulation,co
             assert(!old_body.is_valid() && !state.model.anti_roll && state.model.soft && !simulation.is_paused())
             state.controls.toggle_anti_roll();perform(state,simulation);assert(state.model.anti_roll)
             print("Anti-roll smoke: mirrored driving roll reduced, physical body/wheel rendering, pause and bar recreation verified; previous body motion/contact/driving checks preserved")
+            state.phase=51
+        }
+    } else if state.phase==51 && state.model.steps>=360 {
+        state.model.verify_rest();assert(!state.model.limited_tilt)
+        state.controls.topple();perform(state,simulation);state.phase_start=state.model.steps;state.phase=52
+    } else if state.phase==52 && state.model.steps-state.phase_start>=600 {
+        assert(state.free_tilt_peak>Math.half_pi() && state.topple_frames>0)
+        state.controls.toggle_tilt_limit();perform(state,simulation);assert(state.model.limited_tilt && state.model.anti_roll && state.model.soft)
+        state.phase=53
+    } else if state.phase==53 && state.model.steps>=360 {
+        state.model.verify_rest();state.lost=false;state.returned=false
+        state.controls.topple();perform(state,simulation);state.phase_start=state.model.steps;state.phase=54
+    } else if state.phase==54 && state.model.steps-state.phase_start>=600 {
+        assert(state.limited_tilt_peak>0.6 && state.limited_tilt_peak<0.9 && state.lost && state.returned)
+        assert(Model.tilt(state.model.vehicle.chassis().transform())<0.01 && state.model.vehicle.chassis().linear_velocity().length()<0.05)
+        assert(state.topple_rest_samples==120 && Math.abs(state.topple_rest_force/120.0-981.0)<2.0)
+        state.controls.pause();perform(state,simulation);state.held=copy state.model.vehicle.chassis().transform();state.pause_frames=0;state.phase=55
+    } else if state.phase==55 {
+        assert(simulation.is_paused() && state.model.vehicle.chassis().transform()==state.held)
+        state.pause_frames++
+        if state.pause_frames==8 {
+            var old_body=state.model.vehicle.chassis();state.controls.toggle_tilt_limit();perform(state,simulation)
+            assert(!old_body.is_valid() && !state.model.limited_tilt && state.model.soft && state.model.anti_roll && !simulation.is_paused())
+            state.controls.toggle_tilt_limit();perform(state,simulation);assert(state.model.limited_tilt)
+            print("Tilt limit smoke: real angular impulse, free toppling, bounded tilt, physical rendering, pause and recreation verified; previous anti-roll/contact/driving checks preserved")
             controller.stop()
         }
     }
@@ -441,7 +485,18 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&Suspension
         remember(state);let loaded=state.model.load_remaining>0.0
         state.model.step(1.0/120.0);state.accumulator-=1.0/120.0
         if state.smoke {
-            state.model.verify()
+            if state.phase>=51 { Model.verify_topple_state(state.model) } else { state.model.verify() }
+            if state.phase==52 { state.free_tilt_peak=Math.max(state.free_tilt_peak,Model.tilt(state.model.vehicle.chassis().transform())) }
+            if state.phase==54 {
+                state.limited_tilt_peak=Math.max(state.limited_tilt_peak,Model.tilt(state.model.vehicle.chassis().transform()))
+                if state.model.supports()==0 { state.lost=true }
+                if state.lost && state.model.supports()==4 { state.returned=true }
+                let elapsed=state.model.steps-state.phase_start
+                if elapsed>480 && elapsed<=600 {
+                    assert(state.model.supports()==4 && Math.abs(state.model.vehicle.chassis().position().y-0.875475)<0.003)
+                    state.topple_rest_force+=state.model.force();state.topple_rest_samples++
+                }
+            }
             if state.phase==1 {
                 if state.model.supports()==0 { state.lost=true }
                 if state.lost && state.model.supports()==4 { state.returned=true }
@@ -540,7 +595,9 @@ func render(world:&Resources.World,state:&SuspensionScene,camera:&Resources.View
         state.barrier_visible=state.model.obstacle
         world.update<Components.Mesh3D>(state.barrier,func(m:&Components.Mesh3D) { m.visible=state.barrier_visible })
     }
-    camera.set_target(Math.Vec3(pose.position.x,2.85,pose.position.z))
+    var target_y=2.85
+    if state.model.topples>0 { target_y=Math.max(2.85,pose.position.y+1.975) }
+    camera.set_target(Math.Vec3(pose.position.x,target_y,pose.position.z))
     let view=camera.transform()
     if world.is_alive(camera.entity()) {
         world.update<Components.Transform3D>(camera.entity(),func(t:&Components.Transform3D) { t.position=view.position;t.rotation=view.rotation })
@@ -563,6 +620,7 @@ func render(world:&Resources.World,state:&SuspensionScene,camera:&Resources.View
         assert(actual.position.nearly_equal(view.position,0.00001) && actual.rotation==view.rotation)
         verify_framing(world,state,Scene3D.Transform(actual.position,actual.rotation))
         if state.model.obstacle { state.obstacle_frames++ }
+        if state.phase>=51 { state.topple_frames++ }
         if state.model.soft {
             state.body_frames++
             assert(world.get<Components.Transform3D>(state.chassis).rotation==pose.rotation)
@@ -660,14 +718,32 @@ func verify_controls() {
     InputCheck.click(state.ui,800.0,149.0);perform(state,simulation);assert(!state.model.anti_roll)
     assert(state.controls.handle(InputCheck.key_event(Input.Key.a,0 as uint32)));perform(state,simulation);assert(state.model.anti_roll)
     assert(state.controls.handle(InputCheck.key_event(Input.Key.a,65 as uint32)));perform(state,simulation);assert(!state.model.anti_roll)
+    let before_soft=state.model.soft;let before_bars=state.model.anti_roll;let before_contact=state.model.contacts;let before_grip=state.model.grip
+    old=state.model.vehicle;simulation.pause()
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.x,108 as uint32)));perform(state,simulation)
+    assert(!old.is_valid() && state.model.limited_tilt && state.model.soft==before_soft && state.model.anti_roll==before_bars && state.model.contacts==before_contact && state.model.grip==before_grip && !simulation.is_paused())
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.l,76 as uint32,true)));perform(state,simulation);assert(state.model.limited_tilt)
+    state.controls.reset();state.controls.toggle_suspension();state.controls.toggle_contact();state.controls.toggle_grip();state.controls.toggle_anti_roll();perform(state,simulation)
+    assert(state.model.limited_tilt)
+    InputCheck.click(state.ui,1070.0,149.0);perform(state,simulation);assert(!state.model.limited_tilt)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.l,0 as uint32)));perform(state,simulation);assert(state.model.limited_tilt)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.l,76 as uint32)));perform(state,simulation);assert(!state.model.limited_tilt)
+    simulation.pause();assert(state.controls.handle(InputCheck.key_event(Input.Key.x,111 as uint32)));perform(state,simulation)
+    assert(state.model.topples==1 && !simulation.is_paused() && state.model.vehicle.chassis().angular_velocity().length()>3.9)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.o,79 as uint32,true)));perform(state,simulation);assert(state.model.topples==1)
+    state.controls.reset();perform(state,simulation);InputCheck.click(state.ui,1070.0,103.0);perform(state,simulation);assert(state.model.topples==1)
+    state.controls.reset();perform(state,simulation);assert(state.controls.handle(InputCheck.key_event(Input.Key.o,0 as uint32)));perform(state,simulation);assert(state.model.topples==1)
+    state.controls.reset();perform(state,simulation);assert(state.controls.handle(InputCheck.key_event(Input.Key.o,79 as uint32)));perform(state,simulation);assert(state.model.topples==1)
     state.controls.automatic=true;assert(!state.controls.handle(InputCheck.key_event(Input.Key.b,98 as uint32)))
+    assert(!state.controls.handle(InputCheck.key_event(Input.Key.l,108 as uint32)) && !state.controls.handle(InputCheck.key_event(Input.Key.o,111 as uint32)))
     print("Suspension controls: logical keys, physical fallback, uppercase, repetition, buttons, pause and recreation verified")
 }
 test "vehicle controls reach actions through keys and buttons while preserving pause" { verify_controls() }
 func main() {
     var smoke=false
     for argument in Process.arguments() {
-        if argument=="--physics-check" { Model.verify_physics();Model.verify_rolling();Model.verify_driving();Model.verify_powered();Model.verify_obstacle();Model.verify_width();Model.verify_body_motion();Model.verify_anti_roll();return }
+        if argument=="--physics-check" { Model.verify_physics();Model.verify_rolling();Model.verify_driving();Model.verify_powered();Model.verify_obstacle();Model.verify_width();Model.verify_body_motion();Model.verify_anti_roll();Model.verify_tilt_limit();return }
+        if argument=="--tilt-check" { Model.verify_tilt_limit();return }
         if argument=="--anti-roll-check" { Model.verify_anti_roll();return }
         if argument=="--body-check" { Model.verify_body_motion();return }
         if argument=="--controls-check" { verify_controls();return }
@@ -676,7 +752,7 @@ func main() {
     var contacts=Model.ContactMode.wide;if smoke { contacts=Model.ContactMode.ray }
     var state=SuspensionScene(obstacle:!smoke,contacts:contacts,soft:!smoke)
     if smoke { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe()) }
-    var title="Suspensions — anti-roulis"
+    var title="Suspensions — protection au basculement"
     if state.smoke { title="TEST AUTOMATIQUE — suspensions et mouvements de caisse — fermeture à la fin" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))

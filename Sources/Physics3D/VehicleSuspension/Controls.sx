@@ -4,6 +4,12 @@ use GFX.Input.Events
 use GFX.UI
 
 package class SuspensionControls {
+    var tilt_changes:int=0
+    var tilt_text:UI.State<str> =UI.State<str>("Limite inactive (L)")
+    var topples:int=0
+    func toggle_tilt_limit() { self.tilt_changes++ }
+    func tilt_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.tilt_text),self.toggle_tilt_limit) }
+    func topple() { self.topples++ }
     var anti_roll_changes:int=0
     var anti_roll_text:UI.State<str> =UI.State<str>("Anti-roulis inactif (A)")
     var suspension_changes:int=0
@@ -27,7 +33,7 @@ package class SuspensionControls {
     var pauses:int=0
     var automatic:bool=false
     var pause_text:UI.State<str> =UI.State<str>("Pause (Espace)")
-    var feedback:UI.State<str> =UI.State<str>("Suspensions souples : Z accélère, X puis F freine, ←/→ braquent. M compare avec le réglage ferme ; A compare l’anti-roulis ; R recrée.")
+    var feedback:UI.State<str> =UI.State<str>("Attendre la réception puis O pour basculer. L recrée avec une limite à 45° ; refaire O pour comparer. Z accélère, M compare les suspensions, A l’anti-roulis.")
     var measure:UI.State<str> =UI.State<str>("")
     func toggle_anti_roll() { self.anti_roll_changes++ }
     func anti_roll_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.anti_roll_text),self.toggle_anti_roll) }
@@ -63,13 +69,13 @@ package class SuspensionControls {
     func status(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.feedback)) }
     func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
     func describe() UI.View {
-        var actions=UI.Row([self.button("Bondir (B)",self.jump),self.button("Surcharger 2 s (C)",self.load),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button)])
+        var actions=UI.Row([self.button("Bondir (B)",self.jump),self.button("Surcharger 2 s (C)",self.load),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button),self.button("Basculer (O)",self.topple)])
         actions.style.gap=12.0
-        var rolling=UI.Row([self.button("Pousser devant (P)",self.push_forward),self.button("Pousser de côté (V)",self.push_sideways),UI.Reactive(self.grip_button),UI.Reactive(self.anti_roll_button)]);rolling.style.gap=12.0
+        var rolling=UI.Row([self.button("Pousser devant (P)",self.push_forward),self.button("Pousser de côté (V)",self.push_sideways),UI.Reactive(self.grip_button),UI.Reactive(self.anti_roll_button),UI.Reactive(self.tilt_button)]);rolling.style.gap=12.0
         var driving=UI.Row([self.button("Gauche (←)",self.left),self.button("Centrer (↑)",self.center),self.button("Droite (→)",self.right),UI.Reactive(self.brake_button),UI.Reactive(self.handbrake_button)]);driving.style.gap=12.0
         var power=UI.Row([self.button("Accélérer (Z)",self.forward_drive),self.button("Relâcher (X)",self.coast),self.button("Reculer (S)",self.reverse_drive),UI.Reactive(self.contact_button),UI.Reactive(self.suspension_button)]);power.style.gap=12.0
-        var title=UI.Text("Suspensions — anti-roulis");title.style.height=28.0
-        var help=UI.Text("Z/S : gaz · X : relâcher · T : contacts · M : suspension · A : anti-roulis · ←/→ : braquer · ↑ : centrer · F/H : freins · Échap : quitter");help.style.height=24.0
+        var title=UI.Text("Suspensions — protection au basculement");title.style.height=28.0
+        var help=UI.Text("Z/S : gaz · X : relâcher · ←/→ : braquer · F/H : freins · T : contacts · M : suspension · A : anti-roulis · O : basculer · L : limite · R : recréer");help.style.height=24.0
         var rows:UI.View[]=[title,help,
             actions,rolling,driving,power,UI.Reactive(self.status),UI.Reactive(self.metrics),UI.Reactive(self.power_metrics)]
         if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — suspensions et mouvements de caisse — fermeture à la fin"),UI.Reactive(self.metrics),UI.Reactive(self.power_metrics)] }
@@ -88,6 +94,8 @@ package class SuspensionControls {
                 let forward=code==112 as uint32 || code==80 as uint32 || (code==0 as uint32 && key.key==Input.Key.p)
                 let sideways=code==118 as uint32 || code==86 as uint32 || (code==0 as uint32 && key.key==Input.Key.v)
                 let grip=code==103 as uint32 || code==71 as uint32 || (code==0 as uint32 && key.key==Input.Key.g)
+                let tilt=code==108 as uint32 || code==76 as uint32 || (code==0 as uint32 && key.key==Input.Key.l)
+                let topple=code==111 as uint32 || code==79 as uint32 || (code==0 as uint32 && key.key==Input.Key.o)
                 let anti_roll=code==97 as uint32 || code==65 as uint32 || (code==0 as uint32 && key.key==Input.Key.a)
                 let suspension=code==109 as uint32 || code==77 as uint32 || (code==0 as uint32 && key.key==Input.Key.m)
                 let contact=code==116 as uint32 || code==84 as uint32 || (code==0 as uint32 && key.key==Input.Key.t)
@@ -99,9 +107,9 @@ package class SuspensionControls {
                 let center=key.key==Input.Key.up
                 let brake=code==102 as uint32 || code==70 as uint32 || (code==0 as uint32 && key.key==Input.Key.f)
                 let handbrake=code==104 as uint32 || code==72 as uint32 || (code==0 as uint32 && key.key==Input.Key.h)
-                if anti_roll || suspension || contact || forward_drive || reverse_drive || coast || left || right || center || brake || handbrake || jump || load || reset || forward || sideways || grip || key.key==Input.Key.space {
+                if tilt || topple || anti_roll || suspension || contact || forward_drive || reverse_drive || coast || left || right || center || brake || handbrake || jump || load || reset || forward || sideways || grip || key.key==Input.Key.space {
                     if !key.repeated {
-                        if anti_roll { self.toggle_anti_roll() } else if suspension { self.toggle_suspension() } else if contact { self.toggle_contact() } else if forward_drive { self.forward_drive() } else if reverse_drive { self.reverse_drive() } else if coast { self.coast() } else if left { self.left() } else if right { self.right() } else if center { self.center() } else if brake { self.brake() } else if handbrake { self.handbrake() } else if forward { self.push_forward() } else if sideways { self.push_sideways() } else if grip { self.toggle_grip() } else if jump { self.jump() } else if load { self.load() } else if reset { self.reset() } else { self.pause() }
+                        if tilt { self.toggle_tilt_limit() } else if topple { self.topple() } else if anti_roll { self.toggle_anti_roll() } else if suspension { self.toggle_suspension() } else if contact { self.toggle_contact() } else if forward_drive { self.forward_drive() } else if reverse_drive { self.reverse_drive() } else if coast { self.coast() } else if left { self.left() } else if right { self.right() } else if center { self.center() } else if brake { self.brake() } else if handbrake { self.handbrake() } else if forward { self.push_forward() } else if sideways { self.push_sideways() } else if grip { self.toggle_grip() } else if jump { self.jump() } else if load { self.load() } else if reset { self.reset() } else { self.pause() }
                     }
                     return true
                 }
