@@ -57,7 +57,12 @@ func command(bike:Physics.Motorcycle3D,rider:Rider,kind:int,step:int,rate:int) {
     rider.drive(bike,throttle,steering,brake,rate)
 }
 
+package func ramp_size() Math.Vec3 { return Math.Vec3(8.0,0.4,6.03) }
+package func ramp_pose() Physics.Transform3D {
+    return Physics.Transform3D(Math.Vec3(0.0,0.1,15.0),Math.Quat.angle_axis(-0.1,Math.Vec3.right()))
+}
 package func recipe_name(recipe:int) str {
+    if recipe==6 { return "Rampe — montée, envol puis réception" }
     if recipe==1 { return "Inversions gauche / droite à vitesse élevée" }
     if recipe==2 { return "Inversions miroirs" }
     if recipe==3 { return "Plein gaz — roue avant levée puis freinage" }
@@ -68,6 +73,12 @@ package func recipe_name(recipe:int) str {
 package class MotorcycleModel {
     var world:Physics.World3D=Physics.World3D()
     var ground:Physics.RigidBody3D
+    var ramp:Physics.RigidBody3D?=null
+    var ramp_enabled:bool=false
+    var flight_steps:int=0
+    var ramp_contacts:int=0
+    var landed:bool=false
+    var peak_height:float=1.05
     var vehicle:Physics.Motorcycle3D
     private var rider:Rider=Rider()
     var assistance:bool=true
@@ -83,10 +94,24 @@ package class MotorcycleModel {
         self.ground=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
             ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0)
         self.vehicle=make(self.world,recipe)
+        if recipe==6 { self.configure_ramp(true) }
     }
-    func reset(recipe:int=0,keep_assistance:bool=false) {
+    private func configure_ramp(enabled:bool) {
+        if self.ramp_enabled==enabled { return }
+        if self.ramp!=null { self.world.destroy_rigid_body(self.ramp!);self.ramp=null }
+        self.ramp_enabled=enabled
+        if enabled {
+            self.ramp=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+                ..shape=Physics.Shape3D.box(Physics.Box3D(ramp_size())) ..transform=ramp_pose() ..friction=1.0)
+        }
+    }
+    func reset(recipe:int=0,keep_assistance:bool=false,ramp:bool?=null) {
         let assistance=self.assistance;let limit=self.vehicle.steering_limit_enabled()
-        self.world.destroy_motorcycle(self.vehicle);self.vehicle=make(self.world,recipe);self.recipe=recipe;self.steps=0
+        self.world.destroy_motorcycle(self.vehicle)
+        if ramp!=null { self.configure_ramp(ramp!) }
+        if recipe==6 { self.configure_ramp(true) }
+        self.vehicle=make(self.world,recipe);self.recipe=recipe;self.steps=0
+        self.flight_steps=0;self.ramp_contacts=0;self.landed=false;self.peak_height=1.05
         self.rider=Rider();self.front_air_steps=0;self.late_angle=0.0;self.late_distance=0.0;self.assistance=recipe!=5
         if keep_assistance { self.assistance=assistance;self.vehicle.set_balance_enabled(assistance);self.vehicle.set_steering_limit_enabled(limit) }
     }
@@ -98,13 +123,29 @@ package class MotorcycleModel {
         if self.vehicle.wheel(0).support()==null && self.vehicle.wheel(1).support()!=null &&
             self.vehicle.chassis().rotation().rotate(Math.Vec3(0.0,0.0,1.0)).y>0.06 { self.front_air_steps++ }
     }
+    func advance() {
+        self.world.step(1.0/self.rate as float);self.steps++;self.count_front_air()
+        self.peak_height=Math.max(self.peak_height,self.vehicle.chassis().position().y)
+        if self.ramp_enabled {
+            for i in [0,1] { let wheel=self.vehicle.wheel(i)
+                if wheel.support()!=null && wheel.contact_point.y>0.05 { self.ramp_contacts++ }
+            }
+        }
+        if self.steps>2*self.rate && self.supports()==0 { self.flight_steps++ }
+        else if self.flight_steps>0 && self.supports()>0 { self.landed=true }
+    }
+    func ramp_step() {
+        var throttle=0.0;var brake=0.35
+        if self.steps>=2*self.rate && self.steps<6*self.rate { throttle=0.4;brake=0.0 }
+        self.rider.drive(self.vehicle,throttle,0.0,brake,self.rate);self.advance()
+    }
     func drive(throttle:float,steering:float,brake:float) {
         self.rider.drive(self.vehicle,throttle,steering,brake,self.rate)
-        self.world.step(1.0/self.rate as float);self.steps++;self.count_front_air()
+        self.advance()
     }
     func scripted_step() {
-        command(self.vehicle,self.rider,self.recipe,self.steps,self.rate)
-        self.world.step(1.0/self.rate as float);self.steps++;self.count_front_air()
+        if self.recipe==6 { self.ramp_step() }
+        else { command(self.vehicle,self.rider,self.recipe,self.steps,self.rate);self.advance() }
         if self.steps==14*self.rate { self.settled_pose=copy self.vehicle.chassis().transform() }
         if self.steps>=14*self.rate {
             let pose=self.vehicle.chassis().transform()
@@ -118,7 +159,8 @@ package class MotorcycleModel {
     func tilt() float { return Math.acos(Math.clamp(self.vehicle.chassis().rotation().rotate(Math.Vec3.up()).y,-1.0,1.0)) }
     func verify() {
         var body=self.vehicle.chassis()
-        assert(self.world.body_count()==2 && self.vehicle.wheel_count()==2)
+        var expected=2;if self.ramp_enabled { expected=3 }
+        assert(self.world.body_count()==expected && self.vehicle.wheel_count()==2)
         assert(body.position().length()<250.0 && body.position().y>0.1 && body.position().y<3.0)
         assert(body.linear_velocity().length()<30.0 && body.angular_velocity().length()<50.0)
         assert(Math.abs(body.rotation().length_squared()-1.0)<0.0001)
@@ -128,7 +170,12 @@ package class MotorcycleModel {
     func verify_finished() {
         print("Handling end $(self.recipe) / $(self.rate): position=$(self.vehicle.chassis().position().to_str()), speed=$(self.vehicle.chassis().linear_velocity().length()), spin=$(self.vehicle.chassis().angular_velocity().length()), tilt=$(self.tilt()), crash=$(self.rider.crashed), front_air=$(self.front_air_steps)")
         assert(self.steps==16*self.rate)
-        if self.recipe>=4 {
+        if self.recipe==6 {
+            assert(!self.rider.crashed && self.ramp_enabled && self.ramp_contacts>=self.rate/2)
+            assert(self.flight_steps>=self.rate/3 && self.landed && self.peak_height>1.4)
+            assert(self.supports()==2 && self.tilt()<0.05 && self.vehicle.chassis().position().z>60.0)
+            assert(self.vehicle.chassis().linear_velocity().length()<0.05 && self.vehicle.chassis().angular_velocity().length()<0.05)
+        } else if self.recipe>=4 {
             assert(self.rider.crashed && self.tilt()>1.0 && !self.vehicle.balance_enabled() && self.rider.throttle==0.0)
             assert(self.late_distance<0.02 && self.late_angle<0.05)
         } else {
@@ -138,10 +185,11 @@ package class MotorcycleModel {
         if self.recipe==3 { assert(self.front_air_steps>self.rate/10) }
     }
 }
-func write(model:MotorcycleModel) {
-    var bike=model.vehicle;let kind=model.recipe;let rate=model.rate;let step=model.steps;
+func write(model:MotorcycleModel,prefix:str="motorcycle-handling",kind:int?=null) {
+    var bike=model.vehicle;var record_kind=model.recipe;if kind!=null { record_kind=kind }
+    let rate=model.rate;let step=model.steps;
         var body=bike.chassis();let pose=body.transform();let target=bike.lean_target();let power=bike.powertrain()
-        var text="motorcycle-handling $(kind) $(rate) $(step) $(vector(pose.position)) $(vector(body.linear_velocity())) $(pose.rotation.x) $(pose.rotation.y) $(pose.rotation.z) $(pose.rotation.w) $(vector(body.angular_velocity())) $(vector(target)) $(power.engine_rpm) $(power.gear) $(power.clutch)"
+        var text="$(prefix) $(record_kind) $(rate) $(step) $(vector(pose.position)) $(vector(body.linear_velocity())) $(pose.rotation.x) $(pose.rotation.y) $(pose.rotation.z) $(pose.rotation.w) $(vector(body.angular_velocity())) $(vector(target)) $(power.engine_rpm) $(power.gear) $(power.clutch)"
         for index in [0,1] {
             let wheel=bike.wheel(index);var touching=0;if wheel.support()!=null { touching=1 }
             var point=Math.Vec3();var normal=Math.Vec3();var longitudinal=Math.Vec3()
@@ -149,7 +197,7 @@ func write(model:MotorcycleModel) {
             text+=" $(wheel.steering_angle) $(wheel.length) $(wheel.normal_force) $(touching) $(wheel.angular_velocity) $(wheel.rotation_angle) $(wheel.longitudinal_force) $(wheel.lateral_force) $(vector(point)) $(vector(normal)) $(vector(longitudinal))"
         }
         var balance=0;var limited=0;if bike.balance_enabled() { balance=1 } if bike.steering_limit_enabled() { limited=1 }
-        var requested=1;if kind==5 { requested=0 }
+        var requested=1;if record_kind==5 { requested=0 }
         var crashed=0;if model.crashed() { crashed=1 }
         print(text+" $(balance) $(limited) $(model.steering_input()) $(crashed) $(requested) $(model.applied_throttle())");
 }
@@ -199,3 +247,27 @@ func verify_reversals() {
         print("Motorcycle reversal stress $(rate) Hz: long turns then 10 direction changes/second, peak tilt=$(peak)")
     }
 }
+
+
+package func ramp_witness() {
+    for kind in [0,1] { for rate in [60,120] {
+        var model=MotorcycleModel(rate:rate);model.reset(ramp:kind==1)
+        while true { write(model,"motorcycle-ramp",kind);if model.steps==16*rate { break } model.ramp_step() }
+    } }
+}
+package func verify_ramp() {
+    for rate in [60,120] {
+        var model=MotorcycleModel(rate:rate);var ground=model.ground
+        model.reset(6);var ramp=model.ramp!;var old=model.vehicle
+        while model.steps<16*rate { model.scripted_step();model.verify() }
+        model.verify_finished()
+        model.reset(keep_assistance:true)
+        assert(!old.is_valid() && ramp.is_valid() && model.ramp_enabled && model.flight_steps==0 && !model.landed)
+        model.reset(ramp:false);assert(!ramp.is_valid() && ground.is_valid() && model.world.body_count()==2)
+        while model.steps<16*rate { model.ramp_step();model.verify() }
+        assert(model.flight_steps==0 && model.ramp_contacts==0 && model.supports()==2)
+        assert(model.vehicle.chassis().linear_velocity().length()<0.05)
+    }
+    print("Motorcycle ramp: finite ascent, unsupported flight, physical landing, braking and terrain recreation verified at60/120Hz")
+}
+test "motorcycle traverses the ramp and regains wheel supports" { verify_ramp() }
