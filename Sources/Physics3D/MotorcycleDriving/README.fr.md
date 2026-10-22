@@ -8,7 +8,7 @@ La caméra suit la moto depuis l’arrière, avec une position et un cap amortis
 Elle garde l’horizon droit pendant les virages, les cabrages et les sauts ; après
 une chute, son cap se stabilise. R et B la replacent immédiatement au départ.
 
-Les mesures et les six boutons sont regroupés dans un panneau compact à gauche.
+Les mesures et les cinq boutons sont regroupés dans un panneau compact à gauche.
 Le centre et le haut de la scène restent dégagés pour repérer le tremplin.
 
 Depuis la racine du workspace :
@@ -17,7 +17,7 @@ Depuis la racine du workspace :
 silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release
 ```
 
-- Maintenir **Z** : gaz normaux, à 40 % ; relâcher : roue libre.
+- Maintenir **Z** : couple normal demandé à 40 % ; relâcher : frein moteur, embrayage engagé.
 - Maintenir **W** : plein gaz demandé, pour lever la roue avant.
 - Maintenir **S** : freinage débrayé, prioritaire sur Z et W.
 - Maintenir **Q / D** : tourner à gauche/droite depuis la vue arrière ; relâcher : recentrer progressivement.
@@ -27,15 +27,14 @@ silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release
 - **P** : impulsion physique de roulis de 150 N·m·s.
 - **B** : comparer rampe et plan, en repartant du départ.
 - **R** : recréer au départ en conservant le terrain et les choix A et L.
-- **Espace** : suspendre/reprendre ; **Échap** : quitter.
+- Maintenir **Espace** : frein arrière seul ; relâcher pour reprendre l’adhérence. **Échap** : quitter.
 
 La scène démarre face à un tremplin orange de 16°, à environ 12 m. Attendre les appuis,
 puis maintenir Z tout droit : la moto monte, quitte les deux appuis et atterrit
 sur le plan. Les suspensions se détendent en vol puis reprennent la charge.
 L’interface distingue le vol sans appui de la roue arrière et affiche la
 réception. B remet au départ sur le plan, puis rétablit la rampe à l’appui
-suivant ; cette comparaison conserve les choix A/L. B et R reprennent une
-simulation suspendue et relâchent les commandes tenues.
+suivant ; cette comparaison conserve les choix A/L. B et R relâchent les commandes tenues.
 
 Pour essayer la roue arrière sur le plat, appuyer sur B, attendre les appuis,
 puis maintenir Z : la roue avant se soulève sous le couple et le transfert de
@@ -55,9 +54,9 @@ braquage, tandis que l’entrée progressive reste active.
 Après une chute (inclinaison du châssis d’environ 73°), les gaz et le pilote
 se coupent jusqu’à R. Le corps continue sa chute physique ; le correcteur ne
 se réactive pas pendant les rebonds. A choisit alors le mode au prochain R,
-indiqué par le bouton. Les six boutons font les mêmes actions ponctuelles.
-La perte de focus, la pause, B et R relâchent Z/W/S et le braquage. P demandé
-pendant la pause attend la reprise ; R l’annule.
+indiqué par le bouton. Les cinq boutons font les mêmes actions ponctuelles.
+La perte de focus, B et R relâchent Z/W/S, le braquage et le frein arrière.
+La conduite libre n’a plus de commande de pause.
 
 Le profil conserve 100 kg et une inertie isotrope de 100 kg·m². Le moteur
 idéal fournit jusqu’à 120 N·m (+50 %) ; la transmission manuelle 3×3,42 entraîne la roue
@@ -67,16 +66,31 @@ ce qui déplace la répartition de charge vers l’arrière. Les ressorts et amo
 avec des attaches 10 cm au-dessus du centre du châssis. L’enfoncement au repos
 est d’environ 14 cm à l’avant et 26 cm à l’arrière ; sous accélération, l’arrière
 atteint environ 40 cm de compression. La réception utilise presque toute la
-course avant que la moto reprenne son assiette. Simulation à 120 Hz, entrée de direction bornée
-avant lissage, inversion complète en 0,3 s. Le pilote vise au plus 0,5 rad
-de roulis. Les contacts utilisent des rayons sur un plan et une rampe fixe de
+course avant que la moto reprenne son assiette. Simulation à 120 Hz, direction progressive avec saturation douce selon la vitesse.
+Le pilote autorise jusqu’à 0,95 rad (54°) de roulis, avec un correcteur moins
+raide ; une recette de virage soutenu atteint environ 53° à 60/120 Hz.
+L’amortissement moteur est de 1,5 s⁻¹. Sous les gaz, le pilote compense les
+pertes internes pour conserver la réponse de couple du profil cross ; au lever
+des gaz, cette compensation cesse. Le HUD affiche les gaz réellement appliqués. Le frein arrière atteint 600 N·m avec
+une montée de commande en 0,12 s et une libération en 0,08 s.
+Les pneus utilisent une adhérence combinée : freinage et virage partagent le
+même budget d’efforts, avec un coefficient effectif de 1,4 sur ce sol. Les contacts utilisent des rayons sur un plan et une rampe fixe de
 8 × 0,4 × 9 m, centrée en (0 ; 1,0514218 ; 16,5) m et inclinée de −0,28 rad
 autour de X. Le bord de sortie atteint 2,49 m. Les pneus ne sont pas des corps rigides séparés. Ce profil n’est pas calibré sur une moto réelle.
+
+Pour essayer la glisse, B passe sur le plat : accélérer avec Z, relâcher les
+gaz, tenir Q ou D puis maintenir brièvement Espace. L’arrière peut se bloquer
+et déborder ; relâcher Espace permet à la roue de reprendre son roulement.
+Un freinage prolongé ou une manœuvre excessive peut toujours faire chuter la
+moto. La dérive provient des contacts et des efforts de pneus ; aucun lacet
+ni pose de glisse ne sont imposés. Le frein arrière reste indépendant de S
+et peut être combiné aux gaz.
 
 ## Vérification sans fenêtre
 
 ```sh
 silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/Model.sx --nocache
+silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/Handling.sx --nocache
 silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --nocache
 silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/ChaseCamera.sx --nocache
 silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/Ground.sx --nocache
@@ -84,7 +98,7 @@ silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release -
 silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release -- --controls-check
 ```
 
-`--view-check` vérifie le cadrage des huit recettes avec le suivi arrière,
+`--view-check` vérifie le cadrage des neuf recettes avec le suivi arrière,
 l’horizon, la pause et le reset, sans fenêtre. Les tests de sol vérifient que
 les mêmes points du monde gardent leur phase de texture après recentrage.
 
@@ -106,12 +120,16 @@ Le parcours conserve un envol physique suivi de la reprise des appuis et du frei
 Le pilote mémorise la pente des appuis chargés pendant le vol ; il module les
 gaz, sans imposer de couple de tangage aérien ni de pose. Les deux témoins
 précédents gardent leurs réglages route et servent de régressions, tandis que
-la conduite libre démarre directement avec le profil cross. W est vérifié par
+la conduite libre utilise le profil cross avec les nouveaux réglages d’inclinaison,
+de frein moteur et d’adhérence combinée. Ces réglages sont contrôlés par
+`Handling.sx` : virages miroirs à 60/120 Hz, décélération, frein arrière sélectif,
+budget d’efforts et reprise d’adhérence. Les témoins historiques conservent
+leur ancien profil ; leur parité Jolt ne qualifie pas l’adhérence combinée. W est vérifié par
 les tests consommateurs de levée, compression, freinage et reprise des appuis ;
 sa parité Jolt point par point sur une roue arrière prolongée reste non qualifiée.
 
-`--smoke` ouvre une fenêtre « TEST AUTOMATIQUE », joue les huit recettes
-(les six historiques, la rampe route puis le tremplin cross), vérifie cadrage, transforms réels, roues, appuis, pause et recréation, puis se
+`--smoke` ouvre une fenêtre « TEST AUTOMATIQUE », joue les neuf recettes
+(les six historiques, la rampe route, le tremplin cross puis le frein arrière en virage), vérifie cadrage, transforms réels, roues, appuis, pause et recréation, puis se
 ferme avec son marqueur final. Une fermeture anticipée ne valide pas ce contrôle.
 Après accident, la preuve vise la coupure persistante et l’absence de rotation
 entretenue : moins de 2 cm et 0,05 rad de variation sur les deux dernières

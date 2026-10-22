@@ -1,0 +1,55 @@
+use Physics3D.MotorcycleDriving.Model
+use STD.Math
+
+package func step(model:&Model.MotorcycleModel,kind:int=1,sign:float=1.0) {
+    let t=model.steps as float/model.rate as float
+    var gas=0.0;var steer=0.0;var rear=0.0;var brake=0.0
+    if t>=2.0 && t<5.0 { gas=0.15 }
+    if t>=4.0 && t<8.0 { steer=0.35*sign }
+    if kind==1 && t>=5.0 && t<6.0 { rear=1.0 }
+    if kind==2 && t>=5.0 && t<8.0 { gas=0.15 }
+    if t>=9.0 { brake=0.35 }
+    model.drive(gas,steer,brake,rear)
+}
+
+package func verify() {
+    let signs:float[]=[-1.0,1.0]
+    for rate in [60,120] {
+        var ends:Math.Vec3[]=[];var coasting=0.0
+        for kind in [0,1,2] { for sign in signs {
+            var model=Model.MotorcycleModel(rate:rate,cross:true,handling:true)
+            var lean=0.0;var rear_slip=0.0;var front_slip=0.0;var start_speed=0.0;var slow_speed=0.0
+            var locked=0;var recovered=false;var engine_braked=false
+            while model.steps<12*rate {
+                let t=model.steps as float/rate as float
+                if model.steps==5*rate { start_speed=model.vehicle.chassis().linear_velocity().length() }
+                step(model,kind,sign);model.verify()
+                assert(!model.crashed() && model.tilt()<1.1 && model.vehicle.chassis().angular_velocity().length()<5.0)
+                lean=Math.max(lean,model.tilt())
+                var rear=model.vehicle.wheel(1);var front=model.vehicle.wheel(0)
+                if t>=5.0 && t<6.0 {
+                    rear_slip=Math.max(rear_slip,rear.lateral_slip);front_slip=Math.max(front_slip,front.lateral_slip)
+                    if kind==1 {
+                        assert(front.brake_torque==0.0)
+                        if rear.angular_velocity==0.0 && rear.longitudinal_slip>0.9 { locked++ }
+                    } else if kind==0 && rear.drive_torque< -20.0 && model.vehicle.powertrain().clutch==1.0 { engine_braked=true }
+                }
+                if model.steps==6*rate { slow_speed=model.vehicle.chassis().linear_velocity().length() }
+                if t>=6.8 && t<8.0 && rear.lateral_slip<0.03 && rear.angular_velocity>0.0 && model.supports()==2 { recovered=true }
+                for i in [0,1] { var wheel=model.vehicle.wheel(i)
+                    if wheel.normal_force>0.01 {
+                        let x=wheel.longitudinal_force/(1.4*wheel.normal_force);let y=wheel.lateral_force/(1.4*wheel.normal_force)
+                        assert(x*x+y*y<1.0002)
+                    }
+                }
+            }
+            print("Handling $(rate) $(kind) $(sign): lean=$(Math.degrees(lean)) rear_slip=$(Math.degrees(rear_slip)) front_slip=$(Math.degrees(front_slip)) speed=$(start_speed)->$(slow_speed) locked=$(locked) recovered=$(recovered)")
+            assert(model.supports()==2 && model.vehicle.chassis().linear_velocity().length()<0.05)
+            if kind==0 { assert(engine_braked && slow_speed<start_speed*0.7);coasting=rear_slip }
+            if kind==1 { assert(locked>rate/2 && rear_slip>0.25 && rear_slip>coasting+0.2 && front_slip<rear_slip && recovered);ends.append(model.vehicle.chassis().position()) }
+            if kind==2 { assert(lean>0.7 && lean<1.0) }
+        } }
+        assert(Math.abs(ends[0].x+ends[1].x)<0.01 && Math.abs(ends[0].z-ends[1].z)<0.01)
+    }
+}
+test "cross motorcycle leans brakes with its engine and recovers from a rear brake slide" { verify() }

@@ -1120,14 +1120,18 @@ speed-dependent steering limit, P applies a real roll impulse and R recreates
 the motorcycle while retaining those settings. B compares a finite ramp with
 the flat plane and restarts; the scene begins with the ramp enabled. Ride
 straight ahead with Z to observe ascent, unsupported flight and landing.
-Compare recovery and falling with the same push. Space pauses; Escape quits. Actual chassis, steering,
+Compare recovery and falling with the same push. Hold Space for the rear brake;
+release to regain grip after a slide in a turn. Releasing throttle applies engine
+braking; Escape quits. Actual chassis, steering,
 wheel rotation and support markers are rendered from the physical state.
 A smooth rear chase camera keeps a level horizon; Q/D turn left/right from
 that view. The DarkGrid ground texture has one-meter cells anchored to the world.
 The rider cuts out after a crash until R; steering is progressive and throttle
 is modulated from pitch. This validation scene uses an ideal actuator and
 ray contacts on a plane and a finite ramp; the straight ramp approach is
-qualified against Jolt, with unsupported flight and loaded landing checks.
+qualified against Jolt, with unsupported flight and loaded landing checks. The
+free-riding profile adds softer lean control and combined tire adhesion, covered
+by separate consumer checks.
 
 `silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release`.
 [Guide français](Sources/Physics3D/MotorcycleDriving/README.fr.md).

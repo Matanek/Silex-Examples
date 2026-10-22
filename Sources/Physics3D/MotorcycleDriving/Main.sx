@@ -15,6 +15,7 @@ use Physics3D.MotorcycleDriving.Model
 use Physics3D.MotorcycleDriving.Controls
 use Physics3D.MotorcycleDriving.ChaseCamera
 use Physics3D.MotorcycleDriving.Ground
+use Physics3D.MotorcycleDriving.Handling
 use Physics3D.ArticulatedPose.Controls as InputCheck
 use STD.Math
 use STD.Process
@@ -46,13 +47,13 @@ class MotorcycleScene {
     var accumulator:float=0.0
     var telemetry:float=0.0
     var smoke:bool=false
-    var frames:int[]=[0,0,0,0,0,0,0,0]
+    var frames:int[]=[0,0,0,0,0,0,0,0,0]
     var pause_frames:int=0
     var held:Physics.Transform3D=Physics.Transform3D()
     var held_angles:float[]=[]
     var held_steps:int=0
     init(cross:bool=false) {
-        if cross { self.model.reset(ramp:true,cross:true) }
+        if cross { self.model.reset(ramp:true,cross:true,handling:true) }
         self.ui=UI.Session(self.controls.describe())
     }
 }
@@ -65,8 +66,8 @@ func remember(state:&MotorcycleScene) {
     for i in [0,1] { state.lengths[i]=state.model.vehicle.wheel(i).length;state.angles[i]=state.model.vehicle.wheel(i).rotation_angle;state.steering[i]=state.model.vehicle.wheel(i).steering_angle }
 }
 func labels(state:&MotorcycleScene,simulation:@Application.Simulation) {
-    var pause="Espace : pause";if simulation.is_paused() { pause="Espace : reprise" }
-    if state.controls.pause_text.value()!=pause { state.controls.pause_text.set(pause) }
+    var rear_status="AR : libre";if state.controls.rear_braking { rear_status="AR : freinage" }
+    if state.controls.rear_text.value()!=rear_status { state.controls.rear_text.set(rear_status) }
     var assist="A : pilote auto";if !state.model.assistance { assist="A : sans pilote" }
     if state.model.crashed() { assist="A : auto au R";if !state.model.assistance { assist="A : passif au R" } }
     if state.controls.assist_text.value()!=assist { state.controls.assist_text.set(assist) }
@@ -81,8 +82,9 @@ func labels(state:&MotorcycleScene,simulation:@Application.Simulation) {
     if state.model.supports()==0 && state.model.steps>30 { phase="En vol — aucun appui" }
     else if state.model.landed && state.model.supports()==2 { phase="Réception · S : frein · R : départ" }
     if state.model.vehicle.wheel(0).support()==null && state.model.vehicle.wheel(1).support()!=null { phase="Roue arrière · gaz régulés" }
+    if state.controls.rear_braking && state.model.supports()>0 { phase="Frein arrière\nRelâcher pour reprendre l’adhérence" }
     if state.model.crashed() { phase="Chute · gaz et pilote coupés\nR pour repartir" }
-    if state.smoke { phase="Recette $(state.model.recipe+1)/8" }
+    if state.smoke { phase="Recette $(state.model.recipe+1)/9" }
     if state.controls.phase.value()!=phase { state.controls.phase.set(phase) }
     var body=state.model.vehicle.chassis();let speed=Math.round(body.linear_velocity().length()*36.0)/10.0
     let lean=Math.round(Math.degrees(state.model.tilt())) as int
@@ -108,11 +110,6 @@ func perform(state:&MotorcycleScene,simulation:&Application.Simulation) {
         state.controls.limits--;state.model.vehicle.set_steering_limit_enabled(!state.model.vehicle.steering_limit_enabled());changed=true
     }
     while state.controls.resets>0 { state.controls.resets--;recreate(state,simulation,0,keep_assistance:true);changed=true }
-    while state.controls.pauses>0 {
-        state.controls.pauses--;changed=true;state.controls.release()
-        if simulation.is_paused() { simulation.resume() }
-        else { simulation.pause();remember(state);state.accumulator=0.0 }
-    }
     while state.controls.pushes>0 && !simulation.is_paused() { state.controls.pushes--;state.model.push();changed=true }
     if changed { labels(state,simulation) }
 }
@@ -255,11 +252,12 @@ func next_smoke(state:&MotorcycleScene,simulation:&Application.Simulation,contro
     for i in [0,1] { assert(state.model.vehicle.wheel(i).rotation_angle==state.held_angles[i]) }
     state.pause_frames++
     if state.pause_frames<8 { return }
-    if state.model.recipe==7 {
-        assert(state.ramp_frames>0 && state.model.landed && state.model.flight_steps>120 && state.model.peak_height>3.0)
-        print("Motorcycle smoke: eight real recipes, road and cross ramps, unsupported flight/landing, rendered chassis/steered wheels, camera, support markers, pause and recreation verified")
+    if state.model.recipe==8 {
+        assert(state.ramp_frames>0 && state.frames[8]>0 && state.model.handling)
+        print("Motorcycle smoke: nine real recipes, combined grip rear brake slide, road and cross ramps, unsupported flight/landing, rendered chassis/steered wheels, camera, support markers, pause and recreation verified")
         controller.stop();return
     }
+    if state.model.recipe==7 { assert(state.model.landed && state.model.flight_steps>120 && state.model.peak_height>3.0) }
     let next_recipe=state.model.recipe+1;var old_body=state.model.vehicle.chassis()
     recreate(state,simulation,next_recipe)
     var expected=2;if state.model.ramp_enabled { expected=3 }
@@ -271,7 +269,8 @@ func step_free(state:&MotorcycleScene) {
     if state.controls.boost && !state.controls.braking { throttle=1.0 }
     if state.controls.braking { brake=0.35 }
     if state.controls.left { steering-=0.35 } if state.controls.right { steering+=0.35 }
-    state.model.drive(throttle,steering,brake)
+    var rear=0.0;if state.controls.rear_braking { rear=1.0 }
+    state.model.drive(throttle,steering,brake,rear)
 }
 func update(world:&Resources.World,input:@Resources.InputState,state:&MotorcycleScene,simulation:&Application.Simulation,controller:&Application.Controller) {
     if input.is_pressed(Input.Key.escape) { controller.stop() }
@@ -285,7 +284,8 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&Motorcycle
     while state.accumulator>=1.0/120.0 && !simulation.is_paused() {
         remember(state)
         if state.smoke {
-            state.model.scripted_step();state.model.verify()
+            if state.model.recipe==8 { Handling.step(state.model) } else { state.model.scripted_step() }
+            state.model.verify()
         } else { step_free(state) }
         state.accumulator-=1.0/120.0
         if state.smoke && state.model.steps==1920 { finish_recipe(state,simulation);break }
@@ -340,25 +340,21 @@ func verify_controls() {
     let before=state.model.vehicle.chassis().angular_velocity()
     press(state,simulation,Input.Key.p,112 as uint32)
     assert(state.model.vehicle.chassis().angular_velocity().nearly_equal(before.add(Math.Vec3(0.0,0.0,1.5)),0.00001))
-    press(state,simulation,Input.Key.space,32 as uint32);assert(simulation.is_paused())
-    press(state,simulation,Input.Key.space,32 as uint32,true);assert(simulation.is_paused())
-    let held=state.model.vehicle.chassis().angular_velocity()
-    press(state,simulation,Input.Key.p,80 as uint32);assert(state.controls.pushes==1 && state.model.vehicle.chassis().angular_velocity()==held)
-    press(state,simulation,Input.Key.space,32 as uint32);assert(!simulation.is_paused() && state.controls.pushes==0)
-    assert(state.model.vehicle.chassis().angular_velocity().nearly_equal(held.add(Math.Vec3(0.0,0.0,1.5)),0.00001))
+    press(state,simulation,Input.Key.space,32 as uint32);assert(state.controls.rear_braking && !simulation.is_paused())
+    press(state,simulation,Input.Key.space,32 as uint32,true);assert(state.controls.rear_braking && !simulation.is_paused())
+    release(state,Input.Key.space,32 as uint32);assert(!state.controls.rear_braking)
+    press(state,simulation,Input.Key.space,0 as uint32);assert(state.controls.rear_braking)
     press(state,simulation,Input.Key.z,122 as uint32);press(state,simulation,Input.Key.w,119 as uint32)
     press(state,simulation,Input.Key.a,113 as uint32);press(state,simulation,Input.Key.d,100 as uint32)
     assert(state.controls.left && state.controls.right)
     let focus=Events.WindowEvent(window:Window.Id(value:0 as uint32),timestamp:Input.Timestamp(nanoseconds:0 as uint))
-    let handled=state.controls.handle(Events.Event.window_focus_lost(focus));assert(!state.controls.throttle && !state.controls.boost && !state.controls.braking && !state.controls.left && !state.controls.right)
+    let handled=state.controls.handle(Events.Event.window_focus_lost(focus));assert(!state.controls.throttle && !state.controls.boost && !state.controls.braking && !state.controls.rear_braking && !state.controls.left && !state.controls.right)
     InputCheck.click(state.ui,74.0,187.0);perform(state,simulation);assert(state.model.vehicle.balance_enabled())
     InputCheck.click(state.ui,206.0,187.0);perform(state,simulation);assert(state.model.vehicle.steering_limit_enabled())
     old=state.model.vehicle;InputCheck.click(state.ui,206.0,225.0);perform(state,simulation);assert(!old.is_valid())
     let old_velocity=state.model.vehicle.chassis().angular_velocity()
     InputCheck.click(state.ui,74.0,263.0);perform(state,simulation)
     assert(state.model.vehicle.chassis().angular_velocity().nearly_equal(old_velocity.add(Math.Vec3(0.0,0.0,1.5)),0.00001))
-    InputCheck.click(state.ui,206.0,263.0);perform(state,simulation);assert(simulation.is_paused())
-    InputCheck.click(state.ui,206.0,263.0);perform(state,simulation);assert(!simulation.is_paused())
     simulation.pause();let previous_assist=state.model.assistance;let previous_limit=state.model.vehicle.steering_limit_enabled()
     InputCheck.click(state.ui,74.0,225.0);perform(state,simulation)
     assert(state.model.ramp_enabled && !simulation.is_paused() && state.model.assistance==previous_assist && state.model.vehicle.steering_limit_enabled()==previous_limit)
@@ -412,13 +408,13 @@ func verify_controls() {
     state.controls.automatic=true;assert(!state.controls.handle(InputCheck.key_event(Input.Key.z,122 as uint32)))
     assert(!state.controls.handle(InputCheck.key_event(Input.Key.b,98 as uint32)))
     verify_cross_controls()
-    print("Motorcycle controls: ZQSD logical/uppercase/physical keys, AZERTY Q distinct from assistance A, releases, focus, repetition, six buttons, terrain toggle and retained reset, actual impulse, pause and recreation verified")
+    print("Motorcycle controls: ZQSD logical/uppercase/physical keys, AZERTY Q distinct from assistance A, releases, focus, repetition, five buttons, terrain toggle and retained reset, actual impulse, held rear brake and recreation verified")
 }
 test "motorcycle controls affect the real vehicle" { verify_controls() }
 func main() {
     var smoke=false
     for argument in Process.arguments() {
-        if argument=="--physics-check" { Model.verify_physics();Model.verify_ramp();Model.verify_cross();return }
+        if argument=="--physics-check" { Model.verify_physics();Model.verify_ramp();Model.verify_cross();Handling.verify();return }
         if argument=="--cross-check" { Model.cross_witness();return }
         if argument=="--ramp-check" { Model.ramp_witness();return }
         if argument=="--oracle-check" { Model.witness();return }
@@ -463,17 +459,31 @@ func verify_cross_controls() {
     step=0;while step<720 { step_free(state);step++ }
     assert(!state.model.crashed() && state.model.supports()==2 && state.model.vehicle.chassis().linear_velocity().length()<0.05)
     release(state,Input.Key.s,115 as uint32)
-    print("Cross controls: default120Nm preset,Z-held wheelie/rear compression/braking,jump/landing,real ramp transform and R/B profile retention verified")
+    state.controls.reset();perform(state,simulation);step=0;while step<240 { step_free(state);step++ }
+    press(state,simulation,Input.Key.z,122 as uint32);step=0;while step<120 { step_free(state);step++ }
+    release(state,Input.Key.z,122 as uint32);press(state,simulation,Input.Key.space,32 as uint32)
+    let before_rear_brake=state.model.steps;step=0;while step<30 { step_free(state);step++ }
+    assert(state.model.steps==before_rear_brake+30 && !simulation.is_paused() && !state.model.crashed())
+    assert(state.model.vehicle.wheel(0).brake_torque==0.0 && state.model.vehicle.wheel(1).brake_torque<0.0)
+    release(state,Input.Key.space,32 as uint32);state.controls.reset();perform(state,simulation)
+    assert(!state.controls.rear_braking && state.model.handling)
+    step=0;while step<240 { step_free(state);step++ }
+    press(state,simulation,Input.Key.w,119 as uint32);step=0;while step<360 { step_free(state);assert(!state.model.crashed());step++ }
+    assert(state.model.front_air_steps>12)
+    release(state,Input.Key.w,119 as uint32)
+    print("Cross controls: held Space brakes rear rotor without pause, default120Nm preset,Z-held wheelie/rear compression/braking,jump/landing,real ramp transform and R/B profile retention verified")
 }
 
 func verify_view() {
     var world=Resources.World();var meshes=Resources.Meshes3D();var images=Resources.Images()
     var state=MotorcycleScene();var simulation=Application.Simulation()
     startup(world,meshes,images,state,simulation);state.smoke=true
-    for recipe in [0,1,2,3,4,5,6,7] {
+    for recipe in [0,1,2,3,4,5,6,7,8] {
         recreate(state,simulation,recipe)
         while state.model.steps<1920 {
-            state.model.scripted_step();state.model.scripted_step();remember(state)
+            if recipe==8 { Handling.step(state.model);Handling.step(state.model) }
+            else { state.model.scripted_step();state.model.scripted_step() }
+            remember(state)
             render_frame(world,state,1.0/60.0)
         }
         assert(state.frames[recipe]>900)
@@ -482,6 +492,6 @@ func verify_view() {
     assert(state.follow.transform()==held)
     recreate(state,simulation,0,keep_assistance:true)
     assert(state.follow.transform().position.subtract(state.model.vehicle.chassis().position()).length()<9.0)
-    print("Motorcycle view: textured ground, stable world UV phase, smooth rear camera, framing through eight real recipes, level horizon, pause and reset verified")
+    print("Motorcycle view: textured ground, stable world UV phase, smooth rear camera, framing through nine real recipes, level horizon, pause and reset verified")
 }
 test "motorcycle rear camera frames turning falling and airborne vehicles" { verify_view() }
