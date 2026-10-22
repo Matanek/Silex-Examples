@@ -1097,3 +1097,32 @@ comparison, separate from the variable tire curves in VehicleSuspension.
 
 `silex run Silex-Examples/Sources/Physics3D/VehicleHill/Main.sx --release`.
 [Guide français](Sources/Physics3D/VehicleHill/README.fr.md).
+
+## Tracked driving and pivoting
+
+[TrackedDriving](Sources/Physics3D/TrackedDriving/README.md) demonstrates two
+coupled tracks of three suspended wheels. Z/S select forward/reverse, arrows
+choose opposite curves, P pivots and G removes grip while wheels keep spinning.
+Each choice recreates and plays a qualified eight-second maneuver, then stops;
+R replays and Space pauses. Colored spokes show actual wheel rotation, green
+markers show supports, and the panel reports both track speeds. This validation
+scene uses ideal tracks and ray contacts on a plane.
+
+`silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release`.
+[Guide français](Sources/Physics3D/TrackedDriving/README.fr.md).
+
+## Motorcycle driving and balance
+
+[MotorcycleDriving](Sources/Physics3D/MotorcycleDriving/README.md) lets you ride
+freely with held Z/S and arrow keys; W requests full throttle for a physical
+rear-wheel ride. A toggles the roll rider, L toggles the
+speed-dependent steering limit, P applies a real roll impulse and R recreates
+the motorcycle while retaining those settings. Compare recovery and falling
+with the same push. Space pauses; Escape quits. Actual chassis, steering,
+wheel rotation and support markers are rendered from the physical state.
+The rider cuts out after a crash until R; steering is progressive and throttle
+is modulated from pitch. This validation scene uses an ideal actuator and ray
+contacts on a plane.
+
+`silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release`.
+[Guide français](Sources/Physics3D/MotorcycleDriving/README.fr.md).
