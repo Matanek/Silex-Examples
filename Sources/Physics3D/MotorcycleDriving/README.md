@@ -1,9 +1,8 @@
 # Ride a motorcycle and compare its balance
 
-Hold the controls to drive and steer freely. The bronze chassis, two wheels
-and suspensions follow the simulation. The front wheel steers; colored spokes
-show actual wheel rotation. Small green markers indicate contacts. The camera
-follows the chassis and the grid marks meters; the white post stays at the start.
+Ride freely: the chassis, suspensions, steered front wheel and colored spokes
+follow their physical states. Green markers show contacts; the grid marks
+meters and the camera follows the chassis.
 
 From the workspace root:
 
@@ -11,44 +10,61 @@ From the workspace root:
 silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release
 ```
 
-- Hold **Z**: 80% throttle; release to coast with the clutch open.
-- Hold **S**: brake with the clutch open; braking overrides throttle.
-- Hold **← / →**: steer left/right; release to center.
-- **A**: enable/disable balance assistance.
+- Hold **Z**: normal throttle, at 40%; release to coast.
+- Hold **W**: request full throttle to lift the front wheel.
+- Hold **S**: brake with the clutch open; braking overrides Z and W.
+- Hold **← / →**: steer; release to center progressively.
+- **A**: enable/disable the automatic roll rider.
 - **L**: enable/disable the speed-dependent steering limit.
-- **P**: apply a 150 N·m·s lateral roll impulse.
-- **R**: recreate at the start while retaining both assistance settings.
+- **P**: apply a physical 150 N·m·s roll impulse.
+- **R**: recreate at the start, retaining the A and L choices.
 - **Space**: pause/resume; **Escape**: quit.
 
-Buttons perform the five one-shot actions. Throttle, braking and steering
-release when focus is lost, on pause and on recreation. A push requested while
-paused waits for resume; recreation cancels it.
+To ride on the rear wheel, recreate with R, wait for contacts, then hold W.
+Power and weight transfer physically lift the front wheel. Throttle is
+modulated from pitch and pitch rate to prevent flipping backwards; no pose
+or artificial pitch impulse is imposed. Release W and brake to lower the
+wheel. Z provides more moderate driving.
 
-To compare balance, press R, wait for both contacts, then press P. With
-assistance, the motorcycle recovers. Disable assistance with A, recreate with R
-and repeat the push: it falls. Without a perturbation, an exactly upright
-motorcycle may remain upright even with assistance disabled. L limits steering;
-it does not control balance. Its effect is clearest when steering at high speed.
+A disables only roll correction. Without it, this motorcycle has no simulated
+rider or manual lean control: it is unstable in turns. This mode compares the
+effect of automatic balance. At rest, try R then P, and repeat after A and R.
+L removes the steering limit while progressive input remains active.
 
-This validation scene uses the profile qualified against Jolt: 100 kg,
-isotropic inertia 100 kg·m², 30 cm wheels, 10000 N/m springs with 1000 N·s/m
-damping, an ideal 20 N·m engine and a manual 3×3.42 transmission driving the
-rear wheel. Simulation runs at 120 Hz. Assistance is an ideal actuator with no
-rider simulation. Wheel contacts use rays on a plane; tires are not separate
-rigid bodies. This is not yet an off-road course or a motorcycle calibrated
-against a real vehicle.
+After a fall (about 73° chassis tilt), throttle and the rider cut out until R.
+The body keeps falling physically; correction does not restart during bounces.
+A then chooses the mode for the next R, shown on its button. Five buttons
+perform the same one-shot actions. Focus loss, pause and R release Z/W/S and
+steering. P requested while paused waits for resume; R cancels it.
+
+The profile retains 100 kg and isotropic inertia of 100 kg·m². The ideal engine
+provides up to 80 N·m; a manual 3×3.42 transmission drives the rear wheel.
+The 30 cm wheels sit at +1.25 m and −0.75 m from the chassis, shifting weight
+distribution rearwards. Springs remain at 10000 N/m and 1000 N·s/m. Simulation
+runs at 120 Hz, steering input is bounded before smoothing, and a complete
+reversal takes 0.3 s. The rider targets at most 0.5 rad of roll. Contacts use
+rays on a plane, and tires are not separate rigid bodies. This profile is not
+calibrated against a real motorcycle.
 
 ## Check without a window
 
 ```sh
+silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/Model.sx --nocache
 silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --nocache
 silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release -- --physics-check
 silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release -- --controls-check
 ```
 
-`--oracle-check` emits the 8,652 states from the six qualified recipes at
-60/120 Hz: departure, mirrored turns, zero grip and assisted/unassisted pushes.
-Interactive mode does not replay these sequences. `--smoke` opens a
-“TEST AUTOMATIQUE” window, runs all six recipes, checks framing, transforms,
-steered wheels, contacts, pause and recreation, then closes with its final
-marker. Closing it early does not validate this check.
+`--oracle-check` emits 17,292 states from six 16-second recipes at 60/120 Hz:
+departure/braking, mirrored reversals, a rear-wheel ride, recovery followed by
+a collision, and a fall without the rider. They use the same profile and
+controls as the Silex-Benchmarks `MotorcycleHandling` witness. Physical checks
+also hold turns for three seconds, followed by ten direction changes per
+second. Interactive mode does not replay these sequences.
+
+`--smoke` opens a “TEST AUTOMATIQUE” window, runs the six recipes, checks
+framing, actual transforms, wheels, contacts, pause and recreation, then closes
+with its final marker. Closing it early does not validate this check. After
+a collision, proof covers persistent cutout and no sustained rolling: less
+than 2 cm and 0.05 rad pose variation during the final two seconds. It does
+not promise exactly zero angular velocity at ground contact.

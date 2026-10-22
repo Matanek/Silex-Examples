@@ -8,6 +8,7 @@ func letter(key:@Events.KeyEvent,lower:uint32,upper:uint32,physical:Input.Key) b
 }
 package class MotorcycleControls {
     var throttle:bool=false
+    var boost:bool=false
     var braking:bool=false
     var left:bool=false
     var right:bool=false
@@ -17,7 +18,7 @@ package class MotorcycleControls {
     var resets:int=0
     var pauses:int=0
     var automatic:bool=false
-    var assist_text:UI.State<str> =UI.State<str>("Assistance active (A)")
+    var assist_text:UI.State<str> =UI.State<str>("Pilote auto actif (A)")
     var limit_text:UI.State<str> =UI.State<str>("Limite active (L)")
     var pause_text:UI.State<str> =UI.State<str>("Pause (Espace)")
     var phase:UI.State<str> =UI.State<str>("")
@@ -27,7 +28,7 @@ package class MotorcycleControls {
     func push() { self.pushes++ }
     func reset() { self.resets++ }
     func pause() { self.pauses++ }
-    func release() { self.throttle=false;self.braking=false;self.left=false;self.right=false }
+    func release() { self.throttle=false;self.boost=false;self.braking=false;self.left=false;self.right=false }
     func button(text:str,action:func()) UI.Button {
         var button=UI.Button(text,action);button.style.width=218.0;button.style.height=38.0
         button.style.radius=5.0;button.style.background=Color.slate_700();return button
@@ -42,8 +43,8 @@ package class MotorcycleControls {
             self.button("Poussée latérale (P)",self.push),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button)])
         actions.style.gap=10.0
         var title=UI.Text("Moto — conduite libre et équilibre");title.style.height=28.0
-        var help=UI.Text("Maintenir Z : gaz · S : frein · ← / → : braquer · relâcher : roue libre · Échap : quitter");help.style.height=24.0
-        var hint=UI.Text("Pour comparer : R, attendre les appuis, P ; puis A pour couper l’assistance, R et P à nouveau.");hint.style.height=24.0
+        var help=UI.Text("Maintenir Z : gaz · W : plein gaz / roue arrière · S : frein · ← / → : braquer · Échap : quitter");help.style.height=24.0
+        var hint=UI.Text("A coupe le pilote de roulis : sans lui, la moto est instable en virage. R pour repartir après une chute.");hint.style.height=24.0
         var rows:UI.View[]=[title,help,actions,hint,UI.Reactive(self.phase_label),UI.Reactive(self.metrics)]
         if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — six recettes moto — fermeture à la fin"),UI.Reactive(self.phase_label),UI.Reactive(self.metrics)] }
         var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
@@ -51,6 +52,7 @@ package class MotorcycleControls {
     }
     func held(key:@Events.KeyEvent,down:bool) bool {
         if letter(key,122 as uint32,90 as uint32,Input.Key.z) { self.throttle=down;return true }
+        if letter(key,119 as uint32,87 as uint32,Input.Key.w) { self.boost=down;return true }
         if letter(key,115 as uint32,83 as uint32,Input.Key.s) { self.braking=down;return true }
         if key.key==Input.Key.left { self.left=down;return true }
         if key.key==Input.Key.right { self.right=down;return true }

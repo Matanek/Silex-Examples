@@ -1114,12 +1114,15 @@ scene uses ideal tracks and ray contacts on a plane.
 ## Motorcycle driving and balance
 
 [MotorcycleDriving](Sources/Physics3D/MotorcycleDriving/README.md) lets you ride
-freely with held Z/S and arrow keys. A toggles balance assistance, L toggles the
+freely with held Z/S and arrow keys; W requests full throttle for a physical
+rear-wheel ride. A toggles the roll rider, L toggles the
 speed-dependent steering limit, P applies a real roll impulse and R recreates
 the motorcycle while retaining those settings. Compare recovery and falling
 with the same push. Space pauses; Escape quits. Actual chassis, steering,
 wheel rotation and support markers are rendered from the physical state.
-This validation scene uses an ideal actuator and ray contacts on a plane.
+The rider cuts out after a crash until R; steering is progressive and throttle
+is modulated from pitch. This validation scene uses an ideal actuator and ray
+contacts on a plane.
 
 `silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release`.
 [Guide français](Sources/Physics3D/MotorcycleDriving/README.fr.md).

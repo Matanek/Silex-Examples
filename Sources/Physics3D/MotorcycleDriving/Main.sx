@@ -59,11 +59,14 @@ func remember(state:&MotorcycleScene) {
 func labels(state:&MotorcycleScene,simulation:@Application.Simulation) {
     var pause="Pause (Espace)";if simulation.is_paused() { pause="Reprendre (Espace)" }
     if state.controls.pause_text.value()!=pause { state.controls.pause_text.set(pause) }
-    var assist="Assistance active (A)";if !state.model.vehicle.balance_enabled() { assist="Assistance coupée (A)" }
+    var assist="Pilote auto actif (A)";if !state.model.assistance { assist="Sans pilote auto (A)" }
+    if state.model.crashed() { assist="Au reset : auto (A)";if !state.model.assistance { assist="Au reset : passif (A)" } }
     if state.controls.assist_text.value()!=assist { state.controls.assist_text.set(assist) }
     var limit="Limite active (L)";if !state.model.vehicle.steering_limit_enabled() { limit="Limite coupée (L)" }
     if state.controls.limit_text.value()!=limit { state.controls.limit_text.set(limit) }
     var phase="Conduite libre · $(assist) · $(limit)"
+    if state.model.vehicle.wheel(0).support()==null && state.model.vehicle.wheel(1).support()!=null { phase="Roue avant levée — gaz modulés pour limiter le basculement arrière" }
+    if state.model.crashed() { phase="Chute — gaz et pilote coupés. R pour repartir (réglages conservés)." }
     if state.smoke { phase=Model.recipe_name(state.model.recipe) }
     if state.controls.phase.value()!=phase { state.controls.phase.set(phase) }
     var body=state.model.vehicle.chassis();let speed=Math.round(body.linear_velocity().length()*36.0)/10.0
@@ -78,7 +81,7 @@ func recreate(state:&MotorcycleScene,simulation:&Application.Simulation,recipe:i
 func perform(state:&MotorcycleScene,simulation:&Application.Simulation) {
     var changed=false
     while state.controls.assists>0 {
-        state.controls.assists--;state.model.vehicle.set_balance_enabled(!state.model.vehicle.balance_enabled());changed=true
+        state.controls.assists--;state.model.set_assistance(!state.model.assistance);changed=true
     }
     while state.controls.limits>0 {
         state.controls.limits--;state.model.vehicle.set_steering_limit_enabled(!state.model.vehicle.steering_limit_enabled());changed=true
@@ -225,7 +228,8 @@ func next_smoke(state:&MotorcycleScene,simulation:&Application.Simulation,contro
 }
 func step_free(state:&MotorcycleScene) {
     var throttle=0.0;var brake=0.0;var steering=0.0
-    if state.controls.throttle && !state.controls.braking { throttle=0.8 }
+    if state.controls.throttle && !state.controls.braking { throttle=0.4 }
+    if state.controls.boost && !state.controls.braking { throttle=1.0 }
     if state.controls.braking { brake=0.35 }
     if state.controls.left { steering+=0.35 } if state.controls.right { steering-=0.35 }
     state.model.drive(throttle,steering,brake)
@@ -245,7 +249,7 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&Motorcycle
             state.model.scripted_step();state.model.verify()
         } else { step_free(state) }
         state.accumulator-=1.0/120.0
-        if state.smoke && state.model.steps==960 { finish_recipe(state,simulation);break }
+        if state.smoke && state.model.steps==1920 { finish_recipe(state,simulation);break }
     }
     state.telemetry+=simulation.delta()
     if state.telemetry>=0.1 { state.telemetry=0.0;labels(state,simulation) }
@@ -291,9 +295,9 @@ func verify_controls() {
     press(state,simulation,Input.Key.p,80 as uint32);assert(state.controls.pushes==1 && state.model.vehicle.chassis().angular_velocity()==held)
     press(state,simulation,Input.Key.space,32 as uint32);assert(!simulation.is_paused() && state.controls.pushes==0)
     assert(state.model.vehicle.chassis().angular_velocity().nearly_equal(held.add(Math.Vec3(0.0,0.0,1.5)),0.00001))
-    press(state,simulation,Input.Key.z,122 as uint32)
+    press(state,simulation,Input.Key.z,122 as uint32);press(state,simulation,Input.Key.w,119 as uint32)
     let focus=Events.WindowEvent(window:Window.Id(value:0 as uint32),timestamp:Input.Timestamp(nanoseconds:0 as uint))
-    let handled=state.controls.handle(Events.Event.window_focus_lost(focus));assert(!state.controls.throttle && !state.controls.braking && !state.controls.left && !state.controls.right)
+    let handled=state.controls.handle(Events.Event.window_focus_lost(focus));assert(!state.controls.throttle && !state.controls.boost && !state.controls.braking && !state.controls.left && !state.controls.right)
     InputCheck.click(state.ui,125.0,103.0);perform(state,simulation);assert(state.model.vehicle.balance_enabled())
     InputCheck.click(state.ui,350.0,103.0);perform(state,simulation);assert(state.model.vehicle.steering_limit_enabled())
     old=state.model.vehicle;InputCheck.click(state.ui,800.0,103.0);perform(state,simulation);assert(!old.is_valid())
@@ -307,7 +311,7 @@ func verify_controls() {
     press(state,simulation,Input.Key.z,122 as uint32);press(state,simulation,Input.Key.left,0 as uint32)
     steps=0;while steps<240 { step_free(state);steps++ }
     assert(state.model.vehicle.chassis().position().z>4.0 && state.model.vehicle.chassis().position().x< -2.0)
-    assert(state.model.vehicle.wheel(0).steering_angle< -0.1 && state.model.vehicle.powertrain().clutch==1.0)
+    assert(state.model.vehicle.wheel(0).steering_angle< -0.02 && state.model.vehicle.powertrain().clutch==1.0)
     release(state,Input.Key.z,122 as uint32);release(state,Input.Key.left)
     press(state,simulation,Input.Key.s,115 as uint32);steps=0;while steps<480 { step_free(state);steps++ }
     assert(state.model.vehicle.chassis().linear_velocity().length()<0.03 && state.model.vehicle.powertrain().clutch==0.0)
@@ -318,6 +322,13 @@ func verify_controls() {
     assert(state.model.vehicle.chassis().angular_velocity().nearly_equal(before_turn_push.add(roll_axis),0.00001))
     remember(state);render(world,state,camera)
     assert(world.get<Components.Transform3D>(state.chassis).position==state.model.vehicle.chassis().position())
+    state.controls.reset();perform(state,simulation);steps=0;while steps<240 { step_free(state);steps++ }
+    press(state,simulation,Input.Key.w,119 as uint32);assert(state.controls.boost)
+    steps=0;while steps<360 { step_free(state);steps++ }
+    assert(state.model.front_air_steps>12 && !state.model.crashed())
+    release(state,Input.Key.w,119 as uint32);assert(!state.controls.boost)
+    press(state,simulation,Input.Key.w,87 as uint32);release(state,Input.Key.w,87 as uint32)
+    press(state,simulation,Input.Key.w,0 as uint32);release(state,Input.Key.w)
     state.controls.automatic=true;assert(!state.controls.handle(InputCheck.key_event(Input.Key.z,122 as uint32)))
     print("Motorcycle controls: logical/uppercase/physical keys, releases, focus, repetition, five buttons, actual impulse, pause and recreation verified")
 }
