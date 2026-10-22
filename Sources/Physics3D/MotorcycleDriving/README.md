@@ -19,7 +19,8 @@ silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release
 - Hold **Z**: normal throttle, at 40%; release to coast.
 - Hold **W**: request full throttle to lift the front wheel.
 - Hold **S**: brake with the clutch open; braking overrides Z and W.
-- Hold **← / →**: turn left/right from the rear view; release to center progressively.
+- Hold **Q / D**: turn left/right from the rear view; release to center progressively.
+- Letter controls follow keyboard characters: **ZQSD** on AZERTY.
 - **A**: enable/disable the automatic roll rider.
 - **L**: enable/disable the speed-dependent steering limit.
 - **P**: apply a physical 150 N·m·s roll impulse.

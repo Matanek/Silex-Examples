@@ -20,7 +20,8 @@ silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release
 - Maintenir **Z** : gaz normaux, à 40 % ; relâcher : roue libre.
 - Maintenir **W** : plein gaz demandé, pour lever la roue avant.
 - Maintenir **S** : freinage débrayé, prioritaire sur Z et W.
-- Maintenir **← / →** : tourner à gauche/droite depuis la vue arrière ; relâcher : recentrer progressivement.
+- Maintenir **Q / D** : tourner à gauche/droite depuis la vue arrière ; relâcher : recentrer progressivement.
+- Les lettres suivent les caractères du clavier : **ZQSD** sur AZERTY.
 - **A** : activer/couper le pilote automatique de roulis.
 - **L** : activer/couper la limite de braquage liée à la vitesse.
 - **P** : impulsion physique de roulis de 150 N·m·s.

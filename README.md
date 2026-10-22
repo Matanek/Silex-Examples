@@ -1114,7 +1114,7 @@ scene uses ideal tracks and ray contacts on a plane.
 ## Motorcycle cross profile, ramp and balance
 
 [MotorcycleDriving](Sources/Physics3D/MotorcycleDriving/README.md) starts with a 120 N·m
-cross profile, softer 70 cm-travel suspension and a 16° ramp. Ride freely with held Z/S and arrow keys; W requests full throttle for a physical
+cross profile, softer 70 cm-travel suspension and a 16° ramp. Ride freely with Z for throttle, S to brake and Q/D to steer; W requests full throttle for a physical
 rear-wheel ride. A toggles the roll rider, L toggles the
 speed-dependent steering limit, P applies a real roll impulse and R recreates
 the motorcycle while retaining those settings. B compares a finite ramp with
@@ -1122,7 +1122,7 @@ the flat plane and restarts; the scene begins with the ramp enabled. Ride
 straight ahead with Z to observe ascent, unsupported flight and landing.
 Compare recovery and falling with the same push. Space pauses; Escape quits. Actual chassis, steering,
 wheel rotation and support markers are rendered from the physical state.
-A smooth rear chase camera keeps a level horizon; arrows turn left/right from
+A smooth rear chase camera keeps a level horizon; Q/D turn left/right from
 that view. The DarkGrid ground texture has one-meter cells anchored to the world.
 The rider cuts out after a crash until R; steering is progressive and throttle
 is modulated from pitch. This validation scene uses an ideal actuator and

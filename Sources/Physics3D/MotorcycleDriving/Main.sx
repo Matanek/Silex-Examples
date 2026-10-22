@@ -320,8 +320,14 @@ func verify_controls() {
     press(state,simulation,Input.Key.z,0 as uint32);release(state,Input.Key.z)
     press(state,simulation,Input.Key.s,115 as uint32);assert(state.controls.braking);release(state,Input.Key.s,115 as uint32)
     press(state,simulation,Input.Key.s,83 as uint32);release(state,Input.Key.s,83 as uint32)
-    press(state,simulation,Input.Key.left,0 as uint32);assert(state.controls.left);release(state,Input.Key.left)
-    press(state,simulation,Input.Key.right,0 as uint32);assert(state.controls.right);release(state,Input.Key.right)
+    let assistance_before_q=state.model.assistance
+    press(state,simulation,Input.Key.a,113 as uint32);assert(state.controls.left && state.model.assistance==assistance_before_q);release(state,Input.Key.a,113 as uint32)
+    press(state,simulation,Input.Key.a,81 as uint32);assert(state.controls.left && state.model.assistance==assistance_before_q);release(state,Input.Key.a,81 as uint32)
+    press(state,simulation,Input.Key.q,0 as uint32);assert(state.controls.left);release(state,Input.Key.q)
+    press(state,simulation,Input.Key.d,100 as uint32);assert(state.controls.right);release(state,Input.Key.d,100 as uint32)
+    press(state,simulation,Input.Key.d,68 as uint32);assert(state.controls.right);release(state,Input.Key.d,68 as uint32)
+    press(state,simulation,Input.Key.d,0 as uint32);assert(state.controls.right);release(state,Input.Key.d)
+    assert(!state.controls.left && !state.controls.right)
     press(state,simulation,Input.Key.a,97 as uint32);assert(!state.model.vehicle.balance_enabled())
     press(state,simulation,Input.Key.a,65 as uint32,true);assert(!state.model.vehicle.balance_enabled())
     press(state,simulation,Input.Key.a,65 as uint32);assert(state.model.vehicle.balance_enabled())
@@ -341,6 +347,8 @@ func verify_controls() {
     press(state,simulation,Input.Key.space,32 as uint32);assert(!simulation.is_paused() && state.controls.pushes==0)
     assert(state.model.vehicle.chassis().angular_velocity().nearly_equal(held.add(Math.Vec3(0.0,0.0,1.5)),0.00001))
     press(state,simulation,Input.Key.z,122 as uint32);press(state,simulation,Input.Key.w,119 as uint32)
+    press(state,simulation,Input.Key.a,113 as uint32);press(state,simulation,Input.Key.d,100 as uint32)
+    assert(state.controls.left && state.controls.right)
     let focus=Events.WindowEvent(window:Window.Id(value:0 as uint32),timestamp:Input.Timestamp(nanoseconds:0 as uint))
     let handled=state.controls.handle(Events.Event.window_focus_lost(focus));assert(!state.controls.throttle && !state.controls.boost && !state.controls.braking && !state.controls.left && !state.controls.right)
     InputCheck.click(state.ui,74.0,187.0);perform(state,simulation);assert(state.model.vehicle.balance_enabled())
@@ -361,20 +369,20 @@ func verify_controls() {
     state.follow.reset(state.model.vehicle.chassis().transform());remember(state);render(world,state,simulation);assert(!world.get<Components.Mesh3D>(state.ramp).visible)
     state.controls.reset();perform(state,simulation)
     var steps=0;while steps<240 { step_free(state);steps++ }
-    press(state,simulation,Input.Key.z,122 as uint32);press(state,simulation,Input.Key.left,0 as uint32)
+    press(state,simulation,Input.Key.z,122 as uint32);press(state,simulation,Input.Key.a,113 as uint32)
     steps=0;while steps<240 { step_free(state);steps++ }
     assert(state.model.vehicle.chassis().position().z>4.0 && state.model.vehicle.chassis().position().x>2.0)
     assert(state.model.vehicle.wheel(0).steering_angle>0.02 && state.model.vehicle.powertrain().clutch==1.0)
-    release(state,Input.Key.z,122 as uint32);release(state,Input.Key.left)
+    release(state,Input.Key.z,122 as uint32);release(state,Input.Key.a,113 as uint32)
     press(state,simulation,Input.Key.s,115 as uint32);steps=0;while steps<480 { step_free(state);steps++ }
     assert(state.model.vehicle.chassis().linear_velocity().length()<0.03 && state.model.vehicle.powertrain().clutch==0.0)
     release(state,Input.Key.s,115 as uint32)
     state.controls.reset();perform(state,simulation);steps=0;while steps<240 { step_free(state);steps++ }
-    press(state,simulation,Input.Key.z,122 as uint32);press(state,simulation,Input.Key.right,0 as uint32)
+    press(state,simulation,Input.Key.z,122 as uint32);press(state,simulation,Input.Key.d,100 as uint32)
     steps=0;while steps<240 { step_free(state);steps++ }
     assert(state.model.vehicle.chassis().position().z>4.0 && state.model.vehicle.chassis().position().x< -2.0)
     assert(state.model.vehicle.wheel(0).steering_angle< -0.02)
-    release(state,Input.Key.z,122 as uint32);release(state,Input.Key.right)
+    release(state,Input.Key.z,122 as uint32);release(state,Input.Key.d,100 as uint32)
     let before_turn_push=state.model.vehicle.chassis().angular_velocity()
     let roll_axis=state.model.vehicle.chassis().rotation().rotate(Math.Vec3(0.0,0.0,1.5))
     state.controls.push();perform(state,simulation)
@@ -404,7 +412,7 @@ func verify_controls() {
     state.controls.automatic=true;assert(!state.controls.handle(InputCheck.key_event(Input.Key.z,122 as uint32)))
     assert(!state.controls.handle(InputCheck.key_event(Input.Key.b,98 as uint32)))
     verify_cross_controls()
-    print("Motorcycle controls: logical/uppercase/physical keys, releases, focus, repetition, six buttons, terrain toggle and retained reset, actual impulse, pause and recreation verified")
+    print("Motorcycle controls: ZQSD logical/uppercase/physical keys, AZERTY Q distinct from assistance A, releases, focus, repetition, six buttons, terrain toggle and retained reset, actual impulse, pause and recreation verified")
 }
 test "motorcycle controls affect the real vehicle" { verify_controls() }
 func main() {

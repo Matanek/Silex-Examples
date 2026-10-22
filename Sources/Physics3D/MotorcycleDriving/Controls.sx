@@ -55,7 +55,7 @@ package class MotorcycleControls {
         var terrain=UI.Row([UI.Reactive(self.terrain_button),self.button("R : départ",self.reset)]);terrain.style.gap=8.0
         var actions=UI.Row([self.button("P : poussée",self.push),UI.Reactive(self.pause_button)]);actions.style.gap=8.0
         var title=self.text("Moto cross",28.0);title.style.font_size=18.0
-        var help=self.text("Z : gaz · W : plein gaz\nS : frein · ← / → : tourner\nEspace : pause · Échap : quitter",57.0);help.style.font_size=13.0
+        var help=self.text("Z : gaz · W : plein gaz\nS : frein · Q / D : tourner\nEspace : pause · Échap : quitter",57.0);help.style.font_size=13.0
         var hint=self.text("Sans pilote auto : instable en virage.\nR pour repartir après une chute.",36.0);hint.style.font_size=12.0;hint.style.foreground=Color.slate_300()
         var rows:UI.View[]=[title,UI.Reactive(self.metrics),UI.Reactive(self.phase_label),assistance,terrain,actions,help,hint]
         if self.automatic { rows=[self.text("TEST AUTOMATIQUE\nFermeture à la fin",44.0),UI.Reactive(self.phase_label),UI.Reactive(self.metrics)] }
@@ -66,8 +66,8 @@ package class MotorcycleControls {
         if letter(key,122 as uint32,90 as uint32,Input.Key.z) { self.throttle=down;return true }
         if letter(key,119 as uint32,87 as uint32,Input.Key.w) { self.boost=down;return true }
         if letter(key,115 as uint32,83 as uint32,Input.Key.s) { self.braking=down;return true }
-        if key.key==Input.Key.left { self.left=down;return true }
-        if key.key==Input.Key.right { self.right=down;return true }
+        if letter(key,113 as uint32,81 as uint32,Input.Key.q) { self.left=down;return true }
+        if letter(key,100 as uint32,68 as uint32,Input.Key.d) { self.right=down;return true }
         return false
     }
     func handle(event:@Events.Event) bool {
