@@ -8,6 +8,9 @@ La caméra suit la moto depuis l’arrière, avec une position et un cap amortis
 Elle garde l’horizon droit pendant les virages, les cabrages et les sauts ; après
 une chute, son cap se stabilise. R et B la replacent immédiatement au départ.
 
+Les mesures et les six boutons sont regroupés dans un panneau compact à gauche.
+Le centre et le haut de la scène restent dégagés pour repérer le tremplin.
+
 Depuis la racine du workspace :
 
 ```sh

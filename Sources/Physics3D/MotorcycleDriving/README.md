@@ -7,6 +7,9 @@ to the world while driving. A rear chase camera smooths its position and heading
 It keeps the horizon level through turns, wheelies and jumps; after a crash,
 its heading settles. R and B immediately reset it at the start.
 
+Metrics and all six buttons share a compact panel on the left. The center
+and upper scene remain clear so the ramp is easier to spot.
+
 From the workspace root:
 
 ```sh

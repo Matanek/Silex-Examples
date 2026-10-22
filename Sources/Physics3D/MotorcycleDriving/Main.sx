@@ -65,31 +65,31 @@ func remember(state:&MotorcycleScene) {
     for i in [0,1] { state.lengths[i]=state.model.vehicle.wheel(i).length;state.angles[i]=state.model.vehicle.wheel(i).rotation_angle;state.steering[i]=state.model.vehicle.wheel(i).steering_angle }
 }
 func labels(state:&MotorcycleScene,simulation:@Application.Simulation) {
-    var pause="Pause (Espace)";if simulation.is_paused() { pause="Reprendre (Espace)" }
+    var pause="Espace : pause";if simulation.is_paused() { pause="Espace : reprise" }
     if state.controls.pause_text.value()!=pause { state.controls.pause_text.set(pause) }
-    var assist="Pilote auto actif (A)";if !state.model.assistance { assist="Sans pilote auto (A)" }
-    if state.model.crashed() { assist="Au reset : auto (A)";if !state.model.assistance { assist="Au reset : passif (A)" } }
+    var assist="A : pilote auto";if !state.model.assistance { assist="A : sans pilote" }
+    if state.model.crashed() { assist="A : auto au R";if !state.model.assistance { assist="A : passif au R" } }
     if state.controls.assist_text.value()!=assist { state.controls.assist_text.set(assist) }
-    var limit="Limite active (L)";if !state.model.vehicle.steering_limit_enabled() { limit="Limite coupée (L)" }
+    var limit="L : limite ON";if !state.model.vehicle.steering_limit_enabled() { limit="L : limite OFF" }
     if state.controls.limit_text.value()!=limit { state.controls.limit_text.set(limit) }
-    var terrain="Terrain : plan (B)";if state.model.ramp_enabled { terrain="Terrain : rampe (B)" }
+    var terrain="B : plat";if state.model.ramp_enabled { terrain="B : tremplin" }
     if state.controls.terrain_text.value()!=terrain { state.controls.terrain_text.set(terrain) }
-    var phase="Conduite libre · $(assist) · $(limit)"
+    var phase="Conduite libre"
     if state.model.ramp_enabled && state.model.vehicle.chassis().position().z<12.0 {
-        phase="Rampe devant : maintenir Z tout droit · B compare avec le plan et repart du départ"
+        phase="Rampe devant\nZ tout droit · B : comparer au plat"
     }
-    if state.model.supports()==0 && state.model.steps>30 { phase="Vol libre — aucun appui, suspensions détendues" }
-    else if state.model.landed && state.model.supports()==2 { phase="Réception effectuée — suspensions en appui · S freine · R pour recommencer" }
-    if state.model.vehicle.wheel(0).support()==null && state.model.vehicle.wheel(1).support()!=null { phase="Roue avant levée — gaz modulés pour limiter le basculement arrière" }
-    if state.model.crashed() { phase="Chute — gaz et pilote coupés. R pour repartir (réglages conservés)." }
-    if state.smoke { phase=Model.recipe_name(state.model.recipe) }
+    if state.model.supports()==0 && state.model.steps>30 { phase="En vol — aucun appui" }
+    else if state.model.landed && state.model.supports()==2 { phase="Réception · S : frein · R : départ" }
+    if state.model.vehicle.wheel(0).support()==null && state.model.vehicle.wheel(1).support()!=null { phase="Roue arrière · gaz régulés" }
+    if state.model.crashed() { phase="Chute · gaz et pilote coupés\nR pour repartir" }
+    if state.smoke { phase="Recette $(state.model.recipe+1)/8" }
     if state.controls.phase.value()!=phase { state.controls.phase.set(phase) }
     var body=state.model.vehicle.chassis();let speed=Math.round(body.linear_velocity().length()*36.0)/10.0
     let lean=Math.round(Math.degrees(state.model.tilt())) as int
     let front=Math.round((state.model.vehicle.wheel_settings(0).maximum_length-state.model.vehicle.wheel(0).length)*100.0) as int
     let rear=Math.round((state.model.vehicle.wheel_settings(1).maximum_length-state.model.vehicle.wheel(1).length)*100.0) as int
     let gas=Math.round(state.model.applied_throttle()*100.0) as int
-    let text="Vitesse $(speed) km/h · inclinaison $(lean)° · appuis $(state.model.supports())/2 · compression AV $(front) / AR $(rear) cm · gaz $(gas) %"
+    let text="$(speed) km/h · inclinaison $(lean)°\nCompression AV $(front) / AR $(rear) cm\nAppuis $(state.model.supports())/2 · gaz $(gas) %"
     if state.controls.measure.value()!=text { state.controls.measure.set(text) }
 }
 func recreate(state:&MotorcycleScene,simulation:&Application.Simulation,recipe:int,keep_assistance:bool=false,ramp:bool?=null) {
@@ -143,7 +143,7 @@ func startup(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5)))
     simulation.resume();remember(state);labels(state,simulation)
     state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform())
-        ..with(Scene2D.Canvas(state.ui.drawing(1180,320),1180,320) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+        ..with(Scene2D.Canvas(state.ui.drawing(Controls.Hud.width,Controls.Hud.height),Controls.Hud.width,Controls.Hud.height) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
             ..space=Scene2D.CanvasSpace.viewport ..layer=100))
 }
 func verify_framing(world:@Resources.World,state:@MotorcycleScene,view:Scene3D.Transform) {
@@ -152,17 +152,17 @@ func verify_framing(world:@Resources.World,state:@MotorcycleScene,view:Scene3D.T
     for x in sides { for y in sides { for z in sides {
         let corner=body.position.add(body.rotation.rotate(Math.Vec3(0.2*x as float,0.25*y as float,0.8*z as float)))
         let point=camera.project(corner,view,Math.Vec2(1280.0,800.0))!
-        assert(point.x>20.0 && point.x<1260.0 && point.y>330.0 && point.y<780.0)
+        assert(point.x>20.0 && point.x<1260.0 && point.y>20.0 && point.y<780.0 && (point.x>Controls.Hud.width as float+12.0 || point.y>Controls.Hud.height as float+12.0))
     } } }
     for i in [0,1] {
         let tire=world.get<Components.Transform3D>(state.tires[i])
         for x in sides { for y in sides { for z in sides {
             let corner=tire.position.add(tire.rotation.rotate(Math.Vec3(0.3*x as float,0.09*y as float,0.3*z as float)))
             let point=camera.project(corner,view,Math.Vec2(1280.0,800.0))!
-            if !(point.x>20.0 && point.x<1260.0 && point.y>330.0 && point.y<780.0) {
+            if !(point.x>20.0 && point.x<1260.0 && point.y>20.0 && point.y<780.0 && (point.x>Controls.Hud.width as float+12.0 || point.y>Controls.Hud.height as float+12.0)) {
                 print("Camera corner recipe=$(state.model.recipe) step=$(state.model.steps) wheel=$(i) screen=$(point.to_str()) eye=$(view.position.to_str()) body=$(state.model.vehicle.chassis().position().to_str())")
             }
-            assert(point.x>20.0 && point.x<1260.0 && point.y>330.0 && point.y<780.0)
+            assert(point.x>20.0 && point.x<1260.0 && point.y>20.0 && point.y<780.0 && (point.x>Controls.Hud.width as float+12.0 || point.y>Controls.Hud.height as float+12.0))
         } } }
     }
 }
@@ -227,7 +227,7 @@ func render_frame(world:&Resources.World,state:&MotorcycleScene,delta:float) {
             let ramp_transform=world.get<Components.Transform3D>(state.ramp);let physical=state.model.ramp!.transform()
             assert(ramp_transform.position==physical.position && ramp_transform.rotation==physical.rotation && ramp_transform.scale==Model.ramp_size(state.model.cross))
             let projected=Scene3D.Camera(vertical_fov:0.9).project(ramp_transform.position,view,Math.Vec2(1280.0,800.0))
-            if projected!=null { let point=projected;if point.x>0.0 && point.x<1280.0 && point.y>330.0 && point.y<800.0 { state.ramp_frames++ } }
+            if projected!=null { let point=projected;if point.x>0.0 && point.x<1280.0 && point.y>0.0 && point.y<800.0 && (point.x>Controls.Hud.width as float || point.y>Controls.Hud.height as float) { state.ramp_frames++ } }
         }
         assert(world.is_alive(state.camera))
         let actual=world.get<Components.Transform3D>(state.camera)
@@ -292,7 +292,7 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&Motorcycle
     }
     state.telemetry+=simulation.delta()
     if state.telemetry>=0.1 { state.telemetry=0.0;labels(state,simulation) }
-    if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(1180,320)) }) }
+    if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(Controls.Hud.width,Controls.Hud.height)) }) }
 }
 func press(state:&MotorcycleScene,simulation:&Application.Simulation,key:Input.Key,code:uint32,repeated:bool=false) {
     assert(state.controls.handle(InputCheck.key_event(key,code,repeated)));perform(state,simulation)
@@ -343,21 +343,21 @@ func verify_controls() {
     press(state,simulation,Input.Key.z,122 as uint32);press(state,simulation,Input.Key.w,119 as uint32)
     let focus=Events.WindowEvent(window:Window.Id(value:0 as uint32),timestamp:Input.Timestamp(nanoseconds:0 as uint))
     let handled=state.controls.handle(Events.Event.window_focus_lost(focus));assert(!state.controls.throttle && !state.controls.boost && !state.controls.braking && !state.controls.left && !state.controls.right)
-    InputCheck.click(state.ui,125.0,103.0);perform(state,simulation);assert(state.model.vehicle.balance_enabled())
-    InputCheck.click(state.ui,350.0,103.0);perform(state,simulation);assert(state.model.vehicle.steering_limit_enabled())
-    old=state.model.vehicle;InputCheck.click(state.ui,800.0,103.0);perform(state,simulation);assert(!old.is_valid())
+    InputCheck.click(state.ui,74.0,187.0);perform(state,simulation);assert(state.model.vehicle.balance_enabled())
+    InputCheck.click(state.ui,206.0,187.0);perform(state,simulation);assert(state.model.vehicle.steering_limit_enabled())
+    old=state.model.vehicle;InputCheck.click(state.ui,206.0,225.0);perform(state,simulation);assert(!old.is_valid())
     let old_velocity=state.model.vehicle.chassis().angular_velocity()
-    InputCheck.click(state.ui,580.0,103.0);perform(state,simulation)
+    InputCheck.click(state.ui,74.0,263.0);perform(state,simulation)
     assert(state.model.vehicle.chassis().angular_velocity().nearly_equal(old_velocity.add(Math.Vec3(0.0,0.0,1.5)),0.00001))
-    InputCheck.click(state.ui,1020.0,103.0);perform(state,simulation);assert(simulation.is_paused())
-    InputCheck.click(state.ui,1020.0,103.0);perform(state,simulation);assert(!simulation.is_paused())
+    InputCheck.click(state.ui,206.0,263.0);perform(state,simulation);assert(simulation.is_paused())
+    InputCheck.click(state.ui,206.0,263.0);perform(state,simulation);assert(!simulation.is_paused())
     simulation.pause();let previous_assist=state.model.assistance;let previous_limit=state.model.vehicle.steering_limit_enabled()
-    InputCheck.click(state.ui,125.0,149.0);perform(state,simulation)
+    InputCheck.click(state.ui,74.0,225.0);perform(state,simulation)
     assert(state.model.ramp_enabled && !simulation.is_paused() && state.model.assistance==previous_assist && state.model.vehicle.steering_limit_enabled()==previous_limit)
     var retained_ramp=state.model.ramp!;old=state.model.vehicle
     state.controls.reset();perform(state,simulation)
     assert(!old.is_valid() && retained_ramp.is_valid() && state.model.ramp_enabled)
-    InputCheck.click(state.ui,125.0,149.0);perform(state,simulation);assert(!state.model.ramp_enabled && !retained_ramp.is_valid())
+    InputCheck.click(state.ui,74.0,225.0);perform(state,simulation);assert(!state.model.ramp_enabled && !retained_ramp.is_valid())
     state.follow.reset(state.model.vehicle.chassis().transform());remember(state);render(world,state,simulation);assert(!world.get<Components.Mesh3D>(state.ramp).visible)
     state.controls.reset();perform(state,simulation)
     var steps=0;while steps<240 { step_free(state);steps++ }
@@ -394,11 +394,11 @@ func verify_controls() {
     while state.model.vehicle.chassis().position().z<35.0 && state.model.steps<960 {
         step_free(state);assert(!state.model.crashed())
         if state.model.supports()==0 {
-            labels(state,simulation);assert(state.controls.phase.value()=="Vol libre — aucun appui, suspensions détendues")
+            labels(state,simulation);assert(state.controls.phase.value()=="En vol — aucun appui")
         }
     }
     assert(state.model.flight_steps>40 && state.model.landed && state.model.ramp_contacts>60 && state.model.supports()==2)
-    labels(state,simulation);assert(state.controls.phase.value()=="Réception effectuée — suspensions en appui · S freine · R pour recommencer")
+    labels(state,simulation);assert(state.controls.phase.value()=="Réception · S : frein · R : départ")
     release(state,Input.Key.z,122 as uint32);state.follow.reset(state.model.vehicle.chassis().transform());remember(state);render(world,state,simulation)
     assert(world.get<Components.Mesh3D>(state.ramp).visible)
     state.controls.automatic=true;assert(!state.controls.handle(InputCheck.key_event(Input.Key.z,122 as uint32)))
