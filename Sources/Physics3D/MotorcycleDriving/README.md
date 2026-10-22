@@ -1,6 +1,6 @@
-# Ride over a motorcycle ramp and compare balance
+# Jump a steeper ramp with the cross profile
 
-Ride freely: the chassis, suspensions, steered front wheel and colored spokes
+Ride freely with the motocross-inspired test profile: the chassis, suspensions, steered front wheel and colored spokes
 follow their physical states. Green markers show contacts; the grid marks
 meters and the camera follows the chassis.
 
@@ -21,7 +21,7 @@ silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release
 - **R**: recreate at the start, retaining terrain and the A/L choices.
 - **Space**: pause/resume; **Escape**: quit.
 
-The scene starts facing an orange ramp approximately 12 m ahead. Wait for
+The scene starts facing an orange 16° ramp approximately 12 m ahead. Wait for
 contacts, then hold Z straight ahead: the motorcycle climbs, loses both
 supports and lands on the plane. Suspensions extend in flight and take the
 load again at landing. The interface distinguishes unsupported flight from a
@@ -31,7 +31,7 @@ simulation and release held controls.
 
 To ride on the rear wheel, recreate with R, wait for contacts, then hold W.
 Power and weight transfer physically lift the front wheel. Throttle is
-modulated from pitch and pitch rate to prevent flipping backwards; no pose
+modulated from slope-relative pitch and pitch rate to limit flipping backwards; no pose
 or artificial pitch impulse is imposed. Release W and brake to lower the
 wheel. Z provides more moderate driving.
 
@@ -47,13 +47,15 @@ perform the same one-shot actions. Focus loss, pause, B and R release Z/W/S and
 steering. P requested while paused waits for resume; R cancels it.
 
 The profile retains 100 kg and isotropic inertia of 100 kg·m². The ideal engine
-provides up to 80 N·m; a manual 3×3.42 transmission drives the rear wheel.
+provides up to 120 N·m (+50%); a manual 3×3.42 transmission drives the rear wheel.
 The 30 cm wheels sit at +1.25 m and −0.75 m from the chassis, shifting weight
-distribution rearwards. Springs remain at 10000 N/m and 1000 N·s/m. Simulation
+distribution rearwards. Springs and damping are set to 5000 N/m and 500 N·s/m, half the road values.
+Suspension travel increases from 40 to 70 cm (0.2–0.9 m lengths), with mounts
+raised by 20 cm to keep the center of mass low despite the longer suspension. Simulation
 runs at 120 Hz, steering input is bounded before smoothing, and a complete
 reversal takes 0.3 s. The rider targets at most 0.5 rad of roll. Contacts use
-rays on a plane and a fixed 8 × 0.4 × 6.03 m ramp centered at (0, 0.1, 15) m,
-rotated −0.1 rad about X. Tires are not separate rigid bodies. This profile is
+rays on a plane and a fixed 8 × 0.4 × 9 m ramp centered at (0, 1.0514218, 16.5) m,
+rotated −0.28 rad about X. Its exit edge reaches 2.49 m. Tires are not separate rigid bodies. This profile is
 not calibrated against a real motorcycle.
 
 ## Check without a window
@@ -75,8 +77,16 @@ the `MotorcycleRamp` witness, which verifies ballistic flight, finite box
 contacts and landing at 60/120 Hz. Qualification covers this straight approach
 with Z, not every terrain or maneuver. Interactive mode replays no sequences.
 
-`--smoke` opens a “TEST AUTOMATIQUE” window, runs seven recipes
-(the previous six plus the ramp), checks framing, actual transforms, wheels, contacts, pause and recreation, then closes
+`--cross-check` emits 5,764 cross-profile states comparing the plane and new
+ramp. `MotorcycleCross` retains the chassis budgets through landing and checks
+throttle, slope memory, gravity and rotors independently. The chassis peaks
+around 4.02 m and remains unsupported for approximately 1.08 s in this recipe.
+The rider retains the loaded supports’ slope during flight and modulates
+throttle, imposing no aerial pitch torque or pose. Both earlier witnesses
+retain their road settings as regressions; free driving starts with cross.
+
+`--smoke` opens a “TEST AUTOMATIQUE” window, runs eight recipes
+(the six historical cases, road ramp, then cross ramp), checks framing, actual transforms, wheels, contacts, pause and recreation, then closes
 with its final marker. Closing it early does not validate this check. After
 a collision, proof covers persistent cutout and no sustained rolling: less
 than 2 cm and 0.05 rad pose variation during the final two seconds. It does

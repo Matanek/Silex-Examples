@@ -1111,10 +1111,10 @@ scene uses ideal tracks and ray contacts on a plane.
 `silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release`.
 [Guide français](Sources/Physics3D/TrackedDriving/README.fr.md).
 
-## Motorcycle ramp, driving and balance
+## Motorcycle cross profile, ramp and balance
 
-[MotorcycleDriving](Sources/Physics3D/MotorcycleDriving/README.md) lets you ride
-freely with held Z/S and arrow keys; W requests full throttle for a physical
+[MotorcycleDriving](Sources/Physics3D/MotorcycleDriving/README.md) starts with a 120 N·m
+cross profile, softer 70 cm-travel suspension and a 16° ramp. Ride freely with held Z/S and arrow keys; W requests full throttle for a physical
 rear-wheel ride. A toggles the roll rider, L toggles the
 speed-dependent steering limit, P applies a real roll impulse and R recreates
 the motorcycle while retaining those settings. B compares a finite ramp with

@@ -27,6 +27,7 @@ class MotorcycleScene {
     var floor:ECS.Entity=ECS.Entity()
     var ramp:ECS.Entity=ECS.Entity()
     var ramp_frames:int=0
+    var rendered_cross:bool=false
     var origin:ECS.Entity=ECS.Entity()
     var tires:ECS.Entity[]=[]
     var spokes:ECS.Entity[]=[]
@@ -43,12 +44,15 @@ class MotorcycleScene {
     var accumulator:float=0.0
     var telemetry:float=0.0
     var smoke:bool=false
-    var frames:int[]=[0,0,0,0,0,0,0]
+    var frames:int[]=[0,0,0,0,0,0,0,0]
     var pause_frames:int=0
     var held:Physics.Transform3D=Physics.Transform3D()
     var held_angles:float[]=[]
     var held_steps:int=0
-    init() { self.ui=UI.Session(self.controls.describe()) }
+    init(cross:bool=false) {
+        if cross { self.model.reset(ramp:true,cross:true) }
+        self.ui=UI.Session(self.controls.describe())
+    }
 }
 func visual(world:&Resources.World,mesh:Scene3D.MeshHandle,size:Math.Vec3,color:Color) ECS.Entity {
     return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(scale:size))
@@ -113,8 +117,9 @@ func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Motorcycle
     state.chassis=visual(world,cube,Math.Vec3(0.4,0.5,1.6),Color.bytes(222,177,71))
     state.nose=visual(world,cube,Math.Vec3(0.36,0.1,0.03),Color.bytes(250,245,180))
     state.floor=visual(world,cube,Math.Vec3(200.0,0.2,200.0),Color.bytes(65,82,101))
-    state.ramp=visual(world,cube,Model.ramp_size(),Color.bytes(235,135,65))
-    let ramp_pose=Model.ramp_pose()
+    state.ramp=visual(world,cube,Model.ramp_size(state.model.cross),Color.bytes(235,135,65))
+    state.rendered_cross=state.model.cross
+    let ramp_pose=Model.ramp_pose(state.model.cross)
     world.update<Components.Transform3D>(state.ramp,func(t:&Components.Transform3D) { t.position=ramp_pose.position;t.rotation=ramp_pose.rotation })
     world.update<Components.Mesh3D>(state.ramp,func(m:&Components.Mesh3D) { m.visible=state.model.ramp_enabled })
     state.origin=visual(world,cube,Math.Vec3(0.12,1.6,0.12),Color.bytes(245,245,250))
@@ -195,6 +200,10 @@ func render(world:&Resources.World,state:&MotorcycleScene,camera:&Resources.View
             assert(world.get<Components.Mesh3D>(state.markers[i]).visible==visible)
         }
     }
+    if state.rendered_cross!=state.model.cross {
+        state.rendered_cross=state.model.cross;let ramp_pose=Model.ramp_pose(state.model.cross)
+        world.update<Components.Transform3D>(state.ramp,func(t:&Components.Transform3D) { t.position=ramp_pose.position;t.rotation=ramp_pose.rotation;t.scale=Model.ramp_size(state.model.cross) })
+    }
     if world.get<Components.Mesh3D>(state.ramp).visible!=state.model.ramp_enabled {
         world.update<Components.Mesh3D>(state.ramp,func(m:&Components.Mesh3D) { m.visible=state.model.ramp_enabled })
     }
@@ -216,7 +225,7 @@ func render(world:&Resources.World,state:&MotorcycleScene,camera:&Resources.View
         assert(world.get<Components.Mesh3D>(state.ramp).visible==state.model.ramp_enabled)
         if state.model.ramp_enabled {
             let ramp_transform=world.get<Components.Transform3D>(state.ramp);let physical=state.model.ramp!.transform()
-            assert(ramp_transform.position==physical.position && ramp_transform.rotation==physical.rotation && ramp_transform.scale==Model.ramp_size())
+            assert(ramp_transform.position==physical.position && ramp_transform.rotation==physical.rotation && ramp_transform.scale==Model.ramp_size(state.model.cross))
             let projected=Scene3D.Camera(vertical_fov:0.9).project(ramp_transform.position,view,Math.Vec2(1280.0,800.0))
             if projected!=null { let point=projected;if point.x>0.0 && point.x<1280.0 && point.y>330.0 && point.y<800.0 { state.ramp_frames++ } }
         }
@@ -244,9 +253,9 @@ func next_smoke(state:&MotorcycleScene,simulation:&Application.Simulation,contro
     for i in [0,1] { assert(state.model.vehicle.wheel(i).rotation_angle==state.held_angles[i]) }
     state.pause_frames++
     if state.pause_frames<8 { return }
-    if state.model.recipe==6 {
-        assert(state.ramp_frames>0 && state.model.landed && state.model.flight_steps>40)
-        print("Motorcycle smoke: seven real recipes, finite ramp, unsupported flight/landing, rendered chassis/steered wheels, camera, support markers, pause and recreation verified")
+    if state.model.recipe==7 {
+        assert(state.ramp_frames>0 && state.model.landed && state.model.flight_steps>120 && state.model.peak_height>3.0)
+        print("Motorcycle smoke: eight real recipes, road and cross ramps, unsupported flight/landing, rendered chassis/steered wheels, camera, support markers, pause and recreation verified")
         controller.stop();return
     }
     let next_recipe=state.model.recipe+1;var old_body=state.model.vehicle.chassis()
@@ -386,20 +395,21 @@ func verify_controls() {
     assert(world.get<Components.Mesh3D>(state.ramp).visible)
     state.controls.automatic=true;assert(!state.controls.handle(InputCheck.key_event(Input.Key.z,122 as uint32)))
     assert(!state.controls.handle(InputCheck.key_event(Input.Key.b,98 as uint32)))
+    verify_cross_controls()
     print("Motorcycle controls: logical/uppercase/physical keys, releases, focus, repetition, six buttons, terrain toggle and retained reset, actual impulse, pause and recreation verified")
 }
 test "motorcycle controls affect the real vehicle" { verify_controls() }
 func main() {
     var smoke=false
     for argument in Process.arguments() {
-        if argument=="--physics-check" { Model.verify_physics();Model.verify_ramp();return }
+        if argument=="--physics-check" { Model.verify_physics();Model.verify_ramp();Model.verify_cross();return }
+        if argument=="--cross-check" { Model.cross_witness();return }
         if argument=="--ramp-check" { Model.ramp_witness();return }
         if argument=="--oracle-check" { Model.witness();return }
         if argument=="--controls-check" { verify_controls();return }
         if argument=="--smoke" { smoke=true }
     }
-    var state=MotorcycleScene();var title="Moto — rampe et conduite libre"
-    if !smoke { state.model.reset(ramp:true) }
+    var state=MotorcycleScene(cross:!smoke);var title="Moto cross — tremplin et suspensions souples"
     if smoke { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe());title="TEST AUTOMATIQUE — moto — fermeture à la fin" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
@@ -408,4 +418,20 @@ func main() {
         ..add_system(Application.Schedule.startup,startup)
         ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
         ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}
+
+
+func verify_cross_controls() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=MotorcycleScene(cross:true);var simulation=Application.Simulation()
+    var camera=Resources.ViewportCamera3D(camera_settings());startup(world,meshes,state,simulation)
+    assert(state.model.cross && state.model.ramp_enabled)
+    var step=0;while step<240 { step_free(state);step++ }
+    press(state,simulation,Input.Key.z,122 as uint32)
+    while state.model.vehicle.chassis().position().z<45.0 && state.model.steps<1200 { step_free(state);assert(!state.model.crashed()) }
+    assert(state.model.peak_height>3.0 && state.model.flight_steps>120 && state.model.landed && state.model.supports()==2)
+    release(state,Input.Key.z,122 as uint32);remember(state);render(world,state,camera)
+    assert(world.get<Components.Transform3D>(state.ramp).scale==Model.ramp_size(true))
+    press(state,simulation,Input.Key.r,114 as uint32);assert(state.model.cross && state.model.ramp_enabled)
+    press(state,simulation,Input.Key.b,98 as uint32);assert(state.model.cross && !state.model.ramp_enabled)
+    print("Cross controls: default120Nm preset,Z-held jump/landing,real ramp transform and R/B profile retention verified")
 }
