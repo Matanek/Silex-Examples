@@ -1,9 +1,10 @@
 # Inspect and operate a UI session on macOS
 
-This interactive example presents a **Nom** field, a **Valider** button and two
-feedback lines, as well as checkboxes, a **Profil** radio group and a
-**Volume** slider. It passes the session directly to Viewer, with no additional
-accessibility wiring in application code.
+This interactive example presents a **Nom** field, a **Valider** button,
+checkboxes, a **Profil** radio group, a **Volume** slider and a **Fichiers** panel
+containing a small tree. Feedback lines display their values. It passes the
+session directly to Viewer, with no additional accessibility wiring in
+application code.
 
 The **Masquer les contours des cases et radios** button compares the default
 outline with `FocusAppearance.none()`. It applies to both checkboxes and the
@@ -36,6 +37,12 @@ To qualify the new controls:
    changes; uncheck it to restore adjustment.
 5. Toggle **Notifications** again, then return to the group and slider:
    references remain usable after the interface is reevaluated.
+
+The **Fichiers** panel contains **Documents** (two children) and **Images**.
+Expand Documents, select Notes, then collapse and reopen the panel to compare
+visible state with the semantic source. An accessibility client can also change the
+selected/expanded attributes when the actions are advertised. The **Nom**
+field references its visible title, which refers back to the field.
 
 Headless tests cover these actions and rejection of disabled actions. They do
 not qualify the new controls with VoiceOver or the Linux/Windows bridges.

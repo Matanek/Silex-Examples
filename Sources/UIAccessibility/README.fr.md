@@ -1,9 +1,10 @@
 # Inspecter et actionner une session UI sur macOS
 
 Cette démonstration interactive présente un champ **Nom**, le bouton **Valider**
-ainsi que des cases à cocher, un groupe **Profil**, un curseur **Volume** et
-leurs lignes de retour. La session se passe directement à Viewer : aucun
-câblage d’accessibilité supplémentaire dans l’application.
+ainsi que des cases à cocher, un groupe **Profil**, un curseur **Volume** et un
+panneau **Fichiers** avec un petit arbre. Des lignes affichent leurs valeurs.
+La session se passe directement à Viewer : aucun câblage d’accessibilité
+supplémentaire dans l’application.
 
 Le bouton **Masquer les contours des cases et radios** permet de comparer le
 contour par défaut et `FocusAppearance.none()`. Il agit sur les deux cases et
@@ -37,6 +38,12 @@ qualifier les nouveaux contrôles :
    les modifications ; décocher rétablit son utilisation.
 5. Réactiver **Notifications**, puis revenir au groupe et au curseur : les
    références restent utilisables après les réévaluations de l’interface.
+
+Le panneau **Fichiers** contient **Documents** (deux enfants) et **Images**.
+Déplier Documents, sélectionner Notes, puis replier et rouvrir le panneau permet
+de comparer l’état visible et la source sémantique. Un client d’accessibilité peut aussi
+modifier les attributs sélectionné/déplié lorsque les actions sont annoncées.
+Le champ **Nom** référence son titre visible, qui le référence en retour.
 
 Les tests sans fenêtre couvrent ces actions et le refus des actions désactivées.
 Ils ne qualifient pas le parcours VoiceOver des nouveaux contrôles ni les ponts
