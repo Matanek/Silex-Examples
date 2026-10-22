@@ -1122,6 +1122,8 @@ the flat plane and restarts; the scene begins with the ramp enabled. Ride
 straight ahead with Z to observe ascent, unsupported flight and landing.
 Compare recovery and falling with the same push. Space pauses; Escape quits. Actual chassis, steering,
 wheel rotation and support markers are rendered from the physical state.
+A smooth rear chase camera keeps a level horizon; arrows turn left/right from
+that view. The DarkGrid ground texture has one-meter cells anchored to the world.
 The rider cuts out after a crash until R; steering is progressive and throttle
 is modulated from pitch. This validation scene uses an ideal actuator and
 ray contacts on a plane and a finite ramp; the straight ramp approach is

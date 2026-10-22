@@ -1,8 +1,11 @@
 # Jump a steeper ramp with the cross profile
 
 Ride freely with the motocross-inspired test profile: the chassis, suspensions, steered front wheel and colored spokes
-follow their physical states. Green markers show contacts; the grid marks
-meters and the camera follows the chassis.
+follow their physical states. Green markers show contacts. The ground uses
+`World3D/Assets/DarkGrid.png`: small cells measure one meter and remain anchored
+to the world while driving. A rear chase camera smooths its position and heading.
+It keeps the horizon level through turns, wheelies and jumps; after a crash,
+its heading settles. R and B immediately reset it at the start.
 
 From the workspace root:
 
@@ -13,7 +16,7 @@ silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release
 - Hold **Z**: normal throttle, at 40%; release to coast.
 - Hold **W**: request full throttle to lift the front wheel.
 - Hold **S**: brake with the clutch open; braking overrides Z and W.
-- Hold **← / →**: steer; release to center progressively.
+- Hold **← / →**: turn left/right from the rear view; release to center progressively.
 - **A**: enable/disable the automatic roll rider.
 - **L**: enable/disable the speed-dependent steering limit.
 - **P**: apply a physical 150 N·m·s roll impulse.
@@ -68,9 +71,15 @@ not calibrated against a real motorcycle.
 ```sh
 silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/Model.sx --nocache
 silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --nocache
+silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/ChaseCamera.sx --nocache
+silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/Ground.sx --nocache
 silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release -- --physics-check
 silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release -- --controls-check
 ```
+
+`--view-check` checks framing through all eight recipes with the rear camera,
+level horizon, pause and reset, without a window. Ground tests verify that the
+same world points retain their texture phase after recentering.
 
 `--oracle-check` emits 17,292 states from six 16-second recipes at 60/120 Hz:
 departure/braking, mirrored reversals, a rear-wheel ride, recovery followed by

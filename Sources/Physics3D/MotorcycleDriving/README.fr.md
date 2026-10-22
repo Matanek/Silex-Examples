@@ -2,7 +2,11 @@
 
 Le profil de test inspiré du cross se conduit librement : châssis, suspensions, roue avant braquée et
 rayons colorés suivent leurs états physiques. Les repères verts indiquent les
-appuis ; la grille donne l’échelle en mètres et la caméra suit le châssis.
+appuis. Le sol utilise la texture `World3D/Assets/DarkGrid.png` : les petites
+cases mesurent un mètre et restent ancrées au monde pendant les déplacements.
+La caméra suit la moto depuis l’arrière, avec une position et un cap amortis.
+Elle garde l’horizon droit pendant les virages, les cabrages et les sauts ; après
+une chute, son cap se stabilise. R et B la replacent immédiatement au départ.
 
 Depuis la racine du workspace :
 
@@ -13,7 +17,7 @@ silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release
 - Maintenir **Z** : gaz normaux, à 40 % ; relâcher : roue libre.
 - Maintenir **W** : plein gaz demandé, pour lever la roue avant.
 - Maintenir **S** : freinage débrayé, prioritaire sur Z et W.
-- Maintenir **← / →** : braquer ; relâcher : recentrer progressivement.
+- Maintenir **← / →** : tourner à gauche/droite depuis la vue arrière ; relâcher : recentrer progressivement.
 - **A** : activer/couper le pilote automatique de roulis.
 - **L** : activer/couper la limite de braquage liée à la vitesse.
 - **P** : impulsion physique de roulis de 150 N·m·s.
@@ -70,9 +74,15 @@ autour de X. Le bord de sortie atteint 2,49 m. Les pneus ne sont pas des corps r
 ```sh
 silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/Model.sx --nocache
 silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --nocache
+silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/ChaseCamera.sx --nocache
+silex test Silex-Examples/Sources/Physics3D/MotorcycleDriving/Ground.sx --nocache
 silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release -- --physics-check
 silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release -- --controls-check
 ```
+
+`--view-check` vérifie le cadrage des huit recettes avec le suivi arrière,
+l’horizon, la pause et le reset, sans fenêtre. Les tests de sol vérifient que
+les mêmes points du monde gardent leur phase de texture après recentrage.
 
 `--oracle-check` émet les 17 292 états de six recettes de 16 s à 60/120 Hz :
 départ/freinage, inversions miroirs, roue arrière, récupération puis accident,
