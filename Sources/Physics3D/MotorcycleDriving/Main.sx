@@ -84,7 +84,10 @@ func labels(state:&MotorcycleScene,simulation:@Application.Simulation) {
     if state.controls.phase.value()!=phase { state.controls.phase.set(phase) }
     var body=state.model.vehicle.chassis();let speed=Math.round(body.linear_velocity().length()*36.0)/10.0
     let lean=Math.round(Math.degrees(state.model.tilt())) as int
-    let text="Vitesse $(speed) km/h · inclinaison $(lean)° · appuis $(state.model.supports())/2 · charge $(Math.round(state.model.normal_force()) as int) N · moteur $(Math.round(state.model.vehicle.powertrain().engine_rpm) as int) RPM"
+    let front=Math.round((state.model.vehicle.wheel_settings(0).maximum_length-state.model.vehicle.wheel(0).length)*100.0) as int
+    let rear=Math.round((state.model.vehicle.wheel_settings(1).maximum_length-state.model.vehicle.wheel(1).length)*100.0) as int
+    let gas=Math.round(state.model.applied_throttle()*100.0) as int
+    let text="Vitesse $(speed) km/h · inclinaison $(lean)° · appuis $(state.model.supports())/2 · compression AV $(front) / AR $(rear) cm · gaz $(gas) %"
     if state.controls.measure.value()!=text { state.controls.measure.set(text) }
 }
 func recreate(state:&MotorcycleScene,simulation:&Application.Simulation,recipe:int,keep_assistance:bool=false,ramp:bool?=null) {
@@ -197,6 +200,9 @@ func render(world:&Resources.World,state:&MotorcycleScene,camera:&Resources.View
             assert(world.get<Components.Transform3D>(state.tires[i]).position.nearly_equal(center,0.00001))
             assert(world.get<Components.Transform3D>(state.tires[i]).rotation==tire_rotation)
             assert(world.get<Components.Transform3D>(state.spokes[i]).rotation==spin)
+            let spring=world.get<Components.Transform3D>(state.springs[i])
+            assert(spring.position.nearly_equal(pose.point(settings.position.add(settings.direction.multiply(length*0.5))),0.00001))
+            assert(spring.rotation==pose.rotation && Math.abs(spring.scale.y-Math.max(0.001,length))<0.00001)
             assert(world.get<Components.Mesh3D>(state.markers[i]).visible==visible)
         }
     }
@@ -433,5 +439,19 @@ func verify_cross_controls() {
     assert(world.get<Components.Transform3D>(state.ramp).scale==Model.ramp_size(true))
     press(state,simulation,Input.Key.r,114 as uint32);assert(state.model.cross && state.model.ramp_enabled)
     press(state,simulation,Input.Key.b,98 as uint32);assert(state.model.cross && !state.model.ramp_enabled)
-    print("Cross controls: default120Nm preset,Z-held jump/landing,real ramp transform and R/B profile retention verified")
+    step=0;while step<240 { step_free(state);step++ }
+    press(state,simulation,Input.Key.z,122 as uint32)
+    var lifted=0;var compressed=0
+    step=0;while step<360 {
+        step_free(state);assert(!state.model.crashed())
+        if state.model.vehicle.wheel(0).support()==null && state.model.vehicle.wheel(1).support()!=null { lifted++ }
+        if 0.9-state.model.vehicle.wheel(1).length>0.35 { compressed++ }
+        step++
+    }
+    assert(lifted>240 && compressed>120)
+    release(state,Input.Key.z,122 as uint32);press(state,simulation,Input.Key.s,115 as uint32)
+    step=0;while step<720 { step_free(state);step++ }
+    assert(!state.model.crashed() && state.model.supports()==2 && state.model.vehicle.chassis().linear_velocity().length()<0.05)
+    release(state,Input.Key.s,115 as uint32)
+    print("Cross controls: default120Nm preset,Z-held wheelie/rear compression/braking,jump/landing,real ramp transform and R/B profile retention verified")
 }

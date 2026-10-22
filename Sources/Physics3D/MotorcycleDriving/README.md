@@ -29,11 +29,14 @@ rear-wheel ride and reports the landing. B restarts on the flat plane, then
 restores the ramp on the next press, retaining A/L. B and R resume a paused
 simulation and release held controls.
 
-To ride on the rear wheel, recreate with R, wait for contacts, then hold W.
-Power and weight transfer physically lift the front wheel. Throttle is
-modulated from slope-relative pitch and pitch rate to limit flipping backwards; no pose
-or artificial pitch impulse is imposed. Release W and brake to lower the
-wheel. Z provides more moderate driving.
+To try a rear-wheel ride on the plane, press B, wait for contacts, then hold Z:
+torque and weight transfer lift the front wheel. W requests more throttle
+from the start. Wheelies are allowed at low and moderate speeds; the rider
+progressively reduces the pitch margin between 29 and 50 km/h to regain the
+front support as speed increases. Release the throttle and brake to lower
+the wheel. No jump, pose or pitch impulse is imposed. The display shows
+applied throttle and front/rear compression in centimeters, measured from
+maximum suspension extension.
 
 A disables only roll correction. Without it, this motorcycle has no simulated
 rider or manual lean control: it is unstable in turns. This mode compares the
@@ -49,9 +52,11 @@ steering. P requested while paused waits for resume; R cancels it.
 The profile retains 100 kg and isotropic inertia of 100 kg·m². The ideal engine
 provides up to 120 N·m (+50%); a manual 3×3.42 transmission drives the rear wheel.
 The 30 cm wheels sit at +1.25 m and −0.75 m from the chassis, shifting weight
-distribution rearwards. Springs and damping are set to 5000 N/m and 500 N·s/m, half the road values.
-Suspension travel increases from 40 to 70 cm (0.2–0.9 m lengths), with mounts
-raised by 20 cm to keep the center of mass low despite the longer suspension. Simulation
+distribution rearwards. Springs and damping are set to 2500 N/m and 350 N·s/m. Suspension travel is
+70 cm (0.2–0.9 m lengths), with mounts 10 cm above the chassis center.
+Static sag is approximately 14 cm at the front and 26 cm at the rear; under
+acceleration, rear compression reaches approximately 40 cm. Landing uses
+almost the full travel before the motorcycle settles. Simulation
 runs at 120 Hz, steering input is bounded before smoothing, and a complete
 reversal takes 0.3 s. The rider targets at most 0.5 rad of roll. Contacts use
 rays on a plane and a fixed 8 × 0.4 × 9 m ramp centered at (0, 1.0514218, 16.5) m,
@@ -77,13 +82,14 @@ the `MotorcycleRamp` witness, which verifies ballistic flight, finite box
 contacts and landing at 60/120 Hz. Qualification covers this straight approach
 with Z, not every terrain or maneuver. Interactive mode replays no sequences.
 
-`--cross-check` emits 5,764 cross-profile states comparing the plane and new
-ramp. `MotorcycleCross` retains the chassis budgets through landing and checks
-throttle, slope memory, gravity and rotors independently. The chassis peaks
-around 4.02 m and remains unsupported for approximately 1.08 s in this recipe.
+`--cross-check` emits 8,646 cross-profile states: Z held from rest, the ramp,
+and Z applied after reaching approximately 16 km/h. `MotorcycleCross` retains the chassis budgets through landing and checks
+throttle, slope memory, gravity and rotors independently. The recipe retains physical flight, regained supports and braking.
 The rider retains the loaded supports’ slope during flight and modulates
 throttle, imposing no aerial pitch torque or pose. Both earlier witnesses
-retain their road settings as regressions; free driving starts with cross.
+retain their road settings as regressions; free driving starts with cross. W has consumer behavior checks for lift,
+compression, braking and regained supports; pointwise Jolt parity during a
+prolonged full-throttle wheelie remains unqualified.
 
 `--smoke` opens a “TEST AUTOMATIQUE” window, runs eight recipes
 (the six historical cases, road ramp, then cross ramp), checks framing, actual transforms, wheels, contacts, pause and recreation, then closes

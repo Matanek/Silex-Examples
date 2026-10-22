@@ -29,11 +29,14 @@ réception. B remet au départ sur le plan, puis rétablit la rampe à l’appui
 suivant ; cette comparaison conserve les choix A/L. B et R reprennent une
 simulation suspendue et relâchent les commandes tenues.
 
-Pour une roue arrière, repartir avec R, attendre les appuis puis maintenir W.
-La puissance et le transfert de charge soulèvent réellement la roue avant.
-Le gaz se module selon le tangage relatif à la pente et sa vitesse pour limiter le retournement
-arrière ; aucune pose ni impulsion de cabrage n’est imposée. Relâcher W et
-freiner repose la roue. Z permet une conduite plus modérée.
+Pour essayer la roue arrière sur le plat, appuyer sur B, attendre les appuis,
+puis maintenir Z : la roue avant se soulève sous le couple et le transfert de
+charge. W demande davantage de gaz dès le départ. Le cabrage reste autorisé
+à basse et moyenne vitesse ; le pilote réduit progressivement sa marge entre
+29 et 50 km/h pour retrouver l’appui avant quand la vitesse augmente. Relâcher
+les gaz et freiner repose la roue. Aucun saut, pose ou élan de cabrage n’est
+imposé. L’affichage indique les gaz réellement appliqués et la compression
+avant/arrière en centimètres, mesurée depuis la détente maximale.
 
 A coupe seulement le correcteur de roulis. Sans lui, cette moto n’a ni pilote
 simulé ni commande manuelle d’inclinaison : elle est instable en virage.
@@ -52,9 +55,11 @@ Le profil conserve 100 kg et une inertie isotrope de 100 kg·m². Le moteur
 idéal fournit jusqu’à 120 N·m (+50 %) ; la transmission manuelle 3×3,42 entraîne la roue
 arrière. Les roues de 30 cm sont placées à +1,25 m et −0,75 m du châssis,
 ce qui déplace la répartition de charge vers l’arrière. Les ressorts et amortisseurs sont réglés
-à 5000 N/m et 500 N·s/m, moitié des valeurs route. Le débattement passe de
-40 à 70 cm (longueurs 0,2–0,9 m). Les attaches sont remontées de 20 cm
-pour garder le centre de masse bas avec ces suspensions plus longues. Simulation à 120 Hz, entrée de direction bornée
+à 2500 N/m et 350 N·s/m. Le débattement est de 70 cm (longueurs 0,2–0,9 m),
+avec des attaches 10 cm au-dessus du centre du châssis. L’enfoncement au repos
+est d’environ 14 cm à l’avant et 26 cm à l’arrière ; sous accélération, l’arrière
+atteint environ 40 cm de compression. La réception utilise presque toute la
+course avant que la moto reprenne son assiette. Simulation à 120 Hz, entrée de direction bornée
 avant lissage, inversion complète en 0,3 s. Le pilote vise au plus 0,5 rad
 de roulis. Les contacts utilisent des rayons sur un plan et une rampe fixe de
 8 × 0,4 × 9 m, centrée en (0 ; 1,0514218 ; 16,5) m et inclinée de −0,28 rad
@@ -80,14 +85,16 @@ les contacts sur la boîte finie et la réception à 60/120 Hz. La qualification
 porte sur cette approche droite avec Z, pas sur tout terrain ou toute manœuvre.
 Le mode interactif ne rejoue aucune de ces séquences.
 
-`--cross-check` émet 5 764 états du profil cross, comparant plan et nouveau
-tremplin. Le témoin `MotorcycleCross` conserve les budgets du châssis sur toute
+`--cross-check` émet 8 646 états du profil cross : Z tenu depuis le départ,
+tremplin et reprise de Z vers 16 km/h. Le témoin `MotorcycleCross` conserve les budgets du châssis sur toute
 la réception et vérifie gaz, mémoire de pente, gravité et rotors indépendamment.
-Le châssis culmine vers 4,02 m et reste environ 1,08 s sans appui dans ce parcours.
+Le parcours conserve un envol physique suivi de la reprise des appuis et du freinage.
 Le pilote mémorise la pente des appuis chargés pendant le vol ; il module les
 gaz, sans imposer de couple de tangage aérien ni de pose. Les deux témoins
 précédents gardent leurs réglages route et servent de régressions, tandis que
-la conduite libre démarre directement avec le profil cross.
+la conduite libre démarre directement avec le profil cross. W est vérifié par
+les tests consommateurs de levée, compression, freinage et reprise des appuis ;
+sa parité Jolt point par point sur une roue arrière prolongée reste non qualifiée.
 
 `--smoke` ouvre une fenêtre « TEST AUTOMATIQUE », joue les huit recettes
 (les six historiques, la rampe route puis le tremplin cross), vérifie cadrage, transforms réels, roues, appuis, pause et recréation, puis se

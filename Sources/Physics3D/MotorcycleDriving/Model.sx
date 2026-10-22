@@ -4,7 +4,7 @@ use STD.Math
 func vector(value:Math.Vec3) str { return "$(value.x) $(value.y) $(value.z)" }
 func make(world:Physics.World3D,kind:int,cross:bool=false) Physics.Motorcycle3D {
     var torque=80.0;var height=1.05;var mount=0.0;var travel=0.6;var spring=10000.0;var damping=1000.0
-    if cross { torque=120.0;height=1.2;mount=0.2;travel=0.9;spring=5000.0;damping=500.0 }
+    if cross { torque=120.0;height=1.2;mount=0.1;travel=0.9;spring=2500.0;damping=350.0 }
     let grip=1.0
     let tire=Physics.Tire3DSettings(
         longitudinal_friction:Physics.TireFrictionCurve3D([Math.Vec2(0.0,grip)]),
@@ -47,9 +47,10 @@ class Rider {
                 let horizontal=Math.Vec3(forward.x,0.0,forward.z)
                 if horizontal.length_squared()>0.000001 { self.slope=Math.atan2(-normal.dot(horizontal.normalized()),normal.y) }
             }
-            var margin=0.12;var width=0.06;if requested>0.4 { margin=0.35;width=0.15 }
-            target=Math.min(0.65,self.slope+margin);window=width;horizon=0.18
-            if requested>0.4 { horizon=0.30 }
+            let pace=Math.clamp((Math.abs(body.linear_velocity().dot(forward))-8.0)/6.0,0.0,1.0)
+            let margin=0.4-0.28*pace
+            var width=0.12-0.06*pace;if requested>0.4 { width=0.15-0.09*pace }
+            target=Math.min(0.65,self.slope+margin);window=width;horizon=0.30
         }
         var throttle=requested*Math.clamp((target-pitch-horizon*pitch_rate)/window,0.0,1.0)
         var desired=steering;var braking=brake
@@ -161,7 +162,17 @@ package class MotorcycleModel {
         if self.steps>2*self.rate && self.supports()==0 { self.flight_steps++ }
         else if self.flight_steps>0 && self.supports()>0 { self.landed=true }
     }
+    func cross_step(kind:int) {
+        var throttle=0.0;var brake=0.35;var until=8;if kind==2 { until=6 }
+        if self.steps>=2*self.rate && self.steps<until*self.rate {
+            throttle=0.4;brake=0.0
+            if kind==2 { throttle=1.0 }
+            if kind==3 && self.steps<4*self.rate { throttle=0.1 }
+        }
+        self.drive(throttle,0.0,brake)
+    }
     func ramp_step() {
+        if self.cross { self.cross_step(0);return }
         var throttle=0.0;var brake=0.35
         var until=6;if self.cross { until=8 }
         if self.steps>=2*self.rate && self.steps<until*self.rate { throttle=0.4;brake=0.0 }
@@ -203,7 +214,8 @@ package class MotorcycleModel {
             assert(!self.rider.crashed && self.ramp_enabled && self.ramp_contacts>=self.rate/2)
             var height=1.4;if self.cross { height=3.0 }
             assert(self.flight_steps>=self.rate/3 && self.landed && self.peak_height>height)
-            assert(self.supports()==2 && self.tilt()<0.05 && self.vehicle.chassis().position().z>60.0)
+            var rest_tilt=0.05;if self.cross { rest_tilt=0.08 }
+            assert(self.supports()==2 && self.tilt()<rest_tilt && self.vehicle.chassis().position().z>60.0)
             assert(self.vehicle.chassis().linear_velocity().length()<0.05 && self.vehicle.chassis().angular_velocity().length()<0.05)
         } else if self.recipe>=4 {
             assert(self.rider.crashed && self.tilt()>1.0 && !self.vehicle.balance_enabled() && self.rider.throttle==0.0)
@@ -306,15 +318,15 @@ test "motorcycle traverses the ramp and regains wheel supports" { verify_ramp() 
 
 
 package func cross_witness() {
-    for kind in [0,1] { for rate in [60,120] {
+    for kind in [0,1,3] { for rate in [60,120] {
         var model=MotorcycleModel(rate:rate,cross:true);model.reset(ramp:kind==1)
-        while true { write(model,"motorcycle-cross",kind,true);if model.steps==16*rate { break } model.ramp_step() }
+        while true { write(model,"motorcycle-cross",kind,true);if model.steps==16*rate { break } model.cross_step(kind) }
     } }
 }
 package func verify_cross() {
     for rate in [60,120] {
         var model=MotorcycleModel(rate:rate,cross:true);model.reset(7)
-        assert(model.vehicle.wheel_settings(0).maximum_length==0.9 && model.vehicle.wheel_settings(0).stiffness==5000.0 && model.vehicle.wheel_settings(0).damping==500.0)
+        assert(model.vehicle.wheel_settings(0).maximum_length==0.9 && model.vehicle.wheel_settings(0).stiffness==2500.0 && model.vehicle.wheel_settings(0).damping==350.0)
         while model.steps<16*rate { model.scripted_step();model.verify() }
         model.verify_finished();assert(model.flight_steps>rate && model.peak_height>3.0)
         var ramp=model.ramp!;model.reset(keep_assistance:true)
@@ -327,7 +339,36 @@ package func verify_cross() {
         print("Cross boost end $(rate): crash=$(model.crashed()), supports=$(model.supports()), speed=$(model.vehicle.chassis().linear_velocity().length()), spin=$(model.vehicle.chassis().angular_velocity().length()), tilt=$(model.tilt()), position=$(model.vehicle.chassis().position().to_str())")
         assert(!model.crashed() && model.supports()==2 && model.vehicle.chassis().linear_velocity().length()<0.05)
     }
+    verify_cross_response()
     verify_reversals(true)
-    print("Cross:120Nm,5000N/m,500Ns/m,.7m travel,.28rad ramp,physical flight/landing,boost,reset and reversals verified")
+    print("Cross:120Nm,2500N/m,350Ns/m,.7m travel,.28rad ramp,low/moderate-speed wheelies,suspension compression,flight/landing,boost,reset and reversals verified")
 }
 test "cross motorcycle jumps higher and settles on long-travel suspensions" { verify_cross() }
+
+func verify_cross_response() {
+    for kind in [0,2,3] { for rate in [60,120] {
+        var model=MotorcycleModel(rate:rate,cross:true)
+        var rear_rest=0.0;var entry_speed=0.0;var peak=0.0;var rear_min=0.9;var lifted=0;var first=0.0
+        while model.steps<16*rate {
+            if model.steps==2*rate {
+                rear_rest=model.vehicle.wheel(1).length
+                assert(0.9-model.vehicle.wheel(0).length>0.12 && 0.9-rear_rest>0.23)
+            }
+            if model.steps==4*rate { entry_speed=model.vehicle.chassis().linear_velocity().length() }
+            model.cross_step(kind);model.verify();assert(!model.crashed())
+            var start=2*rate;if kind==3 { start=4*rate }
+            if model.steps>start && model.steps<6*rate {
+                let pitch=Math.asin(Math.clamp(model.vehicle.chassis().rotation().rotate(Math.Vec3(0.0,0.0,1.0)).y,-1.0,1.0))
+                peak=Math.max(peak,pitch);rear_min=Math.min(rear_min,model.vehicle.wheel(1).length)
+                if model.vehicle.wheel(0).support()==null && model.vehicle.wheel(1).support()!=null {
+                    if lifted==0 { first=(model.steps-start) as float/rate as float }
+                    lifted++
+                }
+            }
+        }
+        print("Cross response $(kind)/$(rate): rest rear=$(rear_rest), loaded minimum=$(rear_min), wheelie pitch=$(peak), lift delay=$(first), lifted seconds=$(lifted as float/rate as float), entry speed=$(entry_speed)")
+        assert(peak>0.28 && peak<0.75 && lifted>rate/2 && first<1.0 && rear_rest-rear_min>0.08)
+        if kind==3 { assert(entry_speed>3.0 && entry_speed<12.0) }
+        assert(model.supports()==2 && model.vehicle.chassis().linear_velocity().length()<0.05 && model.vehicle.chassis().angular_velocity().length()<0.05)
+    } }
+}
