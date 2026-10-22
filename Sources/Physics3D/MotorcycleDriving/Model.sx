@@ -1,0 +1,131 @@
+use GFX.Physics
+use STD.Math
+
+func vector(value:Math.Vec3) str { return "$(value.x) $(value.y) $(value.z)" }
+func make(world:Physics.World3D,kind:int) Physics.Motorcycle3D {
+    var grip=1.0;if kind==3 { grip=0.0 }
+    let tire=Physics.Tire3DSettings(
+        longitudinal_friction:Physics.TireFrictionCurve3D([Math.Vec2(0.0,grip)]),
+        lateral_friction:Physics.TireFrictionCurve3D([Math.Vec2(0.0,grip)]))
+    var bike=world.create_motorcycle(Physics.Motorcycle3DSettings(
+        Physics.RigidBody3DSettings() ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.4,0.5,1.6)))
+            ..mass_properties=Physics.MassProperties3D(100.0,Math.Vec3(100.0))
+            ..transform=Physics.Transform3D(Math.Vec3(0.0,1.05,0.0)) ..allow_sleep=false
+            ..linear_damping=0.0 ..angular_damping=0.0 ..friction=0.2,
+        Physics.Wheel3DSettings(Math.Vec3(0.0,0.0,1.0),tire:tire,maximum_steering_angle:0.6,
+            maximum_brake_torque:300.0,maximum_handbrake_torque:0.0,maximum_slope_angle:Math.half_pi()-0.000001),
+        Physics.Wheel3DSettings(Math.Vec3(0.0,0.0,-1.0),tire:tire,
+            maximum_brake_torque:300.0,maximum_handbrake_torque:0.0,maximum_slope_angle:Math.half_pi()-0.000001),
+        engine:Physics.VehicleEngine3DSettings(maximum_torque:20.0,minimum_rpm:0.0,maximum_rpm:6000.0,inertia:0.05,
+            angular_damping:0.0,torque_curve:[Math.Vec2(0.0,1.0)]),
+        transmission:Physics.VehicleTransmission3DSettings(mode:Physics.VehicleTransmissionMode3D.manual,gear_ratios:[3.0])))
+    bike.set_balance_enabled(kind!=5);bike.set_transmission(1,clutch:0.0);return bike
+}
+func command(bike:Physics.Motorcycle3D,kind:int,step:int,rate:int) {
+    let driving=kind<4 && step>=rate*2 && step<rate*4
+    if kind>=4 && step==rate*2 { var body=bike.chassis();body.apply_angular_impulse(Math.Vec3(0.0,0.0,150.0)) }
+    var steering=0.0;var throttle=0.0;var brake=0.35;var clutch=0.0
+    if driving {
+        throttle=0.8;brake=0.0;clutch=1.0
+        if kind==1 { steering=0.35 } if kind==2 { steering= -0.35 }
+    }
+    bike.set_transmission(1,clutch:clutch);bike.set_controls(steering:steering,throttle:throttle,brake:brake)
+}
+
+package func recipe_name(recipe:int) str {
+    if recipe==1 { return "Virage gauche" }
+    if recipe==2 { return "Virage droite" }
+    if recipe==3 { return "Sans adhérence" }
+    if recipe==4 { return "Poussée — assistance active" }
+    if recipe==5 { return "Poussée — assistance coupée" }
+    return "Accélération et freinage"
+}
+package class MotorcycleModel {
+    var world:Physics.World3D=Physics.World3D()
+    var ground:Physics.RigidBody3D
+    var vehicle:Physics.Motorcycle3D
+    var recipe:int=0
+    var rate:int=120
+    var steps:int=0
+    init(recipe:int=0,rate:int=120) {
+        self.recipe=recipe;self.rate=rate
+        self.ground=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0)
+        self.vehicle=make(self.world,recipe)
+    }
+    func reset(recipe:int=0,keep_assistance:bool=false) {
+        let balance=self.vehicle.balance_enabled();let limit=self.vehicle.steering_limit_enabled()
+        self.world.destroy_motorcycle(self.vehicle);self.vehicle=make(self.world,recipe);self.recipe=recipe;self.steps=0
+        if keep_assistance { self.vehicle.set_balance_enabled(balance);self.vehicle.set_steering_limit_enabled(limit) }
+    }
+    func drive(throttle:float,steering:float,brake:float) {
+        var clutch=0.0;if throttle>0.0 { clutch=1.0 }
+        self.vehicle.set_transmission(1,clutch:clutch);self.vehicle.set_controls(throttle:throttle,steering:steering,brake:brake)
+        self.world.step(1.0/self.rate as float);self.steps++
+    }
+    func scripted_step() {
+        command(self.vehicle,self.recipe,self.steps,self.rate)
+        self.world.step(1.0/self.rate as float);self.steps++
+    }
+    func push() { var body=self.vehicle.chassis();body.apply_angular_impulse(body.rotation().rotate(Math.Vec3(0.0,0.0,150.0))) }
+    func supports() int {
+        var count=0;for i in [0,1] { if self.vehicle.wheel(i).support()!=null { count++ } } return count
+    }
+    func normal_force() float { return self.vehicle.wheel(0).normal_force+self.vehicle.wheel(1).normal_force }
+    func tilt() float { return Math.acos(Math.clamp(self.vehicle.chassis().rotation().rotate(Math.Vec3.up()).y,-1.0,1.0)) }
+    func verify() {
+        var body=self.vehicle.chassis()
+        assert(self.world.body_count()==2 && self.vehicle.wheel_count()==2)
+        assert(body.position().length()<30.0 && body.position().y>0.1 && body.position().y<2.0)
+        assert(body.linear_velocity().length()<20.0 && body.angular_velocity().length()<20.0)
+        assert(Math.abs(body.rotation().length_squared()-1.0)<0.0001)
+        for i in [0,1] {
+            let wheel=self.vehicle.wheel(i)
+            assert(wheel.length>=0.0 && wheel.length<=0.60001 && wheel.normal_force>=0.0)
+        }
+    }
+    func verify_finished() {
+        assert(self.steps==8*self.rate)
+        if self.recipe==5 { assert(self.tilt()>1.0 && self.vehicle.chassis().position().y<0.45) }
+        else { assert(self.supports()==2 && self.tilt()<0.01 && self.vehicle.chassis().linear_velocity().length()<0.03) }
+    }
+}
+func write(bike:Physics.Motorcycle3D,kind:int,rate:int,step:int) {
+    var body=bike.chassis();let pose=body.transform();let target=bike.lean_target();let power=bike.powertrain()
+    var text="motorcycle-driving $(kind) $(rate) $(step) $(vector(pose.position)) $(vector(body.linear_velocity())) $(pose.rotation.x) $(pose.rotation.y) $(pose.rotation.z) $(pose.rotation.w) $(vector(body.angular_velocity())) $(vector(target)) $(power.engine_rpm) $(power.gear) $(power.clutch)"
+    for index in [0,1] {
+        let wheel=bike.wheel(index);var touching=0;if wheel.support()!=null { touching=1 }
+        var point=Math.Vec3();var normal=Math.Vec3();var longitudinal=Math.Vec3()
+        if touching==1 { point=wheel.contact_point;normal=wheel.contact_normal;longitudinal=wheel.longitudinal_direction }
+        text+=" $(wheel.steering_angle) $(wheel.length) $(wheel.normal_force) $(touching) $(wheel.angular_velocity) $(wheel.rotation_angle) $(wheel.longitudinal_force) $(wheel.lateral_force) $(vector(point)) $(vector(normal)) $(vector(longitudinal))"
+    }
+    var balance=0;var limited=0;if bike.balance_enabled() { balance=1 } if bike.steering_limit_enabled() { limited=1 }
+    print(text+" $(balance) $(limited)")
+}
+package func witness() {
+    for kind in [0,1,2,3,4,5] { for rate in [60,120] {
+        var model=MotorcycleModel(kind,rate)
+        while true {
+            write(model.vehicle,kind,rate,model.steps)
+            if model.steps==rate*8 { break }
+            model.scripted_step()
+        }
+    } }
+}
+package func verify_physics() {
+    for rate in [60,120] {
+        var model=MotorcycleModel(rate:rate)
+        for kind in [0,1,2,3,4,5] {
+            var old=model.vehicle;var ground=model.ground;model.reset(kind)
+            assert(!old.is_valid() && ground.is_valid())
+            while model.steps<8*rate { model.scripted_step();model.verify() }
+            model.verify_finished()
+        }
+    }
+    var model=MotorcycleModel();var old=model.vehicle
+    model.vehicle.set_balance_enabled(false);model.vehicle.set_steering_limit_enabled(false)
+    model.reset(keep_assistance:true)
+    assert(!old.is_valid() && !model.vehicle.balance_enabled() && !model.vehicle.steering_limit_enabled())
+    print("Motorcycle physics: six recipes at 60/120 Hz, actual wheel contacts, assisted recovery, unassisted fall and recreation verified")
+}
+test "motorcycle visible model reproduces the qualified physical recipes" { verify_physics() }

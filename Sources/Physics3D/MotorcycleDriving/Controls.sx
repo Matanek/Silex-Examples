@@ -1,0 +1,82 @@
+use GFX.Color
+use GFX.Input
+use GFX.Input.Events
+use GFX.UI
+
+func letter(key:@Events.KeyEvent,lower:uint32,upper:uint32,physical:Input.Key) bool {
+    return key.keycode==lower || key.keycode==upper || (key.keycode==0 as uint32 && key.key==physical)
+}
+package class MotorcycleControls {
+    var throttle:bool=false
+    var braking:bool=false
+    var left:bool=false
+    var right:bool=false
+    var assists:int=0
+    var limits:int=0
+    var pushes:int=0
+    var resets:int=0
+    var pauses:int=0
+    var automatic:bool=false
+    var assist_text:UI.State<str> =UI.State<str>("Assistance active (A)")
+    var limit_text:UI.State<str> =UI.State<str>("Limite active (L)")
+    var pause_text:UI.State<str> =UI.State<str>("Pause (Espace)")
+    var phase:UI.State<str> =UI.State<str>("")
+    var measure:UI.State<str> =UI.State<str>("")
+    func assist() { self.assists++ }
+    func limit() { self.limits++ }
+    func push() { self.pushes++ }
+    func reset() { self.resets++ }
+    func pause() { self.pauses++ }
+    func release() { self.throttle=false;self.braking=false;self.left=false;self.right=false }
+    func button(text:str,action:func()) UI.Button {
+        var button=UI.Button(text,action);button.style.width=218.0;button.style.height=38.0
+        button.style.radius=5.0;button.style.background=Color.slate_700();return button
+    }
+    func assist_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.assist_text),self.assist) }
+    func limit_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.limit_text),self.limit) }
+    func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause) }
+    func phase_label(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.phase)) }
+    func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
+    func describe() UI.View {
+        var actions=UI.Row([UI.Reactive(self.assist_button),UI.Reactive(self.limit_button),
+            self.button("Poussée latérale (P)",self.push),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button)])
+        actions.style.gap=10.0
+        var title=UI.Text("Moto — conduite libre et équilibre");title.style.height=28.0
+        var help=UI.Text("Maintenir Z : gaz · S : frein · ← / → : braquer · relâcher : roue libre · Échap : quitter");help.style.height=24.0
+        var hint=UI.Text("Pour comparer : R, attendre les appuis, P ; puis A pour couper l’assistance, R et P à nouveau.");hint.style.height=24.0
+        var rows:UI.View[]=[title,help,actions,hint,UI.Reactive(self.phase_label),UI.Reactive(self.metrics)]
+        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — six recettes moto — fermeture à la fin"),UI.Reactive(self.phase_label),UI.Reactive(self.metrics)] }
+        var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
+        root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0;return root
+    }
+    func held(key:@Events.KeyEvent,down:bool) bool {
+        if letter(key,122 as uint32,90 as uint32,Input.Key.z) { self.throttle=down;return true }
+        if letter(key,115 as uint32,83 as uint32,Input.Key.s) { self.braking=down;return true }
+        if key.key==Input.Key.left { self.left=down;return true }
+        if key.key==Input.Key.right { self.right=down;return true }
+        return false
+    }
+    func handle(event:@Events.Event) bool {
+        if self.automatic { return false }
+        match event {
+            key_pressed(key)=> {
+                if self.held(key,true) { return true }
+                let assist=letter(key,97 as uint32,65 as uint32,Input.Key.a)
+                let limit=letter(key,108 as uint32,76 as uint32,Input.Key.l)
+                let push=letter(key,112 as uint32,80 as uint32,Input.Key.p)
+                let reset=letter(key,114 as uint32,82 as uint32,Input.Key.r)
+                if assist || limit || push || reset || key.key==Input.Key.space {
+                    if !key.repeated {
+                        if assist { self.assist() } else if limit { self.limit() } else if push { self.push() }
+                        else if reset { self.reset() } else { self.pause() }
+                    }
+                    return true
+                }
+            }
+            key_released(key)=>{ return self.held(key,false) }
+            window_focus_lost(focus)=>{ self.release() }
+            else=>{}
+        }
+        return false
+    }
+}
