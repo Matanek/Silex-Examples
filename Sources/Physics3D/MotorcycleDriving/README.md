@@ -16,7 +16,7 @@ From the workspace root:
 silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release
 ```
 
-- Hold **Z**: request 40% drive torque; release for engine braking with the clutch engaged.
+- Hold **Z**: request 40% drive torque; release for engine braking.
 - Hold **W**: request full throttle to lift the front wheel.
 - Hold **S**: brake with the clutch open; braking overrides Z and W.
 - Hold **Q / D**: turn left/right from the rear view; release to center progressively.
@@ -44,7 +44,7 @@ the wheel. No jump, pose or pitch impulse is imposed. The display shows
 applied throttle and front/rear compression in centimeters, measured from
 maximum suspension extension.
 
-A disables only roll correction. Without it, this motorcycle has no simulated
+A disables roll correction and the aids that coordinate cornering with the engine. Without it, this motorcycle has no simulated
 rider or manual lean control: it is unstable in turns. This mode compares the
 effect of automatic balance. At rest, try R then P, and repeat after A and R.
 L removes the steering limit while progressive input remains active.
@@ -56,18 +56,26 @@ perform the same one-shot actions. Focus loss, B and R release Z/W/S, steering
 and the rear brake. Free riding no longer has a pause control.
 
 The profile retains 100 kg and isotropic inertia of 100 kg·m². The ideal engine
-provides up to 120 N·m (+50%); a manual 3×3.42 transmission drives the rear wheel.
+provides up to 180 N·m; a manual 3×3.42 transmission drives the rear wheel.
 The 30 cm wheels sit at +1.25 m and −0.75 m from the chassis, shifting weight
 distribution rearwards. Springs and damping are set to 2500 N/m and 350 N·s/m. Suspension travel is
 70 cm (0.2–0.9 m lengths), with mounts 10 cm above the chassis center.
 Static sag is approximately 14 cm at the front and 26 cm at the rear; under
 acceleration, rear compression reaches approximately 40 cm. Landing uses
 almost the full travel before the motorcycle settles. Simulation runs at 120 Hz with progressive steering and smooth speed-dependent
-saturation. The rider allows up to 0.95 rad (54°) of roll with softer correction;
-a sustained-turn recipe reaches about 53° at 60/120 Hz. Engine damping is
+saturation. The rider allows up to 0.95 rad (54°) of roll with softer correction
+and damping close to critical. Steering accounts for camber and retains a
+progressive transition at higher speed. With assistance enabled, the rider
+limits wheelies while cornering, unloads the drivetrain during a reversal,
+and reserves lateral grip by limiting rear drive torque. Sustained Z/W turns
+and mirrored reversals are checked at 60/120 Hz, followed by ten direction
+changes per second, without falling or excessive rear sliding. The Z start
+reaches 40 km/h in about 1.87–1.89 s in this recipe, versus 2.25 s with the
+previous candidate. Z uses a lower wheelie angle for faster acceleration;
+W retains a more pronounced wheelie. Engine damping is
 1.5 s⁻¹. Under throttle, the rider compensates internal losses to retain the
 cross profile’s torque response; releasing throttle stops this compensation.
-The HUD shows the actual applied throttle. The rear brake reaches 600 N·m with a 0.12 s input rise and a 0.08 s
+The HUD shows the actual applied throttle. The rear brake reaches 260 N·m with a 0.20 s input rise and a 0.08 s
 release. Tires use combined adhesion: braking and cornering share the same
 force budget, with an effective coefficient of 1.4 on this surface. Contacts use
 rays on a plane and a fixed 8 × 0.4 × 9 m ramp centered at (0, 1.0514218, 16.5) m,
@@ -114,7 +122,8 @@ The rider retains the loaded supports’ slope during flight and modulates
 throttle, imposing no aerial pitch torque or pose. Both earlier witnesses
 retain their road settings as regressions; free riding uses the cross profile
 with the new lean, engine braking and combined adhesion settings. `Handling.sx`
-checks these settings: mirrored turns at 60/120 Hz, deceleration, selective rear
+checks these settings: mirrored Z/W turns at 60/120 Hz, sustained and rapid
+reversals, acceleration, deceleration, selective rear
 braking, force budgets and grip recovery. Historical witnesses retain their
 original profile; their Jolt parity does not qualify combined adhesion. W has consumer behavior checks for lift,
 compression, braking and regained supports; pointwise Jolt parity during a

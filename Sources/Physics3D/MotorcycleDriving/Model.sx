@@ -4,6 +4,7 @@ use STD.Math
 package static struct Engine {
     let inertia:float=0.05
     let cross_torque:float=120.0
+    let riding_torque:float=180.0
     let drag:float=1.5
 }
 func vector(value:Math.Vec3) str { return "$(value.x) $(value.y) $(value.z)" }
@@ -11,7 +12,7 @@ func make(world:Physics.World3D,kind:int,cross:bool=false,handling:bool=false) P
     var torque=80.0;var height=1.05;var mount=0.0;var travel=0.6;var spring=10000.0;var damping=1000.0
     if cross { torque=Engine.cross_torque;height=1.2;mount=0.1;travel=0.9;spring=2500.0;damping=350.0 }
     var grip=1.0;var lean=0.5;var roll_stiffness=5000.0;var roll_damping=1000.0;var engine_drag=0.0;var rear_brake=0.0
-    if handling { grip=1.96;lean=0.95;roll_stiffness=3500.0;roll_damping=700.0;engine_drag=Engine.drag;rear_brake=600.0 }
+    if handling { torque=Engine.riding_torque;grip=1.96;lean=0.95;roll_stiffness=3500.0;roll_damping=1200.0;engine_drag=Engine.drag;rear_brake=260.0 }
     let tire=Physics.Tire3DSettings(
         longitudinal_friction:Physics.TireFrictionCurve3D([Math.Vec2(0.0,grip)]),
         lateral_friction:Physics.TireFrictionCurve3D([Math.Vec2(0.0,grip)]),combined_friction:handling)
@@ -56,35 +57,61 @@ class Rider {
                 if horizontal.length_squared()>0.000001 { self.slope=Math.atan2(-normal.dot(horizontal.normalized()),normal.y) }
             }
             let pace=Math.clamp((Math.abs(body.linear_velocity().dot(forward))-8.0)/6.0,0.0,1.0)
-            let margin=0.4-0.28*pace
+            var margin=0.4-0.28*pace
+            if self.handling { margin=0.30-0.18*pace;if requested>0.4 { margin=0.34-0.22*pace } }
             var width=0.12-0.06*pace;if requested>0.4 { width=0.15-0.09*pace }
             target=Math.min(0.65,self.slope+margin);window=width;horizon=0.30
+            if self.handling && requested>0.4 { horizon=0.45 }
+            if self.handling && bike.balance_enabled() {
+                let corner=Math.clamp(Math.abs(steering)/0.35,0.0,1.0)
+                // Keep the front tire loaded when asking it to change direction.
+                target=Math.min(0.65,self.slope+margin*(1.0-corner)+0.14*corner)
+                window=width*(1.0-corner)+0.06*corner
+            }
         }
         var throttle=requested*Math.clamp((target-pitch-horizon*pitch_rate)/window,0.0,1.0)
         var desired=steering;var braking=brake
+        let up=q.rotate(Math.Vec3.up());let right=q.rotate(Math.Vec3.right())
+        let roll=Math.atan2(right.y,up.y)
+        let changing_side=self.handling && bike.balance_enabled() && steering*roll< -0.015
+        // Unload the drivetrain while the rider changes sides, preserving tire grip.
+        if changing_side { throttle=0.0 }
         if self.crashed { throttle=0.0;braking=0.35;desired=0.0;bike.set_balance_enabled(false) }
+        if self.handling && bike.balance_enabled() && Math.abs(steering)>0.02 {
+            var rear=bike.wheel(1)
+            if rear.support()!=null && rear.normal_force>0.0 {
+                // Leave lateral grip available instead of spinning the driven tire in a turn.
+                let capacity=1.4*rear.normal_force
+                let reserve=Math.sqrt(Math.max(0.0,capacity*capacity-rear.lateral_force*rear.lateral_force))
+                throttle=Math.min(throttle,0.85*reserve*0.3/(3.0*3.42*Engine.riding_torque))
+            }
+        }
         if self.handling && throttle>0.0 {
             // Preserve requested drive torque while overcoming the engine's internal drag.
             let drag=Engine.inertia*Engine.drag*bike.powertrain().engine_rpm*Math.two_pi()/60.0
-            throttle=Math.min(1.0,throttle+drag/Engine.cross_torque)
+            throttle=Math.min(1.0,throttle+drag/Engine.riding_torque)
         }
         let speed=body.linear_velocity().dot(forward)
         var cap=0.35
         if self.handling {
             if bike.steering_limit_enabled() {
-                let available=2.0*Math.tan(0.9)*9.81/Math.max(0.000001,speed*speed)/0.6
+                let camber=Math.max(0.2,q.rotate(Math.Vec3.up()).y)
+                let available=2.0*Math.tan(0.9)*9.81*camber/Math.max(0.000001,speed*speed)/0.6
                 // Smooth saturation keeps the approach to the lean envelope progressive.
                 desired/=Math.sqrt(1.0+(desired/available)*(desired/available))
+                cap=Math.min(cap,available)
             }
         } else {
             if bike.steering_limit_enabled() { cap=Math.min(cap,Math.asin(Math.clamp(2.0*Math.tan(0.5)*9.81/Math.max(0.000001,speed*speed),0.0,1.0))/0.6) }
             desired=Math.clamp(desired,-cap,cap);self.steering=Math.clamp(self.steering,-cap,cap)
         }
-        let increment=2.0*cap/(0.3*rate as float)
+        var transition=0.3;if self.handling { transition=0.7 }
+        let increment=2.0*cap/(transition*rate as float)
         self.steering+=Math.clamp(desired-self.steering,-increment,increment);self.throttle=throttle
         var clutch=0.0;if throttle>0.0 { clutch=1.0 }
         if self.handling && !self.crashed && brake==0.0 && rear_brake==0.0 { clutch=1.0 }
-        var response=0.12;if rear_brake<self.rear_brake { response=0.08 }
+        if changing_side { clutch=0.0 }
+        var response=0.20;if rear_brake<self.rear_brake { response=0.08 }
         self.rear_brake+=Math.clamp(rear_brake-self.rear_brake,-1.0/(response*rate as float),1.0/(response*rate as float))
         bike.set_transmission(1,clutch:clutch);bike.set_controls(steering:self.steering,throttle:throttle,brake:braking,handbrake:self.rear_brake)
     }

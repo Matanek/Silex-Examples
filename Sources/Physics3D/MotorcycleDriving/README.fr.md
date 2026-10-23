@@ -17,7 +17,7 @@ Depuis la racine du workspace :
 silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release
 ```
 
-- Maintenir **Z** : couple normal demandé à 40 % ; relâcher : frein moteur, embrayage engagé.
+- Maintenir **Z** : couple normal demandé à 40 % ; relâcher : frein moteur.
 - Maintenir **W** : plein gaz demandé, pour lever la roue avant.
 - Maintenir **S** : freinage débrayé, prioritaire sur Z et W.
 - Maintenir **Q / D** : tourner à gauche/droite depuis la vue arrière ; relâcher : recentrer progressivement.
@@ -45,7 +45,7 @@ les gaz et freiner repose la roue. Aucun saut, pose ou élan de cabrage n’est
 imposé. L’affichage indique les gaz réellement appliqués et la compression
 avant/arrière en centimètres, mesurée depuis la détente maximale.
 
-A coupe seulement le correcteur de roulis. Sans lui, cette moto n’a ni pilote
+A coupe le correcteur de roulis et les aides qui coordonnent les virages avec le moteur. Sans lui, cette moto n’a ni pilote
 simulé ni commande manuelle d’inclinaison : elle est instable en virage.
 Ce mode sert à comparer l’effet de l’équilibre automatique. Pour comparer au
 repos, essayer R puis P, et répéter après A et R. L retire la limite de
@@ -59,7 +59,7 @@ La perte de focus, B et R relâchent Z/W/S, le braquage et le frein arrière.
 La conduite libre n’a plus de commande de pause.
 
 Le profil conserve 100 kg et une inertie isotrope de 100 kg·m². Le moteur
-idéal fournit jusqu’à 120 N·m (+50 %) ; la transmission manuelle 3×3,42 entraîne la roue
+idéal fournit jusqu’à 180 N·m ; la transmission manuelle 3×3,42 entraîne la roue
 arrière. Les roues de 30 cm sont placées à +1,25 m et −0,75 m du châssis,
 ce qui déplace la répartition de charge vers l’arrière. Les ressorts et amortisseurs sont réglés
 à 2500 N/m et 350 N·s/m. Le débattement est de 70 cm (longueurs 0,2–0,9 m),
@@ -68,11 +68,19 @@ est d’environ 14 cm à l’avant et 26 cm à l’arrière ; sous accélératio
 atteint environ 40 cm de compression. La réception utilise presque toute la
 course avant que la moto reprenne son assiette. Simulation à 120 Hz, direction progressive avec saturation douce selon la vitesse.
 Le pilote autorise jusqu’à 0,95 rad (54°) de roulis, avec un correcteur moins
-raide ; une recette de virage soutenu atteint environ 53° à 60/120 Hz.
+raide et un amortissement proche du critique. Le braquage tient compte du
+carrossage et garde une transition progressive à grande vitesse. Sous assistance,
+le pilote limite le cabrage en virage, allège la transmission pendant une
+inversion et réserve de l’adhérence latérale en limitant le couple arrière.
+Les grands virages et inversions Z/W sont vérifiés à 60/120 Hz, puis à dix
+changements de direction par seconde, sans chute ni glisse arrière excessive.
+Le départ Z de 0 à 40 km/h prend environ 1,87–1,89 s dans cette recette, contre
+2,25 s avec le candidat précédent. Le cabrage est moins haut avec Z pour
+accélérer plus vite ; W conserve un cabrage plus marqué.
 L’amortissement moteur est de 1,5 s⁻¹. Sous les gaz, le pilote compense les
 pertes internes pour conserver la réponse de couple du profil cross ; au lever
-des gaz, cette compensation cesse. Le HUD affiche les gaz réellement appliqués. Le frein arrière atteint 600 N·m avec
-une montée de commande en 0,12 s et une libération en 0,08 s.
+des gaz, cette compensation cesse. Le HUD affiche les gaz réellement appliqués. Le frein arrière atteint 260 N·m avec
+une montée de commande en 0,20 s et une libération en 0,08 s.
 Les pneus utilisent une adhérence combinée : freinage et virage partagent le
 même budget d’efforts, avec un coefficient effectif de 1,4 sur ce sol. Les contacts utilisent des rayons sur un plan et une rampe fixe de
 8 × 0,4 × 9 m, centrée en (0 ; 1,0514218 ; 16,5) m et inclinée de −0,28 rad
@@ -122,7 +130,8 @@ gaz, sans imposer de couple de tangage aérien ni de pose. Les deux témoins
 précédents gardent leurs réglages route et servent de régressions, tandis que
 la conduite libre utilise le profil cross avec les nouveaux réglages d’inclinaison,
 de frein moteur et d’adhérence combinée. Ces réglages sont contrôlés par
-`Handling.sx` : virages miroirs à 60/120 Hz, décélération, frein arrière sélectif,
+`Handling.sx` : virages miroirs Z/W à 60/120 Hz, inversions soutenues puis rapides,
+accélération, décélération, frein arrière sélectif,
 budget d’efforts et reprise d’adhérence. Les témoins historiques conservent
 leur ancien profil ; leur parité Jolt ne qualifie pas l’adhérence combinée. W est vérifié par
 les tests consommateurs de levée, compression, freinage et reprise des appuis ;

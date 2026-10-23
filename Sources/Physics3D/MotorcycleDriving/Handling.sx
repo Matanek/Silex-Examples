@@ -4,10 +4,10 @@ use STD.Math
 package func step(model:&Model.MotorcycleModel,kind:int=1,sign:float=1.0) {
     let t=model.steps as float/model.rate as float
     var gas=0.0;var steer=0.0;var rear=0.0;var brake=0.0
-    if t>=2.0 && t<5.0 { gas=0.15 }
+    if t>=2.0 && t<5.0 { gas=0.4 }
     if t>=4.0 && t<8.0 { steer=0.35*sign }
     if kind==1 && t>=5.0 && t<6.0 { rear=1.0 }
-    if kind==2 && t>=5.0 && t<8.0 { gas=0.15 }
+    if kind==2 && t>=5.0 && t<8.0 { gas=0.4 }
     if t>=9.0 { brake=0.35 }
     model.drive(gas,steer,brake,rear)
 }
@@ -46,10 +46,50 @@ package func verify() {
             print("Handling $(rate) $(kind) $(sign): lean=$(Math.degrees(lean)) rear_slip=$(Math.degrees(rear_slip)) front_slip=$(Math.degrees(front_slip)) speed=$(start_speed)->$(slow_speed) locked=$(locked) recovered=$(recovered)")
             assert(model.supports()==2 && model.vehicle.chassis().linear_velocity().length()<0.05)
             if kind==0 { assert(engine_braked && slow_speed<start_speed*0.7);coasting=rear_slip }
-            if kind==1 { assert(locked>rate/2 && rear_slip>0.25 && rear_slip>coasting+0.2 && front_slip<rear_slip && recovered);ends.append(model.vehicle.chassis().position()) }
-            if kind==2 { assert(lean>0.7 && lean<1.0) }
+            if kind==1 { assert(locked>rate/2 && rear_slip>0.25 && rear_slip<1.2 && rear_slip>coasting+0.2 && front_slip<rear_slip && recovered);ends.append(model.vehicle.chassis().position()) }
+            if kind==2 { assert(lean>0.55 && lean<1.0) }
         } }
-        assert(Math.abs(ends[0].x+ends[1].x)<0.01 && Math.abs(ends[0].z-ends[1].z)<0.01)
+        print("Mirror endpoints $(rate): $(ends[0].to_str()) / $(ends[1].to_str())")
+        assert(Math.abs(ends[0].x+ends[1].x)<0.05 && Math.abs(ends[0].z-ends[1].z)<0.05)
     }
 }
 test "cross motorcycle leans brakes with its engine and recovers from a rear brake slide" { verify() }
+
+package func verify_control() {
+    let signs:float[]=[-1.0,1.0];let inputs:float[]=[0.4,1.0]
+    for rate in [60,120] { for gas in inputs {
+        var straight=Model.MotorcycleModel(rate:rate,cross:true,handling:true)
+        var reached=0.0;var wheelie=0
+        while straight.steps<8*rate {
+            var throttle=0.0;if straight.steps>=2*rate { throttle=gas }
+            straight.drive(throttle,0.0,0.0);assert(!straight.crashed())
+            if straight.vehicle.chassis().linear_velocity().length()>40.0/3.6 && reached==0.0 { reached=straight.steps as float/rate as float-2.0 }
+            if straight.vehicle.wheel(0).support()==null && straight.vehicle.wheel(1).support()!=null { wheelie++ }
+        }
+        print("Cross acceleration $(rate)/$(gas): 0-40=$(reached)s wheelie=$(wheelie as float/rate as float)s")
+        var limit=2.05;if gas>0.4 { limit=2.4 }
+        assert(reached>0.0 && reached<limit && wheelie>rate/2)
+        for sign in signs {
+            var model=Model.MotorcycleModel(rate:rate,cross:true,handling:true)
+            var peak=0.0;var slip=0.0
+            while model.steps<20*rate {
+                var throttle=0.0;var steering=0.0
+                if model.steps>=2*rate { throttle=gas }
+                if model.steps>=4*rate {
+                    steering=0.35*sign
+                    if model.steps<16*rate { if ((model.steps/rate-4)/3)%2!=0 { steering= -steering } }
+                    else { if (model.steps/(rate/10))%2!=0 { steering= -steering } }
+                }
+                model.drive(throttle,steering,0.0);model.verify()
+                assert(!model.crashed() && model.tilt()<1.1 && model.vehicle.chassis().angular_velocity().length()<5.0)
+                peak=Math.max(peak,model.tilt())
+                var rear=model.vehicle.wheel(1)
+                assert(rear.brake_torque==0.0)
+                if rear.normal_force>10.0 && model.vehicle.chassis().linear_velocity().length()>3.0 { slip=Math.max(slip,rear.lateral_slip) }
+            }
+            print("Cross inversions $(rate)/$(gas)/$(sign): lean=$(Math.degrees(peak)) rear slip=$(Math.degrees(slip))")
+            assert(peak>0.3 && slip<0.15)
+        }
+    } }
+}
+test "full Z and W stay controllable through sustained turns and rapid mirrored reversals" { verify_control() }

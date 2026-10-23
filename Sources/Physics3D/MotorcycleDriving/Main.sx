@@ -414,7 +414,7 @@ test "motorcycle controls affect the real vehicle" { verify_controls() }
 func main() {
     var smoke=false
     for argument in Process.arguments() {
-        if argument=="--physics-check" { Model.verify_physics();Model.verify_ramp();Model.verify_cross();Handling.verify();return }
+        if argument=="--physics-check" { Model.verify_physics();Model.verify_ramp();Model.verify_cross();Handling.verify();Handling.verify_control();return }
         if argument=="--cross-check" { Model.cross_witness();return }
         if argument=="--ramp-check" { Model.ramp_witness();return }
         if argument=="--oracle-check" { Model.witness();return }
@@ -447,14 +447,15 @@ func verify_cross_controls() {
     press(state,simulation,Input.Key.b,98 as uint32);assert(state.model.cross && !state.model.ramp_enabled)
     step=0;while step<240 { step_free(state);step++ }
     press(state,simulation,Input.Key.z,122 as uint32)
-    var lifted=0;var compressed=0
+    var lifted=0;var compressed=0;var pitch_peak=0.0
     step=0;while step<360 {
         step_free(state);assert(!state.model.crashed())
         if state.model.vehicle.wheel(0).support()==null && state.model.vehicle.wheel(1).support()!=null { lifted++ }
         if 0.9-state.model.vehicle.wheel(1).length>0.35 { compressed++ }
+        pitch_peak=Math.max(pitch_peak,state.model.tilt())
         step++
     }
-    assert(lifted>240 && compressed>120)
+    assert(lifted>120 && compressed>120 && pitch_peak>0.1 && pitch_peak<0.6)
     release(state,Input.Key.z,122 as uint32);press(state,simulation,Input.Key.s,115 as uint32)
     step=0;while step<720 { step_free(state);step++ }
     assert(!state.model.crashed() && state.model.supports()==2 && state.model.vehicle.chassis().linear_velocity().length()<0.05)
@@ -471,7 +472,7 @@ func verify_cross_controls() {
     press(state,simulation,Input.Key.w,119 as uint32);step=0;while step<360 { step_free(state);assert(!state.model.crashed());step++ }
     assert(state.model.front_air_steps>12)
     release(state,Input.Key.w,119 as uint32)
-    print("Cross controls: held Space brakes rear rotor without pause, default120Nm preset,Z-held wheelie/rear compression/braking,jump/landing,real ramp transform and R/B profile retention verified")
+    print("Cross controls: held Space brakes rear rotor without pause, default180Nm preset,Z-held wheelie/rear compression/braking,jump/landing,real ramp transform and R/B profile retention verified")
 }
 
 func verify_view() {

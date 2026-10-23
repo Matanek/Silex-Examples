@@ -1113,7 +1113,7 @@ scene uses ideal tracks and ray contacts on a plane.
 
 ## Motorcycle cross profile, ramp and balance
 
-[MotorcycleDriving](Sources/Physics3D/MotorcycleDriving/README.md) starts with a 120 N·m
+[MotorcycleDriving](Sources/Physics3D/MotorcycleDriving/README.md) starts with a 180 N·m
 cross profile, softer 70 cm-travel suspension and a 16° ramp. Ride freely with Z for throttle, S to brake and Q/D to steer; W requests full throttle for a physical
 rear-wheel ride. A toggles the roll rider, L toggles the
 speed-dependent steering limit, P applies a real roll impulse and R recreates
@@ -1130,8 +1130,9 @@ The rider cuts out after a crash until R; steering is progressive and throttle
 is modulated from pitch. This validation scene uses an ideal actuator and
 ray contacts on a plane and a finite ramp; the straight ramp approach is
 qualified against Jolt, with unsupported flight and loaded landing checks. The
-free-riding profile adds softer lean control and combined tire adhesion, covered
-by separate consumer checks.
+free-riding profile combines progressive steering, support-aware wheelie control
+and traction control in turns. Separate consumer checks cover Z/W acceleration,
+mirrored reversals and combined tire adhesion.
 
 `silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release`.
 [Guide français](Sources/Physics3D/MotorcycleDriving/README.fr.md).
