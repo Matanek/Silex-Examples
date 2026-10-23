@@ -14,6 +14,7 @@ use GFX.Physics
 use Physics3D.TrackedDriving.Model
 use Physics3D.TrackedDriving.Controls
 use Physics3D.TrackedDriving.Driving
+use Physics3D.TrackedDriving.Automatic
 use Physics3D.ArticulatedPose.Controls as InputCheck
 use STD.Math
 use STD.Process
@@ -65,11 +66,12 @@ func remember(state:&TrackedScene) {
 func labels(state:&TrackedScene,simulation:@Application.Simulation) {
     var pause="Pause (P)";if simulation.is_paused() { pause="Reprendre (P)" }
     if state.controls.pause_text.value()!=pause { state.controls.pause_text.set(pause) }
-    var mode="Auto OFF (M)";if state.autopilot { mode="Auto ON (M)" }
+    var mode="Pilote OFF (M)";if state.autopilot { mode="Pilote ON (M)" }
     if state.controls.mode_text.value()!=mode { state.controls.mode_text.set(mode) }
     var terrain="Plat";if state.model.ramp!=null { terrain="Rampe" }
     var phase="$(terrain) · conduite libre"
-    if state.autopilot { phase="$(terrain) · auto $(Math.min(state.auto_steps/120,14))/14 s" }
+    var cycle=14;if state.model.automatic { cycle=16 }
+    if state.autopilot { phase="$(terrain) · pilotage auto $(Math.min(state.auto_steps/120,cycle))/$(cycle) s" }
     if state.model.steps>30 && state.model.supports()==0 { phase+=" · en vol" }
     else if state.model.landed && state.model.supports()==6 { phase+=" · appuis repris" }
     if state.controls.braking { phase+=" · freinage" }
@@ -82,7 +84,9 @@ func labels(state:&TrackedScene,simulation:@Application.Simulation) {
     if state.controls.measure.value()!=text { state.controls.measure.set(text) }
     let left=state.model.vehicle.track(Physics.VehicleTrackSide3D.left);let right=state.model.vehicle.track(Physics.VehicleTrackSide3D.right)
     let l=Math.round(left.linear_speed*100.0)/100.0;let r=Math.round(right.linear_speed*100.0)/100.0
-    let tracks="Bande gauche (bleu) $(l) m/s · droite (orange) $(r) m/s · moteur $(Math.round(state.model.vehicle.powertrain().engine_rpm) as int) RPM · Échap : quitter"
+    let power=state.model.vehicle.powertrain();var gearbox="manuel";if state.model.automatic { gearbox="boîte auto" }
+    var shifting="";if power.switching_gear { shifting=" · changement" }
+    let tracks="Bandes G/D $(l) / $(r) m/s · $(gearbox) · rapport $(power.gear) · $(Math.round(power.engine_rpm) as int) RPM · embrayage $(Math.round(power.clutch*100.0) as int)%$(shifting)"
     if state.controls.tracks.value()!=tracks { state.controls.tracks.set(tracks) }
 }
 func recreate(state:&TrackedScene,simulation:&Application.Simulation,recipe:int) {
@@ -110,9 +114,10 @@ func perform(state:&TrackedScene,simulation:&Application.Simulation) {
 }
 func step_free(state:&TrackedScene) {
     if state.autopilot {
-        state.model.vehicle.set_transmission(1)
+        if !state.model.automatic { state.model.vehicle.set_transmission(1) }
         var throttle=0.0;var brake=0.04
-        if state.auto_steps>=240 && state.auto_steps<840 { throttle=0.8;brake=0.0 }
+        var end=840;if state.model.automatic { end=720 }
+        if state.auto_steps>=240 && state.auto_steps<end { throttle=0.8;brake=0.0 }
         state.model.drive(throttle,brake:brake);state.auto_steps++
     } else {
         var gas=0.0;var turn=0.0
@@ -314,8 +319,9 @@ func ticks(state:&TrackedScene,simulation:&Application.Simulation,count:int) {
         step++
     }
 }
-func verify_controls() {
+func verify_controls(automatic:bool=false) {
     var world=Resources.World();var meshes=Resources.Meshes3D();var state=TrackedScene();var simulation=Application.Simulation()
+    if automatic { state.model=Model.TrackedModel(automatic:true) }
     var camera=Resources.ViewportCamera3D(camera_settings());startup(world,meshes,state,simulation)
     state.model.set_ramp(true);ticks(state,simulation,240)
     var vehicle=state.model.vehicle;var chassis=vehicle.chassis();var ground=state.model.ground
@@ -393,19 +399,22 @@ func live_smoke_inputs(state:&TrackedScene,simulation:&Application.Simulation,co
     }
 }
 test "tracked scene controls apply to the real vehicle" { verify_controls() }
+test "tracked continuous controls retain the automatic vehicle" { verify_controls(true) }
 func main() {
     var smoke=false;var live=false
     for argument in Process.arguments() {
         if argument=="--physics-check" { Model.verify_physics();Model.verify_recreation();Model.verify_ramp();return }
         if argument=="--oracle-check" { Model.witness();return }
         if argument=="--ramp-check" { Model.witness(true);return }
-        if argument=="--controls-check" { verify_controls();return }
+        if argument=="--controls-check" { verify_controls();verify_controls(true);return }
+        if argument=="--automatic-check" { Automatic.witness();return }
+        if argument=="--automatic-physics-check" { Automatic.verify();return }
         if argument=="--smoke" { smoke=true }
         if argument=="--live-smoke" { smoke=true;live=true }
     }
-    var state=TrackedScene();var title="Chenilles — conduite continue ZQSD et rampe"
+    var state=TrackedScene();var title="Chenilles — boîte automatique et conduite ZQSD"
     if smoke { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe());title="TEST AUTOMATIQUE — chenilles — fermeture à la fin" }
-    if !smoke || live { state.model.reset(7) }
+    if !smoke || live { state.model=Model.TrackedModel(recipe:6,automatic:true) }
     if live {
         state.live_smoke=true;state.controls.live_check=true;state.ui=UI.Session(state.controls.describe())
         title="TEST AUTOMATIQUE — commandes continues — fermeture à la fin"

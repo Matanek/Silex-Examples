@@ -1,71 +1,86 @@
-# Conduire deux chenilles et franchir une rampe
+# Conduire deux chenilles avec une boîte automatique
 
-Piloter le véhicule en continu, changer de terrain sur place et observer ses
-six suspensions. Les rayons bleus à gauche et orange à droite suivent les
-rotations physiques des roues ; les repères verts montrent les appuis présents.
+Conduire en continu et observer les trois rapports avant et arrière, les
+interruptions de couple et l’engagement de l’embrayage. Les six suspensions,
+les rayons bleus/orange et les repères verts suivent les états physiques.
+Le panneau donne rapport, régime, embrayage et vitesses des deux bandes.
 
-Depuis la racine du workspace :
+Depuis la racine du workspace ou du groupe Worktree de la Spec :
 
 ```sh
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release
 ```
 
-- Maintenir **Z / S** : avancer / reculer. Une inversion freine avant de passer
-  l’autre rapport ; elle ne remet pas le véhicule au départ.
-- Maintenir **Q / D**, ou **← / →** : tourner ; à très faible vitesse sans gaz,
+- Maintenir **Z/S** : avancer/reculer. Une inversion freine avant d’entraîner
+  les bandes dans l’autre sens ; elle ne remet pas au départ.
+- Maintenir **Q/D** ou **←/→** : tourner. Sans gaz à très faible vitesse,
   les bandes tournent en sens opposés pour pivoter.
-- Maintenir **Espace** : freiner. Au relâchement des gaz, le véhicule peut rouler
-  sur son élan ; le frein léger le maintient lorsqu’il est presque immobile.
-- **B / F** : ajouter la rampe / revenir au plat, en conservant le véhicule,
-  sa pose, sa vitesse et le temps de simulation. Le retrait d’un appui peut
-  naturellement le faire retomber.
-- **M** : activer ou couper un cycle automatique depuis l’état courant.
-  Une commande de conduite reprend immédiatement la main.
-- **P** : pause/reprise ; **R** : seul reset, départ sur le terrain choisi ;
-  **Échap** : quitter.
+- Maintenir **Espace** : frein. Au relâchement des gaz, le véhicule roule sur
+  son élan ; un frein léger le maintient presque à l’arrêt.
+- **B/F** : ajouter la rampe/revenir au plat à la pose courante ; retirer un
+  appui peut naturellement faire retomber le châssis.
+- **M** : activer/couper le pilote du cycle depuis l’état courant. Une touche
+  de conduite reprend la main. La boîte automatique fonctionne aussi en conduite
+  manuelle : le pilote et la transmission sont deux choses distinctes.
+- **P** : pause/reprise ; **R seul** : retour au départ sur le terrain choisi,
+  avec la même boîte ; **Échap** : quitter.
 
-Les cinq boutons concernent le terrain, le mode automatique, la pause et le
-reset. La conduite utilise les touches tenues. Les relâchements et la perte de
-focus libèrent les commandes, sans recréer le véhicule. B/F et M conservent la
-pause ; R reprend la simulation. La conduite libre continue après quatorze
-secondes. Le châssis et les rotations ne sont jamais imposés par les commandes.
+Les cinq boutons concernent terrain, pilote, pause et reset. Les relâchements
+et la perte de focus libèrent la conduite. B/F et M conservent la pause ; R
+reprend la simulation. Les commandes conservent identité, pose, vitesses et
+horloge ; la conduite continue après seize secondes. Aucune pose/vitesse de
+châssis ou rotation de roue n’est imposée par les commandes.
 
-La scène démarre au pied de la rampe. Pour comparer le parcours qualifié,
-activer M puis utiliser R pour repartir explicitement du départ : stabilisation
-2 s, gaz à 80 % pendant 5 s, freinage modéré à 4 % pendant 7 s. Le cycle ne se
-réinitialise pas tout seul. Pour conduire soi-même, maintenir une touche ZQSD.
-La conduite manuelle module les gaz et la différence de vitesse des bandes
-avec la vitesse du véhicule ; elle garde le même moteur et les mêmes suspensions.
+## Voir les rapports changer
 
-La caméra suit le châssis ; la grille indique des mètres. Le panneau donne les
-vitesses des bandes, l’état du pilotage et le nombre d’appuis. Regarder la
-montée, la disparition des appuis au sommet, le vol puis la reprise des charges.
+La fenêtre démarre sur le plat. Maintenir Z pour voir 1/2/3 et l’embrayage
+s’ouvrir puis se refermer. Freiner ensuite pour observer les rétrogradages
+et le point mort. S entraîne les mêmes passages en marche arrière.
+La conduite au clavier module couple et différence des bandes avec la vitesse,
+avec une cible d’environ 9 m/s pour rester maniable ; moteur et suspensions sont
+les mêmes que dans le témoin qualifié.
 
-Le modèle utilise 100 kg, six roues de 30 cm, suspensions 10000 N/m et
-1000 N·s/m, deux bandes d’inertie 2 kg·m² et un moteur de 15 N·m. Les chenilles
-sont un couplage idéal, sans maillons articulés. Six rayons heurtent le plan ou
-une boîte de 8 × 0,4 × 6,03 m inclinée de 0,1 rad. Le frein modéré isole le
-franchissement : un freinage maximal depuis environ 58 km/h bascule dans Jolt
-à 120 Hz. Ni ce freinage extrême, ni les terrains généraux, ni la boîte
-automatique au sol ne sont qualifiés par ce parcours.
+Pour voir le cycle qualifié sans moduler les gaz, activer **M**, puis **R**
+pour repartir explicitement du départ : 2 s de stabilisation, 4 s à 80 % de gaz et
+10 s de freinage à 4 %, puis maintien au repos. Il ne redémarre pas tout seul.
+Le panneau distingue « Pilote » et « boîte auto » ; R seul recrée le véhicule.
+La caméra suit le châssis et la grille indique des mètres.
 
-## Vérification sans fenêtre
+## Modèle et qualification
+
+100 kg, inerties 100 kg·m², six roues de 30 cm, suspensions 10000 N/m et 1000 N·s/m,
+bandes d’inertie 2 kg·m², moteur 15 N·m et différentiel 6. La boîte utilise
+2/1.4/1 et −2/−1.4/−1, seuils 1800/1200 RPM, changement 0.5 s, engagement 0.3 s,
+latence 0.5 s. Le frein modéré vaut 60 N·m par bande. Les bandes sont un couplage
+idéal, sans maillons articulés ; les contacts sont six rayons.
+
+Le témoin autonome `TrackedAutomaticRun.py` de Silex-Benchmarks qualifie sur
+plan les passages avant/arrière et l’interdiction de monter un rapport sans
+appui ou avec bandes opposées. La scène reproduit exactement les deux cas
+avant/arrière. Les huit recettes manuelles historiques, dont le franchissement
+de rampe, restent dans les tests avec leurs témoins inchangés.
+
+B permet d’explorer la boîte de 8 × 0.4 × 6.03 m inclinée de 0.1 rad avec ce nouveau
+profil. La parité automatique sur rampe n’est pas qualifiée. La rectitude
+prolongée à haute vitesse, les terrains généraux, le freinage extrême et les
+contacts de chenille à maillons ne sont pas prouvés par ces recettes.
+
+## Vérifier
 
 ```sh
-silex test Silex-Examples/Sources/Physics3D/TrackedDriving/Model.sx --nocache
-silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --physics-check
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --controls-check
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --automatic-physics-check
 ```
 
-`--controls-check` conserve identité, pose, vitesse, rotors et temps à chaque
-commande, puis vérifie les effets des touches tenues, du freinage, de la marche
-arrière, des boutons et de la pause. R est contrôlé comme recréation distincte.
-`--oracle-check` émet les 8 652 états historiques ; `--ramp-check`, les 5 044
-états plat/rampe. Ils gardent la simulation des témoins qualifiés.
-`--smoke` joue ces huit recettes dans une fenêtre « TEST AUTOMATIQUE » et
-vérifie cadrage, roue/appui, rampe, pause et recréation avant fermeture.
-Une fermeture anticipée ne valide pas ce contrôle.
+`--controls-check` vérifie touches tenues, relâchement/focus, virages, freinage,
+marche arrière, pause, pilote et cinq boutons dans les deux profils, avec
+conservation des états et R séparé. `--physics-check` conserve les recettes
+manuelles ; `--automatic-physics-check` vérifie 1/2/3/2/1/point mort, embrayage,
+repos et conservation du profil lors du reset à 60/120 Hz.
 
-`--live-smoke` vérifie dans une seconde fenêtre automatique la conduite tenue,
-les virages, le frein, B/F sur place, M et la reprise manuelle, la pause et
-la poursuite du temps au-delà de quatorze secondes.
+`--oracle-check` émet 8 652 états historiques ; `--ramp-check`, 5 044 états plat/rampe ;
+`--automatic-check`, 5 764 états avant/arrière identiques au benchmark qualifié.
+`--smoke` joue les huit recettes manuelles avec cadrage, roues, appuis et rampe.
+`--live-smoke` joue 18 s de commandes continues automatiques, terrain, pilote,
+pause et reprise manuelle sans reset. Une fermeture anticipée ne valide pas
+ces contrôles ; les fenêtres « TEST AUTOMATIQUE » se ferment à leur fin.

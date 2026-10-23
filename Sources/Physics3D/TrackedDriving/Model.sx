@@ -13,7 +13,7 @@ package func recipe_name(recipe:int) str {
 }
 package func ramp_size() Math.Vec3 { return Math.Vec3(8.0,0.4,6.03) }
 package func ramp_pose() Physics.Transform3D { return Physics.Transform3D(Math.Vec3(0.0,0.1,15.0),Math.Quat.angle_axis(-0.1,Math.Vec3.right())) }
-func make_vehicle(world:Physics.World3D,recipe:int) Physics.TrackedVehicle3D {
+func make_vehicle(world:Physics.World3D,recipe:int,automatic:bool=false) Physics.TrackedVehicle3D {
     var wheels:Physics.TrackedWheel3DSettings[]=[]
     var longitudinal=1.0;var lateral=0.15
     if recipe==5 { longitudinal=0.0;lateral=0.0 }
@@ -22,6 +22,11 @@ func make_vehicle(world:Physics.World3D,recipe:int) Physics.TrackedVehicle3D {
         wheels.append(Physics.TrackedWheel3DSettings(Math.Vec3(x,0.0,z),
             longitudinal_friction:longitudinal,lateral_friction:lateral))
     } }
+    var transmission=Physics.VehicleTransmission3DSettings(mode:Physics.VehicleTransmissionMode3D.manual,
+        gear_ratios:[1.0],reverse_gear_ratios:[-1.0],shift_up_rpm:1200.0,shift_down_rpm:600.0)
+    if automatic {
+        transmission=Physics.VehicleTransmission3DSettings(gear_ratios:[2.0,1.4,1.0],reverse_gear_ratios:[-2.0,-1.4,-1.0],shift_up_rpm:1800.0,shift_down_rpm:1200.0)
+    }
     var vehicle=world.create_tracked_vehicle(Physics.TrackedVehicle3DSettings(
         Physics.RigidBody3DSettings() ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.4,0.4,2.4)))
             ..mass_properties=Physics.MassProperties3D(100.0,Math.Vec3(100.0))
@@ -31,12 +36,13 @@ func make_vehicle(world:Physics.World3D,recipe:int) Physics.TrackedVehicle3D {
         Physics.VehicleTrack3DSettings(3,[3,4,5],inertia:2.0,angular_damping:0.0,maximum_brake_torque:1500.0),
         engine:Physics.VehicleEngine3DSettings(maximum_torque:15.0,minimum_rpm:1000.0,maximum_rpm:6000.0,
             inertia:0.5,angular_damping:0.0,torque_curve:[Math.Vec2(0.0,1.0)]),
-        transmission:Physics.VehicleTransmission3DSettings(mode:Physics.VehicleTransmissionMode3D.manual,
-            gear_ratios:[1.0],reverse_gear_ratios:[-1.0],shift_up_rpm:1200.0,shift_down_rpm:600.0)))
+        transmission:transmission))
     var gear=1;if recipe==1 { gear= -1 }
-    vehicle.set_transmission(gear);return vehicle
+    if !automatic { vehicle.set_transmission(gear) }
+    return vehicle
 }
 package class TrackedModel {
+    let automatic:bool
     var world:Physics.World3D=Physics.World3D()
     var ground:Physics.RigidBody3D
     var ramp:Physics.RigidBody3D?=null
@@ -52,12 +58,13 @@ package class TrackedModel {
     var driven_yaw:float=0.0
     var normal_sum:float=0.0
     var normal_samples:int=0
-    init(recipe:int=0,rate:int=120) {
+    init(recipe:int=0,rate:int=120,automatic:bool=false) {
+        self.automatic=automatic
         assert(recipe>=0 && recipe<8 && (rate==60 || rate==120))
         self.recipe=recipe;self.rate=rate
         self.ground=self.world.create_rigid_body(Physics.RigidBody3DSettings()
             ..body_type=Physics.BodyType3D.fixed ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0)
-        self.vehicle=make_vehicle(self.world,recipe);self.make_ramp()
+        self.vehicle=make_vehicle(self.world,recipe,self.automatic);self.make_ramp()
     }
     private func make_ramp() {
         if self.recipe==7 {
@@ -72,7 +79,7 @@ package class TrackedModel {
         self.world.destroy_tracked_vehicle(self.vehicle)
         if self.ramp!=null { self.world.destroy_rigid_body(self.ramp!);self.ramp=null }
         self.recipe=recipe
-        self.vehicle=make_vehicle(self.world,recipe);self.steps=0
+        self.vehicle=make_vehicle(self.world,recipe,self.automatic);self.steps=0
         self.driven_position=Math.Vec3();self.driven_yaw=0.0;self.normal_sum=0.0;self.normal_samples=0
         self.air_steps=0;self.ramp_samples=0;self.landed=false;self.peak_height=1.15;self.make_ramp()
     }
@@ -146,6 +153,16 @@ package class TrackedModel {
         }
         if self.recipe==5 { assert(Math.abs(body.position().x)+Math.abs(body.position().z)<0.0001) }
     }
+    func observation(prefix:str,scenario:int) str {
+        var vehicle=self.vehicle;var body=vehicle.chassis();let pose=body.transform();let power=vehicle.powertrain()
+        let left=vehicle.track(Physics.VehicleTrackSide3D.left);let right=vehicle.track(Physics.VehicleTrackSide3D.right)
+        var text="$(prefix) $(scenario) $(self.rate) $(self.steps) $(vector(pose.position)) $(vector(body.linear_velocity())) $(pose.rotation.x) $(pose.rotation.y) $(pose.rotation.z) $(pose.rotation.w) $(vector(body.angular_velocity())) $(power.engine_rpm) $(power.gear) $(power.clutch) $(left.angular_velocity) $(right.angular_velocity)"
+        for i in [0,1,2,3,4,5] {
+            var wheel=vehicle.wheel(i);var touching=0;if wheel.support()!=null { touching=1 }
+            text+=" $(wheel.length) $(wheel.normal_force) $(wheel.angular_velocity) $(wheel.rotation_angle) $(wheel.longitudinal_force) $(wheel.lateral_force) $(touching) $(vector(wheel.contact_point)) $(vector(wheel.contact_normal)) $(vector(wheel.longitudinal_direction))"
+        }
+        return text
+    }
     func verify_finished() {
         assert(self.steps==self.duration()*self.rate && self.normal_samples==self.rate && self.supports()==6)
         assert(self.vehicle.chassis().linear_velocity().length()<0.05 && self.vehicle.chassis().angular_velocity().length()<0.05)
@@ -172,14 +189,8 @@ package func witness(ramp:bool=false) {
             assert(!old.is_valid() && model.world.body_count()==expected)
         }
         while true {
-            var vehicle=model.vehicle;var body=vehicle.chassis();let pose=body.transform();let power=vehicle.powertrain()
-            let left=vehicle.track(Physics.VehicleTrackSide3D.left);let right=vehicle.track(Physics.VehicleTrackSide3D.right)
             var prefix="tracked-ground";var kind=recipe;if ramp { prefix="tracked-ramp";kind-=6 }
-            var text="$(prefix) $(kind) $(rate) $(model.steps) $(vector(pose.position)) $(vector(body.linear_velocity())) $(pose.rotation.x) $(pose.rotation.y) $(pose.rotation.z) $(pose.rotation.w) $(vector(body.angular_velocity())) $(power.engine_rpm) $(power.gear) $(power.clutch) $(left.angular_velocity) $(right.angular_velocity)"
-            for i in [0,1,2,3,4,5] {
-                var wheel=vehicle.wheel(i);var touching=0;if wheel.support()!=null { touching=1 }
-                text+=" $(wheel.length) $(wheel.normal_force) $(wheel.angular_velocity) $(wheel.rotation_angle) $(wheel.longitudinal_force) $(wheel.lateral_force) $(touching) $(vector(wheel.contact_point)) $(vector(wheel.contact_normal)) $(vector(wheel.longitudinal_direction))"
-            }
+            let text=model.observation(prefix,kind)
             print(text);if model.steps==rate*model.duration() { break }
             model.step()
         }

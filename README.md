@@ -1105,6 +1105,9 @@ tracks of three suspended wheels continuously. Hold Z/S for forward/reverse,
 Q/D or arrows to turn or pivot, and Space to brake. B/F change terrain in place,
 M toggles an automatic cycle and P pauses; R alone returns to the start.
 The scene retains physical poses, velocities and clock across other commands.
+The interactive scene starts on flat ground with automatic forward/reverse
+shifting; gear, RPM and clutch engagement are visible. M controls an optional
+driver cycle, separately from the automatic gearbox.
 Colored spokes and green support markers show ascent, unsupported flight and
 landing. Headless witnesses and the eight-recipe smoke retain the qualified
 flat/ramp comparisons.
