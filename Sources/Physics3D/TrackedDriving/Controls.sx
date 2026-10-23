@@ -21,6 +21,8 @@ package class TrackedControls {
     func right() { self.recipe=3 }
     func pivot() { self.recipe=4 }
     func slippery() { self.recipe=5 }
+    func flat() { self.recipe=6 }
+    func ramp() { self.recipe=7 }
     func reset() { self.resets++ }
     func pause() { self.pauses++ }
     func button(text:str,action:func()) UI.Button {
@@ -37,11 +39,11 @@ package class TrackedControls {
             self.button("Gauche (←)",self.left),self.button("Droite (→)",self.right),
             self.button("Pivoter (P)",self.pivot),self.button("Sans adhérence (G)",self.slippery)])
         actions.style.gap=10.0
-        var playback=UI.Row([self.button("Rejouer (R)",self.reset),UI.Reactive(self.pause_button)]);playback.style.gap=10.0
+        var playback=UI.Row([self.button("Rejouer (R)",self.reset),UI.Reactive(self.pause_button),self.button("Plat long (F)",self.flat),self.button("Rampe (B)",self.ramp)]);playback.style.gap=10.0
         var title=UI.Text("Chenilles — deux bandes, six roues, un châssis");title.style.height=28.0
-        var help=UI.Text("Chaque choix rejoue : réception 2 s · conduite 2 s · freinage 4 s. Les bandes font tourner le châssis.");help.style.height=24.0
+        var help=UI.Text("Z/S/←/→/P/G : 2 s + 2 s + 4 s. F/B : comparer plat / rampe, 2 s + 5 s + 7 s. R : rejouer.");help.style.height=24.0
         var rows:UI.View[]=[title,help,actions,playback,UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)]
-        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — six manœuvres à chenilles — fermeture à la fin"),UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)] }
+        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — huit manœuvres à chenilles — fermeture à la fin"),UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)] }
         var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
         root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0
         return root
@@ -54,13 +56,17 @@ package class TrackedControls {
                 let reverse=letter(key,115 as uint32,83 as uint32,Input.Key.s)
                 let pivot=letter(key,112 as uint32,80 as uint32,Input.Key.p)
                 let slippery=letter(key,103 as uint32,71 as uint32,Input.Key.g)
+                let flat=letter(key,102 as uint32,70 as uint32,Input.Key.f)
+                let ramp=letter(key,98 as uint32,66 as uint32,Input.Key.b)
                 let reset=letter(key,114 as uint32,82 as uint32,Input.Key.r)
-                if forward || reverse || pivot || slippery || reset || key.key==Input.Key.left || key.key==Input.Key.right || key.key==Input.Key.space {
+                if forward || reverse || pivot || slippery || flat || ramp || reset || key.key==Input.Key.left || key.key==Input.Key.right || key.key==Input.Key.space {
                     if !key.repeated {
                         if forward { self.forward() }
                         else if reverse { self.reverse() }
                         else if pivot { self.pivot() }
                         else if slippery { self.slippery() }
+                        else if flat { self.flat() }
+                        else if ramp { self.ramp() }
                         else if reset { self.reset() }
                         else if key.key==Input.Key.left { self.left() }
                         else if key.key==Input.Key.right { self.right() }

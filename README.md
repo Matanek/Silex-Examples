@@ -1103,10 +1103,12 @@ comparison, separate from the variable tire curves in VehicleSuspension.
 [TrackedDriving](Sources/Physics3D/TrackedDriving/README.md) demonstrates two
 coupled tracks of three suspended wheels. Z/S select forward/reverse, arrows
 choose opposite curves, P pivots and G removes grip while wheels keep spinning.
-Each choice recreates and plays a qualified eight-second maneuver, then stops;
-R replays and Space pauses. Colored spokes show actual wheel rotation, green
-markers show supports, and the panel reports both track speeds. This validation
-scene uses ideal tracks and ray contacts on a plane.
+The scene starts on a finite ramp; B/F compare the ramp and a flat control
+through settling, five seconds of drive, unsupported flight, landing and moderate
+braking. These new maneuvers last fourteen seconds; the original six remain
+eight seconds. R replays and Space pauses. Colored spokes show actual wheel
+rotation, green markers show supports, and the panel reports both track speeds.
+This validation scene uses ideal tracks and ray contacts on a plane and finite ramp.
 
 `silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release`.
 [Guide français](Sources/Physics3D/TrackedDriving/README.fr.md).

@@ -1,6 +1,6 @@
-# Conduire deux chenilles
+# Conduire deux chenilles et franchir une rampe
 
-Six manœuvres montrent comment deux bandes de roues suspendues font avancer
+Huit manœuvres montrent comment deux bandes de roues suspendues font avancer
 et tourner un châssis. Les roues gardent leur axe ; les vitesses relatives des
 bandes produisent les courbes et leur contre-rotation produit le pivot.
 Les rayons colorés lisent la rotation physique de chaque roue. Bleu à gauche,
@@ -17,12 +17,19 @@ silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release
 - **← / →** : courbe à gauche / à droite.
 - **P** : pivot, bandes en sens opposés.
 - **G** : avancer sans adhérence ; les roues tournent, le châssis reste sur place.
+- **B** : rampe finie ; **F** : témoin plat avec les mêmes commandes.
 - **R** : recréer et rejouer le choix courant.
 - **Espace** : suspendre/reprendre ; **Échap** : quitter.
 
-Les boutons font les mêmes actions. Chaque choix recrée le véhicule au départ
-et joue huit secondes : réception freinée pendant deux secondes, gaz à 80 %
-pendant deux secondes, puis freinage et retour au repos pendant quatre secondes.
+La scène démarre sur la rampe. B et F recréent le véhicule et jouent quatorze
+secondes : deux secondes de stabilisation, cinq secondes à 80 % de gaz, puis
+sept secondes de freinage modéré à 4 %. Sur la rampe, regarder les appuis verts
+se perdre au sommet, le châssis poursuivre son vol, puis les six roues reprendre
+leur charge à la réception. La phase et le compteur d’appuis suivent ces états.
+
+Les boutons font les mêmes actions. Les six manœuvres précédentes (Z/S/flèches/P/G)
+restent des séquences de huit secondes : réception freinée pendant deux secondes,
+gaz à 80 % pendant deux secondes, puis freinage au repos pendant quatre secondes.
 Il s’arrête ensuite pour permettre la comparaison ; R rejoue. La caméra suit
 le châssis et la grille donne l’échelle en mètres. Le repère blanc reste fixe.
 
@@ -32,7 +39,11 @@ deux bandes d’inertie 2 kg·m², moteur 15 N·m et rapports ±1 avec différen
 La simulation avance à 120 Hz ; les mêmes recettes sont vérifiées à 60 Hz.
 Les bandes sont un couplage mécanique idéal, sans maillons ni géométrie de
 collision continue de chenille. Le contact utilise les rayons des six roues
-sur un plan. Cette scène ne représente pas encore un essai tout-terrain.
+sur le plan et le dessus d’une rampe de 8 × 0,4 × 6,03 m inclinée de 0,1 rad.
+Le profil mécanique reste le même. Le freinage modéré isole le franchissement :
+le freinage maximal depuis environ 58 km/h fait basculer la référence Jolt à
+120 Hz. La recette ne qualifie ni ce freinage extrême, ni les terrains généraux,
+ni la boîte automatique au sol.
 
 ## Vérification sans fenêtre
 
@@ -44,6 +55,7 @@ silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- -
 
 `--oracle-check` émet les 8 652 états des six recettes à 60/120 Hz dans le
 format du témoin de qualification, pour contrôler que le rendu emploie bien
-la même simulation. `--smoke` ouvre une fenêtre « TEST AUTOMATIQUE », joue les
-six recettes, vérifie le cadrage et les transforms, puis se ferme avec son
+la même simulation. `--ramp-check` émet les 5 044 états du témoin plat/rampe,
+identiques au benchmark `TrackedRamp.sx`. `--smoke` ouvre une fenêtre « TEST AUTOMATIQUE », joue les
+huit recettes, vérifie le cadrage et les transforms, puis se ferme avec son
 marqueur final. Une fermeture anticipée n’est pas un succès de ce contrôle.
