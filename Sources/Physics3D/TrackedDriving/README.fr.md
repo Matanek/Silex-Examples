@@ -1,11 +1,8 @@
 # Conduire deux chenilles et franchir une rampe
 
-Huit manœuvres montrent comment deux bandes de roues suspendues font avancer
-et tourner un châssis. Les roues gardent leur axe ; les vitesses relatives des
-bandes produisent les courbes et leur contre-rotation produit le pivot.
-Les rayons colorés lisent la rotation physique de chaque roue. Bleu à gauche,
-orange à droite ; les petits repères verts indiquent les appuis présents.
-Le bandeau donne les vitesses réelles des deux bandes et les phases de conduite.
+Piloter le véhicule en continu, changer de terrain sur place et observer ses
+six suspensions. Les rayons bleus à gauche et orange à droite suivent les
+rotations physiques des roues ; les repères verts montrent les appuis présents.
 
 Depuis la racine du workspace :
 
@@ -13,37 +10,44 @@ Depuis la racine du workspace :
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release
 ```
 
-- **Z** : avancer ; **S** : reculer.
-- **← / →** : courbe à gauche / à droite.
-- **P** : pivot, bandes en sens opposés.
-- **G** : avancer sans adhérence ; les roues tournent, le châssis reste sur place.
-- **B** : rampe finie ; **F** : témoin plat avec les mêmes commandes.
-- **R** : recréer et rejouer le choix courant.
-- **Espace** : suspendre/reprendre ; **Échap** : quitter.
+- Maintenir **Z / S** : avancer / reculer. Une inversion freine avant de passer
+  l’autre rapport ; elle ne remet pas le véhicule au départ.
+- Maintenir **Q / D**, ou **← / →** : tourner ; à très faible vitesse sans gaz,
+  les bandes tournent en sens opposés pour pivoter.
+- Maintenir **Espace** : freiner. Au relâchement des gaz, le véhicule peut rouler
+  sur son élan ; le frein léger le maintient lorsqu’il est presque immobile.
+- **B / F** : ajouter la rampe / revenir au plat, en conservant le véhicule,
+  sa pose, sa vitesse et le temps de simulation. Le retrait d’un appui peut
+  naturellement le faire retomber.
+- **M** : activer ou couper un cycle automatique depuis l’état courant.
+  Une commande de conduite reprend immédiatement la main.
+- **P** : pause/reprise ; **R** : seul reset, départ sur le terrain choisi ;
+  **Échap** : quitter.
 
-La scène démarre sur la rampe. B et F recréent le véhicule et jouent quatorze
-secondes : deux secondes de stabilisation, cinq secondes à 80 % de gaz, puis
-sept secondes de freinage modéré à 4 %. Sur la rampe, regarder les appuis verts
-se perdre au sommet, le châssis poursuivre son vol, puis les six roues reprendre
-leur charge à la réception. La phase et le compteur d’appuis suivent ces états.
+Les cinq boutons concernent le terrain, le mode automatique, la pause et le
+reset. La conduite utilise les touches tenues. Les relâchements et la perte de
+focus libèrent les commandes, sans recréer le véhicule. B/F et M conservent la
+pause ; R reprend la simulation. La conduite libre continue après quatorze
+secondes. Le châssis et les rotations ne sont jamais imposés par les commandes.
 
-Les boutons font les mêmes actions. Les six manœuvres précédentes (Z/S/flèches/P/G)
-restent des séquences de huit secondes : réception freinée pendant deux secondes,
-gaz à 80 % pendant deux secondes, puis freinage au repos pendant quatre secondes.
-Il s’arrête ensuite pour permettre la comparaison ; R rejoue. La caméra suit
-le châssis et la grille donne l’échelle en mètres. Le repère blanc reste fixe.
+La scène démarre au pied de la rampe. Pour comparer le parcours qualifié,
+activer M puis utiliser R pour repartir explicitement du départ : stabilisation
+2 s, gaz à 80 % pendant 5 s, freinage modéré à 4 % pendant 7 s. Le cycle ne se
+réinitialise pas tout seul. Pour conduire soi-même, maintenir une touche ZQSD.
+La conduite manuelle module les gaz et la différence de vitesse des bandes
+avec la vitesse du véhicule ; elle garde le même moteur et les mêmes suspensions.
 
-C’est un parcours de validation interactif, suivant les recettes Jolt/Silex
-qualifiées : 100 kg, six roues de 30 cm, suspension 10000 N/m et 1000 N·s/m,
-deux bandes d’inertie 2 kg·m², moteur 15 N·m et rapports ±1 avec différentiel 6.
-La simulation avance à 120 Hz ; les mêmes recettes sont vérifiées à 60 Hz.
-Les bandes sont un couplage mécanique idéal, sans maillons ni géométrie de
-collision continue de chenille. Le contact utilise les rayons des six roues
-sur le plan et le dessus d’une rampe de 8 × 0,4 × 6,03 m inclinée de 0,1 rad.
-Le profil mécanique reste le même. Le freinage modéré isole le franchissement :
-le freinage maximal depuis environ 58 km/h fait basculer la référence Jolt à
-120 Hz. La recette ne qualifie ni ce freinage extrême, ni les terrains généraux,
-ni la boîte automatique au sol.
+La caméra suit le châssis ; la grille indique des mètres. Le panneau donne les
+vitesses des bandes, l’état du pilotage et le nombre d’appuis. Regarder la
+montée, la disparition des appuis au sommet, le vol puis la reprise des charges.
+
+Le modèle utilise 100 kg, six roues de 30 cm, suspensions 10000 N/m et
+1000 N·s/m, deux bandes d’inertie 2 kg·m² et un moteur de 15 N·m. Les chenilles
+sont un couplage idéal, sans maillons articulés. Six rayons heurtent le plan ou
+une boîte de 8 × 0,4 × 6,03 m inclinée de 0,1 rad. Le frein modéré isole le
+franchissement : un freinage maximal depuis environ 58 km/h bascule dans Jolt
+à 120 Hz. Ni ce freinage extrême, ni les terrains généraux, ni la boîte
+automatique au sol ne sont qualifiés par ce parcours.
 
 ## Vérification sans fenêtre
 
@@ -53,9 +57,15 @@ silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- -
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --controls-check
 ```
 
-`--oracle-check` émet les 8 652 états des six recettes à 60/120 Hz dans le
-format du témoin de qualification, pour contrôler que le rendu emploie bien
-la même simulation. `--ramp-check` émet les 5 044 états du témoin plat/rampe,
-identiques au benchmark `TrackedRamp.sx`. `--smoke` ouvre une fenêtre « TEST AUTOMATIQUE », joue les
-huit recettes, vérifie le cadrage et les transforms, puis se ferme avec son
-marqueur final. Une fermeture anticipée n’est pas un succès de ce contrôle.
+`--controls-check` conserve identité, pose, vitesse, rotors et temps à chaque
+commande, puis vérifie les effets des touches tenues, du freinage, de la marche
+arrière, des boutons et de la pause. R est contrôlé comme recréation distincte.
+`--oracle-check` émet les 8 652 états historiques ; `--ramp-check`, les 5 044
+états plat/rampe. Ils gardent la simulation des témoins qualifiés.
+`--smoke` joue ces huit recettes dans une fenêtre « TEST AUTOMATIQUE » et
+vérifie cadrage, roue/appui, rampe, pause et recréation avant fermeture.
+Une fermeture anticipée ne valide pas ce contrôle.
+
+`--live-smoke` vérifie dans une seconde fenêtre automatique la conduite tenue,
+les virages, le frein, B/F sur place, M et la reprise manuelle, la pause et
+la poursuite du temps au-delà de quatorze secondes.

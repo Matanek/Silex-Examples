@@ -95,6 +95,18 @@ package class TrackedModel {
         if self.recipe==3 { right=0.5 }
         if self.recipe==4 { left= -1.0 }
         self.vehicle.set_controls(throttle:throttle,left_ratio:left,right_ratio:right,brake:brake)
+        self.advance()
+    }
+    func set_ramp(enabled:bool) {
+        if enabled && self.ramp==null { self.recipe=7;self.make_ramp() }
+        if !enabled && self.ramp!=null { self.world.destroy_rigid_body(self.ramp!);self.ramp=null }
+        if enabled { self.recipe=7 } else { self.recipe=6 }
+    }
+    func drive(throttle:float,left:float=1.0,right:float=1.0,brake:float=0.0) {
+        self.vehicle.set_controls(throttle:throttle,left_ratio:left,right_ratio:right,brake:brake)
+        self.advance()
+    }
+    private func advance() {
         self.world.step(1.0/self.rate as float);self.steps++
         self.peak_height=Math.max(self.peak_height,self.vehicle.chassis().position().y)
         if self.steps>2*self.rate && self.supports()==0 { self.air_steps++ }
