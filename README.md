@@ -1140,3 +1140,10 @@ mirrored reversals and combined tire adhesion.
 
 `silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release`.
 [Guide français](Sources/Physics3D/MotorcycleDriving/README.fr.md).
+
+### Tracked automatic ramp traversal
+
+[TrackedDriving](Sources/Physics3D/TrackedDriving/README.md) starts facing the
+finite ramp with automatic shifting. Enable M then explicitly reset with R to
+observe ascent, flight, landing and braking; F/B switch flat/ramp in place.
+The new `--automatic-smoke` checks both qualified courses in the native window.

@@ -44,6 +44,7 @@ class TrackedScene {
     var telemetry:float=0.0
     var autopilot:bool=false
     var auto_steps:int=0
+    var automatic_smoke:bool=false
     var live_smoke:bool=false
     var live_event:int=0
     let live_schedule:int[]=[240,480,600,720,840,960,1800,1920]
@@ -75,7 +76,7 @@ func labels(state:&TrackedScene,simulation:@Application.Simulation) {
     if state.model.steps>30 && state.model.supports()==0 { phase+=" · en vol" }
     else if state.model.landed && state.model.supports()==6 { phase+=" · appuis repris" }
     if state.controls.braking { phase+=" · freinage" }
-    if state.smoke && !state.live_smoke { phase="$(Model.recipe_name(state.model.recipe)) · $(state.model.phase())" }
+    if state.smoke && !state.live_smoke && !state.automatic_smoke { phase="$(Model.recipe_name(state.model.recipe)) · $(state.model.phase())" }
     if state.controls.phase.value()!=phase { state.controls.phase.set(phase) }
     var body=state.model.vehicle.chassis();let speed=Math.round(body.linear_velocity().length()*36.0)/10.0
     let time=Math.round(state.model.steps as float/12.0)/10.0
@@ -244,7 +245,8 @@ func render(world:&Resources.World,state:&TrackedScene,camera:&Resources.Viewpor
     }
 }
 func finish_recipe(state:&TrackedScene,simulation:&Application.Simulation) {
-    state.model.verify_finished();remember(state);state.accumulator=0.0;labels(state,simulation)
+    if state.automatic_smoke { Automatic.verify_finished(state.model) } else { state.model.verify_finished() }
+    remember(state);state.accumulator=0.0;labels(state,simulation)
     if state.smoke {
         assert(state.frames[state.model.recipe]>0)
         simulation.pause();state.held=copy state.model.vehicle.chassis().transform();state.held_steps=state.model.steps
@@ -258,11 +260,15 @@ func next_smoke(state:&TrackedScene,simulation:&Application.Simulation,controlle
     state.pause_frames++
     if state.pause_frames<8 { return }
     if state.model.recipe==7 {
-        print("Tracked smoke: eight real driving recipes including finite ramp and flat control, rendered chassis/wheels, camera, support markers, pause and recreation verified")
+        if state.automatic_smoke {
+            assert(state.frames[6]>0 && state.frames[7]>0 && state.model.automatic)
+            print("Tracked automatic ramp smoke: flat control and ramp, flight, landing, gearbox, rendered wheels/supports, camera, pause and explicit recreation verified")
+        } else { print("Tracked smoke: eight real driving recipes including finite ramp and flat control, rendered chassis/wheels, camera, support markers, pause and recreation verified") }
         controller.stop();return
     }
     let next_recipe=state.model.recipe+1;var old_body=state.model.vehicle.chassis()
     recreate(state,simulation,next_recipe)
+    if state.automatic_smoke { state.auto_steps=0 }
     var expected=2;if next_recipe==7 { expected=3 }
     assert(!old_body.is_valid() && state.model.world.body_count()==expected && state.model.steps==0 && !simulation.is_paused())
 }
@@ -292,12 +298,14 @@ func release(state:&TrackedScene,key:Input.Key,code:uint32=0 as uint32) {
 func advance(state:&TrackedScene,simulation:&Application.Simulation,delta:float) {
     if simulation.is_paused() { return }
     state.accumulator+=delta
+    var duration=state.model.duration();if state.automatic_smoke { duration=16 }
     while state.accumulator>=1.0/120.0 && !simulation.is_paused() {
-        if state.smoke && !state.live_smoke && state.model.steps>=state.model.duration()*120 { state.accumulator=0.0;break }
+        if state.smoke && !state.live_smoke && state.model.steps>=duration*120 { state.accumulator=0.0;break }
         remember(state)
-        if state.smoke && !state.live_smoke { state.model.step();state.model.verify() } else { step_free(state) }
+        if state.smoke && !state.live_smoke && !state.automatic_smoke { state.model.step();state.model.verify() }
+        else { step_free(state);if state.automatic_smoke { state.model.verify() } }
         state.accumulator-=1.0/120.0
-        if state.smoke && !state.live_smoke && state.model.steps==state.model.duration()*120 { finish_recipe(state,simulation);break }
+        if state.smoke && !state.live_smoke && state.model.steps==duration*120 { finish_recipe(state,simulation);break }
     }
 }
 func retained_press(state:&TrackedScene,simulation:&Application.Simulation,key:Input.Key,code:uint32,repeated:bool=false) {
@@ -401,7 +409,7 @@ func live_smoke_inputs(state:&TrackedScene,simulation:&Application.Simulation,co
 test "tracked scene controls apply to the real vehicle" { verify_controls() }
 test "tracked continuous controls retain the automatic vehicle" { verify_controls(true) }
 func main() {
-    var smoke=false;var live=false
+    var smoke=false;var live=false;var automatic_smoke=false
     for argument in Process.arguments() {
         if argument=="--physics-check" { Model.verify_physics();Model.verify_recreation();Model.verify_ramp();return }
         if argument=="--oracle-check" { Model.witness();return }
@@ -409,12 +417,20 @@ func main() {
         if argument=="--controls-check" { verify_controls();verify_controls(true);return }
         if argument=="--automatic-check" { Automatic.witness();return }
         if argument=="--automatic-physics-check" { Automatic.verify();return }
+        if argument=="--automatic-ramp-check" { Automatic.ramp_witness();return }
+        if argument=="--automatic-ramp-physics-check" { Automatic.verify_ramp();return }
+        if argument=="--automatic-smoke" { smoke=true;automatic_smoke=true }
         if argument=="--smoke" { smoke=true }
         if argument=="--live-smoke" { smoke=true;live=true }
     }
-    var state=TrackedScene();var title="Chenilles — boîte automatique et conduite ZQSD"
+    var state=TrackedScene();var title="Chenilles — rampe et boîte automatique"
     if smoke { state.smoke=true;state.controls.automatic=true;state.ui=UI.Session(state.controls.describe());title="TEST AUTOMATIQUE — chenilles — fermeture à la fin" }
-    if !smoke || live { state.model=Model.TrackedModel(recipe:6,automatic:true) }
+    if !smoke { state.model=Model.TrackedModel(recipe:7,automatic:true) }
+    if live || automatic_smoke { state.model=Model.TrackedModel(recipe:6,automatic:true) }
+    if automatic_smoke {
+        state.automatic_smoke=true;state.autopilot=true;state.controls.ramp_check=true;state.ui=UI.Session(state.controls.describe())
+        title="TEST AUTOMATIQUE — boîte auto sur plat et rampe — fermeture à la fin"
+    }
     if live {
         state.live_smoke=true;state.controls.live_check=true;state.ui=UI.Session(state.controls.describe())
         title="TEST AUTOMATIQUE — commandes continues — fermeture à la fin"

@@ -39,3 +39,38 @@ package func verify() {
     print("Tracked automatic: forward/reverse1/2/3/2/1/neutral, clutch interruptions, rest and profile retained by R at60/120Hz")
 }
 test "tracked scene uses automatic shifts under ground loads" { verify() }
+
+package func ramp_witness() {
+    for recipe in [6,7] { for rate in [60,120] {
+        var model=Model.TrackedModel(recipe:recipe,rate:rate,automatic:true)
+        while true {
+            print(model.observation("tracked-auto-ramp",recipe-6))
+            if model.steps==16*rate { break }
+            command(model,1)
+        }
+    } }
+}
+package func verify_finished(model:@Model.TrackedModel) {
+    assert(model.automatic && model.steps==16*model.rate && model.supports()==6)
+    var body=model.vehicle.chassis()
+    assert(body.linear_velocity().length()<0.05 && body.angular_velocity().length()<0.05)
+    assert(model.normal_samples>0 && Math.abs(model.normal_sum/model.normal_samples as float-981.0)<2.0)
+    assert(Math.abs(body.position().y-0.88365)<0.003 && body.position().z>20.0)
+    assert(model.vehicle.powertrain().gear==0)
+    var expected=2;if model.recipe==7 { expected=3 }
+    assert(model.world.body_count()==expected)
+    if model.recipe==6 { assert(model.air_steps==0 && model.ramp_samples==0 && !model.landed) }
+    else { assert(model.recipe==7 && model.air_steps>model.rate/20 && model.ramp_samples>model.rate && model.landed && model.peak_height>1.1) }
+    print("Tracked automatic terrain $(model.recipe) at $(model.rate) Hz: air=$(model.air_steps), ramp=$(model.ramp_samples), peak=$(model.peak_height), landed=$(model.landed), neutral and six supports at rest")
+}
+package func verify_ramp() {
+    for recipe in [6,7] { for rate in [60,120] {
+        var model=Model.TrackedModel(recipe:recipe,rate:rate,automatic:true)
+        while model.steps<16*rate { command(model,1);model.verify() }
+        verify_finished(model)
+        var old=model.vehicle;model.reset(6)
+        assert(!old.is_valid() && model.automatic && model.steps==0 && model.world.body_count()==2)
+        assert(model.air_steps==0 && !model.landed && model.ramp_samples==0)
+    } }
+}
+test "tracked automatic ramp crosses, flies, lands and stops against a flat control" { verify_ramp() }
