@@ -4,6 +4,8 @@ use GFX.Input.Events
 use GFX.UI
 
 package class SupportControls {
+    let rotating:bool
+    init(rotating:bool=false) { self.rotating=rotating }
     var selected:int=0
     var brake:bool=true
     var kicks:int[]=[]
@@ -31,10 +33,18 @@ package class SupportControls {
     func describe() UI.View {
         var title=UI.Text("Chenilles — support mobile");title.style.height=26.0
         var help=UI.Text("Choisir une vue, puis pousser.\nTous les supports évoluent ensemble.");help.style.height=40.0
+        var first="1000 kg (1)";var second="200 kg (2)";var third="Cinématique (3)"
+        var start="Pousser +Z (Z)";var stop="Pousser −Z (S)"
+        if self.rotating {
+            title=UI.Text("Chenilles — support tournant");title.style.height=26.0
+            help=UI.Text("Lancer, puis comparer les trois vues.\nG : bloquer ou libérer les chenilles.");help.style.height=40.0
+            first="Rotation +Y (1)";second="Rotation −Y (2)";third="Immobile (3)"
+            start="Lancer (Z)";stop="Arrêter (S)"
+        }
         var root=UI.Column([title,help,
-            self.row(self.button("1000 kg (1)",self.heavy),self.button("200 kg (2)",self.light)),
-            self.row(self.button("Cinématique (3)",self.kinematic),UI.Reactive(self.braking)),
-            self.row(self.button("Pousser +Z (Z)",self.forward),self.button("Pousser −Z (S)",self.backward)),
+            self.row(self.button(first,self.heavy),self.button(second,self.light)),
+            self.row(self.button(third,self.kinematic),UI.Reactive(self.braking)),
+            self.row(self.button(start,self.forward),self.button(stop,self.backward)),
             self.row(self.button("Départ (R)",self.reset),self.button("Pause (P)",self.pause)),
             UI.Reactive(self.phase),UI.Reactive(self.speeds)])
         root.style.padding=UI.Insets(12.0);root.style.gap=6.0;root.style.background=Color.slate_900().with_alpha(0.94)
