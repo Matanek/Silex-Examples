@@ -82,3 +82,20 @@ leur zone doit rester près du caret.
 Le mode CPU vérifie aussi que la page et le champ restent dans la fenêtre sur
 quatre dispositions successives, et que le titre est visible au démarrage.
 Il ne prouve pas cette correspondance dans une vraie fenêtre.
+
+## Inspecter les dimensions des collections
+
+En bas de page, **Équipe** contient trois lignes et deux colonnes : **Personne**
+et **Domaine**. L’inspecteur doit montrer ces dimensions sur le tableau, un
+index sur chaque ligne, et les plages de ligne/colonne de longueur 1 sur ses
+cellules. Les index commencent à 0. Cliquer une ligne actualise **Personne
+sélectionnée** ; la sélection native utilise le même état.
+
+Dans **Fichiers**, Documents et Images ont un niveau natif 0. Après dépliage,
+Notes et Rapport ont un niveau 1. Leur position de ligne dans le modèle se
+distingue de leur ordre parmi les enfants de Documents.
+
+Les tests CPU vérifient les données et la sélection du tableau. Les tests
+AppKit du package GFX vérifient les propriétés natives et leur lecture paresseuse
+sur 50 000 lignes. La navigation complète des collections avec un lecteur
+d’écran reste à qualifier.

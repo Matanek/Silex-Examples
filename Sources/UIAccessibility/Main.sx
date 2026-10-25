@@ -21,6 +21,7 @@ class Model {
     var folders:UI.State<str[]> = UI.State<str[]>([])
     var file:UI.State<str?> = UI.State<str?>(null)
     var hidden_focus:UI.State<bool> = UI.State<bool>(false)
+    var person:UI.State<str?> = UI.State<str?>(null)
     func activate() { self.presses.set(self.presses.value() + 1) }
     func toggle_focus() { self.hidden_focus.set(!self.hidden_focus.value()) }
     func file_key(value:str) str { return value }
@@ -29,6 +30,10 @@ class Model {
         return []
     }
     func file_row(value:str) UI.View { return UI.Text(value) }
+    func team_cell(value:str) UI.View {
+        if value == "Linus" { return UI.Text("Systèmes") }
+        return UI.Text("Langages")
+    }
     func describe(reads:UI.Reads) UI.View {
         var title = UI.Text("Accessibilité — macOS"); title.style.font_size = 28.0
         var slider = UI.Slider(self.volume, minimum:10.0, maximum:20.0)
@@ -45,6 +50,11 @@ class Model {
         tree.style.height = 180.0
         var message = UI.TextArea(self.message, smooth_scroll:true, scroll_chain:false)
         message.style.height = 110.0
+        var table = UI.TableView<str>(["Ada", "Linus", "Grace"], self.file_key, [
+            UI.TableColumn<str>("name", "Personne", self.file_row, width:260.0),
+            UI.TableColumn<str>("team", "Domaine", self.team_cell, width:220.0)
+        ], selection:self.person, smooth_scroll:true, scroll_chain:false)
+        table.style.height = 190.0
         var root = UI.Column([
             title,
             UI.Text("Essayez les contrôles et l’option de contour. Tab conserve la navigation."),
@@ -65,7 +75,10 @@ class Model {
             UI.Text("Notifications : $(reads.read(self.notifications)) · Profil : $(profile)"),
             UI.Text("Volume : $(reads.read(self.volume)) — plage de 10 à 20"),
             UI.CollapsiblePanel("Fichiers", tree, self.details),
-            UI.Text("Fichier sélectionné : $(reads.read(self.file) ?? "aucun")")
+            UI.Text("Fichier sélectionné : $(reads.read(self.file) ?? "aucun")"),
+            UI.Text("Équipe — 3 lignes, 2 colonnes"),
+            UI.Accessible(table, "Équipe"),
+            UI.Text("Personne sélectionnée : $(reads.read(self.person) ?? "aucune")")
         ])
         root.style.padding = UI.Insets(20.0); root.style.gap = 14.0
         root.style.theme = UI.Theme.dark()
@@ -193,6 +206,16 @@ func check_cpu(placed:bool = false) {
     assert(!model.details.value() && source.read(folder) == null)
     assert(source.perform(panel, Accessibility.Request(Accessibility.Action.expand)))
     assert(model.details.value() && source.read(folder)!.expanded == false)
+    let table = named(source, root, "Équipe", Accessibility.Role.table)!
+    assert(source.read(table)!.row_count == 3 && source.read(table)!.column_count == 2)
+    let row = named(source, table, "", Accessibility.Role.row)!
+    assert(source.read(row)!.row_index == 0 && source.read(row)!.child_count == 2)
+    let cell = source.child(row, 1)!
+    assert(source.read(cell)!.column_index == 1 && source.read(cell)!.row_index == 0)
+    assert(source.read(cell)!.name == "Domaine" && source.read(cell)!.value == "Langages")
+    assert(source.perform(row, Accessibility.Request(Accessibility.Action.select)))
+    drawing = session.drawing(780, 820)
+    assert(model.person.value() == "Ada" && source.read(row)!.selected == true)
     let area = named(source, root, "Message Unicode", Accessibility.Role.text_area)!
     let original = model.message.value()
     assert(source.perform(area, Accessibility.Request(Accessibility.Action.focus)))

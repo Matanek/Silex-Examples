@@ -79,3 +79,19 @@ method displays candidates, their area should stay near the caret.
 CPU mode also checks that the page and field stay inside the window across
 four successive layouts and that the title is visible on startup. It does not
 prove this correspondence in a real window.
+
+## Inspect collection dimensions
+
+At the bottom of the page, **Équipe** contains three rows and two columns:
+**Personne** and **Domaine**. The inspector should show these dimensions on the
+table, an index on each row, and row/column ranges of length 1 on its cells.
+Indices start at 0. Clicking a row updates **Personne sélectionnée**; native
+selection uses the same state.
+
+In **Fichiers**, Documents and Images have native level 0. After expansion,
+Notes and Rapport have level 1. Their row position in the model differs from
+their order among the children of Documents.
+
+CPU tests verify table data and selection. The GFX package’s AppKit tests
+verify native properties and lazy queries over 50,000 rows. Complete
+screen-reader navigation of collections remains to be qualified.
