@@ -49,3 +49,15 @@ not qualify the new controls with VoiceOver or the Linux/Windows bridges.
 
 `--cpu-check` verifies the model and semantic actions without a window. It does
 not verify attachment to a real window or VoiceOver.
+
+## Inspect a Unicode selection
+
+The **Message Unicode** field contains `Aé👩‍💻中Z` followed by a second line.
+Select the combining accent, emoji or multiple lines to compare highlighting
+with selection properties exposed to the system. Native indices count UTF-16
+units; the toolkit keeps complete graphemes. Typing replaces the selection
+and Cmd+Z restores the text on macOS.
+
+CPU mode verifies this edit and undo through session events after selection
+through the semantic source. Separate AppKit tests verify native conversion;
+this mode does not replace inspection in a real window.

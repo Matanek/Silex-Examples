@@ -2,11 +2,15 @@ use GFX.UI
 use GFX.Canvas
 use GFX.Accessibility
 use GFX.Viewer
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.Window
 use STD.Process
 use STD.Math
 
 class Model {
     var name:UI.State<str> = UI.State<str>("Ada")
+    var message:UI.State<str> = UI.State<str>("Aé👩‍💻中Z\nDeuxième ligne")
     var presses:UI.State<int> = UI.State<int>(0)
     var notifications:UI.State<bool> = UI.State<bool>(false)
     var profile:UI.State<str?> = UI.State<str?>("Calme")
@@ -38,11 +42,14 @@ class Model {
         var tree = UI.TreeView<str>(["Documents", "Images"], self.file_key, self.file_children, self.file_row,
             selection:self.file, expanded:self.folders, smooth_scroll:true, scroll_chain:false)
         tree.style.height = 180.0
+        var message = UI.TextArea(self.message, smooth_scroll:true, scroll_chain:false)
+        message.style.height = 110.0
         var root = UI.Column([
             title,
             UI.Text("Essayez les contrôles et l’option de contour. Tab conserve la navigation."),
             UI.Button(focus_label, self.toggle_focus),
             UI.Label("Nom", UI.TextField(self.name)),
+            UI.Label("Message Unicode", message),
             UI.Button("Valider", self.activate),
             UI.Text("Nom courant : $(reads.read(self.name))"),
             UI.Text("Activations : $(reads.read(self.presses))"),
@@ -168,6 +175,20 @@ func check_cpu() {
     assert(!model.details.value() && source.read(folder) == null)
     assert(source.perform(panel, Accessibility.Request(Accessibility.Action.expand)))
     assert(model.details.value() && source.read(folder)!.expanded == false)
+    let area = named(source, root, "Message Unicode", Accessibility.Role.text_area)!
+    let original = model.message.value()
+    assert(source.perform(area, Accessibility.Request(Accessibility.Action.focus)))
+    assert(source.perform(area, Accessibility.Request(Accessibility.Action.set_text_selection, anchor:2, cursor:3)))
+    assert(source.read(area)!.selection_anchor == 2 && source.read(area)!.selection_cursor == 3)
+    let text_event = Events.Event.text_input(Events.TextInputEvent(window:Window.Id(value:1 as uint32),
+        text:"🙂", timestamp:Events.Timestamp(nanoseconds:0 as uint)))
+    assert(session.handle(text_event))
+    assert(model.message.value() == "Aé🙂中Z\nDeuxième ligne")
+    let undo = Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:1 as uint32),
+        keyboard:Keyboard.KeyboardId(value:0 as uint32), key:Keyboard.Key.z, keycode:0 as uint32,
+        raw:0 as uint16, repeated:false, modifiers:Keyboard.Modifiers(system:true),
+        timestamp:Events.Timestamp(nanoseconds:0 as uint)))
+    assert(session.handle(undo) && model.message.value() == original)
     print("UIAccessibility CPU : OK")
 }
 

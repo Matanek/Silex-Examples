@@ -51,3 +51,15 @@ Linux/Windows.
 
 Le mode `--cpu-check` vérifie le modèle et les actions sémantiques sans fenêtre.
 Il ne vérifie ni l’arbre attaché à la vraie fenêtre, ni VoiceOver.
+
+## Inspecter une sélection Unicode
+
+Le champ **Message Unicode** contient `Aé👩‍💻中Z` puis une deuxième ligne.
+Sélectionner l’accent combiné, l’emoji ou plusieurs lignes permet de comparer
+le surlignage et les propriétés de sélection exposées au système. Les index
+natifs comptent des unités UTF-16 ; le toolkit conserve des graphèmes entiers.
+Une saisie remplace la sélection et Cmd+Z restaure le texte sur macOS.
+
+Le mode CPU vérifie cette édition et son annulation par les événements de
+la session, après sélection par la source sémantique. Les tests AppKit séparés
+vérifient la conversion native ; ce mode ne remplace pas l’inspection en fenêtre.
