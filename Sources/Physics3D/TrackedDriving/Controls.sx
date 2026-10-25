@@ -19,6 +19,9 @@ package class TrackedControls {
     var automatic:bool=false
     var live_check:bool=false
     var ramp_check:bool=false
+    var platform:bool=false
+    var locks:int=0
+    var brake_text:UI.State<str> =UI.State<str>("Frein serré (G)")
     var pause_text:UI.State<str> =UI.State<str>("Pause (P)")
     var mode_text:UI.State<str> =UI.State<str>("Pilote OFF (M)")
     var phase:UI.State<str> =UI.State<str>("")
@@ -29,6 +32,7 @@ package class TrackedControls {
     func reset() { self.resets++ }
     func pause() { self.pauses++ }
     func mode() { self.modes++ }
+    func lock() { self.locks++ }
     func release() { self.throttle=false;self.reverse=false;self.left=false;self.right=false;self.braking=false }
     func held(key:@Events.KeyEvent,down:bool) bool {
         if key.key==Input.Key.space { self.braking=down;return true }
@@ -44,6 +48,7 @@ package class TrackedControls {
     }
     func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause) }
     func mode_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.mode_text),self.mode) }
+    func lock_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.brake_text),self.lock) }
     func phase_label(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.phase)) }
     func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
     func track_metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.tracks)) }
@@ -53,10 +58,16 @@ package class TrackedControls {
         var title=UI.Text("Chenilles — boîte automatique et conduite libre");title.style.height=28.0
         var help=UI.Text("Maintenir Z/S : avant/arrière · Q/D ou flèches : tourner/pivoter · Espace : frein · Échap : quitter");help.style.height=24.0
         var hint=UI.Text("Seul R remet au départ. B/F : terrain sur place. M puis R : cycle de franchissement ; ZQSD reprend la main.");hint.style.height=24.0
+        if self.platform {
+            title=UI.Text("Chenilles — plateforme mobile");title.style.height=28.0
+            actions=UI.Row([self.button("Latéral (B)",self.ramp),self.button("Longitudinal (F)",self.flat),UI.Reactive(self.lock_button),UI.Reactive(self.mode_button),self.button("Départ (R)",self.reset)]);actions.style.gap=10.0
+            hint=UI.Text("B/F changent l'axe sur place. G : frein de maintien. M puis R : cycle. P : pause. R seul remet au départ.");hint.style.height=24.0
+        }
         var rows:UI.View[]=[title,help,actions,hint,UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)]
         if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — huit manœuvres et commandes continues — fermeture à la fin"),UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)] }
         if self.automatic && self.live_check { rows=[UI.Text("TEST AUTOMATIQUE — commandes continues — fermeture à la fin"),UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)] }
         if self.automatic && self.ramp_check { rows=[UI.Text("TEST AUTOMATIQUE — plat et rampe en boîte automatique — fermeture à la fin"),UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)] }
+        if self.automatic && self.platform { rows=[UI.Text("TEST AUTOMATIQUE — quatre plateformes — fermeture à la fin"),UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)] }
         var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
         root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0;return root
     }
@@ -70,10 +81,11 @@ package class TrackedControls {
                 let reset=letter(key,114 as uint32,82 as uint32,Input.Key.r)
                 let pause=letter(key,112 as uint32,80 as uint32,Input.Key.p)
                 let mode=letter(key,109 as uint32,77 as uint32,Input.Key.m)
-                if flat || ramp || reset || pause || mode {
+                let lock=self.platform && letter(key,103 as uint32,71 as uint32,Input.Key.g)
+                if flat || ramp || reset || pause || mode || lock {
                     if !key.repeated {
                         if flat { self.flat() } else if ramp { self.ramp() }
-                        else if reset { self.reset() } else if pause { self.pause() } else { self.mode() }
+                        else if reset { self.reset() } else if pause { self.pause() } else if lock { self.lock() } else { self.mode() }
                     }
                     return true
                 }

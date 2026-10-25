@@ -103,3 +103,46 @@ réception et repos contre le plat à 60/120 Hz, puis le reset explicite.
 automatique, roues, marqueurs d’appui, caméra et pause finale contrôlés.
 Le passage au second terrain recrée explicitement le véhicule dans ce test ;
 les commandes interactives B/F et M continuent à conserver le véhicule.
+
+
+## Observer l'entraînement par une plateforme
+
+Pour ouvrir le mode plateforme depuis la même racine :
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --platform
+```
+
+Activer **M**, puis **R** : après 2 s de stabilisation, la plateforme bleue
+se déplace à 2 m/s pendant 2 s, puis s'arrête. Le châssis reste dynamique ;
+le contact entraîne le véhicule, sans lui imposer une pose ou une vitesse.
+Le panneau compare la vitesse du véhicule à celle du support, avec appuis,
+rapport au point mort, régime et rotation des bandes.
+
+- **B/F** : choisir l'axe latéral/longitudinal sur place, sans remise au départ.
+- **G** : serrer/libérer le frein de maintien. Pour comparer deux cycles depuis
+  le même départ, utiliser G puis **R** avec le pilote actif.
+- **M** : activer/couper le cycle depuis l'état courant. Il ne se répète pas.
+- **Espace** : serrer le frein tant que la touche reste tenue, sans couper M.
+- **ZQSD** : reprendre la conduite ; cette reprise arrête le déplacement du
+  support. Le frein de maintien G reste appliqué jusqu'à sa libération.
+- **P** : pause/reprise. **R seul** replace véhicule et support au départ,
+  conserve axe/frein et reprend la simulation. **Échap** quitte.
+
+Freins serrés, le véhicule suit presque le support à 2 m/s. Libres en
+longitudinal, les roues roulent : le véhicule avance à environ 0.615 m/s,
+la plateforme va plus vite et les bandes tournent dans l'autre sens relatif.
+Le véhicule s'arrête vers 1.23 m, contre environ 4 m avec les freins serrés.
+Les traits de grille restent des repères du monde ; le seul support physique
+est la boîte bleue de 8 × 0.4 × 12 m. En conduite libre, on peut en sortir ;
+R rétablit alors le départ.
+
+`TrackedPlatformRun.py` qualifie les quatre recettes de 6 s à 60/120 Hz,
+Native Debug/Release. `--platform-check` émet les 4 328 états identiques au
+benchmark, `--platform-physics-check` vérifie entraînement/roulement/repos et
+reset, `--platform-controls-check` vérifie commandes et boutons sans reset
+implicite. `--platform-smoke` joue les quatre cas dans la fenêtre native,
+avec plateforme, châssis, roues, appuis, cadrage et pause contrôlés.
+Cette qualification porte sur la translation horizontale, au point mort et
+sans gaz ; conduite libre, support rotatif ou dynamique et terrains généraux
+ne sont pas prouvés par ces quatre recettes.

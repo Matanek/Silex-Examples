@@ -11,6 +11,8 @@ package func recipe_name(recipe:int) str {
     if recipe==5 { return "Sans adhérence" }
     return "Marche avant"
 }
+package func platform_size() Math.Vec3 { return Math.Vec3(8.0,0.4,12.0) }
+package func platform_pose() Physics.Transform3D { return Physics.Transform3D(Math.Vec3(0.0,-0.2,0.0)) }
 package func ramp_size() Math.Vec3 { return Math.Vec3(8.0,0.4,6.03) }
 package func ramp_pose() Physics.Transform3D { return Physics.Transform3D(Math.Vec3(0.0,0.1,15.0),Math.Quat.angle_axis(-0.1,Math.Vec3.right())) }
 func make_vehicle(world:Physics.World3D,recipe:int,automatic:bool=false) Physics.TrackedVehicle3D {
@@ -43,6 +45,7 @@ func make_vehicle(world:Physics.World3D,recipe:int,automatic:bool=false) Physics
 }
 package class TrackedModel {
     let automatic:bool
+    let platform:bool
     var world:Physics.World3D=Physics.World3D()
     var ground:Physics.RigidBody3D
     var ramp:Physics.RigidBody3D?=null
@@ -58,12 +61,16 @@ package class TrackedModel {
     var driven_yaw:float=0.0
     var normal_sum:float=0.0
     var normal_samples:int=0
-    init(recipe:int=0,rate:int=120,automatic:bool=false) {
-        self.automatic=automatic
+    init(recipe:int=0,rate:int=120,automatic:bool=false,platform:bool=false) {
+        self.automatic=automatic;self.platform=platform
+        assert(!platform || (recipe==6 && automatic))
         assert(recipe>=0 && recipe<8 && (rate==60 || rate==120))
         self.recipe=recipe;self.rate=rate
-        self.ground=self.world.create_rigid_body(Physics.RigidBody3DSettings()
-            ..body_type=Physics.BodyType3D.fixed ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0)
+        var surface=Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0
+        if platform { surface.body_type=Physics.BodyType3D.kinematic;surface.shape=Physics.Shape3D.box(Physics.Box3D(platform_size()))
+            surface.transform=platform_pose();surface.allow_sleep=false }
+        self.ground=self.world.create_rigid_body(surface)
         self.vehicle=make_vehicle(self.world,recipe,self.automatic);self.make_ramp()
     }
     private func make_ramp() {
@@ -72,10 +79,11 @@ package class TrackedModel {
                 ..shape=Physics.Shape3D.box(Physics.Box3D(ramp_size())) ..transform=ramp_pose() ..friction=1.0)
         }
     }
-    func duration() int { if self.recipe>=6 { return 14 } return 8 }
+    func duration() int { if self.platform { return 6 } if self.recipe>=6 { return 14 } return 8 }
     func drive_until() int { if self.recipe>=6 { return 7 } return 4 }
     func reset(recipe:int) {
-        assert(recipe>=0 && recipe<8)
+        assert(recipe>=0 && recipe<8 && (!self.platform || recipe==6))
+        if self.platform { self.ground.set_linear_velocity(Math.Vec3());self.ground.set_transform(platform_pose()) }
         self.world.destroy_tracked_vehicle(self.vehicle)
         if self.ramp!=null { self.world.destroy_rigid_body(self.ramp!);self.ramp=null }
         self.recipe=recipe

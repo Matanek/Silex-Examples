@@ -99,3 +99,43 @@ landing and rest against the flat control at 60/120 Hz, then explicit reset.
 shifting, wheels, support markers, camera and final pause. Switching to the
 second terrain explicitly recreates the vehicle in this test; interactive
 B/F and M continue retaining the vehicle.
+
+
+## Observe carrying by a moving platform
+
+Open platform mode from the same root:
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --platform
+```
+
+Enable **M**, then **R**: after 2 s settling, the blue platform moves at 2 m/s
+for 2 s, then stops. The chassis remains dynamic; contact carries it without
+imposing a chassis pose or velocity. The panel compares vehicle and support
+speed, together with supports, neutral gear, RPM and track rotation.
+
+- **B/F**: select lateral/longitudinal motion in place without resetting.
+- **G**: lock/release the holding brake. To compare cycles from the same start,
+  use G then **R** while the driver is active.
+- **M**: enable/disable the cycle from the current state. It never repeats.
+- **Space**: hold the brake without disabling M.
+- **ZQSD**: take over driving; this stops support motion. The G holding brake
+  stays applied until released.
+- **P**: pause/resume. **R alone** returns both vehicle and support to the start,
+  retains axis/brake and resumes. **Escape** quits.
+
+Locked tracks carry the vehicle at almost 2 m/s. Free longitudinal rollers
+let the vehicle travel at about 0.615 m/s while the platform moves faster and
+the tracks rotate in the opposite relative direction. The vehicle stops near
+1.23 m, compared with about 4 m when locked. Grid lines remain world references;
+the 8 × 0.4 × 12 m blue box is the only physical support. Free driving can
+leave its edges; R restores the start.
+
+`TrackedPlatformRun.py` qualifies four 6 s recipes at 60/120 Hz, Native
+Debug/Release. `--platform-check` emits 4,328 states identical to the benchmark;
+`--platform-physics-check` checks carrying/rolling/rest and reset;
+`--platform-controls-check` checks commands and buttons without implicit reset.
+`--platform-smoke` runs all four cases in the native window, checking platform,
+chassis, wheels, supports, framing and pause. Qualification covers horizontal
+translation, in neutral with no throttle; these four recipes do not prove
+free driving, rotating or dynamic supports, or general terrain.
