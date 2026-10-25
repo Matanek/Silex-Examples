@@ -66,15 +66,19 @@ vérifient la conversion native ; ce mode ne remplace pas l’inspection en fen�
 
 ## Contrôler le placement de la présentation
 
-Le mode `--placed` donne une taille fixe à la page et place son origine avec
-`position:Math.Vec2(24.0, 16.0)` et `anchor:Math.Vec2(0.05)`. Dans une fenêtre de
+Le mode `--placed` place une page adaptable avec une marge pour son décalage.
+Son origine utilise `position:Math.Vec2(24.0, 16.0)` et `anchor:Math.Vec2(0.05)`. Dans une fenêtre de
 780 × 820, son origine est donc à (63, 57) unités logiques ; le redimensionnement
-la déplace avec l’ancre. Les éléments restent décrits dans le repère du dessin.
+la déplace avec l’ancre et adapte sa taille à la place disponible. Les éléments
+restent décrits dans le repère du dessin.
 
 Lancer le binaire avec `--placed`, cliquer dans Nom et Message Unicode puis
 sélectionner du texte et faire défiler la page à la molette. Les cibles de souris
 et le surlignage doivent suivre le contenu décalé. Dans l’inspecteur, le rectangle
 d’un champ doit coïncider avec le contrôle, avant et après déplacement ou
 redimensionnement de la fenêtre. Si une méthode de saisie affiche des candidats,
-leur zone doit rester près du caret. Le mode CPU exerce aussi la page de taille
-fixe ; il ne prouve pas cette correspondance dans une vraie fenêtre.
+leur zone doit rester près du caret.
+
+Le mode CPU vérifie aussi que la page et le champ restent dans la fenêtre sur
+quatre dispositions successives, et que le titre est visible au démarrage.
+Il ne prouve pas cette correspondance dans une vraie fenêtre.

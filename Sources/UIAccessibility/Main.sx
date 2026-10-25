@@ -70,9 +70,23 @@ class Model {
         root.style.padding = UI.Insets(20.0); root.style.gap = 14.0
         root.style.theme = UI.Theme.dark()
         var page = UI.ScrollView(root, smooth_scroll:true)
-        if self.placed { page.style.width = 620.0; page.style.height = 700.0 }
-        return page
+        if !self.placed { return page }
+        // The root receives the viewport. Size its child instead, leaving room
+        // for the Viewer's positive position and anchor on both axes.
+        page.style.relative_width = 0.9; page.style.relative_height = 0.9
+        var frame = UI.Column([page])
+        frame.style.padding = UI.Insets(top:0.0, right:48.0, bottom:32.0, left:0.0)
+        return frame
     }
+}
+
+func presentation_settings(placed:bool) Viewer.CanvasSettings {
+    var settings = Viewer.CanvasSettings(width:780, height:820, title:"Silex — Accessibilité macOS J5")
+    if placed {
+        settings.position = Math.Vec2(24.0, 16.0); settings.anchor = Math.Vec2(0.05)
+        settings.title = "Silex — Accessibilité macOS J5 · Placement ajusté"
+    }
+    return settings
 }
 
 func named(source:Accessibility.Source, id:str, name:str, role:Accessibility.Role) str? {
@@ -199,20 +213,43 @@ func check_cpu(placed:bool = false) {
 test "the accessibility demo edits and activates the same model through Canvas Session" { check_cpu() }
 test "the placed accessibility demo retains its controls and text editing" { check_cpu(true) }
 
+func check_placed_geometry() {
+    var model = Model(); model.placed = true
+    var session = UI.Session(UI.Reactive(model.describe))
+    var source = session.accessibility_source()!
+    let settings = presentation_settings(true)
+    let sizes:Math.Vec2[] = [Math.Vec2(780.0, 820.0), Math.Vec2(640.0, 620.0), Math.Vec2(1000.0, 900.0), Math.Vec2(780.0, 820.0)]
+    var field_id:str? = null
+    for size in sizes {
+        var drawing = session.drawing(size.x as int, size.y as int)
+        let root = source.root()!
+        let page = source.read(named(source, root, "", Accessibility.Role.scroll_view)!)!.bounds
+        let origin = Math.Vec2(settings.position.x + size.x * settings.anchor.x, settings.position.y + size.y * settings.anchor.y)
+        assert(page.width > 0.0 && page.height > 0.0)
+        assert(page.x + origin.x >= 0.0 && page.y + origin.y >= 0.0)
+        assert(page.x + page.width + origin.x <= size.x + 0.001)
+        assert(page.y + page.height + origin.y <= size.y + 0.001)
+        let field = named(source, root, "Nom", Accessibility.Role.text_field)!
+        if let previous = field_id { assert(field == previous) }
+        field_id = field
+        let bounds = source.read(field)!.bounds
+        assert(bounds.width > 0.0 && bounds.x >= page.x)
+        assert(bounds.x + bounds.width <= page.x + page.width + 0.001)
+        let title = source.read(named(source, root, "Accessibilité — macOS", Accessibility.Role.text)!)!
+        assert(!title.offscreen && title.bounds.y >= page.y)
+    }
+}
+test "the placed accessibility page and field stay inside the resized window" { check_placed_geometry() }
+
 func main() {
     var placed = false
     for argument in Process.arguments() {
-        if argument == "--cpu-check" { check_cpu(); check_cpu(true); return }
+        if argument == "--cpu-check" { check_cpu(); check_cpu(true); check_placed_geometry(); return }
         if argument == "--placed" { placed = true }
     }
     var model = Model()
     model.placed = placed
     var session = UI.Session(UI.Reactive(model.describe))
-    var settings = Viewer.CanvasSettings(width:780, height:820, title:"Silex — Accessibilité macOS J5")
-    if placed {
-        settings.position = Math.Vec2(24.0, 16.0); settings.anchor = Math.Vec2(0.05)
-        settings.title = "Silex — Accessibilité macOS J5 · Placement"
-    }
-    let code = Viewer.show(session, settings)
+    let code = Viewer.show(session, presentation_settings(placed))
     if code != 0 { panic("Accessibility viewer failed") }
 }

@@ -64,15 +64,18 @@ this mode does not replace inspection in a real window.
 
 ## Check presentation placement
 
-The `--placed` mode gives the page a fixed size and places its origin with
-`position:Math.Vec2(24.0, 16.0)` and `anchor:Math.Vec2(0.05)`. In a 780 × 820
+The `--placed` mode places an adaptive page with room for its offset. Its
+origin uses `position:Math.Vec2(24.0, 16.0)` and `anchor:Math.Vec2(0.05)`. In a 780 × 820
 window, its origin is therefore at (63, 57) logical units; resizing moves it
-with the anchor. Elements remain described in drawing coordinates.
+with the anchor and adapts its size to the available space. Elements remain
+described in drawing coordinates.
 
 Launch the binary with `--placed`, click Name and Message Unicode, select text
 and scroll the page with the wheel. Mouse targets and selection highlighting
 should follow the offset content. In the inspector, a field’s rectangle should
 match the control before and after moving or resizing the window. If an input
-method displays candidates, their area should stay near the caret. CPU mode
-also exercises the fixed-size page; it does not prove this correspondence in a
-real window.
+method displays candidates, their area should stay near the caret.
+
+CPU mode also checks that the page and field stay inside the window across
+four successive layouts and that the title is visible on startup. It does not
+prove this correspondence in a real window.
