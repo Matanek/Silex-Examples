@@ -1,5 +1,6 @@
 use GFX.Application
 use GFX.Color
+use GFX.Canvas
 use GFX.Components
 use GFX.ECS
 use GFX.Input
@@ -66,7 +67,7 @@ func labels(state:&SupportScene,simulation:@Application.Simulation) {
     if simulation.is_paused() { phase="$(name)\nPAUSE · P pour reprendre" }
     state.controls.status.set(phase)
     var text="Vitesses véhicule / support (m/s)"
-    if state.rotating { text="Rotation Y (rad/s) : véhicule / support" }
+    if state.rotating { text="Rotation Y (rad/s), véhicule / sol" }
     var i=0;for rig in state.rigs {
         var v=Math.round(rig.model.vehicle.chassis().linear_velocity().z*100.0)/100.0
         var u=Math.round(rig.model.ground.linear_velocity().z*100.0)/100.0
@@ -255,6 +256,38 @@ func verify_rotation_controls() {
     assert(state.rigs[0].model.ground.angular_velocity()==Math.Vec3())
     print("Rotating support controls: real clicks, retained clocks, opposite rotations, locked/free response, pause and explicit reset verified")
 }
+func verify_metric_ink(commands:@Canvas.Command[],drawing:Canvas,expected:str) int {
+    var found=0
+    for command in commands { match command {
+        text(value)=> {
+            if value.value==expected {
+                let measured=drawing.measure_text(value.value,value.style)
+                let clip=value.clip!
+                print("HUD measured=$(measured.width)x$(measured.height), clip=$(clip.size.x)x$(clip.size.y), origin=$(value.position.y)")
+                assert(value.position.x>=clip.position.x && value.position.y>=clip.position.y)
+                assert(value.position.x+measured.width<=clip.position.x+clip.size.x+0.01)
+                assert(value.position.y+measured.height<=clip.position.y+clip.size.y+0.01)
+                assert(value.position.y+measured.height<=388.0)
+                found++
+            }
+        }
+        layer(value)=> { found+=verify_metric_ink(value.commands(),drawing,expected) }
+        else=>{}
+    } }
+    return found
+}
+func verify_hud() {
+    for rotating in [false,true] {
+        var world=Resources.World();var meshes=Resources.Meshes3D();var state=SupportScene(rotating);var simulation=Application.Simulation()
+        startup(world,meshes,state,simulation)
+        for selected in [0,1,2] {
+            state.controls.selected=selected;labels(state,simulation)
+            var drawing=state.ui.drawing(300,400)
+            assert(verify_metric_ink(drawing.commands(),drawing,state.controls.metrics.value())==1)
+        }
+    }
+    print("Support HUD: complete telemetry ink fits its clip and300x400panel in all six views")
+}
 func smoke_inputs(state:&SupportScene,simulation:&Application.Simulation,controller:&Application.Controller) {
     let step=copy state.rigs[0].model.steps
     if step>=240 && state.event==0 { click(state,simulation,80.0,184.0);state.event++ }
@@ -281,11 +314,13 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&SupportSce
     if state.telemetry>=0.1 { state.telemetry=0.0;labels(state,simulation) }
     if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(300,400)) }) }
 }
+test "support telemetry remains fully visible in the compact HUD" { verify_hud() }
 test "dynamic support scene acts immediately and only R resets the experiment" { verify_controls() }
 test "rotating support scene acts without resetting any retained world" { verify_rotation_controls() }
 func main() {
     var smoke=false;var rotating=false
     for argument in Process.arguments() {
+        if argument=="--hud-check" { verify_hud();return }
         if argument=="--rotation" { rotating=true }
         if argument=="--rotation-witness" { RotatingPlatform.witness();return }
         if argument=="--rotation-physics-check" { RotatingPlatform.verify();return }
