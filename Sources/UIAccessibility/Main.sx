@@ -9,6 +9,7 @@ use STD.Process
 use STD.Math
 
 class Model {
+    var placed:bool = false
     var name:UI.State<str> = UI.State<str>("Ada")
     var message:UI.State<str> = UI.State<str>("Aé👩‍💻中Z\nDeuxième ligne")
     var presses:UI.State<int> = UI.State<int>(0)
@@ -68,7 +69,9 @@ class Model {
         ])
         root.style.padding = UI.Insets(20.0); root.style.gap = 14.0
         root.style.theme = UI.Theme.dark()
-        return UI.ScrollView(root, smooth_scroll:true)
+        var page = UI.ScrollView(root, smooth_scroll:true)
+        if self.placed { page.style.width = 620.0; page.style.height = 700.0 }
+        return page
     }
 }
 
@@ -108,8 +111,9 @@ test "the dark accessibility demo paints readable labels instead of dark text on
     assert(visible_text(drawing.commands()) >= 10)
 }
 
-func check_cpu() {
+func check_cpu(placed:bool = false) {
     var model = Model()
+    model.placed = placed
     var session:Canvas.Session = UI.Session(UI.Reactive(model.describe))
     var drawing = session.drawing(780, 820)
     var source = session.accessibility_source()!
@@ -193,12 +197,22 @@ func check_cpu() {
 }
 
 test "the accessibility demo edits and activates the same model through Canvas Session" { check_cpu() }
+test "the placed accessibility demo retains its controls and text editing" { check_cpu(true) }
 
 func main() {
-    for argument in Process.arguments() { if argument == "--cpu-check" { check_cpu(); return } }
+    var placed = false
+    for argument in Process.arguments() {
+        if argument == "--cpu-check" { check_cpu(); check_cpu(true); return }
+        if argument == "--placed" { placed = true }
+    }
     var model = Model()
+    model.placed = placed
     var session = UI.Session(UI.Reactive(model.describe))
-    let code = Viewer.show(session, Viewer.CanvasSettings(width:780, height:820,
-        title:"Silex — Accessibilité macOS J5"))
+    var settings = Viewer.CanvasSettings(width:780, height:820, title:"Silex — Accessibilité macOS J5")
+    if placed {
+        settings.position = Math.Vec2(24.0, 16.0); settings.anchor = Math.Vec2(0.05)
+        settings.title = "Silex — Accessibilité macOS J5 · Placement"
+    }
+    let code = Viewer.show(session, settings)
     if code != 0 { panic("Accessibility viewer failed") }
 }

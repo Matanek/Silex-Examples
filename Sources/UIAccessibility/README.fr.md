@@ -63,3 +63,18 @@ Une saisie remplace la sélection et Cmd+Z restaure le texte sur macOS.
 Le mode CPU vérifie cette édition et son annulation par les événements de
 la session, après sélection par la source sémantique. Les tests AppKit séparés
 vérifient la conversion native ; ce mode ne remplace pas l’inspection en fenêtre.
+
+## Contrôler le placement de la présentation
+
+Le mode `--placed` donne une taille fixe à la page et place son origine avec
+`position:Math.Vec2(24.0, 16.0)` et `anchor:Math.Vec2(0.05)`. Dans une fenêtre de
+780 × 820, son origine est donc à (63, 57) unités logiques ; le redimensionnement
+la déplace avec l’ancre. Les éléments restent décrits dans le repère du dessin.
+
+Lancer le binaire avec `--placed`, cliquer dans Nom et Message Unicode puis
+sélectionner du texte et faire défiler la page à la molette. Les cibles de souris
+et le surlignage doivent suivre le contenu décalé. Dans l’inspecteur, le rectangle
+d’un champ doit coïncider avec le contrôle, avant et après déplacement ou
+redimensionnement de la fenêtre. Si une méthode de saisie affiche des candidats,
+leur zone doit rester près du caret. Le mode CPU exerce aussi la page de taille
+fixe ; il ne prouve pas cette correspondance dans une vraie fenêtre.
