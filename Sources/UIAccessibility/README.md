@@ -95,3 +95,9 @@ their order among the children of Documents.
 CPU tests verify table data and selection. The GFX package’s AppKit tests
 verify native properties and lazy queries over 50,000 rows. Complete
 screen-reader navigation of collections remains to be qualified.
+
+The table displays a continuous separator between its two columns. The last
+column uses the available space (`stretch_last_column:true`), removing the
+appearance of an empty column on the right. Resize handles appear on hover
+or focus; the divider remains visible through the rows. CPU mode verifies
+the same data and actions.

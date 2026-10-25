@@ -99,3 +99,8 @@ Les tests CPU vérifient les données et la sélection du tableau. Les tests
 AppKit du package GFX vérifient les propriétés natives et leur lecture paresseuse
 sur 50 000 lignes. La navigation complète des collections avec un lecteur
 d’écran reste à qualifier.
+
+Le tableau affiche un séparateur continu entre ses deux colonnes. La dernière
+occupe l’espace disponible (`stretch_last_column:true`), sans fausse colonne
+vide à droite. Les poignées se révèlent au survol ou au focus ; la séparation
+reste visible dans les lignes. Le mode CPU vérifie les mêmes données et actions.
