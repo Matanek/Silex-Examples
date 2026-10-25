@@ -1100,29 +1100,43 @@ comparison, separate from the variable tire curves in VehicleSuspension.
 
 ## Tracked driving and pivoting
 
-[TrackedDriving](Sources/Physics3D/TrackedDriving/README.md) demonstrates two
-coupled tracks of three suspended wheels. Z/S select forward/reverse, arrows
-choose opposite curves, P pivots and G removes grip while wheels keep spinning.
-Each choice recreates and plays a qualified eight-second maneuver, then stops;
-R replays and Space pauses. Colored spokes show actual wheel rotation, green
-markers show supports, and the panel reports both track speeds. This validation
-scene uses ideal tracks and ray contacts on a plane.
+[TrackedDriving](Sources/Physics3D/TrackedDriving/README.md) drives two coupled
+tracks of three suspended wheels continuously. Hold Z/S for forward/reverse,
+Q/D or arrows to turn or pivot, and Space to brake. B/F change terrain in place,
+M toggles an automatic cycle and P pauses; R alone returns to the start.
+The scene retains physical poses, velocities and clock across other commands.
+The interactive scene starts on flat ground with automatic forward/reverse
+shifting; gear, RPM and clutch engagement are visible. M controls an optional
+driver cycle, separately from the automatic gearbox.
+Colored spokes and green support markers show ascent, unsupported flight and
+landing. Headless witnesses and the eight-recipe smoke retain the qualified
+flat/ramp comparisons.
 
 `silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release`.
 [Guide français](Sources/Physics3D/TrackedDriving/README.fr.md).
 
-## Motorcycle driving and balance
+## Motorcycle cross profile, ramp and balance
 
-[MotorcycleDriving](Sources/Physics3D/MotorcycleDriving/README.md) lets you ride
-freely with held Z/S and arrow keys; W requests full throttle for a physical
+[MotorcycleDriving](Sources/Physics3D/MotorcycleDriving/README.md) starts with a 180 N·m
+cross profile, softer 70 cm-travel suspension and a 16° ramp. Ride freely with Z for throttle, S to brake and Q/D to steer; W requests full throttle for a physical
 rear-wheel ride. A toggles the roll rider, L toggles the
 speed-dependent steering limit, P applies a real roll impulse and R recreates
-the motorcycle while retaining those settings. Compare recovery and falling
-with the same push. Space pauses; Escape quits. Actual chassis, steering,
+the motorcycle while retaining those settings. B compares a finite ramp with
+the flat plane and restarts; the scene begins with the ramp enabled. Ride
+straight ahead with Z to observe ascent, unsupported flight and landing.
+Compare recovery and falling with the same push. Hold Space for the rear brake;
+release to regain grip after a slide in a turn. Releasing throttle applies engine
+braking; Escape quits. Actual chassis, steering,
 wheel rotation and support markers are rendered from the physical state.
+A smooth rear chase camera keeps a level horizon; Q/D turn left/right from
+that view. The DarkGrid ground texture has one-meter cells anchored to the world.
 The rider cuts out after a crash until R; steering is progressive and throttle
-is modulated from pitch. This validation scene uses an ideal actuator and ray
-contacts on a plane.
+is modulated from pitch. This validation scene uses an ideal actuator and
+ray contacts on a plane and a finite ramp; the straight ramp approach is
+qualified against Jolt, with unsupported flight and loaded landing checks. The
+free-riding profile combines progressive steering, support-aware wheelie control
+and traction control in turns. Separate consumer checks cover Z/W acceleration,
+mirrored reversals and combined tire adhesion.
 
 `silex run Silex-Examples/Sources/Physics3D/MotorcycleDriving/Main.sx --release`.
 [Guide français](Sources/Physics3D/MotorcycleDriving/README.fr.md).

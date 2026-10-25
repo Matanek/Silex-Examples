@@ -1,47 +1,82 @@
-# Drive two tracks
+# Drive two tracks with automatic shifting
 
-Six maneuvers show how two tracks of suspended wheels move and turn a chassis.
-The wheels keep their steering axes; relative track speeds create curves and
-opposing rotation produces a pivot. Colored spokes read each physical wheel's
-rotation: blue on the left, orange on the right. Green markers indicate current
-supports. The panel reports actual track velocities and driving phases.
+Drive continuously and observe three forward and reverse gears, torque
+interruptions and clutch engagement. Six suspensions, blue/orange spokes and
+green support markers follow physical states. The panel reports gear, RPM,
+clutch engagement and both track speeds.
 
-From the workspace root:
+From the workspace root or the Spec Worktree group root:
 
 ```sh
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release
 ```
 
-- **Z**: forward; **S**: reverse.
-- **← / →**: left / right curve.
-- **P**: pivot with opposing track rotation.
-- **G**: forward with zero grip; wheels spin while the chassis stays in place.
-- **R**: recreate and replay the current choice.
-- **Space**: pause/resume; **Escape**: quit.
+- Hold **Z/S**: forward/reverse. Changing direction brakes before driving the
+  tracks the other way; it does not return the vehicle to the start.
+- Hold **Q/D** or **←/→**: turn. At very low speed without throttle, the tracks
+  counter-rotate to pivot.
+- Hold **Space**: brake. Releasing throttle allows coasting; light braking holds
+  the vehicle when nearly stationary.
+- **B/F**: add the ramp/return to the flat plane at the current pose. Removing
+  support can naturally let the chassis fall.
+- **M**: enable/disable the driving cycle from the current state. A driving
+  input takes over. Automatic shifting also works while driving manually;
+  the driver cycle and transmission are separate.
+- **P**: pause/resume; **R alone**: return to the start on the selected terrain,
+  retaining the gearbox profile; **Escape**: quit.
 
-Buttons perform the same actions. Each choice recreates the vehicle at the
-start and runs eight seconds: two seconds of braked landing, two seconds at
-80% throttle, then four seconds of braking and recovery. It stops afterwards
-for comparison; R replays it. The camera follows the chassis; grid spacing is
-one meter and the white marker stays fixed.
+Five buttons control terrain, driver, pause and reset. Releases and focus loss
+clear driving input. B/F and M retain pause; R resumes. Commands retain vehicle
+identity, pose, velocities and clock; driving continues beyond sixteen seconds.
+Inputs never impose chassis poses/velocities or wheel rotation.
 
-This is an interactive validation scene using qualified Jolt/Silex recipes:
-100 kg, six 30 cm wheels, 10000 N/m springs and 1000 N·s/m dampers, two tracks
-of 2 kg·m² inertia, a 15 N·m engine, ±1 gears and differential ratio 6. The scene
-steps at 120 Hz; the same recipes are checked at 60 Hz. Tracks are an ideal
-mechanical coupling, without links or continuous track collision geometry.
-Six wheel rays contact a plane; this is not yet an all-terrain test.
+## Observe gear changes
 
-## Headless checks
+The window starts on the flat plane. Hold Z to see 1/2/3 and the clutch open
+and engage again. Brake to observe downshifts and neutral. S drives through
+the same sequence in reverse. Keyboard driving modulates torque and track
+speed differences with vehicle speed, targeting about 9 m/s for maneuverability;
+the engine and suspensions match the qualified witness.
+
+To run the qualified cycle without throttle modulation, enable **M**, then
+explicitly press **R** to start over: 2 s settling, 4 s at 80 % throttle and 10 s
+at 4 % braking, followed by holding at rest. It never restarts itself. The panel
+distinguishes the driver cycle from automatic shifting. R alone recreates the
+vehicle. The camera follows the chassis; grid spacing is one meter.
+
+## Model and qualification
+
+100 kg, isotropic inertia 100 kg·m², six 30 cm wheels, 10000 N/m springs and
+1000 N·s/m dampers, track inertia 2 kg·m², 15 N·m engine and differential 6.
+Ratios are 2/1.4/1 and −2/−1.4/−1, thresholds 1800/1200 RPM, switch 0.5 s,
+engagement 0.3 s, latency 0.5 s. Moderate braking applies 60 N·m per track. Tracks are
+an ideal coupling without articulated links; contacts use six rays.
+
+The standalone `TrackedAutomaticRun.py` witness in Silex-Benchmarks qualifies
+forward/reverse shifts on a plane and upshift inhibition without support or
+with opposing tracks. The scene reproduces the two forward/reverse cases
+exactly. Eight historical manual recipes, including ramp traversal, remain
+in automated tests with unchanged witnesses.
+
+B lets you explore the 8 × 0.4 × 6.03 m box tilted by 0.1 rad with the new profile.
+Automatic ramp parity is not qualified. These recipes do not prove prolonged
+high-speed straightness, general terrain, extreme braking or linked tracks.
+
+## Verify
 
 ```sh
-silex test Silex-Examples/Sources/Physics3D/TrackedDriving/Model.sx --nocache
-silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --physics-check
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --controls-check
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --automatic-physics-check
 ```
 
-`--oracle-check` emits all 8,652 states from six recipes at 60/120 Hz in the
-qualification witness format, checking that rendering consumes the same
-simulation. `--smoke` opens a “TEST AUTOMATIQUE” window, runs all six recipes,
-checks framing and transforms, then exits with its final marker. Closing it
-early does not pass that check.
+`--controls-check` checks held input, releases/focus, turns, braking, reverse,
+pause, driver and five buttons in both profiles, retaining state and checking
+R separately. `--physics-check` retains manual recipes; `--automatic-physics-check`
+checks 1/2/3/2/1/neutral, clutch, rest and profile retention through reset at 60/120 Hz.
+
+`--oracle-check` emits 8,652 historical states; `--ramp-check`, 5,044 flat/ramp states;
+`--automatic-check`, 5,764 forward/reverse states identical to the qualified benchmark.
+`--smoke` runs eight manual recipes, checking framing, wheels, supports and ramp.
+`--live-smoke` runs 18 s of automatic continuous controls, terrain changes, driver,
+pause and manual takeover without a reset. Closing early does not pass these
+checks; the “TEST AUTOMATIQUE” windows close when complete.

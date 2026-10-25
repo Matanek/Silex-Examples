@@ -1,0 +1,41 @@
+use GFX.Physics
+use Physics3D.TrackedDriving.Model
+use STD.Math
+
+func command(model:&Model.TrackedModel,direction:int) {
+    var throttle=0.0;var brake=0.04
+    if model.steps>=2*model.rate && model.steps<6*model.rate { throttle=0.8*direction as float;brake=0.0 }
+    model.drive(throttle,brake:brake)
+}
+package func witness() {
+    var scenario=0
+    for direction in [1,-1] {
+        for rate in [60,120] {
+            var model=Model.TrackedModel(recipe:6,rate:rate,automatic:true)
+            while true {
+                print(model.observation("tracked-auto",scenario))
+                if model.steps==16*rate { break }
+                command(model,direction)
+            }
+        }
+        scenario++
+    }
+}
+package func verify() {
+    for direction in [1,-1] { for rate in [60,120] {
+        var model=Model.TrackedModel(recipe:6,rate:rate,automatic:true)
+        let sequence:int[]=[direction,2*direction,3*direction,2*direction,direction,0]
+        var previous=0;var event=0;var open_steps=0
+        while model.steps<16*rate {
+            command(model,direction);model.verify()
+            let power=model.vehicle.powertrain()
+            if power.gear!=previous { assert(event<sequence.count() && power.gear==sequence[event]);previous=power.gear;event++ }
+            if model.steps>=2*rate && power.clutch==0.0 { open_steps++ }
+        }
+        assert(event==6 && open_steps>rate && model.supports()==6)
+        assert(model.vehicle.chassis().linear_velocity().length()<0.05 && model.vehicle.powertrain().gear==0)
+        var old=model.vehicle;model.reset(6);assert(!old.is_valid() && model.automatic && model.steps==0 && model.vehicle.powertrain().gear==0)
+    } }
+    print("Tracked automatic: forward/reverse1/2/3/2/1/neutral, clutch interruptions, rest and profile retained by R at60/120Hz")
+}
+test "tracked scene uses automatic shifts under ground loads" { verify() }

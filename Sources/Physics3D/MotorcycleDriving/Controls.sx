@@ -6,56 +6,68 @@ use GFX.UI
 func letter(key:@Events.KeyEvent,lower:uint32,upper:uint32,physical:Input.Key) bool {
     return key.keycode==lower || key.keycode==upper || (key.keycode==0 as uint32 && key.key==physical)
 }
+package static struct Hud {
+    let width:int=280
+    let height:int=400
+}
+
 package class MotorcycleControls {
     var throttle:bool=false
     var boost:bool=false
     var braking:bool=false
     var left:bool=false
     var right:bool=false
+    var terrains:int=0
     var assists:int=0
     var limits:int=0
     var pushes:int=0
     var resets:int=0
-    var pauses:int=0
+    var rear_braking:bool=false
     var automatic:bool=false
-    var assist_text:UI.State<str> =UI.State<str>("Pilote auto actif (A)")
-    var limit_text:UI.State<str> =UI.State<str>("Limite active (L)")
-    var pause_text:UI.State<str> =UI.State<str>("Pause (Espace)")
+    var terrain_text:UI.State<str> =UI.State<str>("B : plat")
+    var assist_text:UI.State<str> =UI.State<str>("A : pilote auto")
+    var limit_text:UI.State<str> =UI.State<str>("L : limite ON")
+    var rear_text:UI.State<str> =UI.State<str>("AR : libre")
     var phase:UI.State<str> =UI.State<str>("")
     var measure:UI.State<str> =UI.State<str>("")
+    func terrain() { self.terrains++ }
     func assist() { self.assists++ }
     func limit() { self.limits++ }
     func push() { self.pushes++ }
     func reset() { self.resets++ }
-    func pause() { self.pauses++ }
-    func release() { self.throttle=false;self.boost=false;self.braking=false;self.left=false;self.right=false }
+    func release() { self.throttle=false;self.boost=false;self.braking=false;self.rear_braking=false;self.left=false;self.right=false }
     func button(text:str,action:func()) UI.Button {
-        var button=UI.Button(text,action);button.style.width=218.0;button.style.height=38.0
+        var button=UI.Button(text,action);button.style.width=124.0;button.style.height=30.0;button.style.font_size=13.0
         button.style.radius=5.0;button.style.background=Color.slate_700();return button
     }
+    func terrain_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.terrain_text),self.terrain) }
     func assist_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.assist_text),self.assist) }
     func limit_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.limit_text),self.limit) }
-    func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause) }
-    func phase_label(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.phase)) }
-    func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
+    func rear_label(reads:UI.Reads) UI.View { var label=self.text(reads.read(self.rear_text),30.0);label.style.width=124.0;label.style.font_size=13.0;return label }
+    func text(value:str,height:float) UI.Text {
+        var text=UI.Text(value);text.style.height=height;text.style.font_size=14.0;return text
+    }
+    func phase_label(reads:UI.Reads) UI.View { return self.text(reads.read(self.phase),44.0) }
+    func metrics(reads:UI.Reads) UI.View { return self.text(reads.read(self.measure),64.0) }
     func describe() UI.View {
-        var actions=UI.Row([UI.Reactive(self.assist_button),UI.Reactive(self.limit_button),
-            self.button("Poussée latérale (P)",self.push),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button)])
-        actions.style.gap=10.0
-        var title=UI.Text("Moto — conduite libre et équilibre");title.style.height=28.0
-        var help=UI.Text("Maintenir Z : gaz · W : plein gaz / roue arrière · S : frein · ← / → : braquer · Échap : quitter");help.style.height=24.0
-        var hint=UI.Text("A coupe le pilote de roulis : sans lui, la moto est instable en virage. R pour repartir après une chute.");hint.style.height=24.0
-        var rows:UI.View[]=[title,help,actions,hint,UI.Reactive(self.phase_label),UI.Reactive(self.metrics)]
-        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — six recettes moto — fermeture à la fin"),UI.Reactive(self.phase_label),UI.Reactive(self.metrics)] }
-        var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
-        root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0;return root
+        var assistance=UI.Row([UI.Reactive(self.assist_button),UI.Reactive(self.limit_button)]);assistance.style.gap=8.0
+        var terrain=UI.Row([UI.Reactive(self.terrain_button),self.button("R : départ",self.reset)]);terrain.style.gap=8.0
+        var actions=UI.Row([self.button("P : poussée",self.push),UI.Reactive(self.rear_label)]);actions.style.gap=8.0
+        var title=self.text("Moto cross",28.0);title.style.font_size=18.0
+        var help=self.text("Z : gaz · W : plein gaz\nS : frein · Q / D : tourner\nEspace : frein AR · Échap : quitter",57.0);help.style.font_size=13.0
+        var hint=self.text("Sans pilote auto : instable en virage.\nR pour repartir après une chute.",36.0);hint.style.font_size=12.0;hint.style.foreground=Color.slate_300()
+        var rows:UI.View[]=[title,UI.Reactive(self.metrics),UI.Reactive(self.phase_label),assistance,terrain,actions,help,hint]
+        if self.automatic { rows=[self.text("TEST AUTOMATIQUE\nFermeture à la fin",44.0),UI.Reactive(self.phase_label),UI.Reactive(self.metrics)] }
+        var root=UI.Column(rows);root.style.padding=UI.Insets(12.0);root.style.gap=8.0
+        root.style.background=Color.slate_900().with_alpha(0.88);root.style.foreground=Color.slate_100();root.style.radius=8.0;return root
     }
     func held(key:@Events.KeyEvent,down:bool) bool {
+        if key.key==Input.Key.space { self.rear_braking=down;return true }
         if letter(key,122 as uint32,90 as uint32,Input.Key.z) { self.throttle=down;return true }
         if letter(key,119 as uint32,87 as uint32,Input.Key.w) { self.boost=down;return true }
         if letter(key,115 as uint32,83 as uint32,Input.Key.s) { self.braking=down;return true }
-        if key.key==Input.Key.left { self.left=down;return true }
-        if key.key==Input.Key.right { self.right=down;return true }
+        if letter(key,113 as uint32,81 as uint32,Input.Key.q) { self.left=down;return true }
+        if letter(key,100 as uint32,68 as uint32,Input.Key.d) { self.right=down;return true }
         return false
     }
     func handle(event:@Events.Event) bool {
@@ -63,14 +75,15 @@ package class MotorcycleControls {
         match event {
             key_pressed(key)=> {
                 if self.held(key,true) { return true }
+                let terrain=letter(key,98 as uint32,66 as uint32,Input.Key.b)
                 let assist=letter(key,97 as uint32,65 as uint32,Input.Key.a)
                 let limit=letter(key,108 as uint32,76 as uint32,Input.Key.l)
                 let push=letter(key,112 as uint32,80 as uint32,Input.Key.p)
                 let reset=letter(key,114 as uint32,82 as uint32,Input.Key.r)
-                if assist || limit || push || reset || key.key==Input.Key.space {
+                if terrain || assist || limit || push || reset {
                     if !key.repeated {
-                        if assist { self.assist() } else if limit { self.limit() } else if push { self.push() }
-                        else if reset { self.reset() } else { self.pause() }
+                        if terrain { self.terrain() } else if assist { self.assist() } else if limit { self.limit() } else if push { self.push() }
+                        else if reset { self.reset() }
                     }
                     return true
                 }

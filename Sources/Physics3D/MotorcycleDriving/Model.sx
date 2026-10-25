@@ -1,48 +1,119 @@
 use GFX.Physics
 use STD.Math
 
+package static struct Engine {
+    let inertia:float=0.05
+    let cross_torque:float=120.0
+    let riding_torque:float=180.0
+    let drag:float=1.5
+}
 func vector(value:Math.Vec3) str { return "$(value.x) $(value.y) $(value.z)" }
-func make(world:Physics.World3D,kind:int) Physics.Motorcycle3D {
-    let grip=1.0
+func make(world:Physics.World3D,kind:int,cross:bool=false,handling:bool=false) Physics.Motorcycle3D {
+    var torque=80.0;var height=1.05;var mount=0.0;var travel=0.6;var spring=10000.0;var damping=1000.0
+    if cross { torque=Engine.cross_torque;height=1.2;mount=0.1;travel=0.9;spring=2500.0;damping=350.0 }
+    var grip=1.0;var lean=0.5;var roll_stiffness=5000.0;var roll_damping=1000.0;var engine_drag=0.0;var rear_brake=0.0
+    if handling { torque=Engine.riding_torque;grip=1.96;lean=0.95;roll_stiffness=3500.0;roll_damping=1200.0;engine_drag=Engine.drag;rear_brake=260.0 }
     let tire=Physics.Tire3DSettings(
         longitudinal_friction:Physics.TireFrictionCurve3D([Math.Vec2(0.0,grip)]),
-        lateral_friction:Physics.TireFrictionCurve3D([Math.Vec2(0.0,grip)]))
+        lateral_friction:Physics.TireFrictionCurve3D([Math.Vec2(0.0,grip)]),combined_friction:handling)
     var bike=world.create_motorcycle(Physics.Motorcycle3DSettings(
         Physics.RigidBody3DSettings() ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(0.4,0.5,1.6)))
             ..mass_properties=Physics.MassProperties3D(100.0,Math.Vec3(100.0))
-            ..transform=Physics.Transform3D(Math.Vec3(0.0,1.05,0.0)) ..allow_sleep=false
+            ..transform=Physics.Transform3D(Math.Vec3(0.0,height,0.0)) ..allow_sleep=false
             ..linear_damping=0.05 ..angular_damping=0.3 ..friction=0.8,
-        Physics.Wheel3DSettings(Math.Vec3(0.0,0.0,1.25),tire:tire,maximum_steering_angle:0.6,
-            maximum_brake_torque:300.0,maximum_handbrake_torque:0.0,maximum_slope_angle:Math.half_pi()-0.000001),
-        Physics.Wheel3DSettings(Math.Vec3(0.0,0.0,-0.75),tire:tire,
-            maximum_brake_torque:300.0,maximum_handbrake_torque:0.0,maximum_slope_angle:Math.half_pi()-0.000001),
-        balance:Physics.MotorcycleBalance3DSettings(maximum_lean_angle:0.5,stiffness:5000.0,damping:1000.0),
-        engine:Physics.VehicleEngine3DSettings(maximum_torque:80.0,minimum_rpm:0.0,maximum_rpm:6000.0,inertia:0.05,
-            angular_damping:0.0,torque_curve:[Math.Vec2(0.0,1.0)]),
+        Physics.Wheel3DSettings(Math.Vec3(0.0,mount,1.25),tire:tire,maximum_steering_angle:0.6,
+            maximum_brake_torque:300.0,maximum_handbrake_torque:0.0,maximum_length:travel,stiffness:spring,damping:damping,maximum_slope_angle:Math.half_pi()-0.000001),
+        Physics.Wheel3DSettings(Math.Vec3(0.0,mount,-0.75),tire:tire,
+            maximum_brake_torque:300.0,maximum_handbrake_torque:rear_brake,maximum_length:travel,stiffness:spring,damping:damping,maximum_slope_angle:Math.half_pi()-0.000001),
+        balance:Physics.MotorcycleBalance3DSettings(maximum_lean_angle:lean,stiffness:roll_stiffness,damping:roll_damping),
+        engine:Physics.VehicleEngine3DSettings(maximum_torque:torque,minimum_rpm:0.0,maximum_rpm:6000.0,inertia:Engine.inertia,
+            angular_damping:engine_drag,torque_curve:[Math.Vec2(0.0,1.0)]),
         transmission:Physics.VehicleTransmission3DSettings(mode:Physics.VehicleTransmissionMode3D.manual,gear_ratios:[3.0])))
     bike.set_balance_enabled(kind!=5);bike.set_transmission(1,clutch:0.0);return bike
 }
 
 class Rider {
+    var cross:bool=false
+    var slope:float=0.0
+    var handling:bool=false
+    init(cross:bool=false,handling:bool=false) { self.cross=cross;self.handling=handling }
     var steering:float=0.0
     var crashed:bool=false
     var throttle:float=0.0
-    func drive(bike:Physics.Motorcycle3D,requested:float,steering:float,brake:float,rate:int) {
+    var rear_brake:float=0.0
+    func drive(bike:Physics.Motorcycle3D,requested:float,steering:float,brake:float,rate:int,rear_brake:float=0.0) {
         var body=bike.chassis();let q=body.rotation();let forward=q.rotate(Math.Vec3(0.0,0.0,1.0))
         if q.rotate(Math.Vec3.up()).y<0.3 { self.crashed=true }
         let pitch=Math.asin(Math.clamp(forward.y,-1.0,1.0))
         let pitch_rate= -body.angular_velocity().dot(q.rotate(Math.Vec3.right()))
-        var throttle=requested*Math.clamp((0.25-pitch-0.15*pitch_rate)/0.15,0.0,1.0)
+        var target=0.25;var window=0.15;var horizon=0.15
+        if self.cross {
+            var normal=Math.Vec3();var loaded=0
+            for i in [0,1] { let w=bike.wheel(i)
+                if w.support()!=null && w.normal_force>0.0 { normal=normal.add(w.contact_normal);loaded++ }
+            }
+            if loaded>0 {
+                let horizontal=Math.Vec3(forward.x,0.0,forward.z)
+                if horizontal.length_squared()>0.000001 { self.slope=Math.atan2(-normal.dot(horizontal.normalized()),normal.y) }
+            }
+            let pace=Math.clamp((Math.abs(body.linear_velocity().dot(forward))-8.0)/6.0,0.0,1.0)
+            var margin=0.4-0.28*pace
+            if self.handling { margin=0.30-0.18*pace;if requested>0.4 { margin=0.34-0.22*pace } }
+            var width=0.12-0.06*pace;if requested>0.4 { width=0.15-0.09*pace }
+            target=Math.min(0.65,self.slope+margin);window=width;horizon=0.30
+            if self.handling && requested>0.4 { horizon=0.45 }
+            if self.handling && bike.balance_enabled() {
+                let corner=Math.clamp(Math.abs(steering)/0.35,0.0,1.0)
+                // Keep the front tire loaded when asking it to change direction.
+                target=Math.min(0.65,self.slope+margin*(1.0-corner)+0.14*corner)
+                window=width*(1.0-corner)+0.06*corner
+            }
+        }
+        var throttle=requested*Math.clamp((target-pitch-horizon*pitch_rate)/window,0.0,1.0)
         var desired=steering;var braking=brake
+        let up=q.rotate(Math.Vec3.up());let right=q.rotate(Math.Vec3.right())
+        let roll=Math.atan2(right.y,up.y)
+        let changing_side=self.handling && bike.balance_enabled() && steering*roll< -0.015
+        // Unload the drivetrain while the rider changes sides, preserving tire grip.
+        if changing_side { throttle=0.0 }
         if self.crashed { throttle=0.0;braking=0.35;desired=0.0;bike.set_balance_enabled(false) }
+        if self.handling && bike.balance_enabled() && Math.abs(steering)>0.02 {
+            var rear=bike.wheel(1)
+            if rear.support()!=null && rear.normal_force>0.0 {
+                // Leave lateral grip available instead of spinning the driven tire in a turn.
+                let capacity=1.4*rear.normal_force
+                let reserve=Math.sqrt(Math.max(0.0,capacity*capacity-rear.lateral_force*rear.lateral_force))
+                throttle=Math.min(throttle,0.85*reserve*0.3/(3.0*3.42*Engine.riding_torque))
+            }
+        }
+        if self.handling && throttle>0.0 {
+            // Preserve requested drive torque while overcoming the engine's internal drag.
+            let drag=Engine.inertia*Engine.drag*bike.powertrain().engine_rpm*Math.two_pi()/60.0
+            throttle=Math.min(1.0,throttle+drag/Engine.riding_torque)
+        }
         let speed=body.linear_velocity().dot(forward)
         var cap=0.35
-        if bike.steering_limit_enabled() { cap=Math.min(cap,Math.asin(Math.clamp(2.0*Math.tan(0.5)*9.81/Math.max(0.000001,speed*speed),0.0,1.0))/0.6) }
-        desired=Math.clamp(desired,-cap,cap);self.steering=Math.clamp(self.steering,-cap,cap)
-        let increment=2.0*cap/(0.3*rate as float)
+        if self.handling {
+            if bike.steering_limit_enabled() {
+                let camber=Math.max(0.2,q.rotate(Math.Vec3.up()).y)
+                let available=2.0*Math.tan(0.9)*9.81*camber/Math.max(0.000001,speed*speed)/0.6
+                // Smooth saturation keeps the approach to the lean envelope progressive.
+                desired/=Math.sqrt(1.0+(desired/available)*(desired/available))
+                cap=Math.min(cap,available)
+            }
+        } else {
+            if bike.steering_limit_enabled() { cap=Math.min(cap,Math.asin(Math.clamp(2.0*Math.tan(0.5)*9.81/Math.max(0.000001,speed*speed),0.0,1.0))/0.6) }
+            desired=Math.clamp(desired,-cap,cap);self.steering=Math.clamp(self.steering,-cap,cap)
+        }
+        var transition=0.3;if self.handling { transition=0.7 }
+        let increment=2.0*cap/(transition*rate as float)
         self.steering+=Math.clamp(desired-self.steering,-increment,increment);self.throttle=throttle
         var clutch=0.0;if throttle>0.0 { clutch=1.0 }
-        bike.set_transmission(1,clutch:clutch);bike.set_controls(steering:self.steering,throttle:throttle,brake:braking)
+        if self.handling && !self.crashed && brake==0.0 && rear_brake==0.0 { clutch=1.0 }
+        if changing_side { clutch=0.0 }
+        var response=0.20;if rear_brake<self.rear_brake { response=0.08 }
+        self.rear_brake+=Math.clamp(rear_brake-self.rear_brake,-1.0/(response*rate as float),1.0/(response*rate as float))
+        bike.set_transmission(1,clutch:clutch);bike.set_controls(steering:self.steering,throttle:throttle,brake:braking,handbrake:self.rear_brake)
     }
 }
 func command(bike:Physics.Motorcycle3D,rider:Rider,kind:int,step:int,rate:int) {
@@ -57,7 +128,15 @@ func command(bike:Physics.Motorcycle3D,rider:Rider,kind:int,step:int,rate:int) {
     rider.drive(bike,throttle,steering,brake,rate)
 }
 
+package func ramp_size(cross:bool=false) Math.Vec3 { if cross { return Math.Vec3(8.0,0.4,9.0) } return Math.Vec3(8.0,0.4,6.03) }
+package func ramp_pose(cross:bool=false) Physics.Transform3D {
+    if cross { return Physics.Transform3D(Math.Vec3(0.0,1.0514218,16.5),Math.Quat.angle_axis(-0.28,Math.Vec3.right())) }
+    return Physics.Transform3D(Math.Vec3(0.0,0.1,15.0),Math.Quat.angle_axis(-0.1,Math.Vec3.right()))
+}
 package func recipe_name(recipe:int) str {
+    if recipe==8 { return "Frein arrière — glisse en virage et reprise d’adhérence" }
+    if recipe==7 { return "Cross — tremplin plus raide, envol et réception souple" }
+    if recipe==6 { return "Rampe — montée, envol puis réception" }
     if recipe==1 { return "Inversions gauche / droite à vitesse élevée" }
     if recipe==2 { return "Inversions miroirs" }
     if recipe==3 { return "Plein gaz — roue avant levée puis freinage" }
@@ -68,6 +147,14 @@ package func recipe_name(recipe:int) str {
 package class MotorcycleModel {
     var world:Physics.World3D=Physics.World3D()
     var ground:Physics.RigidBody3D
+    var ramp:Physics.RigidBody3D?=null
+    var ramp_enabled:bool=false
+    var cross:bool=false
+    var handling:bool=false
+    var flight_steps:int=0
+    var ramp_contacts:int=0
+    var landed:bool=false
+    var peak_height:float=1.05
     var vehicle:Physics.Motorcycle3D
     private var rider:Rider=Rider()
     var assistance:bool=true
@@ -78,33 +165,81 @@ package class MotorcycleModel {
     private var settled_pose:Physics.Transform3D=Physics.Transform3D()
     private var late_angle:float=0.0
     private var late_distance:float=0.0
-    init(recipe:int=0,rate:int=120) {
+    init(recipe:int=0,rate:int=120,cross:bool=false,handling:bool=false) {
+        self.handling=handling;self.cross=cross || recipe==7;self.rider=Rider(self.cross,handling)
         self.recipe=recipe;self.rate=rate;self.assistance=recipe!=5
         self.ground=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
             ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0)
-        self.vehicle=make(self.world,recipe)
+        self.vehicle=make(self.world,recipe,self.cross,self.handling)
+        if recipe==6 || recipe==7 { self.configure_ramp(true) }
     }
-    func reset(recipe:int=0,keep_assistance:bool=false) {
+    private func configure_ramp(enabled:bool) {
+        if self.ramp_enabled==enabled { return }
+        if self.ramp!=null { self.world.destroy_rigid_body(self.ramp!);self.ramp=null }
+        self.ramp_enabled=enabled
+        if enabled {
+            self.ramp=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+                ..shape=Physics.Shape3D.box(Physics.Box3D(ramp_size(self.cross))) ..transform=ramp_pose(self.cross) ..friction=1.0)
+        }
+    }
+    func reset(recipe:int=0,keep_assistance:bool=false,ramp:bool?=null,cross:bool?=null,handling:bool?=null) {
         let assistance=self.assistance;let limit=self.vehicle.steering_limit_enabled()
-        self.world.destroy_motorcycle(self.vehicle);self.vehicle=make(self.world,recipe);self.recipe=recipe;self.steps=0
-        self.rider=Rider();self.front_air_steps=0;self.late_angle=0.0;self.late_distance=0.0;self.assistance=recipe!=5
+        self.world.destroy_motorcycle(self.vehicle)
+        var enabled=self.ramp_enabled;var profile=self.cross
+        if handling!=null { self.handling=handling! }
+        if recipe==8 { self.handling=true;profile=true;enabled=false }
+        if ramp!=null { enabled=ramp! } if cross!=null { profile=cross! }
+        if recipe==6 { enabled=true } if recipe==7 { enabled=true;profile=true }
+        if profile!=self.cross { self.configure_ramp(false);self.cross=profile }
+        self.configure_ramp(enabled)
+        self.vehicle=make(self.world,recipe,self.cross,self.handling);self.recipe=recipe;self.steps=0
+        self.flight_steps=0;self.ramp_contacts=0;self.landed=false;self.peak_height=1.05
+        self.rider=Rider(self.cross,self.handling);self.front_air_steps=0;self.late_angle=0.0;self.late_distance=0.0;self.assistance=recipe!=5
         if keep_assistance { self.assistance=assistance;self.vehicle.set_balance_enabled(assistance);self.vehicle.set_steering_limit_enabled(limit) }
     }
     func set_assistance(enabled:bool) { self.assistance=enabled;self.vehicle.set_balance_enabled(enabled && !self.rider.crashed) }
     func crashed() bool { return self.rider.crashed }
     func steering_input() float { return self.rider.steering }
     func applied_throttle() float { return self.rider.throttle }
+    func terrain_pitch() float { return self.rider.slope }
     func count_front_air() {
         if self.vehicle.wheel(0).support()==null && self.vehicle.wheel(1).support()!=null &&
             self.vehicle.chassis().rotation().rotate(Math.Vec3(0.0,0.0,1.0)).y>0.06 { self.front_air_steps++ }
     }
-    func drive(throttle:float,steering:float,brake:float) {
-        self.rider.drive(self.vehicle,throttle,steering,brake,self.rate)
+    func advance() {
         self.world.step(1.0/self.rate as float);self.steps++;self.count_front_air()
+        self.peak_height=Math.max(self.peak_height,self.vehicle.chassis().position().y)
+        if self.ramp_enabled {
+            for i in [0,1] { let wheel=self.vehicle.wheel(i)
+                if wheel.support()!=null && wheel.contact_point.y>0.05 { self.ramp_contacts++ }
+            }
+        }
+        if self.steps>2*self.rate && self.supports()==0 { self.flight_steps++ }
+        else if self.flight_steps>0 && self.supports()>0 { self.landed=true }
+    }
+    func cross_step(kind:int) {
+        var throttle=0.0;var brake=0.35;var until=8;if kind==2 { until=6 }
+        if self.steps>=2*self.rate && self.steps<until*self.rate {
+            throttle=0.4;brake=0.0
+            if kind==2 { throttle=1.0 }
+            if kind==3 && self.steps<4*self.rate { throttle=0.1 }
+        }
+        self.drive(throttle,0.0,brake)
+    }
+    func ramp_step() {
+        if self.cross { self.cross_step(0);return }
+        var throttle=0.0;var brake=0.35
+        var until=6;if self.cross { until=8 }
+        if self.steps>=2*self.rate && self.steps<until*self.rate { throttle=0.4;brake=0.0 }
+        self.rider.drive(self.vehicle,throttle,0.0,brake,self.rate);self.advance()
+    }
+    func drive(throttle:float,steering:float,brake:float,rear_brake:float=0.0) {
+        self.rider.drive(self.vehicle,throttle,steering,brake,self.rate,rear_brake)
+        self.advance()
     }
     func scripted_step() {
-        command(self.vehicle,self.rider,self.recipe,self.steps,self.rate)
-        self.world.step(1.0/self.rate as float);self.steps++;self.count_front_air()
+        if self.recipe==6 || self.recipe==7 { self.ramp_step() }
+        else { command(self.vehicle,self.rider,self.recipe,self.steps,self.rate);self.advance() }
         if self.steps==14*self.rate { self.settled_pose=copy self.vehicle.chassis().transform() }
         if self.steps>=14*self.rate {
             let pose=self.vehicle.chassis().transform()
@@ -118,17 +253,29 @@ package class MotorcycleModel {
     func tilt() float { return Math.acos(Math.clamp(self.vehicle.chassis().rotation().rotate(Math.Vec3.up()).y,-1.0,1.0)) }
     func verify() {
         var body=self.vehicle.chassis()
-        assert(self.world.body_count()==2 && self.vehicle.wheel_count()==2)
-        assert(body.position().length()<250.0 && body.position().y>0.1 && body.position().y<3.0)
+        var expected=2;if self.ramp_enabled { expected=3 }
+        assert(self.world.body_count()==expected && self.vehicle.wheel_count()==2)
+        var height_limit=3.0;if self.cross { height_limit=8.0 }
+        assert(body.position().length()<250.0 && body.position().y>0.1 && body.position().y<height_limit)
         assert(body.linear_velocity().length()<30.0 && body.angular_velocity().length()<50.0)
         assert(Math.abs(body.rotation().length_squared()-1.0)<0.0001)
         if self.rider.crashed { assert(!self.vehicle.balance_enabled() && self.rider.throttle==0.0) }
-        for i in [0,1] { let wheel=self.vehicle.wheel(i);assert(wheel.length>=0.0 && wheel.length<=0.60001 && wheel.normal_force>=0.0) }
+        for i in [0,1] { let wheel=self.vehicle.wheel(i);assert(wheel.length>=0.0 && wheel.length<=self.vehicle.wheel_settings(i).maximum_length+0.00001 && wheel.normal_force>=0.0) }
     }
     func verify_finished() {
         print("Handling end $(self.recipe) / $(self.rate): position=$(self.vehicle.chassis().position().to_str()), speed=$(self.vehicle.chassis().linear_velocity().length()), spin=$(self.vehicle.chassis().angular_velocity().length()), tilt=$(self.tilt()), crash=$(self.rider.crashed), front_air=$(self.front_air_steps)")
         assert(self.steps==16*self.rate)
-        if self.recipe>=4 {
+        if self.recipe==8 {
+            assert(self.handling && !self.rider.crashed && self.supports()==2 && self.tilt()<0.08)
+            assert(self.vehicle.chassis().linear_velocity().length()<0.05 && self.vehicle.chassis().angular_velocity().length()<0.05)
+        } else if self.recipe==6 || self.recipe==7 {
+            assert(!self.rider.crashed && self.ramp_enabled && self.ramp_contacts>=self.rate/2)
+            var height=1.4;if self.cross { height=3.0 }
+            assert(self.flight_steps>=self.rate/3 && self.landed && self.peak_height>height)
+            var rest_tilt=0.05;if self.cross { rest_tilt=0.08 }
+            assert(self.supports()==2 && self.tilt()<rest_tilt && self.vehicle.chassis().position().z>60.0)
+            assert(self.vehicle.chassis().linear_velocity().length()<0.05 && self.vehicle.chassis().angular_velocity().length()<0.05)
+        } else if self.recipe>=4 {
             assert(self.rider.crashed && self.tilt()>1.0 && !self.vehicle.balance_enabled() && self.rider.throttle==0.0)
             assert(self.late_distance<0.02 && self.late_angle<0.05)
         } else {
@@ -138,10 +285,11 @@ package class MotorcycleModel {
         if self.recipe==3 { assert(self.front_air_steps>self.rate/10) }
     }
 }
-func write(model:MotorcycleModel) {
-    var bike=model.vehicle;let kind=model.recipe;let rate=model.rate;let step=model.steps;
+func write(model:MotorcycleModel,prefix:str="motorcycle-handling",kind:int?=null,slope:bool=false) {
+    var bike=model.vehicle;var record_kind=model.recipe;if kind!=null { record_kind=kind }
+    let rate=model.rate;let step=model.steps;
         var body=bike.chassis();let pose=body.transform();let target=bike.lean_target();let power=bike.powertrain()
-        var text="motorcycle-handling $(kind) $(rate) $(step) $(vector(pose.position)) $(vector(body.linear_velocity())) $(pose.rotation.x) $(pose.rotation.y) $(pose.rotation.z) $(pose.rotation.w) $(vector(body.angular_velocity())) $(vector(target)) $(power.engine_rpm) $(power.gear) $(power.clutch)"
+        var text="$(prefix) $(record_kind) $(rate) $(step) $(vector(pose.position)) $(vector(body.linear_velocity())) $(pose.rotation.x) $(pose.rotation.y) $(pose.rotation.z) $(pose.rotation.w) $(vector(body.angular_velocity())) $(vector(target)) $(power.engine_rpm) $(power.gear) $(power.clutch)"
         for index in [0,1] {
             let wheel=bike.wheel(index);var touching=0;if wheel.support()!=null { touching=1 }
             var point=Math.Vec3();var normal=Math.Vec3();var longitudinal=Math.Vec3()
@@ -149,9 +297,11 @@ func write(model:MotorcycleModel) {
             text+=" $(wheel.steering_angle) $(wheel.length) $(wheel.normal_force) $(touching) $(wheel.angular_velocity) $(wheel.rotation_angle) $(wheel.longitudinal_force) $(wheel.lateral_force) $(vector(point)) $(vector(normal)) $(vector(longitudinal))"
         }
         var balance=0;var limited=0;if bike.balance_enabled() { balance=1 } if bike.steering_limit_enabled() { limited=1 }
-        var requested=1;if kind==5 { requested=0 }
+        var requested=1;if record_kind==5 { requested=0 }
         var crashed=0;if model.crashed() { crashed=1 }
-        print(text+" $(balance) $(limited) $(model.steering_input()) $(crashed) $(requested) $(model.applied_throttle())");
+        text+=" $(balance) $(limited) $(model.steering_input()) $(crashed) $(requested) $(model.applied_throttle())"
+        if slope { text+=" $(model.terrain_pitch())" }
+        print(text);
 }
 package func witness() {
     for kind in [0,1,2,3,4,5] { for rate in [60,120] {
@@ -181,9 +331,9 @@ package func verify_physics() {
 }
 test "motorcycle handling remains stable and lifts the front wheel physically" { verify_physics() }
 
-func verify_reversals() {
+func verify_reversals(cross:bool=false) {
     for rate in [60,120] {
-        var model=MotorcycleModel(rate:rate);var step=0;var peak=0.0
+        var model=MotorcycleModel(rate:rate,cross:cross);var step=0;var peak=0.0
         while step<20*rate {
             var throttle=0.0;var steering=0.0
             if step>=2*rate { throttle=0.4 }
@@ -198,4 +348,85 @@ func verify_reversals() {
         }
         print("Motorcycle reversal stress $(rate) Hz: long turns then 10 direction changes/second, peak tilt=$(peak)")
     }
+}
+
+
+package func ramp_witness() {
+    for kind in [0,1] { for rate in [60,120] {
+        var model=MotorcycleModel(rate:rate);model.reset(ramp:kind==1)
+        while true { write(model,"motorcycle-ramp",kind);if model.steps==16*rate { break } model.ramp_step() }
+    } }
+}
+package func verify_ramp() {
+    for rate in [60,120] {
+        var model=MotorcycleModel(rate:rate);var ground=model.ground
+        model.reset(6);var ramp=model.ramp!;var old=model.vehicle
+        while model.steps<16*rate { model.scripted_step();model.verify() }
+        model.verify_finished()
+        model.reset(keep_assistance:true)
+        assert(!old.is_valid() && ramp.is_valid() && model.ramp_enabled && model.flight_steps==0 && !model.landed)
+        model.reset(ramp:false);assert(!ramp.is_valid() && ground.is_valid() && model.world.body_count()==2)
+        while model.steps<16*rate { model.ramp_step();model.verify() }
+        assert(model.flight_steps==0 && model.ramp_contacts==0 && model.supports()==2)
+        assert(model.vehicle.chassis().linear_velocity().length()<0.05)
+    }
+    print("Motorcycle ramp: finite ascent, unsupported flight, physical landing, braking and terrain recreation verified at60/120Hz")
+}
+test "motorcycle traverses the ramp and regains wheel supports" { verify_ramp() }
+
+
+package func cross_witness() {
+    for kind in [0,1,3] { for rate in [60,120] {
+        var model=MotorcycleModel(rate:rate,cross:true);model.reset(ramp:kind==1)
+        while true { write(model,"motorcycle-cross",kind,true);if model.steps==16*rate { break } model.cross_step(kind) }
+    } }
+}
+package func verify_cross() {
+    for rate in [60,120] {
+        var model=MotorcycleModel(rate:rate,cross:true);model.reset(7)
+        assert(model.vehicle.wheel_settings(0).maximum_length==0.9 && model.vehicle.wheel_settings(0).stiffness==2500.0 && model.vehicle.wheel_settings(0).damping==350.0)
+        while model.steps<16*rate { model.scripted_step();model.verify() }
+        model.verify_finished();assert(model.flight_steps>rate && model.peak_height>3.0)
+        var ramp=model.ramp!;model.reset(keep_assistance:true)
+        assert(model.cross && model.ramp_enabled && ramp.is_valid())
+        model.reset(ramp:false);assert(!ramp.is_valid() && model.cross && model.world.body_count()==2)
+        while model.steps<2*rate { model.drive(0.0,0.0,0.0) }
+        var step=0;while step<3*rate { model.drive(1.0,0.0,0.0);model.verify();assert(!model.crashed());step++ }
+        assert(model.front_air_steps>rate/10)
+        step=0;while step<6*rate { model.drive(0.0,0.0,0.35);model.verify();step++ }
+        print("Cross boost end $(rate): crash=$(model.crashed()), supports=$(model.supports()), speed=$(model.vehicle.chassis().linear_velocity().length()), spin=$(model.vehicle.chassis().angular_velocity().length()), tilt=$(model.tilt()), position=$(model.vehicle.chassis().position().to_str())")
+        assert(!model.crashed() && model.supports()==2 && model.vehicle.chassis().linear_velocity().length()<0.05)
+    }
+    verify_cross_response()
+    verify_reversals(true)
+    print("Cross:120Nm,2500N/m,350Ns/m,.7m travel,.28rad ramp,low/moderate-speed wheelies,suspension compression,flight/landing,boost,reset and reversals verified")
+}
+test "cross motorcycle jumps higher and settles on long-travel suspensions" { verify_cross() }
+
+func verify_cross_response() {
+    for kind in [0,2,3] { for rate in [60,120] {
+        var model=MotorcycleModel(rate:rate,cross:true)
+        var rear_rest=0.0;var entry_speed=0.0;var peak=0.0;var rear_min=0.9;var lifted=0;var first=0.0
+        while model.steps<16*rate {
+            if model.steps==2*rate {
+                rear_rest=model.vehicle.wheel(1).length
+                assert(0.9-model.vehicle.wheel(0).length>0.12 && 0.9-rear_rest>0.23)
+            }
+            if model.steps==4*rate { entry_speed=model.vehicle.chassis().linear_velocity().length() }
+            model.cross_step(kind);model.verify();assert(!model.crashed())
+            var start=2*rate;if kind==3 { start=4*rate }
+            if model.steps>start && model.steps<6*rate {
+                let pitch=Math.asin(Math.clamp(model.vehicle.chassis().rotation().rotate(Math.Vec3(0.0,0.0,1.0)).y,-1.0,1.0))
+                peak=Math.max(peak,pitch);rear_min=Math.min(rear_min,model.vehicle.wheel(1).length)
+                if model.vehicle.wheel(0).support()==null && model.vehicle.wheel(1).support()!=null {
+                    if lifted==0 { first=(model.steps-start) as float/rate as float }
+                    lifted++
+                }
+            }
+        }
+        print("Cross response $(kind)/$(rate): rest rear=$(rear_rest), loaded minimum=$(rear_min), wheelie pitch=$(peak), lift delay=$(first), lifted seconds=$(lifted as float/rate as float), entry speed=$(entry_speed)")
+        assert(peak>0.28 && peak<0.75 && lifted>rate/2 && first<1.0 && rear_rest-rear_min>0.08)
+        if kind==3 { assert(entry_speed>3.0 && entry_speed<12.0) }
+        assert(model.supports()==2 && model.vehicle.chassis().linear_velocity().length()<0.05 && model.vehicle.chassis().angular_velocity().length()<0.05)
+    } }
 }

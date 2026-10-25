@@ -7,69 +7,78 @@ func letter(key:@Events.KeyEvent,lower:uint32,upper:uint32,physical:Input.Key) b
     return key.keycode==lower || key.keycode==upper || (key.keycode==0 as uint32 && key.key==physical)
 }
 package class TrackedControls {
-    var recipe:int?=null
+    var throttle:bool=false
+    var reverse:bool=false
+    var left:bool=false
+    var right:bool=false
+    var braking:bool=false
+    var terrain:bool?=null
     var resets:int=0
     var pauses:int=0
+    var modes:int=0
     var automatic:bool=false
-    var pause_text:UI.State<str> =UI.State<str>("Pause (Espace)")
+    var live_check:bool=false
+    var pause_text:UI.State<str> =UI.State<str>("Pause (P)")
+    var mode_text:UI.State<str> =UI.State<str>("Pilote OFF (M)")
     var phase:UI.State<str> =UI.State<str>("")
     var measure:UI.State<str> =UI.State<str>("")
     var tracks:UI.State<str> =UI.State<str>("")
-    func forward() { self.recipe=0 }
-    func reverse() { self.recipe=1 }
-    func left() { self.recipe=2 }
-    func right() { self.recipe=3 }
-    func pivot() { self.recipe=4 }
-    func slippery() { self.recipe=5 }
+    func flat() { self.terrain=false }
+    func ramp() { self.terrain=true }
     func reset() { self.resets++ }
     func pause() { self.pauses++ }
+    func mode() { self.modes++ }
+    func release() { self.throttle=false;self.reverse=false;self.left=false;self.right=false;self.braking=false }
+    func held(key:@Events.KeyEvent,down:bool) bool {
+        if key.key==Input.Key.space { self.braking=down;return true }
+        if letter(key,122 as uint32,90 as uint32,Input.Key.z) { self.throttle=down;return true }
+        if letter(key,115 as uint32,83 as uint32,Input.Key.s) { self.reverse=down;return true }
+        if letter(key,113 as uint32,81 as uint32,Input.Key.q) || key.key==Input.Key.left { self.left=down;return true }
+        if letter(key,100 as uint32,68 as uint32,Input.Key.d) || key.key==Input.Key.right { self.right=down;return true }
+        return false
+    }
     func button(text:str,action:func()) UI.Button {
-        var button=UI.Button(text,action)
-        button.style.width=180.0;button.style.height=38.0;button.style.radius=5.0
-        button.style.background=Color.slate_700();return button
+        var button=UI.Button(text,action);button.style.width=180.0;button.style.height=38.0
+        button.style.radius=5.0;button.style.background=Color.slate_700();return button
     }
     func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause) }
+    func mode_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.mode_text),self.mode) }
     func phase_label(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.phase)) }
     func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
     func track_metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.tracks)) }
     func describe() UI.View {
-        var actions=UI.Row([self.button("Avancer (Z)",self.forward),self.button("Reculer (S)",self.reverse),
-            self.button("Gauche (←)",self.left),self.button("Droite (→)",self.right),
-            self.button("Pivoter (P)",self.pivot),self.button("Sans adhérence (G)",self.slippery)])
+        var actions=UI.Row([self.button("Rampe (B)",self.ramp),self.button("Plat (F)",self.flat),UI.Reactive(self.mode_button),UI.Reactive(self.pause_button),self.button("Départ (R)",self.reset)])
         actions.style.gap=10.0
-        var playback=UI.Row([self.button("Rejouer (R)",self.reset),UI.Reactive(self.pause_button)]);playback.style.gap=10.0
-        var title=UI.Text("Chenilles — deux bandes, six roues, un châssis");title.style.height=28.0
-        var help=UI.Text("Chaque choix rejoue : réception 2 s · conduite 2 s · freinage 4 s. Les bandes font tourner le châssis.");help.style.height=24.0
-        var rows:UI.View[]=[title,help,actions,playback,UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)]
-        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — six manœuvres à chenilles — fermeture à la fin"),UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)] }
+        var title=UI.Text("Chenilles — boîte automatique et conduite libre");title.style.height=28.0
+        var help=UI.Text("Maintenir Z/S : avant/arrière · Q/D ou flèches : tourner/pivoter · Espace : frein · Échap : quitter");help.style.height=24.0
+        var hint=UI.Text("Seul R remet au départ. B/F changent le terrain sur place. M : cycle auto, une commande de conduite reprend la main.");hint.style.height=24.0
+        var rows:UI.View[]=[title,help,actions,hint,UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)]
+        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — huit manœuvres et commandes continues — fermeture à la fin"),UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)] }
+        if self.automatic && self.live_check { rows=[UI.Text("TEST AUTOMATIQUE — commandes continues — fermeture à la fin"),UI.Reactive(self.phase_label),UI.Reactive(self.metrics),UI.Reactive(self.track_metrics)] }
         var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
-        root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0
-        return root
+        root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0;return root
     }
     func handle(event:@Events.Event) bool {
         if self.automatic { return false }
         match event {
-            key_pressed(key) => {
-                let forward=letter(key,122 as uint32,90 as uint32,Input.Key.z)
-                let reverse=letter(key,115 as uint32,83 as uint32,Input.Key.s)
-                let pivot=letter(key,112 as uint32,80 as uint32,Input.Key.p)
-                let slippery=letter(key,103 as uint32,71 as uint32,Input.Key.g)
+            key_pressed(key)=> {
+                if self.held(key,true) { return true }
+                let flat=letter(key,102 as uint32,70 as uint32,Input.Key.f)
+                let ramp=letter(key,98 as uint32,66 as uint32,Input.Key.b)
                 let reset=letter(key,114 as uint32,82 as uint32,Input.Key.r)
-                if forward || reverse || pivot || slippery || reset || key.key==Input.Key.left || key.key==Input.Key.right || key.key==Input.Key.space {
+                let pause=letter(key,112 as uint32,80 as uint32,Input.Key.p)
+                let mode=letter(key,109 as uint32,77 as uint32,Input.Key.m)
+                if flat || ramp || reset || pause || mode {
                     if !key.repeated {
-                        if forward { self.forward() }
-                        else if reverse { self.reverse() }
-                        else if pivot { self.pivot() }
-                        else if slippery { self.slippery() }
-                        else if reset { self.reset() }
-                        else if key.key==Input.Key.left { self.left() }
-                        else if key.key==Input.Key.right { self.right() }
-                        else { self.pause() }
+                        if flat { self.flat() } else if ramp { self.ramp() }
+                        else if reset { self.reset() } else if pause { self.pause() } else { self.mode() }
                     }
                     return true
                 }
             }
-            else => {}
+            key_released(key)=> { return self.held(key,false) }
+            window_focus_lost(focus)=> { self.release() }
+            else=>{}
         }
         return false
     }

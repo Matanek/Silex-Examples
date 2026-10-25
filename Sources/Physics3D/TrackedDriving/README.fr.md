@@ -1,49 +1,86 @@
-# Conduire deux chenilles
+# Conduire deux chenilles avec une boîte automatique
 
-Six manœuvres montrent comment deux bandes de roues suspendues font avancer
-et tourner un châssis. Les roues gardent leur axe ; les vitesses relatives des
-bandes produisent les courbes et leur contre-rotation produit le pivot.
-Les rayons colorés lisent la rotation physique de chaque roue. Bleu à gauche,
-orange à droite ; les petits repères verts indiquent les appuis présents.
-Le bandeau donne les vitesses réelles des deux bandes et les phases de conduite.
+Conduire en continu et observer les trois rapports avant et arrière, les
+interruptions de couple et l’engagement de l’embrayage. Les six suspensions,
+les rayons bleus/orange et les repères verts suivent les états physiques.
+Le panneau donne rapport, régime, embrayage et vitesses des deux bandes.
 
-Depuis la racine du workspace :
+Depuis la racine du workspace ou du groupe Worktree de la Spec :
 
 ```sh
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release
 ```
 
-- **Z** : avancer ; **S** : reculer.
-- **← / →** : courbe à gauche / à droite.
-- **P** : pivot, bandes en sens opposés.
-- **G** : avancer sans adhérence ; les roues tournent, le châssis reste sur place.
-- **R** : recréer et rejouer le choix courant.
-- **Espace** : suspendre/reprendre ; **Échap** : quitter.
+- Maintenir **Z/S** : avancer/reculer. Une inversion freine avant d’entraîner
+  les bandes dans l’autre sens ; elle ne remet pas au départ.
+- Maintenir **Q/D** ou **←/→** : tourner. Sans gaz à très faible vitesse,
+  les bandes tournent en sens opposés pour pivoter.
+- Maintenir **Espace** : frein. Au relâchement des gaz, le véhicule roule sur
+  son élan ; un frein léger le maintient presque à l’arrêt.
+- **B/F** : ajouter la rampe/revenir au plat à la pose courante ; retirer un
+  appui peut naturellement faire retomber le châssis.
+- **M** : activer/couper le pilote du cycle depuis l’état courant. Une touche
+  de conduite reprend la main. La boîte automatique fonctionne aussi en conduite
+  manuelle : le pilote et la transmission sont deux choses distinctes.
+- **P** : pause/reprise ; **R seul** : retour au départ sur le terrain choisi,
+  avec la même boîte ; **Échap** : quitter.
 
-Les boutons font les mêmes actions. Chaque choix recrée le véhicule au départ
-et joue huit secondes : réception freinée pendant deux secondes, gaz à 80 %
-pendant deux secondes, puis freinage et retour au repos pendant quatre secondes.
-Il s’arrête ensuite pour permettre la comparaison ; R rejoue. La caméra suit
-le châssis et la grille donne l’échelle en mètres. Le repère blanc reste fixe.
+Les cinq boutons concernent terrain, pilote, pause et reset. Les relâchements
+et la perte de focus libèrent la conduite. B/F et M conservent la pause ; R
+reprend la simulation. Les commandes conservent identité, pose, vitesses et
+horloge ; la conduite continue après seize secondes. Aucune pose/vitesse de
+châssis ou rotation de roue n’est imposée par les commandes.
 
-C’est un parcours de validation interactif, suivant les recettes Jolt/Silex
-qualifiées : 100 kg, six roues de 30 cm, suspension 10000 N/m et 1000 N·s/m,
-deux bandes d’inertie 2 kg·m², moteur 15 N·m et rapports ±1 avec différentiel 6.
-La simulation avance à 120 Hz ; les mêmes recettes sont vérifiées à 60 Hz.
-Les bandes sont un couplage mécanique idéal, sans maillons ni géométrie de
-collision continue de chenille. Le contact utilise les rayons des six roues
-sur un plan. Cette scène ne représente pas encore un essai tout-terrain.
+## Voir les rapports changer
 
-## Vérification sans fenêtre
+La fenêtre démarre sur le plat. Maintenir Z pour voir 1/2/3 et l’embrayage
+s’ouvrir puis se refermer. Freiner ensuite pour observer les rétrogradages
+et le point mort. S entraîne les mêmes passages en marche arrière.
+La conduite au clavier module couple et différence des bandes avec la vitesse,
+avec une cible d’environ 9 m/s pour rester maniable ; moteur et suspensions sont
+les mêmes que dans le témoin qualifié.
+
+Pour voir le cycle qualifié sans moduler les gaz, activer **M**, puis **R**
+pour repartir explicitement du départ : 2 s de stabilisation, 4 s à 80 % de gaz et
+10 s de freinage à 4 %, puis maintien au repos. Il ne redémarre pas tout seul.
+Le panneau distingue « Pilote » et « boîte auto » ; R seul recrée le véhicule.
+La caméra suit le châssis et la grille indique des mètres.
+
+## Modèle et qualification
+
+100 kg, inerties 100 kg·m², six roues de 30 cm, suspensions 10000 N/m et 1000 N·s/m,
+bandes d’inertie 2 kg·m², moteur 15 N·m et différentiel 6. La boîte utilise
+2/1.4/1 et −2/−1.4/−1, seuils 1800/1200 RPM, changement 0.5 s, engagement 0.3 s,
+latence 0.5 s. Le frein modéré vaut 60 N·m par bande. Les bandes sont un couplage
+idéal, sans maillons articulés ; les contacts sont six rayons.
+
+Le témoin autonome `TrackedAutomaticRun.py` de Silex-Benchmarks qualifie sur
+plan les passages avant/arrière et l’interdiction de monter un rapport sans
+appui ou avec bandes opposées. La scène reproduit exactement les deux cas
+avant/arrière. Les huit recettes manuelles historiques, dont le franchissement
+de rampe, restent dans les tests avec leurs témoins inchangés.
+
+B permet d’explorer la boîte de 8 × 0.4 × 6.03 m inclinée de 0.1 rad avec ce nouveau
+profil. La parité automatique sur rampe n’est pas qualifiée. La rectitude
+prolongée à haute vitesse, les terrains généraux, le freinage extrême et les
+contacts de chenille à maillons ne sont pas prouvés par ces recettes.
+
+## Vérifier
 
 ```sh
-silex test Silex-Examples/Sources/Physics3D/TrackedDriving/Model.sx --nocache
-silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --physics-check
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --controls-check
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --automatic-physics-check
 ```
 
-`--oracle-check` émet les 8 652 états des six recettes à 60/120 Hz dans le
-format du témoin de qualification, pour contrôler que le rendu emploie bien
-la même simulation. `--smoke` ouvre une fenêtre « TEST AUTOMATIQUE », joue les
-six recettes, vérifie le cadrage et les transforms, puis se ferme avec son
-marqueur final. Une fermeture anticipée n’est pas un succès de ce contrôle.
+`--controls-check` vérifie touches tenues, relâchement/focus, virages, freinage,
+marche arrière, pause, pilote et cinq boutons dans les deux profils, avec
+conservation des états et R séparé. `--physics-check` conserve les recettes
+manuelles ; `--automatic-physics-check` vérifie 1/2/3/2/1/point mort, embrayage,
+repos et conservation du profil lors du reset à 60/120 Hz.
+
+`--oracle-check` émet 8 652 états historiques ; `--ramp-check`, 5 044 états plat/rampe ;
+`--automatic-check`, 5 764 états avant/arrière identiques au benchmark qualifié.
+`--smoke` joue les huit recettes manuelles avec cadrage, roues, appuis et rampe.
+`--live-smoke` joue 18 s de commandes continues automatiques, terrain, pilote,
+pause et reprise manuelle sans reset. Une fermeture anticipée ne valide pas
+ces contrôles ; les fenêtres « TEST AUTOMATIQUE » se ferment à leur fin.

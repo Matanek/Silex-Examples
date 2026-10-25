@@ -2,6 +2,8 @@ use GFX.Physics
 use STD.Math
 
 package func recipe_name(recipe:int) str {
+    if recipe==6 { return "Plat — parcours long" }
+    if recipe==7 { return "Rampe — montée, vol et réception" }
     if recipe==1 { return "Marche arrière" }
     if recipe==2 { return "Courbe à gauche" }
     if recipe==3 { return "Courbe à droite" }
@@ -9,7 +11,9 @@ package func recipe_name(recipe:int) str {
     if recipe==5 { return "Sans adhérence" }
     return "Marche avant"
 }
-func make_vehicle(world:Physics.World3D,recipe:int) Physics.TrackedVehicle3D {
+package func ramp_size() Math.Vec3 { return Math.Vec3(8.0,0.4,6.03) }
+package func ramp_pose() Physics.Transform3D { return Physics.Transform3D(Math.Vec3(0.0,0.1,15.0),Math.Quat.angle_axis(-0.1,Math.Vec3.right())) }
+func make_vehicle(world:Physics.World3D,recipe:int,automatic:bool=false) Physics.TrackedVehicle3D {
     var wheels:Physics.TrackedWheel3DSettings[]=[]
     var longitudinal=1.0;var lateral=0.15
     if recipe==5 { longitudinal=0.0;lateral=0.0 }
@@ -18,6 +22,11 @@ func make_vehicle(world:Physics.World3D,recipe:int) Physics.TrackedVehicle3D {
         wheels.append(Physics.TrackedWheel3DSettings(Math.Vec3(x,0.0,z),
             longitudinal_friction:longitudinal,lateral_friction:lateral))
     } }
+    var transmission=Physics.VehicleTransmission3DSettings(mode:Physics.VehicleTransmissionMode3D.manual,
+        gear_ratios:[1.0],reverse_gear_ratios:[-1.0],shift_up_rpm:1200.0,shift_down_rpm:600.0)
+    if automatic {
+        transmission=Physics.VehicleTransmission3DSettings(gear_ratios:[2.0,1.4,1.0],reverse_gear_ratios:[-2.0,-1.4,-1.0],shift_up_rpm:1800.0,shift_down_rpm:1200.0)
+    }
     var vehicle=world.create_tracked_vehicle(Physics.TrackedVehicle3DSettings(
         Physics.RigidBody3DSettings() ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.4,0.4,2.4)))
             ..mass_properties=Physics.MassProperties3D(100.0,Math.Vec3(100.0))
@@ -27,14 +36,20 @@ func make_vehicle(world:Physics.World3D,recipe:int) Physics.TrackedVehicle3D {
         Physics.VehicleTrack3DSettings(3,[3,4,5],inertia:2.0,angular_damping:0.0,maximum_brake_torque:1500.0),
         engine:Physics.VehicleEngine3DSettings(maximum_torque:15.0,minimum_rpm:1000.0,maximum_rpm:6000.0,
             inertia:0.5,angular_damping:0.0,torque_curve:[Math.Vec2(0.0,1.0)]),
-        transmission:Physics.VehicleTransmission3DSettings(mode:Physics.VehicleTransmissionMode3D.manual,
-            gear_ratios:[1.0],reverse_gear_ratios:[-1.0],shift_up_rpm:1200.0,shift_down_rpm:600.0)))
+        transmission:transmission))
     var gear=1;if recipe==1 { gear= -1 }
-    vehicle.set_transmission(gear);return vehicle
+    if !automatic { vehicle.set_transmission(gear) }
+    return vehicle
 }
 package class TrackedModel {
+    let automatic:bool
     var world:Physics.World3D=Physics.World3D()
     var ground:Physics.RigidBody3D
+    var ramp:Physics.RigidBody3D?=null
+    var air_steps:int=0
+    var ramp_samples:int=0
+    var landed:bool=false
+    var peak_height:float=1.15
     var vehicle:Physics.TrackedVehicle3D
     var recipe:int=0
     var steps:int=0
@@ -43,40 +58,73 @@ package class TrackedModel {
     var driven_yaw:float=0.0
     var normal_sum:float=0.0
     var normal_samples:int=0
-    init(recipe:int=0,rate:int=120) {
-        assert(recipe>=0 && recipe<6 && (rate==60 || rate==120))
+    init(recipe:int=0,rate:int=120,automatic:bool=false) {
+        self.automatic=automatic
+        assert(recipe>=0 && recipe<8 && (rate==60 || rate==120))
         self.recipe=recipe;self.rate=rate
         self.ground=self.world.create_rigid_body(Physics.RigidBody3DSettings()
             ..body_type=Physics.BodyType3D.fixed ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0)
-        self.vehicle=make_vehicle(self.world,recipe)
+        self.vehicle=make_vehicle(self.world,recipe,self.automatic);self.make_ramp()
     }
+    private func make_ramp() {
+        if self.recipe==7 {
+            self.ramp=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+                ..shape=Physics.Shape3D.box(Physics.Box3D(ramp_size())) ..transform=ramp_pose() ..friction=1.0)
+        }
+    }
+    func duration() int { if self.recipe>=6 { return 14 } return 8 }
+    func drive_until() int { if self.recipe>=6 { return 7 } return 4 }
     func reset(recipe:int) {
-        assert(recipe>=0 && recipe<6)
-        self.world.destroy_tracked_vehicle(self.vehicle);self.recipe=recipe
-        self.vehicle=make_vehicle(self.world,recipe);self.steps=0
+        assert(recipe>=0 && recipe<8)
+        self.world.destroy_tracked_vehicle(self.vehicle)
+        if self.ramp!=null { self.world.destroy_rigid_body(self.ramp!);self.ramp=null }
+        self.recipe=recipe
+        self.vehicle=make_vehicle(self.world,recipe,self.automatic);self.steps=0
         self.driven_position=Math.Vec3();self.driven_yaw=0.0;self.normal_sum=0.0;self.normal_samples=0
+        self.air_steps=0;self.ramp_samples=0;self.landed=false;self.peak_height=1.15;self.make_ramp()
     }
     func phase() str {
         if self.steps<2*self.rate { return "Réception — freins serrés" }
-        if self.steps<4*self.rate { return "Conduite — gaz 80 %" }
-        if self.steps<8*self.rate { return "Freinage et retour au repos" }
+        if self.recipe>=6 && self.steps>2*self.rate && self.supports()==0 { return "En vol — aucun appui" }
+        if self.recipe>=6 && self.landed && self.steps<7*self.rate { return "Réception — reprise des appuis" }
+        if self.steps<self.drive_until()*self.rate { return "Conduite — gaz 80 %" }
+        if self.steps<self.duration()*self.rate { return "Freinage et retour au repos" }
         return "Terminé — choisir une manœuvre ou R pour rejouer"
     }
     func step() {
-        if self.steps>=8*self.rate { return }
+        if self.steps>=self.duration()*self.rate { return }
         var throttle=0.0;var brake=1.0;var left=1.0;var right=1.0
-        if self.steps>=2*self.rate && self.steps<4*self.rate {
+        if self.recipe>=6 { brake=0.04 }
+        if self.steps>=2*self.rate && self.steps<self.drive_until()*self.rate {
             throttle=0.8;brake=0.0;if self.recipe==1 { throttle= -0.8 }
         }
         if self.recipe==2 { left=0.5 }
         if self.recipe==3 { right=0.5 }
         if self.recipe==4 { left= -1.0 }
         self.vehicle.set_controls(throttle:throttle,left_ratio:left,right_ratio:right,brake:brake)
+        self.advance()
+    }
+    func set_ramp(enabled:bool) {
+        if enabled && self.ramp==null { self.recipe=7;self.make_ramp() }
+        if !enabled && self.ramp!=null { self.world.destroy_rigid_body(self.ramp!);self.ramp=null }
+        if enabled { self.recipe=7 } else { self.recipe=6 }
+    }
+    func drive(throttle:float,left:float=1.0,right:float=1.0,brake:float=0.0) {
+        self.vehicle.set_controls(throttle:throttle,left_ratio:left,right_ratio:right,brake:brake)
+        self.advance()
+    }
+    private func advance() {
         self.world.step(1.0/self.rate as float);self.steps++
-        if self.steps==4*self.rate {
+        self.peak_height=Math.max(self.peak_height,self.vehicle.chassis().position().y)
+        if self.steps>2*self.rate && self.supports()==0 { self.air_steps++ }
+        else if self.air_steps>0 && self.supports()>0 { self.landed=true }
+        if self.ramp!=null { for i in [0,1,2,3,4,5] {
+            var wheel=self.vehicle.wheel(i);if wheel.support()!=null && wheel.contact_normal.y<0.999 { self.ramp_samples++ }
+        } }
+        if self.steps==self.drive_until()*self.rate {
             self.driven_position=self.vehicle.chassis().position();self.driven_yaw=self.yaw()
         }
-        if self.steps>7*self.rate { self.normal_sum+=self.normal_force();self.normal_samples++ }
+        if self.steps>(self.duration()-1)*self.rate { self.normal_sum+=self.normal_force();self.normal_samples++ }
     }
     func yaw() float {
         let q=self.vehicle.chassis().rotation()
@@ -91,8 +139,10 @@ package class TrackedModel {
         return total
     }
     func verify() {
-        var body=self.vehicle.chassis();assert(self.world.body_count()==2 && self.vehicle.wheel_count()==6)
-        assert(body.position().length()<50.0 && body.position().y>0.3 && body.position().y<2.0)
+        var expected=2;if self.ramp!=null { expected=3 }
+        var body=self.vehicle.chassis();assert(self.world.body_count()==expected && self.vehicle.wheel_count()==6)
+        var extent=50.0;var height=2.0;if self.recipe>=6 { extent=100.0;height=4.0;assert(body.rotation().rotate(Math.Vec3.up()).y>0.8) }
+        assert(body.position().length()<extent && body.position().y>0.3 && body.position().y<height)
         assert(body.linear_velocity().length()<20.0 && body.angular_velocity().length()<5.0)
         assert(Math.abs(body.rotation().length_squared()-1.0)<0.0001)
         for i in [0,1,2,3,4,5] {
@@ -103,11 +153,24 @@ package class TrackedModel {
         }
         if self.recipe==5 { assert(Math.abs(body.position().x)+Math.abs(body.position().z)<0.0001) }
     }
+    func observation(prefix:str,scenario:int) str {
+        var vehicle=self.vehicle;var body=vehicle.chassis();let pose=body.transform();let power=vehicle.powertrain()
+        let left=vehicle.track(Physics.VehicleTrackSide3D.left);let right=vehicle.track(Physics.VehicleTrackSide3D.right)
+        var text="$(prefix) $(scenario) $(self.rate) $(self.steps) $(vector(pose.position)) $(vector(body.linear_velocity())) $(pose.rotation.x) $(pose.rotation.y) $(pose.rotation.z) $(pose.rotation.w) $(vector(body.angular_velocity())) $(power.engine_rpm) $(power.gear) $(power.clutch) $(left.angular_velocity) $(right.angular_velocity)"
+        for i in [0,1,2,3,4,5] {
+            var wheel=vehicle.wheel(i);var touching=0;if wheel.support()!=null { touching=1 }
+            text+=" $(wheel.length) $(wheel.normal_force) $(wheel.angular_velocity) $(wheel.rotation_angle) $(wheel.longitudinal_force) $(wheel.lateral_force) $(touching) $(vector(wheel.contact_point)) $(vector(wheel.contact_normal)) $(vector(wheel.longitudinal_direction))"
+        }
+        return text
+    }
     func verify_finished() {
-        assert(self.steps==8*self.rate && self.normal_samples==self.rate && self.supports()==6)
+        assert(self.steps==self.duration()*self.rate && self.normal_samples==self.rate && self.supports()==6)
         assert(self.vehicle.chassis().linear_velocity().length()<0.05 && self.vehicle.chassis().angular_velocity().length()<0.05)
         assert(Math.abs(self.normal_sum/self.rate as float-981.0)<2.0)
         assert(Math.abs(self.vehicle.chassis().position().y-0.88365)<0.003)
+        if self.recipe>=6 { assert(self.vehicle.chassis().position().z>20.0) }
+        if self.recipe==6 { assert(self.air_steps==0 && self.ramp_samples==0 && !self.landed) }
+        if self.recipe==7 { assert(self.air_steps>self.rate/20 && self.ramp_samples>self.rate && self.landed && self.peak_height>1.1) }
         if self.recipe==0 { assert(self.driven_position.z>1.0) }
         if self.recipe==1 { assert(self.driven_position.z< -1.0) }
         if self.recipe==2 || self.recipe==4 { assert(self.driven_yaw< -0.1) }
@@ -116,22 +179,19 @@ package class TrackedModel {
     }
 }
 func vector(value:Math.Vec3) str { return "$(value.x) $(value.y) $(value.z)" }
-package func witness() {
+package func witness(ramp:bool=false) {
     var slow=TrackedModel(rate:60);var fast=TrackedModel()
-    for recipe in [0,1,2,3,4,5] { for rate in [60,120] {
+    var recipes:int[]=[0,1,2,3,4,5];if ramp { recipes=[6,7] }
+    for recipe in recipes { for rate in [60,120] {
         var model=fast;if rate==60 { model=slow }
         if recipe>0 {
-            var old=model.vehicle;model.reset(recipe);assert(!old.is_valid() && model.world.body_count()==2)
+            var old=model.vehicle;model.reset(recipe);var expected=2;if recipe==7 { expected=3 }
+            assert(!old.is_valid() && model.world.body_count()==expected)
         }
         while true {
-            var vehicle=model.vehicle;var body=vehicle.chassis();let pose=body.transform();let power=vehicle.powertrain()
-            let left=vehicle.track(Physics.VehicleTrackSide3D.left);let right=vehicle.track(Physics.VehicleTrackSide3D.right)
-            var text="tracked-ground $(recipe) $(rate) $(model.steps) $(vector(pose.position)) $(vector(body.linear_velocity())) $(pose.rotation.x) $(pose.rotation.y) $(pose.rotation.z) $(pose.rotation.w) $(vector(body.angular_velocity())) $(power.engine_rpm) $(power.gear) $(power.clutch) $(left.angular_velocity) $(right.angular_velocity)"
-            for i in [0,1,2,3,4,5] {
-                var wheel=vehicle.wheel(i);var touching=0;if wheel.support()!=null { touching=1 }
-                text+=" $(wheel.length) $(wheel.normal_force) $(wheel.angular_velocity) $(wheel.rotation_angle) $(wheel.longitudinal_force) $(wheel.lateral_force) $(touching) $(vector(wheel.contact_point)) $(vector(wheel.contact_normal)) $(vector(wheel.longitudinal_direction))"
-            }
-            print(text);if model.steps==rate*8 { break }
+            var prefix="tracked-ground";var kind=recipe;if ramp { prefix="tracked-ramp";kind-=6 }
+            let text=model.observation(prefix,kind)
+            print(text);if model.steps==rate*model.duration() { break }
             model.step()
         }
     } }
@@ -157,3 +217,18 @@ package func verify_recreation() {
 }
 test "tracked maneuvers move through real forces then brake at 60/120 Hz" { verify_physics() }
 test "tracked scene recreation invalidates the old vehicle only" { verify_recreation() }
+
+package func verify_ramp() {
+    for recipe in [6,7] { for rate in [60,120] {
+        var model=TrackedModel(recipe,rate)
+        while model.steps<model.duration()*rate { model.step();model.verify() }
+        model.verify_finished()
+        let pose=copy model.vehicle.chassis().transform();model.step();assert(model.vehicle.chassis().transform()==pose)
+        var ramp=model.ramp;var ground=model.ground;var previous=model.vehicle
+        model.reset(0);assert(!previous.is_valid() && ground.is_valid() && model.world.body_count()==2)
+        if var old_ramp=ramp { assert(!old_ramp.is_valid()) }
+        assert(model.air_steps==0 && !model.landed && model.ramp_samples==0)
+    } }
+    print("Tracked ramp: finite ascent, unsupported flight, landing, moderate braking, six recovered supports and terrain lifetime verified at60/120Hz")
+}
+test "tracked scene crosses a finite ramp and preserves its flat control" { verify_ramp() }

@@ -1,0 +1,47 @@
+use GFX.Assets.PNG
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+
+package func center(position:Math.Vec3) Math.Vec3 {
+    return Math.Vec3(Math.floor(position.x/64.0+0.5)*64.0,0.0,Math.floor(position.z/64.0+0.5)*64.0)
+}
+package func create(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images) ECS.Entity {
+    let image=images.add(PNG.decode(embed_bytes("../../World3D/Assets/DarkGrid.png")))
+    let mesh=meshes.add(Scene3D.Geometry.Plane.make(Math.Vec2(1024.0)))
+    return world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(rotation:Math.Quat.angle_axis(-Math.half_pi(),Math.Vec3.right())))
+        ..with(Components.Mesh3D(mesh))
+        ..with(Components.Material3D(albedo:Color.bytes(210,215,225),roughness:0.95))
+        ..with(Components.MaterialSettings3D(textures:Components.MaterialTextures3D(
+            albedo:Components.MaterialTexture3D(image:image,scale:Math.Vec2(128.0))))))
+}
+
+test "dark grid samples keep their world phase on the actual textured mesh" {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var images=Resources.Images()
+    let ground=create(world,meshes,images)
+    var settings=copy world.get<Components.MaterialSettings3D>(ground)
+    let texture=settings.textures.albedo!
+    assert(images.contains(texture.image) && texture.scale==Math.Vec2(128.0))
+    let mesh=meshes.snapshot(world.get<Components.Mesh3D>(ground).asset)
+    let vertices=mesh.vertices()
+    assert(vertices.count()==4 && mesh.indices().count()==6)
+    let positions:Math.Vec3[]=[Math.Vec3(),Math.Vec3(31.9,0.0,31.9),Math.Vec3(32.1,0.0,32.1),Math.Vec3(-32.1,0.0,-32.1),Math.Vec3(200.0,0.0,-400.0)]
+    let sample=Math.Vec3(2.75,0.0,6.25)
+    for position in positions {
+        let origin=center(position)
+        assert(Math.abs(position.x-origin.x)<=32.0 && Math.abs(position.z-origin.z)<=32.0)
+        world.update<Components.Transform3D>(ground,func(t:&Components.Transform3D) { t.position=origin })
+        let transform=world.get<Components.Transform3D>(ground)
+        let point_in_mesh=transform.rotation.conjugated().rotate(sample.subtract(transform.position))
+        assert(Math.abs(point_in_mesh.x)<512.0 && Math.abs(point_in_mesh.y)<512.0)
+        let x=(point_in_mesh.x-vertices[0].position.x)/(vertices[1].position.x-vertices[0].position.x)
+        let y=(point_in_mesh.y-vertices[0].position.y)/(vertices[3].position.y-vertices[0].position.y)
+        let uv=vertices[0].uv.add(vertices[1].uv.subtract(vertices[0].uv).multiply(x)).add(vertices[3].uv.subtract(vertices[0].uv).multiply(y)).multiply(texture.scale).add(texture.offset)
+        assert(Math.abs((uv.x-Math.floor(uv.x))-0.34375)<0.00001)
+        assert(Math.abs((uv.y-Math.floor(uv.y))-0.78125)<0.00001)
+    }
+}

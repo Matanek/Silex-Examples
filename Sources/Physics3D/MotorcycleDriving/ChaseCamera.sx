@@ -1,0 +1,79 @@
+use GFX.Physics
+use GFX.Scene3D
+use STD.Math
+
+package class ChaseCamera {
+    private var eye:Math.Vec3=Math.Vec3()
+    private var target:Math.Vec3=Math.Vec3()
+    private var yaw:float=0.0
+    private var ready:bool=false
+    func reset(pose:Physics.Transform3D) {
+        let forward=pose.rotation.rotate(Math.Vec3(0.0,0.0,1.0))
+        self.yaw=Math.atan2(forward.x,forward.z)
+        let direction=self.direction()
+        self.eye=pose.position.subtract(direction.multiply(8.0)).add(Math.Vec3(0.0,3.5,0.0))
+        self.target=pose.position.add(direction.multiply(2.0)).add(Math.Vec3(0.0,1.5,0.0))
+        self.ready=true
+    }
+    func direction() Math.Vec3 { return Math.Vec3(Math.sin(self.yaw),0.0,Math.cos(self.yaw)) }
+    func advance(pose:Physics.Transform3D,delta:float,track_heading:bool=true) {
+        if !self.ready { self.reset(pose);return }
+        let dt=Math.clamp(delta,0.0,0.1)
+        if dt==0.0 { return }
+        let forward=pose.rotation.rotate(Math.Vec3(0.0,0.0,1.0))
+        if track_heading && forward.x*forward.x+forward.z*forward.z>0.04 {
+            let desired=Math.atan2(forward.x,forward.z)
+            var change=Math.remainder(desired-self.yaw,Math.two_pi())
+            if change>Math.pi() { change-=Math.two_pi() } else if change< -Math.pi() { change+=Math.two_pi() }
+            self.yaw+=change*(1.0-Math.exp(-4.0*dt))
+        }
+        let direction=self.direction()
+        let eye=pose.position.subtract(direction.multiply(8.0)).add(Math.Vec3(0.0,3.5,0.0))
+        let target=pose.position.add(direction.multiply(2.0)).add(Math.Vec3(0.0,1.5,0.0))
+        self.eye=self.eye.lerp(eye,1.0-Math.exp(-8.0*dt))
+        self.eye.y=Math.max(3.0,self.eye.y)
+        self.target=self.target.lerp(target,1.0-Math.exp(-12.0*dt))
+    }
+    func transform() Scene3D.Transform {
+        let toward=self.target.subtract(self.eye)
+        let yaw=Math.atan2(-toward.x,-toward.z)
+        let pitch=Math.atan2(toward.y,Math.sqrt(toward.x*toward.x+toward.z*toward.z))
+        let rotation=Math.Quat.angle_axis(yaw,Math.Vec3.up()).multiply(Math.Quat.angle_axis(pitch,Math.Vec3.right()))
+        return Scene3D.Transform(self.eye,rotation)
+    }
+}
+
+test "chase camera smooths position and heading without rolling or following wheelie pitch" {
+    let initial=Physics.Transform3D(Math.Vec3(0.0,1.0,0.0))
+    let moved=Physics.Transform3D(Math.Vec3(3.0,3.0,10.0),Math.Quat.angle_axis(0.8,Math.Vec3.up()))
+    var a=ChaseCamera();var b=ChaseCamera();a.reset(initial);b.reset(initial)
+    a.advance(moved,1.0/60.0)
+    assert(a.transform().position.subtract(initial.position).length()<12.0)
+    var target=ChaseCamera();target.reset(moved)
+    assert(a.transform().position.subtract(target.transform().position).length()>1.0)
+    var step=1;while step<60 { a.advance(moved,1.0/60.0);step++ }
+    step=0;while step<120 { b.advance(moved,1.0/120.0);step++ }
+    assert(a.transform().position.subtract(b.transform().position).length()<0.02)
+    assert(a.direction().subtract(b.direction()).length()<0.0001)
+    let view=a.transform();assert(Math.abs(view.rotation.rotate(Math.Vec3.right()).y)<0.00001)
+    let held=a.transform();a.advance(initial,0.0);assert(a.transform()==held)
+    a.reset(initial);b.reset(initial)
+    let pitched=Physics.Transform3D(initial.position,Math.Quat.angle_axis(-0.5,Math.Vec3.right()))
+    a.advance(pitched,0.1);b.advance(initial,0.1)
+    assert(a.transform().position.nearly_equal(b.transform().position,0.00001))
+    assert(a.transform().rotation.dot(b.transform().rotation)>0.99999)
+    a.advance(moved,0.1,false);assert(a.direction().nearly_equal(Math.Vec3(0.0,0.0,1.0),0.00001))
+    a.reset(moved);assert(a.transform().position.nearly_equal(target.transform().position,0.00001))
+}
+
+test "chase camera takes the short arc across pi and sees left from behind" {
+    var camera=ChaseCamera()
+    camera.reset(Physics.Transform3D(Math.Vec3(),Math.Quat.angle_axis(Math.pi()-0.02,Math.Vec3.up())))
+    camera.advance(Physics.Transform3D(Math.Vec3(),Math.Quat.angle_axis(-Math.pi()+0.02,Math.Vec3.up())),0.1)
+    assert(camera.direction().z< -0.99)
+    camera.reset(Physics.Transform3D(Math.Vec3(0.0,1.0,0.0)))
+    let view=camera.transform();let projection=Scene3D.Camera(vertical_fov:0.9)
+    let left=projection.project(Math.Vec3(2.0,1.0,0.0),view,Math.Vec2(1280.0,800.0))!
+    let right=projection.project(Math.Vec3(-2.0,1.0,0.0),view,Math.Vec2(1280.0,800.0))!
+    assert(left.x<640.0 && right.x>640.0 && view.position.z< -7.0)
+}
