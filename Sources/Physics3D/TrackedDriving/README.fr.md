@@ -113,21 +113,27 @@ Pour ouvrir le mode plateforme depuis la même racine :
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --platform
 ```
 
-Activer **M**, puis **R** : après 2 s de stabilisation, la plateforme bleue
-se déplace à 2 m/s pendant 2 s, puis s'arrête. Le châssis reste dynamique ;
-le contact entraîne le véhicule, sans lui imposer une pose ou une vitesse.
-Le panneau compare la vitesse du véhicule à celle du support, avec appuis,
-rapport au point mort, régime et rotation des bandes.
+Cliquer sur **Déplacer lat. (B)** ou **Déplacer long. (F)** : la plateforme
+bleue se déplace immédiatement à 2 m/s pendant 2 s, puis s'arrête.
+**Déplacer (M)** relance le dernier axe ; pendant le mouvement, ce bouton devient
+**Arrêter (M)**. Chaque déplacement part de l'état courant, sans reset.
+Le châssis reste dynamique ; le contact entraîne le véhicule, sans lui imposer
+une pose ou une vitesse. Le panneau compare vitesses du véhicule et du support,
+avec appuis, rapport au point mort, régime et rotation des bandes.
 
-- **B/F** : choisir l'axe latéral/longitudinal sur place, sans remise au départ.
-- **G** : serrer/libérer le frein de maintien. Pour comparer deux cycles depuis
-  le même départ, utiliser G puis **R** avec le pilote actif.
-- **M** : activer/couper le cycle depuis l'état courant. Il ne se répète pas.
+- **B/F** : lancer un déplacement latéral/longitudinal, y compris après un arrêt.
+- **G** : serrer/libérer le frein de maintien. L'effet apparaît pendant le
+  mouvement ; le bouton indique l'état du frein même à l'arrêt.
+- **M** : démarrer/arrêter le déplacement. Après les 2 s, un clic le relance.
 - **Espace** : serrer le frein tant que la touche reste tenue, sans couper M.
 - **ZQSD** : reprendre la conduite ; cette reprise arrête le déplacement du
   support. Le frein de maintien G reste appliqué jusqu'à sa libération.
 - **P** : pause/reprise. **R seul** replace véhicule et support au départ,
   conserve axe/frein et reprend la simulation. **Échap** quitte.
+
+Pour comparer les deux freins depuis le même départ : **R**, attendre les appuis,
+puis **F** ; refaire **R**, **G**, attendre les appuis, puis **F**. Le reset est
+une aide à la comparaison ; les boutons de déplacement fonctionnent sans lui.
 
 Freins serrés, le véhicule suit presque le support à 2 m/s. Libres en
 longitudinal, les roues roulent : le véhicule avance à environ 0.615 m/s,
@@ -141,7 +147,9 @@ R rétablit alors le départ.
 Native Debug/Release. `--platform-check` émet les 4 328 états identiques au
 benchmark, `--platform-physics-check` vérifie entraînement/roulement/repos et
 reset, `--platform-controls-check` vérifie commandes et boutons sans reset
-implicite. `--platform-smoke` joue les quatre cas dans la fenêtre native,
+implicite et le redémarrage après un parcours. `--platform-click-smoke` exerce
+les clics dans la fenêtre native, avec départ immédiat, arrêt, relance et frein.
+`--platform-smoke` joue les quatre cas dans la fenêtre native,
 avec plateforme, châssis, roues, appuis, cadrage et pause contrôlés.
 Cette qualification porte sur la translation horizontale, au point mort et
 sans gaz ; conduite libre, support rotatif ou dynamique et terrains généraux

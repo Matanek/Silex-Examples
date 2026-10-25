@@ -31,6 +31,7 @@ class TrackedScene {
     var platform:ECS.Entity=ECS.Entity()
     var previous_platform:Physics.Transform3D=Physics.Transform3D()
     var platform_smoke:bool=false
+    var platform_click_smoke:bool=false
     var platform_case:int=0
     var platform_axis:int=2
     var platform_braked:bool=true
@@ -54,6 +55,7 @@ class TrackedScene {
     var automatic_smoke:bool=false
     var live_smoke:bool=false
     var live_event:int=0
+    var platform_click_step:int=0
     let live_schedule:int[]=[240,480,600,720,840,960,1800,1920]
     var smoke:bool=false
     var frames:int[]=[0,0,0,0,0,0,0,0]
@@ -76,16 +78,21 @@ func labels(state:&TrackedScene,simulation:@Application.Simulation) {
     var pause="Pause (P)";if simulation.is_paused() { pause="Reprendre (P)" }
     if state.controls.pause_text.value()!=pause { state.controls.pause_text.set(pause) }
     var mode="Pilote OFF (M)";if state.autopilot { mode="Pilote ON (M)" }
+    if state.model.platform { mode="Déplacer (M)";if state.autopilot { mode="Arrêter (M)" } }
     if state.controls.mode_text.value()!=mode { state.controls.mode_text.set(mode) }
     var terrain="Plat";if state.model.ramp!=null { terrain="Rampe" }
     if state.model.platform { terrain="Plateforme longitudinale";if state.platform_axis==1 { terrain="Plateforme latérale" } }
     var phase="$(terrain) · conduite libre"
     var cycle=14;if state.model.automatic { cycle=16 } if state.model.platform { cycle=6 }
     if state.autopilot { phase="$(terrain) · pilotage auto $(Math.min(state.auto_steps/120,cycle))/$(cycle) s" }
+    if state.model.platform && !state.platform_smoke {
+        phase="$(terrain) · à l’arrêt — cliquer sur un déplacement"
+        if state.autopilot { phase="$(terrain) · déplacement $(state.auto_steps/120)/2 s" }
+    }
     if state.model.steps>30 && state.model.supports()==0 { phase+=" · en vol" }
     else if state.model.landed && state.model.supports()==6 { phase+=" · appuis repris" }
     if state.controls.braking { phase+=" · freinage" }
-    if state.smoke && !state.live_smoke && !state.automatic_smoke && !state.platform_smoke { phase="$(Model.recipe_name(state.model.recipe)) · $(state.model.phase())" }
+    if state.smoke && !state.live_smoke && !state.platform_click_smoke && !state.automatic_smoke && !state.platform_smoke { phase="$(Model.recipe_name(state.model.recipe)) · $(state.model.phase())" }
     if state.controls.phase.value()!=phase { state.controls.phase.set(phase) }
     var body=state.model.vehicle.chassis();let speed=Math.round(body.linear_velocity().length()*36.0)/10.0
     let time=Math.round(state.model.steps as float/12.0)/10.0
@@ -115,7 +122,10 @@ func perform(state:&TrackedScene,simulation:&Application.Simulation) {
     var changed=false
     if let terrain=state.controls.terrain {
         state.controls.terrain=null
-        if state.model.platform { state.platform_axis=2;if terrain { state.platform_axis=1 } }
+        if state.model.platform {
+            state.platform_axis=2;if terrain { state.platform_axis=1 }
+            state.autopilot=true;state.auto_steps=0
+        }
         else { state.model.set_ramp(terrain) }
         changed=true
     }
@@ -140,13 +150,15 @@ func step_free(state:&TrackedScene) {
     if state.model.platform {
         var velocity=Math.Vec3()
         if state.autopilot {
-            var scenario=copy state.platform_axis;if state.platform_smoke { scenario=state.platform_case }
-            velocity=Platform.velocity(scenario,state.auto_steps,120)
+            if state.platform_smoke { velocity=Platform.velocity(state.platform_case,state.auto_steps,120) }
+            else { velocity=Math.Vec3(0.0,0.0,2.0);if state.platform_axis==1 { velocity=Math.Vec3(2.0,0.0,0.0) } }
         }
         state.model.ground.set_linear_velocity(velocity)
         if state.autopilot {
             var brake=0.0;if state.platform_braked || state.controls.braking { brake=1.0 }
-            state.model.drive(0.0,brake:brake);state.auto_steps++;return
+            state.model.drive(0.0,brake:brake);state.auto_steps++
+            if !state.platform_smoke && state.auto_steps>=240 { state.autopilot=false }
+            return
         }
     }
     if state.autopilot {
@@ -336,7 +348,8 @@ func next_smoke(state:&TrackedScene,simulation:&Application.Simulation,controlle
 }
 func update(world:&Resources.World,input:@Resources.InputState,state:&TrackedScene,simulation:&Application.Simulation,controller:&Application.Controller) {
     if input.is_pressed(Input.Key.escape) { controller.stop() }
-    if state.live_smoke { live_smoke_inputs(state,simulation,controller) }
+    if state.platform_click_smoke { platform_click_inputs(state,simulation,controller) }
+    else if state.live_smoke { live_smoke_inputs(state,simulation,controller) }
     else if state.smoke {
         if simulation.is_paused() { next_smoke(state,simulation,controller) }
     } else {
@@ -362,12 +375,12 @@ func advance(state:&TrackedScene,simulation:&Application.Simulation,delta:float)
     state.accumulator+=delta
     var duration=state.model.duration();if state.automatic_smoke { duration=16 }
     while state.accumulator>=1.0/120.0 && !simulation.is_paused() {
-        if state.smoke && !state.live_smoke && state.model.steps>=duration*120 { state.accumulator=0.0;break }
+        if state.smoke && !state.live_smoke && !state.platform_click_smoke && state.model.steps>=duration*120 { state.accumulator=0.0;break }
         remember(state)
-        if state.smoke && !state.live_smoke && !state.automatic_smoke && !state.platform_smoke { state.model.step();state.model.verify() }
+        if state.smoke && !state.live_smoke && !state.platform_click_smoke && !state.automatic_smoke && !state.platform_smoke { state.model.step();state.model.verify() }
         else { step_free(state);if state.automatic_smoke || state.platform_smoke { state.model.verify() } }
         state.accumulator-=1.0/120.0
-        if state.smoke && !state.live_smoke && state.model.steps==duration*120 { finish_recipe(state,simulation);break }
+        if state.smoke && !state.live_smoke && !state.platform_click_smoke && state.model.steps==duration*120 { finish_recipe(state,simulation);break }
     }
 }
 func retained_press(state:&TrackedScene,simulation:&Application.Simulation,key:Input.Key,code:uint32,repeated:bool=false) {
@@ -468,44 +481,106 @@ func live_smoke_inputs(state:&TrackedScene,simulation:&Application.Simulation,co
         controller.stop()
     }
 }
+func retained_click(state:&TrackedScene,simulation:&Application.Simulation,x:float) {
+    var body=state.model.vehicle.chassis()
+    let pose=copy body.transform();let speed=body.linear_velocity();let spin=body.angular_velocity()
+    let support_pose=copy state.model.ground.transform();let support_speed=state.model.ground.linear_velocity();let clock=copy state.model.steps
+    var rotors:float[]=[];for i in [0,1,2,3,4,5] { rotors.append(state.model.vehicle.wheel(i).angular_velocity) }
+    InputCheck.click(state.ui,x,103.0);perform(state,simulation)
+    assert(body.is_valid() && body.transform()==pose && state.model.vehicle.chassis().transform()==pose)
+    assert(body.linear_velocity()==speed && body.angular_velocity()==spin && state.model.steps==clock)
+    assert(state.model.ground.transform()==support_pose && state.model.ground.linear_velocity()==support_speed)
+    for i in [0,1,2,3,4,5] { assert(state.model.vehicle.wheel(i).angular_velocity==rotors[i]) }
+}
 func verify_platform_controls() {
     var world=Resources.World();var meshes=Resources.Meshes3D();var state=TrackedScene();var simulation=Application.Simulation()
     state.model=Model.TrackedModel(recipe:6,automatic:true,platform:true);state.controls.platform=true;state.ui=UI.Session(state.controls.describe())
     var camera=Resources.ViewportCamera3D(camera_settings());startup(world,meshes,state,simulation)
     var ground=state.model.ground;var vehicle=state.model.vehicle
-    retained_press(state,simulation,Input.Key.m,109 as uint32);ticks(state,simulation,360)
-    assert(state.autopilot && Math.abs(vehicle.chassis().linear_velocity().z-2.0)<0.03 && ground.linear_velocity().z==2.0)
-    let pose=copy ground.transform();let velocity=ground.linear_velocity()
-    retained_press(state,simulation,Input.Key.g,103 as uint32);assert(!state.platform_braked)
-    retained_press(state,simulation,Input.Key.g,103 as uint32,true);assert(!state.platform_braked)
-    retained_press(state,simulation,Input.Key.b,98 as uint32);assert(state.platform_axis==1)
-    retained_press(state,simulation,Input.Key.f,102 as uint32);assert(state.platform_axis==2)
-    assert(ground.transform()==pose && ground.linear_velocity()==velocity)
+    ticks(state,simulation,240)
+    retained_click(state,simulation,290.0);assert(state.platform_axis==2 && state.autopilot)
+    assert(state.controls.mode_text.value()=="Arrêter (M)")
+    ticks(state,simulation,1);assert(ground.linear_velocity().z==2.0 && ground.position().z>0.0)
+    ticks(state,simulation,119);assert(Math.abs(vehicle.chassis().linear_velocity().z-2.0)<0.03)
+    let pose=copy ground.transform();let clock=copy state.model.steps
     retained_press(state,simulation,Input.Key.p,112 as uint32);ticks(state,simulation,20)
-    assert(simulation.is_paused() && ground.transform()==pose && state.model.steps==360)
+    assert(simulation.is_paused() && ground.transform()==pose && state.model.steps==clock)
     retained_press(state,simulation,Input.Key.p,112 as uint32)
-    InputCheck.click(state.ui,100.0,103.0);perform(state,simulation);assert(state.platform_axis==1)
-    InputCheck.click(state.ui,290.0,103.0);perform(state,simulation);assert(state.platform_axis==2)
-    InputCheck.click(state.ui,480.0,103.0);perform(state,simulation);assert(state.platform_braked)
-    InputCheck.click(state.ui,670.0,103.0);perform(state,simulation);assert(!state.autopilot)
-    assert(state.model.vehicle==vehicle && ground.transform()==pose && ground.linear_velocity()==velocity)
+    retained_press(state,simulation,Input.Key.space,32 as uint32);assert(state.autopilot)
+    release(state,Input.Key.space,32 as uint32)
+    ticks(state,simulation,121);assert(!state.autopilot && ground.linear_velocity()==Math.Vec3())
+    labels(state,simulation);assert(state.controls.mode_text.value()=="Déplacer (M)")
+    retained_click(state,simulation,670.0);assert(state.autopilot)
+    ticks(state,simulation,1);assert(ground.linear_velocity().z==2.0)
+    retained_click(state,simulation,670.0);assert(!state.autopilot)
+    ticks(state,simulation,1);assert(ground.linear_velocity()==Math.Vec3())
+    retained_click(state,simulation,100.0);assert(state.platform_axis==1 && state.autopilot)
+    ticks(state,simulation,1);assert(ground.linear_velocity().x==2.0)
+    let elapsed=copy state.auto_steps
+    retained_press(state,simulation,Input.Key.b,98 as uint32,true);assert(state.auto_steps==elapsed)
+    retained_press(state,simulation,Input.Key.f,102 as uint32);assert(state.platform_axis==2 && state.autopilot && state.auto_steps==0)
+    retained_click(state,simulation,480.0);assert(!state.platform_braked)
+    retained_press(state,simulation,Input.Key.g,103 as uint32,true);assert(!state.platform_braked)
+    retained_click(state,simulation,480.0);assert(state.platform_braked)
+    ticks(state,simulation,241);assert(!state.autopilot && ground.linear_velocity()==Math.Vec3())
+    assert(state.model.vehicle==vehicle && ground.is_valid() && state.model.steps>6*120)
     InputCheck.click(state.ui,860.0,103.0);perform(state,simulation)
-    assert(!vehicle.is_valid() && ground.is_valid() && ground.transform()==Model.platform_pose() && state.model.steps==0)
-    press(state,simulation,Input.Key.g,103 as uint32);press(state,simulation,Input.Key.m,109 as uint32)
-    ticks(state,simulation,360);assert(Math.abs(state.model.vehicle.chassis().linear_velocity().z-8.0/13.0)<0.03)
-    var current=state.model.vehicle;let clock=state.model.steps
-    retained_press(state,simulation,Input.Key.space,32 as uint32);assert(state.autopilot && state.model.steps==clock)
-    release(state,Input.Key.space,32 as uint32);ticks(state,simulation,480)
-    assert(current.is_valid() && state.model.steps>6*120)
+    assert(!vehicle.is_valid() && ground.is_valid() && ground.transform()==Model.platform_pose() && state.model.steps==0 && !state.autopilot)
+    ticks(state,simulation,240)
+    retained_click(state,simulation,480.0);assert(!state.platform_braked)
+    retained_click(state,simulation,290.0);ticks(state,simulation,120)
+    assert(Math.abs(state.model.vehicle.chassis().linear_velocity().z-8.0/13.0)<0.03)
+    retained_press(state,simulation,Input.Key.z,122 as uint32);assert(!state.autopilot)
+    release(state,Input.Key.z,122 as uint32);ticks(state,simulation,1);assert(ground.linear_velocity()==Math.Vec3())
     remember(state);render(world,state,camera);verify_framing(world,state,camera.transform())
     assert(world.get<Components.Transform3D>(state.platform).position.nearly_equal(ground.position(),0.00001))
-    print("Tracked platform controls: B/F axis, G lock, M, pause and Space retain vehicle/support/pose/velocity/clock; R alone resets; five buttons and free rolling verified")
+    print("Tracked platform controls: clicks start lateral/longitudinal motion on the next step, M stops and restarts after completion, G changes the holding brake; vehicle/support/pose/velocity/rotors/clock retained, pause and Space verified. R alone resets; free rolling verified")
+}
+func platform_click_inputs(state:&TrackedScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    if state.model.steps<=state.platform_click_step { return }
+    let action=copy state.live_event
+    if action==0 {
+        if state.model.steps<240 { return }
+        retained_click(state,simulation,290.0);assert(state.autopilot)
+    }
+    else if action==1 || action==3 { assert(state.model.ground.linear_velocity().z==2.0) }
+    else if action==2 {
+        if state.autopilot { return }
+        retained_click(state,simulation,670.0);assert(state.autopilot)
+    }
+    else if action==4 {
+        if state.auto_steps<120 { return }
+        retained_click(state,simulation,480.0);assert(!state.platform_braked)
+    }
+    else if action==5 {
+        if state.autopilot { return }
+        retained_click(state,simulation,480.0);assert(state.platform_braked)
+    }
+    else if action==6 {
+        assert(!state.autopilot && state.model.ground.linear_velocity()==Math.Vec3())
+        retained_click(state,simulation,100.0);assert(state.autopilot)
+    }
+    else if action==7 || action==11 { assert(state.model.ground.linear_velocity().x==2.0) }
+    else if action==8 {
+        if state.auto_steps<120 { return }
+        retained_click(state,simulation,670.0);assert(!state.autopilot)
+    }
+    else if action==9 { assert(state.model.ground.linear_velocity()==Math.Vec3()) }
+    else if action==10 { retained_click(state,simulation,670.0);assert(state.autopilot) }
+    else if action==12 { if state.autopilot { return } }
+    else {
+        assert(!state.autopilot && state.model.ground.linear_velocity()==Math.Vec3() && state.frames[6]>0)
+        assert(state.model.vehicle.is_valid() && state.model.world.body_count()==2 && state.platform_braked)
+        print("Tracked platform click smoke: lateral/longitudinal buttons move immediately, M stops and restarts after completion, holding brake toggled; real UI layout, physics and rendered support verified without reset")
+        controller.stop()
+    }
+    state.platform_click_step=copy state.model.steps;state.live_event++
 }
 test "tracked moving platform controls retain the real vehicle and support" { verify_platform_controls() }
 test "tracked scene controls apply to the real vehicle" { verify_controls() }
 test "tracked continuous controls retain the automatic vehicle" { verify_controls(true) }
 func main() {
-    var smoke=false;var live=false;var automatic_smoke=false;var platform=false;var platform_smoke=false
+    var smoke=false;var live=false;var automatic_smoke=false;var platform=false;var platform_smoke=false;var platform_click_smoke=false
     for argument in Process.arguments() {
         if argument=="--physics-check" { Model.verify_physics();Model.verify_recreation();Model.verify_ramp();return }
         if argument=="--oracle-check" { Model.witness();return }
@@ -520,6 +595,7 @@ func main() {
         if argument=="--platform-physics-check" { Platform.verify();return }
         if argument=="--platform-controls-check" { verify_platform_controls();return }
         if argument=="--platform" { platform=true }
+        if argument=="--platform-click-smoke" { platform=true;platform_click_smoke=true;smoke=true }
         if argument=="--platform-smoke" { platform=true;platform_smoke=true;smoke=true }
         if argument=="--smoke" { smoke=true }
         if argument=="--live-smoke" { smoke=true;live=true }
@@ -540,6 +616,10 @@ func main() {
         state.model=Model.TrackedModel(recipe:6,automatic:true,platform:true);state.controls.platform=true
         title="Chenilles — plateforme mobile"
         if platform_smoke { state.platform_smoke=true;state.autopilot=true;title="TEST AUTOMATIQUE — plateformes — fermeture à la fin" }
+        if platform_click_smoke {
+            state.platform_click_smoke=true;state.controls.automatic=false
+            title="TEST AUTOMATIQUE — clics plateforme — fermeture à la fin"
+        }
         state.ui=UI.Session(state.controls.describe())
     }
     Application() ..add_resource(state)

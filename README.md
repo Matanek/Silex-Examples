@@ -1152,5 +1152,6 @@ The new `--automatic-smoke` checks both qualified courses in the native window.
 
 [TrackedDriving platform mode](Sources/Physics3D/TrackedDriving/README.md#observe-carrying-by-a-moving-platform)
 compares locked tracks carried by a translating support with free rollers.
-Run the example with `-- --platform`; M then R plays the cycle, B/F select the
-axis and G changes the holding brake in place. R alone resets.
+Run the example with `-- --platform`; click B/F to move immediately for 2 s,
+or M to start/stop the selected axis. G changes the holding brake in place;
+a completed movement can be restarted with one click. R alone resets.
