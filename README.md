@@ -1162,3 +1162,7 @@ a completed movement can be restarted with one click. R alone resets.
 200/1000 kg platforms with a prescribed-speed support. View selection, impulses
 and braking preserve all three worlds; R alone resets.
 [Guide français](Sources/Physics3D/TrackedSupport/README.fr.md).
+
+[Rotating tracked support](Sources/Physics3D/TrackedSupport/README.md#observe-carrying-by-a-rotating-support)
+compares opposite kinematic rotations and a stationary control, with locked/free
+tracks and immediate actions: append `-- --rotation` to the TrackedSupport command.

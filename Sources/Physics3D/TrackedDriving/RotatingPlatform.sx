@@ -1,0 +1,53 @@
+use GFX.Physics
+use Physics3D.TrackedDriving.Model
+use STD.Math
+
+package func place(model:Model.TrackedModel) {
+    model.vehicle.chassis().set_transform(Physics.Transform3D(Math.Vec3(1.0,1.15,0.0)))
+}
+package func make(rate:int=120) Model.TrackedModel {
+    var model=Model.TrackedModel(recipe:6,rate:rate,automatic:true,platform:true)
+    place(model);return model
+}
+package func reset(model:Model.TrackedModel) { model.reset(6);place(model) }
+package func command(model:&Model.TrackedModel,scenario:int) {
+    var spin=0.0
+    if scenario>0 && model.steps>=2*model.rate && model.steps<4*model.rate { spin=0.25;if scenario==2 { spin= -spin } }
+    model.ground.set_angular_velocity(Math.Vec3(0.0,spin,0.0))
+    var brake=1.0;if scenario==3 { brake=0.0 }
+    model.drive(0.0,brake:brake)
+}
+func vector(value:Math.Vec3) str { return "$(value.x) $(value.y) $(value.z)" }
+package func observation(model:@Model.TrackedModel,scenario:int) str {
+    let carrier=model.ground.transform()
+    return model.observation("tracked-rotating-platform",scenario)+" $(vector(carrier.position)) $(vector(model.ground.linear_velocity())) $(carrier.rotation.x) $(carrier.rotation.y) $(carrier.rotation.z) $(carrier.rotation.w) $(vector(model.ground.angular_velocity()))"
+}
+package func witness() {
+    for scenario in [0,1,2,3] { for rate in [60,120] {
+        var model=make(rate)
+        while true {
+            print(observation(model,scenario))
+            if model.steps==6*rate { break }
+            command(model,scenario)
+        }
+    } }
+}
+package func verify() {
+    for scenario in [0,1,2,3] { for rate in [60,120] {
+        var model=make(rate)
+        while model.steps<6*rate { command(model,scenario);model.verify() }
+        var body=model.vehicle.chassis();var support=model.ground
+        assert(model.supports()==6 && model.world.body_count()==2)
+        assert(body.linear_velocity().length()<0.05 && body.angular_velocity().length()<0.05)
+        assert(Math.abs(body.position().y-0.88365)<0.003 && Math.abs(model.normal_force()-981.0)<2.0)
+        assert(support.position()==Math.Vec3(0.0,-0.2,0.0) && support.angular_velocity()==Math.Vec3())
+        var expected=0.5;if scenario==0 { expected=0.0 } else if scenario==2 { expected= -0.5 }
+        let front=support.rotation().rotate(Math.Vec3.back())
+        assert(Math.abs(Math.atan2(front.x,front.z)-expected)<0.0001)
+        var vehicle=model.vehicle;reset(model)
+        assert(!vehicle.is_valid() && support.is_valid() && model.steps==0)
+        assert(model.vehicle.chassis().position()==Math.Vec3(1.0,1.15,0.0) && support.transform()==Model.platform_pose())
+    } }
+    print("Rotating platforms: four cases at60/120Hz, retained pivot, final support and explicit reset verified")
+}
+test "tracked rotating platform transports through contacts and resets explicitly" { verify() }

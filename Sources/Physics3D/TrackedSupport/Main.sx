@@ -1,5 +1,6 @@
 use GFX.Application
 use GFX.Color
+use GFX.Canvas
 use GFX.Components
 use GFX.ECS
 use GFX.Input
@@ -13,6 +14,7 @@ use GFX.Physics
 use Physics3D.TrackedSupport.Controls
 use Physics3D.TrackedDriving.Model
 use Physics3D.TrackedDriving.DynamicPlatform
+use Physics3D.TrackedDriving.RotatingPlatform
 use Physics3D.ArticulatedPose.Controls as InputCheck
 use STD.Math
 use STD.Process
@@ -31,7 +33,8 @@ class Rig {
     }
 }
 class SupportScene {
-    var controls:Controls.SupportControls=Controls.SupportControls()
+    let rotating:bool
+    var controls:Controls.SupportControls
     var rigs:Rig[]=[]
     var ui:UI.Session
     var panel:ECS.Entity=ECS.Entity()
@@ -46,8 +49,10 @@ class SupportScene {
     var smoke:bool=false
     var frames:int=0
     var event:int=0
-    init() {
-        self.rigs=[Rig(DynamicPlatform.make(2)),Rig(DynamicPlatform.make(4)),Rig(Model.TrackedModel(recipe:6,automatic:true,platform:true))]
+    init(rotating:bool=false) {
+        self.rotating=rotating;self.controls=Controls.SupportControls(rotating)
+        if rotating { self.rigs=[Rig(RotatingPlatform.make()),Rig(RotatingPlatform.make()),Rig(RotatingPlatform.make())] }
+        else { self.rigs=[Rig(DynamicPlatform.make(2)),Rig(DynamicPlatform.make(4)),Rig(Model.TrackedModel(recipe:6,automatic:true,platform:true))] }
         self.ui=UI.Session(self.controls.describe())
     }
 }
@@ -55,13 +60,23 @@ class SupportScene {
 func labels(state:&SupportScene,simulation:@Application.Simulation) {
     var name="Dynamique · 1000 kg";if state.controls.selected==1 { name="Dynamique · 200 kg" } else if state.controls.selected==2 { name="Cinématique · vitesse imposée" }
     var phase="$(name)\nZ/S : impulsion · R seul : départ"
+    if state.rotating {
+        name="Support · rotation +Y";if state.controls.selected==1 { name="Support · rotation −Y" } else if state.controls.selected==2 { name="Support · immobile" }
+        phase="$(name)\nZ : lancer · S : arrêter · R : départ"
+    }
     if simulation.is_paused() { phase="$(name)\nPAUSE · P pour reprendre" }
     state.controls.status.set(phase)
     var text="Vitesses véhicule / support (m/s)"
+    if state.rotating { text="Rotation Y (rad/s), véhicule / sol" }
     var i=0;for rig in state.rigs {
-        let v=Math.round(rig.model.vehicle.chassis().linear_velocity().z*100.0)/100.0
-        let u=Math.round(rig.model.ground.linear_velocity().z*100.0)/100.0
+        var v=Math.round(rig.model.vehicle.chassis().linear_velocity().z*100.0)/100.0
+        var u=Math.round(rig.model.ground.linear_velocity().z*100.0)/100.0
         var label="1000 kg";if i==1 { label="200 kg" } else if i==2 { label="Cinémat." }
+        if state.rotating {
+            v=Math.round(rig.model.vehicle.chassis().angular_velocity().y*100.0)/100.0
+            u=Math.round(rig.model.ground.angular_velocity().y*100.0)/100.0
+            label="+Y";if i==1 { label="−Y" } else if i==2 { label="Immobile" }
+        }
         text+="\n$(label) : $(v) / $(u)";i++
     }
     state.controls.metrics.set(text)
@@ -70,14 +85,19 @@ func labels(state:&SupportScene,simulation:@Application.Simulation) {
 func perform(state:&SupportScene,simulation:&Application.Simulation) {
     while state.controls.resets>0 {
         state.controls.resets--;state.controls.kicks.clear()
-        for rig in state.rigs { rig.model.reset(6);rig.remember() }
+        for rig in state.rigs { if state.rotating { RotatingPlatform.reset(rig.model) } else { rig.model.reset(6) } rig.remember() }
         state.accumulator=0.0;simulation.resume()
     }
     for direction in state.controls.kicks {
+        var index=0
         for rig in state.rigs {
             var support=rig.model.ground
-            if rig.model.dynamic_mass>0.0 { support.apply_impulse(Math.Vec3(0.0,0.0,2.0*rig.model.dynamic_mass*direction as float)) }
+            if state.rotating {
+                var spin=0.0;if direction>0 && index<2 { spin=0.25;if index==1 { spin= -spin } }
+                support.set_angular_velocity(Math.Vec3(0.0,spin,0.0))
+            } else if rig.model.dynamic_mass>0.0 { support.apply_impulse(Math.Vec3(0.0,0.0,2.0*rig.model.dynamic_mass*direction as float)) }
             else { support.set_linear_velocity(support.linear_velocity().add(Math.Vec3(0.0,0.0,2.0*direction as float))) }
+            index++
         }
     }
     state.controls.kicks.clear()
@@ -101,6 +121,10 @@ func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&SupportSce
     state.chassis=visual(world,cube,Math.Vec3(1.4,0.4,2.4),Color.bytes(222,177,71))
     state.nose=visual(world,cube,Math.Vec3(1.2,0.1,0.03),Color.bytes(250,245,180))
     state.platform=visual(world,cube,Model.platform_size(),Color.bytes(65,130,190))
+    if state.rotating {
+        let pivot=visual(world,cube,Math.Vec3(0.08,0.5,0.08),Color.bytes(240,90,65))
+        world.update<Components.Transform3D>(pivot,func(t:&Components.Transform3D) { t.position=Math.Vec3(0.0,0.25,0.0) })
+    }
     let floor=visual(world,cube,Math.Vec3(200.0,0.2,200.0),Color.bytes(50,64,82))
     world.update<Components.Transform3D>(floor,func(t:&Components.Transform3D) { t.position=Math.Vec3(0.0,-0.5,0.0) })
     for i in [0,1,2,3,4,5] {
@@ -196,6 +220,74 @@ func verify_controls() {
     assert(!state.controls.handle(InputCheck.key_event(Input.Key.z,122 as uint32,true)))
     print("Support controls: real UI selection, immediate reciprocal impulses, free tracks, pause, retained clocks and explicit reset verified")
 }
+func verify_rotation_controls() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=SupportScene(true);var simulation=Application.Simulation()
+    startup(world,meshes,state,simulation);ticks(state,simulation,240)
+    var body=state.rigs[0].model.vehicle.chassis()
+    let pose=copy body.transform();let clock=copy state.rigs[0].model.steps
+    click(state,simulation,220.0,108.0);assert(state.controls.selected==1)
+    click(state,simulation,80.0,146.0);assert(state.controls.selected==2)
+    click(state,simulation,80.0,108.0);assert(state.controls.selected==0 && body.transform()==pose && state.rigs[0].model.steps==clock)
+    click(state,simulation,80.0,184.0);click(state,simulation,80.0,184.0)
+    assert(body.transform()==pose && state.rigs[0].model.steps==clock)
+    assert(state.rigs[0].model.ground.angular_velocity().y==0.25 && state.rigs[1].model.ground.angular_velocity().y== -0.25)
+    assert(state.rigs[2].model.ground.angular_velocity()==Math.Vec3())
+    ticks(state,simulation,210)
+    assert(Math.abs(body.angular_velocity().y-0.25)<0.05)
+    assert(Math.abs(state.rigs[1].model.vehicle.chassis().angular_velocity().y+0.25)<0.05)
+    assert(Math.abs(state.rigs[2].model.vehicle.chassis().position().x-1.0)<0.01)
+    click(state,simulation,220.0,184.0);ticks(state,simulation,150)
+    assert(body.linear_velocity().length()<0.05 && body.angular_velocity().length()<0.05)
+    click(state,simulation,220.0,146.0);assert(!state.controls.brake)
+    click(state,simulation,80.0,184.0);ticks(state,simulation,180)
+    let relative=body.linear_velocity().subtract(state.rigs[0].model.ground.angular_velocity().cross(body.position().subtract(state.rigs[0].model.ground.position())))
+    assert(relative.length()>0.02)
+    let held=copy body.transform();let time=copy state.rigs[0].model.steps
+    click(state,simulation,220.0,222.0);ticks(state,simulation,20)
+    assert(simulation.is_paused() && body.transform()==held && state.rigs[0].model.steps==time)
+    click(state,simulation,220.0,108.0);assert(state.controls.selected==1 && simulation.is_paused())
+    click(state,simulation,80.0,222.0)
+    assert(!body.is_valid() && state.rigs[0].model.steps==0 && !simulation.is_paused() && !state.controls.brake)
+    for rig in state.rigs { assert(rig.model.vehicle.chassis().position()==Math.Vec3(1.0,1.15,0.0) && rig.model.ground.angular_velocity()==Math.Vec3()) }
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.z,122 as uint32)));perform(state,simulation)
+    assert(state.controls.kicks.count()==0 && state.rigs[0].model.ground.angular_velocity().y==0.25)
+    assert(!state.controls.handle(InputCheck.key_event(Input.Key.z,122 as uint32,true)))
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.s,115 as uint32)));perform(state,simulation)
+    assert(state.rigs[0].model.ground.angular_velocity()==Math.Vec3())
+    print("Rotating support controls: real clicks, retained clocks, opposite rotations, locked/free response, pause and explicit reset verified")
+}
+func verify_metric_ink(commands:@Canvas.Command[],drawing:Canvas,expected:str) int {
+    var found=0
+    for command in commands { match command {
+        text(value)=> {
+            if value.value==expected {
+                let measured=drawing.measure_text(value.value,value.style)
+                let clip=value.clip!
+                print("HUD measured=$(measured.width)x$(measured.height), clip=$(clip.size.x)x$(clip.size.y), origin=$(value.position.y)")
+                assert(value.position.x>=clip.position.x && value.position.y>=clip.position.y)
+                assert(value.position.x+measured.width<=clip.position.x+clip.size.x+0.01)
+                assert(value.position.y+measured.height<=clip.position.y+clip.size.y+0.01)
+                assert(value.position.y+measured.height<=388.0)
+                found++
+            }
+        }
+        layer(value)=> { found+=verify_metric_ink(value.commands(),drawing,expected) }
+        else=>{}
+    } }
+    return found
+}
+func verify_hud() {
+    for rotating in [false,true] {
+        var world=Resources.World();var meshes=Resources.Meshes3D();var state=SupportScene(rotating);var simulation=Application.Simulation()
+        startup(world,meshes,state,simulation)
+        for selected in [0,1,2] {
+            state.controls.selected=selected;labels(state,simulation)
+            var drawing=state.ui.drawing(300,400)
+            assert(verify_metric_ink(drawing.commands(),drawing,state.controls.metrics.value())==1)
+        }
+    }
+    print("Support HUD: complete telemetry ink fits its clip and300x400panel in all six views")
+}
 func smoke_inputs(state:&SupportScene,simulation:&Application.Simulation,controller:&Application.Controller) {
     let step=copy state.rigs[0].model.steps
     if step>=240 && state.event==0 { click(state,simulation,80.0,184.0);state.event++ }
@@ -209,7 +301,8 @@ func smoke_inputs(state:&SupportScene,simulation:&Application.Simulation,control
     if step>=1200 {
         assert(state.event==8 && state.frames>0 && !state.controls.brake)
         for rig in state.rigs { assert(rig.model.vehicle.is_valid() && rig.model.supports()==6 && rig.model.vehicle.chassis().linear_velocity().length()<0.05) }
-        print("Dynamic support smoke: three retained worlds, real clicks, locked/free reciprocal response, rendered chassis/platform/wheels and camera verified")
+        if state.rotating { print("Rotating support smoke: opposite rotations, stationary control, locked/free response and rendered poses verified") }
+        else { print("Dynamic support smoke: three retained worlds, real clicks, locked/free reciprocal response, rendered chassis/platform/wheels and camera verified") }
         controller.stop()
     }
 }
@@ -221,17 +314,27 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&SupportSce
     if state.telemetry>=0.1 { state.telemetry=0.0;labels(state,simulation) }
     if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(300,400)) }) }
 }
+test "support telemetry remains fully visible in the compact HUD" { verify_hud() }
 test "dynamic support scene acts immediately and only R resets the experiment" { verify_controls() }
+test "rotating support scene acts without resetting any retained world" { verify_rotation_controls() }
 func main() {
-    var smoke=false
+    var smoke=false;var rotating=false
     for argument in Process.arguments() {
+        if argument=="--hud-check" { verify_hud();return }
+        if argument=="--rotation" { rotating=true }
+        if argument=="--rotation-witness" { RotatingPlatform.witness();return }
+        if argument=="--rotation-physics-check" { RotatingPlatform.verify();return }
+        if argument=="--rotation-controls-check" { verify_rotation_controls();return }
+        if argument=="--rotation-smoke" { smoke=true;rotating=true }
         if argument=="--witness" { DynamicPlatform.witness();return }
         if argument=="--physics-check" { DynamicPlatform.verify();return }
         if argument=="--controls-check" { verify_controls();return }
         if argument=="--smoke" { smoke=true }
     }
-    var state=SupportScene();state.smoke=smoke;var title="Chenilles — réaction du support"
+    var state=SupportScene(rotating);state.smoke=smoke;var title="Chenilles — réaction du support"
+    if rotating { title="Chenilles — transport sur support tournant" }
     if smoke { title="TEST AUTOMATIQUE — support dynamique — fermeture à la fin" }
+    if smoke && rotating { title="TEST AUTOMATIQUE — support tournant — fermeture à la fin" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
         ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())

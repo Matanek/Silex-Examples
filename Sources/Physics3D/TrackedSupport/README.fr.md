@@ -49,3 +49,39 @@ Le témoin reproduit les six cas autonomes de `TrackedDynamicPlatformRun.py`
 dans Silex-Benchmarks à 60/120 Hz. Le test des commandes utilise de vrais clics,
 conserve identités et horloges et distingue impulsion, sélection, frein,
 pause et retour au départ. Le smoke natif se ferme à la fin.
+
+## Observer le transport par un support tournant
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --rotation
+```
+
+Trois supports cinématiques à pivot fixe comparent les deux sens de rotation
+et un contrôle immobile. Le véhicule démarre à un mètre du pivot rouge ; sa
+position et son orientation évoluent par les contacts des roues. La grille
+reste fixe dans le monde. Le panneau affiche les vitesses angulaires autour de Y.
+
+- **1 / 2 / 3** : rotation +Y, rotation −Y ou support immobile.
+- **Z / Lancer** : imposer +0.25 / −0.25 rad/s aux deux supports mobiles.
+- **S / Arrêter** : arrêter les supports sans déplacer les véhicules.
+- **G** : serrer/libérer les chenilles ; **P** : pause ; **R seul** : départ.
+
+Attendre la réception, lancer avec les freins serrés, puis comparer les deux
+sens. Le véhicule est entraîné en rotation. Arrêter avec S, repartir avec R,
+libérer G puis relancer : les bandes roulent et le mouvement relatif devient
+visible. Les trois simulations avancent ensemble ; changer de vue ne réinitialise
+rien. Lancer plusieurs fois fixe la même vitesse, sans l'accumuler.
+
+Le témoin fixe quatre cas de six secondes à 60/120 Hz : immobile, rotations
+opposées freinées et rotation +Y avec bandes libres. Le support tourne entre
+2 et 4 secondes puis s'arrête. Les 4328 états de la scène sont identiques au
+benchmark `TrackedRotatingPlatformRun.py` qualifié face à Jolt. Le mode conserve
+12 itérations de vitesse. La rotation d'un support dynamique de masse finie et
+la conduite générale sur terrain mobile restent hors de cette qualification.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --rotation-controls-check
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --rotation-physics-check
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --rotation-witness
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --rotation-smoke
+```
