@@ -1,0 +1,66 @@
+use GFX.Physics
+use Physics3D.TrackedDriving.Model
+use STD.Math
+
+package func velocity(scenario:int,step:int,rate:int) Math.Vec3 {
+    if scenario>0 && step>=2*rate && step<4*rate {
+        if scenario==1 { return Math.Vec3(2.0,0.0,0.0) }
+        return Math.Vec3(0.0,0.0,2.0)
+    }
+    return Math.Vec3()
+}
+func command(model:&Model.TrackedModel,scenario:int) {
+    model.ground.set_linear_velocity(velocity(scenario,model.steps,model.rate))
+    var brake=1.0;if scenario==3 { brake=0.0 }
+    model.drive(0.0,brake:brake)
+}
+func vector(value:Math.Vec3) str { return "$(value.x) $(value.y) $(value.z)" }
+package func observation(model:@Model.TrackedModel,scenario:int) str {
+    let pose=model.ground.transform()
+    return model.observation("tracked-platform",scenario)+" $(vector(pose.position)) $(vector(model.ground.linear_velocity())) $(pose.rotation.x) $(pose.rotation.y) $(pose.rotation.z) $(pose.rotation.w) $(vector(model.ground.angular_velocity()))"
+}
+package func witness() {
+    for scenario in [0,1,2,3] { for rate in [60,120] {
+        var model=Model.TrackedModel(recipe:6,rate:rate,automatic:true,platform:true)
+        while true {
+            print(observation(model,scenario))
+            if model.steps==6*rate { break }
+            command(model,scenario)
+        }
+    } }
+}
+package func verify_finished(model:@Model.TrackedModel,scenario:int) {
+    assert(model.platform && model.automatic && model.steps==6*model.rate && model.supports()==6)
+    var body=model.vehicle.chassis()
+    assert(body.linear_velocity().length()<0.05 && body.angular_velocity().length()<0.05)
+    assert(Math.abs(body.position().y-0.88365)<0.003 && model.normal_samples==model.rate)
+    assert(Math.abs(model.normal_sum/model.rate as float-981.0)<2.0 && model.vehicle.powertrain().gear==0)
+    assert(model.ground.linear_velocity()==Math.Vec3() && model.world.body_count()==2)
+    var expected=Math.Vec3(0.0,-0.2,0.0)
+    if scenario==1 { expected.x=4.0 } else if scenario>1 { expected.z=4.0 }
+    assert(model.ground.position().nearly_equal(expected,0.0001))
+    if scenario==0 { assert(Math.abs(body.position().x)+Math.abs(body.position().z)<0.01) }
+    else if scenario==1 { assert(body.position().x>3.0) }
+    else if scenario==2 { assert(body.position().z>3.0) }
+    else { assert(body.position().z>0.8 && body.position().z<1.7) }
+    for i in [0,1,2,3,4,5] { assert(model.vehicle.wheel(i).support()!.same_body(model.ground)) }
+    print("Tracked platform case $(scenario) at $(model.rate) Hz: vehicle=$(body.position().to_str()), platform=$(model.ground.position().to_str()), neutral and six supports at rest")
+}
+package func verify() {
+    for scenario in [0,1,2,3] { for rate in [60,120] {
+        var model=Model.TrackedModel(recipe:6,rate:rate,automatic:true,platform:true)
+        while model.steps<6*rate {
+            command(model,scenario);model.verify()
+            if model.steps==3*rate {
+                var target=0.0;if scenario>0 { target=2.0 } if scenario==3 { target=8.0/13.0 }
+                var speed=model.vehicle.chassis().linear_velocity().z;if scenario==1 { speed=model.vehicle.chassis().linear_velocity().x }
+                assert(Math.abs(speed-target)<0.03)
+            }
+        }
+        verify_finished(model,scenario)
+        var vehicle=model.vehicle;var ground=model.ground;model.reset(6)
+        assert(!vehicle.is_valid() && ground.is_valid() && model.platform && model.steps==0)
+        assert(ground.transform()==Model.platform_pose() && ground.linear_velocity()==Math.Vec3())
+    } }
+}
+test "tracked platform carries locked tracks and permits free rolling without imposing a chassis pose" { verify() }

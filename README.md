@@ -1147,3 +1147,11 @@ mirrored reversals and combined tire adhesion.
 finite ramp with automatic shifting. Enable M then explicitly reset with R to
 observe ascent, flight, landing and braking; F/B switch flat/ramp in place.
 The new `--automatic-smoke` checks both qualified courses in the native window.
+
+### Tracked vehicles on moving platforms
+
+[TrackedDriving platform mode](Sources/Physics3D/TrackedDriving/README.md#observe-carrying-by-a-moving-platform)
+compares locked tracks carried by a translating support with free rollers.
+Run the example with `-- --platform`; click B/F to move immediately for 2 s,
+or M to start/stop the selected axis. G changes the holding brake in place;
+a completed movement can be restarted with one click. R alone resets.

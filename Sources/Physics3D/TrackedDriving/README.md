@@ -99,3 +99,51 @@ landing and rest against the flat control at 60/120 Hz, then explicit reset.
 shifting, wheels, support markers, camera and final pause. Switching to the
 second terrain explicitly recreates the vehicle in this test; interactive
 B/F and M continue retaining the vehicle.
+
+
+## Observe carrying by a moving platform
+
+Open platform mode from the same root:
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --platform
+```
+
+Click **Déplacer lat. (B)** or **Déplacer long. (F)**: the blue platform
+immediately moves at 2 m/s for 2 s, then stops. **Déplacer (M)** restarts the
+last axis; during motion this button becomes **Arrêter (M)**. Every movement
+starts from the current state without resetting. The chassis remains dynamic;
+contact carries it without imposing a chassis pose or velocity. The panel
+compares vehicle and support speeds, supports, neutral gear, RPM and track rotation.
+
+- **B/F**: start lateral/longitudinal motion, including after a completed movement.
+- **G**: lock/release the holding brake. Its effect appears during motion;
+  the button shows the brake state even when stopped.
+- **M**: start/stop motion. After the 2 s, one click starts it again.
+- **Space**: hold the brake without disabling M.
+- **ZQSD**: take over driving; this stops support motion. The G holding brake
+  stays applied until released.
+- **P**: pause/resume. **R alone** returns both vehicle and support to the start,
+  retains axis/brake and resumes. **Escape** quits.
+
+To compare both brake states from the same start: **R**, wait for supports,
+then **F**; repeat **R**, **G**, wait for supports, then **F**. Reset helps
+comparison; the movement buttons work without it.
+
+Locked tracks carry the vehicle at almost 2 m/s. Free longitudinal rollers
+let the vehicle travel at about 0.615 m/s while the platform moves faster and
+the tracks rotate in the opposite relative direction. The vehicle stops near
+1.23 m, compared with about 4 m when locked. Grid lines remain world references;
+the 8 × 0.4 × 12 m blue box is the only physical support. Free driving can
+leave its edges; R restores the start.
+
+`TrackedPlatformRun.py` qualifies four 6 s recipes at 60/120 Hz, Native
+Debug/Release. `--platform-check` emits 4,328 states identical to the benchmark;
+`--platform-physics-check` checks carrying/rolling/rest and reset;
+`--platform-controls-check` checks commands and buttons without implicit reset,
+including restarting after completion. `--platform-click-smoke` exercises clicks
+in the native window, with immediate motion, stopping, restarting and braking.
+`--platform-smoke` runs all four cases in the native window, checking platform,
+chassis, wheels, supports, framing and pause. Qualification covers horizontal
+translation, in neutral with no throttle; these four recipes do not prove
+free driving, rotating or dynamic supports, or general terrain.
