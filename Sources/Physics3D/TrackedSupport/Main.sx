@@ -1,0 +1,242 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Input.Events
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Scene3D
+use GFX.UI
+use GFX.Physics
+use Physics3D.TrackedSupport.Controls
+use Physics3D.TrackedDriving.Model
+use Physics3D.TrackedDriving.DynamicPlatform
+use Physics3D.ArticulatedPose.Controls as InputCheck
+use STD.Math
+use STD.Process
+
+class Rig {
+    var model:Model.TrackedModel
+    var previous:Physics.Transform3D=Physics.Transform3D()
+    var carrier:Physics.Transform3D=Physics.Transform3D()
+    var lengths:float[]=[]
+    var angles:float[]=[]
+    init(model:Model.TrackedModel) { self.model=model;self.remember() }
+    func remember() {
+        self.previous=copy self.model.vehicle.chassis().transform();self.carrier=copy self.model.ground.transform()
+        self.lengths.clear();self.angles.clear()
+        for i in [0,1,2,3,4,5] { self.lengths.append(self.model.vehicle.wheel(i).length);self.angles.append(self.model.vehicle.wheel(i).rotation_angle) }
+    }
+}
+class SupportScene {
+    var controls:Controls.SupportControls=Controls.SupportControls()
+    var rigs:Rig[]=[]
+    var ui:UI.Session
+    var panel:ECS.Entity=ECS.Entity()
+    var chassis:ECS.Entity=ECS.Entity()
+    var nose:ECS.Entity=ECS.Entity()
+    var platform:ECS.Entity=ECS.Entity()
+    var tires:ECS.Entity[]=[]
+    var spokes:ECS.Entity[]=[]
+    var springs:ECS.Entity[]=[]
+    var accumulator:float=0.0
+    var telemetry:float=0.0
+    var smoke:bool=false
+    var frames:int=0
+    var event:int=0
+    init() {
+        self.rigs=[Rig(DynamicPlatform.make(2)),Rig(DynamicPlatform.make(4)),Rig(Model.TrackedModel(recipe:6,automatic:true,platform:true))]
+        self.ui=UI.Session(self.controls.describe())
+    }
+}
+
+func labels(state:&SupportScene,simulation:@Application.Simulation) {
+    var name="Dynamique · 1000 kg";if state.controls.selected==1 { name="Dynamique · 200 kg" } else if state.controls.selected==2 { name="Cinématique · vitesse imposée" }
+    var phase="$(name)\nZ/S : impulsion · R seul : départ"
+    if simulation.is_paused() { phase="$(name)\nPAUSE · P pour reprendre" }
+    state.controls.status.set(phase)
+    var text="Vitesses véhicule / support (m/s)"
+    var i=0;for rig in state.rigs {
+        let v=Math.round(rig.model.vehicle.chassis().linear_velocity().z*100.0)/100.0
+        let u=Math.round(rig.model.ground.linear_velocity().z*100.0)/100.0
+        var label="1000 kg";if i==1 { label="200 kg" } else if i==2 { label="Cinémat." }
+        text+="\n$(label) : $(v) / $(u)";i++
+    }
+    state.controls.metrics.set(text)
+    var brake="Frein libre (G)";if state.controls.brake { brake="Frein serré (G)" } state.controls.brake_text.set(brake)
+}
+func perform(state:&SupportScene,simulation:&Application.Simulation) {
+    while state.controls.resets>0 {
+        state.controls.resets--;state.controls.kicks.clear()
+        for rig in state.rigs { rig.model.reset(6);rig.remember() }
+        state.accumulator=0.0;simulation.resume()
+    }
+    for direction in state.controls.kicks {
+        for rig in state.rigs {
+            var support=rig.model.ground
+            if rig.model.dynamic_mass>0.0 { support.apply_impulse(Math.Vec3(0.0,0.0,2.0*rig.model.dynamic_mass*direction as float)) }
+            else { support.set_linear_velocity(support.linear_velocity().add(Math.Vec3(0.0,0.0,2.0*direction as float))) }
+        }
+    }
+    state.controls.kicks.clear()
+    while state.controls.pauses>0 { state.controls.pauses--;if simulation.is_paused() { simulation.resume() } else { simulation.pause() } }
+}
+func advance(state:&SupportScene,simulation:@Application.Simulation,delta:float) {
+    if simulation.is_paused() { return }
+    state.accumulator+=delta
+    while state.accumulator>=1.0/120.0 {
+        var brake=0.0;if state.controls.brake { brake=1.0 }
+        for rig in state.rigs { rig.remember();rig.model.drive(0.0,brake:brake) }
+        state.accumulator-=1.0/120.0
+    }
+}
+func visual(world:&Resources.World,mesh:Scene3D.MeshHandle,size:Math.Vec3,color:Color) ECS.Entity {
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(scale:size))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.7)))
+}
+func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&SupportScene,simulation:&Application.Simulation) {
+    let cube=meshes.add(Scene3D.Geometry.Cube.make());let wheel=meshes.add(Scene3D.Geometry.Cylinder.make(0.3,0.4))
+    state.chassis=visual(world,cube,Math.Vec3(1.4,0.4,2.4),Color.bytes(222,177,71))
+    state.nose=visual(world,cube,Math.Vec3(1.2,0.1,0.03),Color.bytes(250,245,180))
+    state.platform=visual(world,cube,Model.platform_size(),Color.bytes(65,130,190))
+    let floor=visual(world,cube,Math.Vec3(200.0,0.2,200.0),Color.bytes(50,64,82))
+    world.update<Components.Transform3D>(floor,func(t:&Components.Transform3D) { t.position=Math.Vec3(0.0,-0.5,0.0) })
+    for i in [0,1,2,3,4,5] {
+        state.tires.append(visual(world,wheel,Math.Vec3(1.0),Color.bytes(30,36,44)))
+        state.spokes.append(visual(world,cube,Math.Vec3(0.045,0.45,0.06),Color.bytes(250,130,65)))
+        state.springs.append(visual(world,cube,Math.Vec3(0.045,0.6,0.045),Color.bytes(240,240,245)))
+    }
+    var i= -25;while i<=25 {
+        let x=visual(world,cube,Math.Vec3(50.0,0.006,0.015),Color.bytes(95,112,133))
+        let z=visual(world,cube,Math.Vec3(0.015,0.006,50.0),Color.bytes(95,112,133))
+        world.update<Components.Transform3D>(x,func(t:&Components.Transform3D) { t.position=Math.Vec3(0.0,-0.396,i as float) })
+        world.update<Components.Transform3D>(z,func(t:&Components.Transform3D) { t.position=Math.Vec3(i as float,-0.396,0.0) });i++
+    }
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.55)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5)))
+    simulation.resume();labels(state,simulation)
+    state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform())
+        ..with(Scene2D.Canvas(state.ui.drawing(300,400),300,400) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+            ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+}
+func blend(previous:Physics.Transform3D,current:Physics.Transform3D,alpha:float) Physics.Transform3D {
+    var rotation=current.rotation;if previous.rotation.dot(rotation)<0.0 { rotation=rotation.multiply(-1.0) }
+    return Physics.Transform3D(previous.position.lerp(current.position,alpha),previous.rotation.multiply(1.0-alpha).add(rotation.multiply(alpha)).normalized())
+}
+func camera_settings() Plugins.ViewportCamera3D.Settings {
+    return Plugins.ViewportCamera3D.Settings() ..target=Math.Vec3(0.0,1.5,0.0) ..vertical_fov=0.9
+        ..distance=15.0 ..yaw=Math.radians(-35.0) ..pitch=Math.radians(-25.0)
+        ..zoom_speed=0.0 ..scroll_zoom_speed=0.0 ..orbit_sensitivity=0.0 ..pan_sensitivity=0.0
+}
+func render_scene(world:&Resources.World,state:@SupportScene,camera:&Resources.ViewportCamera3D) {
+    let rig=@state.rigs[state.controls.selected];let model=rig.model
+    let alpha=Math.clamp(state.accumulator*120.0,0.0,1.0)
+    let pose=blend(rig.previous,model.vehicle.chassis().transform(),alpha)
+    let carrier=blend(rig.carrier,model.ground.transform(),alpha)
+    world.update<Components.Transform3D>(state.chassis,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
+    world.update<Components.Transform3D>(state.nose,func(t:&Components.Transform3D) { t.position=pose.point(Math.Vec3(0.0,0.0,1.21));t.rotation=pose.rotation })
+    world.update<Components.Transform3D>(state.platform,func(t:&Components.Transform3D) { t.position=carrier.position;t.rotation=carrier.rotation })
+    for i in [0,1,2,3,4,5] {
+        let settings=model.vehicle.wheel_settings(i);let wheel=model.vehicle.wheel(i)
+        let length=rig.lengths[i]+alpha*(wheel.length-rig.lengths[i])
+        let center=pose.point(settings.position.add(settings.direction.multiply(length)))
+        let angle=rig.angles[i]+alpha*Math.remainder(wheel.rotation_angle-rig.angles[i],Math.two_pi())
+        let spin=pose.rotation.multiply(Math.Quat.angle_axis(angle,Math.Vec3.right()))
+        world.update<Components.Transform3D>(state.tires[i],func(t:&Components.Transform3D) { t.position=center;t.rotation=spin.multiply(Math.Quat.angle_axis(Math.half_pi(),Math.Vec3.back())) })
+        world.update<Components.Transform3D>(state.spokes[i],func(t:&Components.Transform3D) { var side= -0.21;if i>=3 { side=0.21 } t.position=center.add(pose.rotation.rotate(Math.Vec3(side,0.0,0.0)));t.rotation=spin })
+        world.update<Components.Transform3D>(state.springs[i],func(t:&Components.Transform3D) { t.position=pose.point(settings.position.add(settings.direction.multiply(length*0.5)));t.rotation=pose.rotation;t.scale=Math.Vec3(0.045,Math.max(0.001,length),0.045) })
+        if state.smoke { assert(world.get<Components.Transform3D>(state.tires[i]).position.nearly_equal(center,0.00001)) }
+    }
+    camera.set_target(pose.position.add(carrier.position).multiply(0.5).add(Math.Vec3(0.0,1.5,0.0)))
+    let view=camera.transform()
+    if world.is_alive(camera.entity()) { world.update<Components.Transform3D>(camera.entity(),func(t:&Components.Transform3D) { t.position=view.position;t.rotation=view.rotation }) }
+    if state.smoke {
+        assert(world.get<Components.Transform3D>(state.chassis).position.nearly_equal(pose.position,0.00001))
+        assert(world.get<Components.Transform3D>(state.platform).position.nearly_equal(carrier.position,0.00001))
+        let projected=Scene3D.Camera(vertical_fov:0.9).project(pose.position,Scene3D.Transform(view.position,view.rotation),Math.Vec2(1280.0,800.0))!
+        assert(projected.x>320.0 && projected.x<1260.0 && projected.y>20.0 && projected.y<780.0)
+    }
+}
+func render(world:&Resources.World,state:&SupportScene,camera:&Resources.ViewportCamera3D) {
+    render_scene(world,state,camera)
+    if state.smoke { state.frames++ }
+}
+func click(state:&SupportScene,simulation:&Application.Simulation,x:float,y:float) { InputCheck.click(state.ui,x,y);perform(state,simulation) }
+func ticks(state:&SupportScene,simulation:@Application.Simulation,count:int) { var i=0;while i<count { advance(state,simulation,1.0/120.0);i++ } }
+func verify_controls() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=SupportScene();var simulation=Application.Simulation()
+    startup(world,meshes,state,simulation);ticks(state,simulation,240)
+    var body=state.rigs[0].model.vehicle.chassis();var light=state.rigs[1].model.vehicle.chassis()
+    let pose=copy body.transform();let clock=copy state.rigs[0].model.steps
+    click(state,simulation,220.0,108.0);assert(state.controls.selected==1)
+    click(state,simulation,80.0,146.0);assert(state.controls.selected==2)
+    click(state,simulation,80.0,108.0);assert(state.controls.selected==0 && body.transform()==pose && state.rigs[0].model.steps==clock)
+    click(state,simulation,80.0,184.0)
+    assert(body.transform()==pose && body.linear_velocity().length()<0.001)
+    for rig in state.rigs { assert(Math.abs(rig.model.ground.linear_velocity().z-2.0)<0.001 && rig.model.steps==clock) }
+    ticks(state,simulation,120)
+    assert(Math.abs(body.linear_velocity().z-2000.0/1100.0)<0.03 && Math.abs(light.linear_velocity().z-400.0/300.0)<0.03)
+    assert(state.rigs[0].model.ground.linear_velocity().z<1.9 && state.rigs[1].model.ground.linear_velocity().z<1.5)
+    assert(state.rigs[2].model.ground.linear_velocity().z==2.0)
+    click(state,simulation,220.0,184.0);ticks(state,simulation,240)
+    for rig in state.rigs { assert(rig.model.vehicle.chassis().linear_velocity().length()<0.05) }
+    click(state,simulation,220.0,146.0);assert(!state.controls.brake)
+    click(state,simulation,80.0,184.0);ticks(state,simulation,180)
+    for rig in state.rigs { assert(rig.model.ground.linear_velocity().z-rig.model.vehicle.chassis().linear_velocity().z>1.0) }
+    let held=copy body.transform();let time=copy state.rigs[0].model.steps
+    click(state,simulation,220.0,222.0);ticks(state,simulation,20)
+    assert(simulation.is_paused() && body.transform()==held && state.rigs[0].model.steps==time)
+    click(state,simulation,220.0,108.0);assert(state.controls.selected==1 && simulation.is_paused())
+    click(state,simulation,80.0,222.0)
+    assert(!body.is_valid() && !light.is_valid() && state.rigs[0].model.steps==0 && !simulation.is_paused() && !state.controls.brake)
+    assert(state.controls.handle(InputCheck.key_event(Input.Key.z,122 as uint32)));perform(state,simulation)
+    assert(state.controls.kicks.count()==0 && state.rigs[0].model.ground.linear_velocity().z==2.0)
+    assert(!state.controls.handle(InputCheck.key_event(Input.Key.z,122 as uint32,true)))
+    print("Support controls: real UI selection, immediate reciprocal impulses, free tracks, pause, retained clocks and explicit reset verified")
+}
+func smoke_inputs(state:&SupportScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    let step=copy state.rigs[0].model.steps
+    if step>=240 && state.event==0 { click(state,simulation,80.0,184.0);state.event++ }
+    if step>=360 && state.event==1 { click(state,simulation,220.0,108.0);assert(state.controls.selected==1);state.event++ }
+    if step>=420 && state.event==2 { click(state,simulation,80.0,146.0);assert(state.controls.selected==2);state.event++ }
+    if step>=480 && state.event==3 { click(state,simulation,220.0,184.0);state.event++ }
+    if step>=720 && state.event==4 { click(state,simulation,220.0,146.0);click(state,simulation,80.0,108.0);click(state,simulation,80.0,184.0);state.event++ }
+    if step>=840 && state.event==5 { click(state,simulation,220.0,108.0);state.event++ }
+    if step>=900 && state.event==6 { click(state,simulation,80.0,146.0);state.event++ }
+    if step>=960 && state.event==7 { click(state,simulation,220.0,184.0);state.event++ }
+    if step>=1200 {
+        assert(state.event==8 && state.frames>0 && !state.controls.brake)
+        for rig in state.rigs { assert(rig.model.vehicle.is_valid() && rig.model.supports()==6 && rig.model.vehicle.chassis().linear_velocity().length()<0.05) }
+        print("Dynamic support smoke: three retained worlds, real clicks, locked/free reciprocal response, rendered chassis/platform/wheels and camera verified")
+        controller.stop()
+    }
+}
+func update(world:&Resources.World,input:@Resources.InputState,state:&SupportScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if state.smoke { smoke_inputs(state,simulation,controller) }
+    else { for event in input.events() { if !state.controls.handle(event) { let handled=state.ui.handle(event) } } perform(state,simulation) }
+    advance(state,simulation,simulation.delta());state.telemetry+=simulation.delta()
+    if state.telemetry>=0.1 { state.telemetry=0.0;labels(state,simulation) }
+    if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(300,400)) }) }
+}
+test "dynamic support scene acts immediately and only R resets the experiment" { verify_controls() }
+func main() {
+    var smoke=false
+    for argument in Process.arguments() {
+        if argument=="--witness" { DynamicPlatform.witness();return }
+        if argument=="--physics-check" { DynamicPlatform.verify();return }
+        if argument=="--controls-check" { verify_controls();return }
+        if argument=="--smoke" { smoke=true }
+    }
+    var state=SupportScene();state.smoke=smoke;var title="Chenilles — réaction du support"
+    if smoke { title="TEST AUTOMATIQUE — support dynamique — fermeture à la fin" }
+    Application() ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.ViewportCamera3D(camera_settings()))
+        ..add_system(Application.Schedule.startup,startup)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}

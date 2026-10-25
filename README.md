@@ -1155,3 +1155,10 @@ compares locked tracks carried by a translating support with free rollers.
 Run the example with `-- --platform`; click B/F to move immediately for 2 s,
 or M to start/stop the selected axis. G changes the holding brake in place;
 a completed movement can be restarted with one click. R alone resets.
+
+### Tracked vehicles on finite-mass supports
+
+[Tracked support reaction](Sources/Physics3D/TrackedSupport/README.md) compares
+200/1000 kg platforms with a prescribed-speed support. View selection, impulses
+and braking preserve all three worlds; R alone resets.
+[Guide français](Sources/Physics3D/TrackedSupport/README.fr.md).

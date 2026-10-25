@@ -1,0 +1,60 @@
+use GFX.Color
+use GFX.Input
+use GFX.Input.Events
+use GFX.UI
+
+package class SupportControls {
+    var selected:int=0
+    var brake:bool=true
+    var kicks:int[]=[]
+    var resets:int=0
+    var pauses:int=0
+    var status:UI.State<str> =UI.State<str>("")
+    var metrics:UI.State<str> =UI.State<str>("")
+    var brake_text:UI.State<str> =UI.State<str>("Frein serré (G)")
+    func heavy() { self.selected=0 }
+    func light() { self.selected=1 }
+    func kinematic() { self.selected=2 }
+    func forward() { self.kicks.append(1) }
+    func backward() { self.kicks.append(-1) }
+    func toggle_brake() { self.brake=!self.brake }
+    func reset() { self.resets++ }
+    func pause() { self.pauses++ }
+    func button(text:str,action:func()) UI.Button {
+        var button=UI.Button(text,action);button.style.width=132.0;button.style.height=32.0
+        button.style.background=Color.slate_700();button.style.radius=5.0;return button
+    }
+    func braking(reads:UI.Reads) UI.View { return self.button(reads.read(self.brake_text),self.toggle_brake) }
+    func phase(reads:UI.Reads) UI.View { var text=UI.Text(reads.read(self.status));text.style.height=48.0;return text }
+    func speeds(reads:UI.Reads) UI.View { var text=UI.Text(reads.read(self.metrics));text.style.height=76.0;return text }
+    func row(first:UI.View,second:UI.View) UI.Row { var row=UI.Row([first,second]);row.style.gap=8.0;return row }
+    func describe() UI.View {
+        var title=UI.Text("Chenilles — support mobile");title.style.height=26.0
+        var help=UI.Text("Choisir une vue, puis pousser.\nTous les supports évoluent ensemble.");help.style.height=40.0
+        var root=UI.Column([title,help,
+            self.row(self.button("1000 kg (1)",self.heavy),self.button("200 kg (2)",self.light)),
+            self.row(self.button("Cinématique (3)",self.kinematic),UI.Reactive(self.braking)),
+            self.row(self.button("Pousser +Z (Z)",self.forward),self.button("Pousser −Z (S)",self.backward)),
+            self.row(self.button("Départ (R)",self.reset),self.button("Pause (P)",self.pause)),
+            UI.Reactive(self.phase),UI.Reactive(self.speeds)])
+        root.style.padding=UI.Insets(12.0);root.style.gap=6.0;root.style.background=Color.slate_900().with_alpha(0.94)
+        root.style.foreground=Color.slate_100();root.style.radius=8.0;return root
+    }
+    func handle(event:@Events.Event) bool {
+        match event {
+            key_pressed(key)=> {
+                if key.repeated { return false }
+                if key.keycode==49 as uint32 { self.heavy();return true }
+                if key.keycode==50 as uint32 { self.light();return true }
+                if key.keycode==51 as uint32 { self.kinematic();return true }
+                if key.keycode==122 as uint32 || key.keycode==90 as uint32 || (key.keycode==0 as uint32 && key.key==Input.Key.z) { self.forward();return true }
+                if key.keycode==115 as uint32 || key.keycode==83 as uint32 || (key.keycode==0 as uint32 && key.key==Input.Key.s) { self.backward();return true }
+                if key.key==Input.Key.r { self.reset();return true }
+                if key.key==Input.Key.g { self.toggle_brake();return true }
+                if key.key==Input.Key.p { self.pause();return true }
+            }
+            else=>{}
+        }
+        return false
+    }
+}

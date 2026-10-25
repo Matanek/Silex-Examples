@@ -120,3 +120,7 @@ Ils ne sont pas intégrés automatiquement :
 Ces programmes restent utiles dans leur package tant qu'ils montrent surtout
 une API isolée ou une infrastructure, plutôt qu'une démonstration destinée à
 être présentée telle quelle.
+
+## Scènes de qualification physique
+
+- [Réaction du support chenillé](Sources/Physics3D/TrackedSupport/README.fr.md) : supports de 200/1000 kg et contrôle cinématique, impulsions immédiates et bandes libres.

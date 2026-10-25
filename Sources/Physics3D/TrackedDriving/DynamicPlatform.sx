@@ -1,0 +1,48 @@
+use GFX.Physics
+use Physics3D.TrackedDriving.Model
+use STD.Math
+
+package func make(scenario:int,rate:int=120) Model.TrackedModel {
+    var mass=1000.0;if scenario>=4 { mass=200.0 }
+    return Model.TrackedModel(recipe:6,rate:rate,automatic:true,platform:true,dynamic_mass:mass)
+}
+package func command(model:&Model.TrackedModel,scenario:int) {
+    if scenario>0 && (model.steps==2*model.rate || model.steps==4*model.rate) {
+        var strength=2.0*model.dynamic_mass;if model.steps==4*model.rate { strength= -strength }
+        var impulse=Math.Vec3(0.0,0.0,strength);if scenario==1 { impulse=Math.Vec3(strength,0.0,0.0) }
+        model.ground.apply_impulse(impulse)
+    }
+    var brake=1.0;if scenario==3 || scenario==5 { brake=0.0 }
+    model.drive(0.0,brake:brake)
+}
+func vector(value:Math.Vec3) str { return "$(value.x) $(value.y) $(value.z)" }
+package func observation(model:@Model.TrackedModel,scenario:int) str {
+    let carrier=model.ground.transform()
+    return model.observation("tracked-dynamic-platform",scenario)+" $(vector(carrier.position)) $(vector(model.ground.linear_velocity())) $(carrier.rotation.x) $(carrier.rotation.y) $(carrier.rotation.z) $(carrier.rotation.w) $(vector(model.ground.angular_velocity()))"
+}
+package func witness() {
+    for scenario in [0,1,2,3,4,5] { for rate in [60,120] {
+        var model=make(scenario,rate)
+        while true {
+            print(observation(model,scenario));if model.steps==6*rate { break }
+            command(model,scenario)
+        }
+    } }
+}
+package func verify() {
+    for scenario in [0,1,2,3,4,5] { for rate in [60,120] {
+        var model=make(scenario,rate)
+        while model.steps<6*rate { command(model,scenario);model.verify() }
+        assert(model.supports()==6 && model.world.body_count()==3)
+        var body=model.vehicle.chassis();var support=model.ground
+        assert(body.linear_velocity().length()<0.05 && support.linear_velocity().length()<0.05)
+        assert(body.angular_velocity().length()<0.05 && support.angular_velocity().length()<0.05)
+        assert(Math.abs(body.position().y-support.position().y-0.2-0.88365)<0.003)
+        assert(Math.abs(model.normal_force()-981.0)<2.0)
+        var vehicle=model.vehicle;model.reset(6)
+        assert(!vehicle.is_valid() && support.is_valid() && model.steps==0 && model.world.body_count()==3)
+        assert(support.transform()==Model.platform_pose() && support.linear_velocity()==Math.Vec3() && support.angular_velocity()==Math.Vec3())
+    } }
+    print("Dynamic platforms: six cases at60/120Hz, final support and explicit reset verified")
+}
+test "tracked dynamic platform retains reciprocal support and resets explicitly" { verify() }
