@@ -1,4 +1,4 @@
-# Drive two tracks with automatic shifting
+# Cross a ramp with two tracks and automatic shifting
 
 Drive continuously and observe three forward and reverse gears, torque
 interruptions and clutch engagement. Six suspensions, blue/orange spokes and
@@ -32,7 +32,8 @@ Inputs never impose chassis poses/velocities or wheel rotation.
 
 ## Observe gear changes
 
-The window starts on the flat plane. Hold Z to see 1/2/3 and the clutch open
+The window starts facing the ramp. **F**, then **R**, compare the same start
+on the flat plane; **B**, then **R**, restore the ramp. Hold Z to see 1/2/3 and the clutch open
 and engage again. Brake to observe downshifts and neutral. S drives through
 the same sequence in reverse. Keyboard driving modulates torque and track
 speed differences with vehicle speed, targeting about 9 m/s for maneuverability;
@@ -42,7 +43,10 @@ To run the qualified cycle without throttle modulation, enable **M**, then
 explicitly press **R** to start over: 2 s settling, 4 s at 80 % throttle and 10 s
 at 4 % braking, followed by holding at rest. It never restarts itself. The panel
 distinguishes the driver cycle from automatic shifting. R alone recreates the
-vehicle. The camera follows the chassis; grid spacing is one meter.
+vehicle. The camera follows the chassis; grid spacing is one meter. On the
+ramp the driver climbs, loses all six supports for about 0.39 s, lands and
+brakes to rest. The panel reports flight and recovered supports; green
+markers disappear during flight.
 
 ## Model and qualification
 
@@ -58,15 +62,22 @@ with opposing tracks. The scene reproduces the two forward/reverse cases
 exactly. Eight historical manual recipes, including ramp traversal, remain
 in automated tests with unchanged witnesses.
 
-B lets you explore the 8 × 0.4 × 6.03 m box tilted by 0.1 rad with the new profile.
-Automatic ramp parity is not qualified. These recipes do not prove prolonged
-high-speed straightness, general terrain, extreme braking or linked tracks.
+`TrackedAutomaticRampRun.py` also compares flat and ramp courses with automatic
+shifting at 60/120 Hz, Native Debug/Release. The scene exactly reproduces these
+two 16 s courses: an 8 × 0.4 × 6.03 m box tilted by 0.1 rad, ascent, flight,
+landing and rest. Shift sequences and clutch behavior remain qualified through
+this course. Already being in third gear during flight does not prove upshift
+inhibition without support; that retains its independent plane witnesses.
+
+These recipes do not prove prolonged high-speed straightness, general terrain,
+extreme braking or linked tracks.
 
 ## Verify
 
 ```sh
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --controls-check
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --automatic-physics-check
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --automatic-ramp-physics-check
 ```
 
 `--controls-check` checks held input, releases/focus, turns, braking, reverse,
@@ -80,3 +91,11 @@ checks 1/2/3/2/1/neutral, clutch, rest and profile retention through reset at 60
 `--live-smoke` runs 18 s of automatic continuous controls, terrain changes, driver,
 pause and manual takeover without a reset. Closing early does not pass these
 checks; the “TEST AUTOMATIQUE” windows close when complete.
+
+`--automatic-ramp-check` emits 5,764 flat/ramp states, byte-identical to the new
+qualified witness. `--automatic-ramp-physics-check` checks ascent, flight,
+landing and rest against the flat control at 60/120 Hz, then explicit reset.
+`--automatic-smoke` runs both courses in the native window, checking automatic
+shifting, wheels, support markers, camera and final pause. Switching to the
+second terrain explicitly recreates the vehicle in this test; interactive
+B/F and M continue retaining the vehicle.

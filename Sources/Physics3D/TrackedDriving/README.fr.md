@@ -1,4 +1,4 @@
-# Conduire deux chenilles avec une boîte automatique
+# Franchir une rampe avec deux chenilles et une boîte automatique
 
 Conduire en continu et observer les trois rapports avant et arrière, les
 interruptions de couple et l’engagement de l’embrayage. Les six suspensions,
@@ -33,7 +33,8 @@ châssis ou rotation de roue n’est imposée par les commandes.
 
 ## Voir les rapports changer
 
-La fenêtre démarre sur le plat. Maintenir Z pour voir 1/2/3 et l’embrayage
+La fenêtre démarre devant la rampe. **F**, puis **R**, permettent de comparer
+le même départ sur plat ; **B**, puis **R**, rétablissent la rampe. Maintenir Z pour voir 1/2/3 et l’embrayage
 s’ouvrir puis se refermer. Freiner ensuite pour observer les rétrogradages
 et le point mort. S entraîne les mêmes passages en marche arrière.
 La conduite au clavier module couple et différence des bandes avec la vitesse,
@@ -44,7 +45,10 @@ Pour voir le cycle qualifié sans moduler les gaz, activer **M**, puis **R**
 pour repartir explicitement du départ : 2 s de stabilisation, 4 s à 80 % de gaz et
 10 s de freinage à 4 %, puis maintien au repos. Il ne redémarre pas tout seul.
 Le panneau distingue « Pilote » et « boîte auto » ; R seul recrée le véhicule.
-La caméra suit le châssis et la grille indique des mètres.
+La caméra suit le châssis et la grille indique des mètres. Sur rampe, le
+pilote monte, quitte les six appuis pendant environ 0.39 s puis réceptionne
+avant de freiner jusqu’au repos. Le panneau indique le vol puis la reprise
+des appuis ; les repères verts disparaissent pendant le vol.
 
 ## Modèle et qualification
 
@@ -60,16 +64,23 @@ appui ou avec bandes opposées. La scène reproduit exactement les deux cas
 avant/arrière. Les huit recettes manuelles historiques, dont le franchissement
 de rampe, restent dans les tests avec leurs témoins inchangés.
 
-B permet d’explorer la boîte de 8 × 0.4 × 6.03 m inclinée de 0.1 rad avec ce nouveau
-profil. La parité automatique sur rampe n’est pas qualifiée. La rectitude
-prolongée à haute vitesse, les terrains généraux, le freinage extrême et les
-contacts de chenille à maillons ne sont pas prouvés par ces recettes.
+`TrackedAutomaticRampRun.py` compare en plus plat et rampe avec la boîte
+automatique à 60/120 Hz, Native Debug/Release. La scène reproduit exactement
+ces deux parcours de 16 s : boîte de 8 × 0.4 × 6.03 m inclinée de 0.1 rad,
+montée, vol, réception et retour au repos. Les séquences de rapports et
+l’embrayage restent qualifiés pendant ce parcours. Être déjà en troisième
+pendant le vol ne prouve pas l’interdiction de monter un rapport sans appui ;
+celle-ci garde ses témoins indépendants sur plan.
+
+La rectitude prolongée à haute vitesse, les terrains généraux, le freinage
+extrême et les contacts de chenille à maillons ne sont pas prouvés par ces recettes.
 
 ## Vérifier
 
 ```sh
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --controls-check
 silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --automatic-physics-check
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --automatic-ramp-physics-check
 ```
 
 `--controls-check` vérifie touches tenues, relâchement/focus, virages, freinage,
@@ -84,3 +95,11 @@ repos et conservation du profil lors du reset à 60/120 Hz.
 `--live-smoke` joue 18 s de commandes continues automatiques, terrain, pilote,
 pause et reprise manuelle sans reset. Une fermeture anticipée ne valide pas
 ces contrôles ; les fenêtres « TEST AUTOMATIQUE » se ferment à leur fin.
+
+`--automatic-ramp-check` émet 5 764 états plat/rampe, byte-identiques au nouveau
+témoin qualifié. `--automatic-ramp-physics-check` vérifie montée, vol,
+réception et repos contre le plat à 60/120 Hz, puis le reset explicite.
+`--automatic-smoke` joue ces deux parcours dans la fenêtre native avec boîte
+automatique, roues, marqueurs d’appui, caméra et pause finale contrôlés.
+Le passage au second terrain recrée explicitement le véhicule dans ce test ;
+les commandes interactives B/F et M continuent à conserver le véhicule.
