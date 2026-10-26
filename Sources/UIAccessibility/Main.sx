@@ -96,7 +96,7 @@ package class Model {
 }
 
 func presentation_settings(placed:bool) Viewer.CanvasSettings {
-    var settings = Viewer.CanvasSettings(width:780, height:820, title:"Silex — Accessibilité macOS J5")
+    var settings = Viewer.CanvasSettings(width:780, height:820, title:"Silex — Accessibilité macOS J5", show_fps:true)
     if placed {
         settings.position = Math.Vec2(24.0, 16.0); settings.anchor = Math.Vec2(0.05)
         settings.title = "Silex — Accessibilité macOS J5 · Placement ajusté"

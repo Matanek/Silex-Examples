@@ -132,6 +132,10 @@ drawing profile; toolkit tests check layout counts separately.
 
 ## Trace the real window
 
+The demo displays FPS in its title, both normally and with `--placed`, with or
+without tracing. The average render-loop rate updates at most twice per second
+and includes the real elapsed time of long stalls.
+
 `--trace-drag` retains the latest 4,096 loop samples in memory and writes CSV to
 stdout after the window closes. Redirect stdout to a file when launching the
 binary. Move the slider and then the separator, and close the window to obtain

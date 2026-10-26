@@ -137,6 +137,10 @@ séparément dans les tests du toolkit.
 
 ## Tracer la fenêtre réelle
 
+La démo affiche les FPS dans le titre, en mode normal comme avec `--placed`,
+avec ou sans trace. La moyenne de la boucle de rendu est actualisée au plus
+deux fois par seconde ; elle inclut le temps réel des ralentissements longs.
+
 L’option `--trace-drag` conserve en mémoire les 4 096 derniers passages dans la
 boucle et écrit un CSV sur stdout après la fermeture de la fenêtre. Redirigez
 stdout vers un fichier lors du lancement du binaire. Déplacez le slider puis
