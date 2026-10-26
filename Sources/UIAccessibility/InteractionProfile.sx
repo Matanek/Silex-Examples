@@ -8,7 +8,7 @@ use Module.Main.Model
 use Module.Main.named
 
 // CPU profile of the same form. No Viewer, SDL window or OS capture is opened.
-func observe(source:AX.Source, id:str) {
+package func observe(source:AX.Source, id:str) {
     let element = source.read(id)!
     var index = 0
     while index < element.child_count {

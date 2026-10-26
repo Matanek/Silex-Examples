@@ -130,6 +130,12 @@ The profile accepts `--bursts` to compare one and eight motions per drawing,
 including the host’s IME target queries. This complements the one-position-per-
 drawing profile; toolkit tests check layout counts separately.
 
+`PresenterProfile.sx` replays slider and scrolling separately, with and without
+observing the accessible tree. It times input, accessibility synchronization
+before drawing, drawing, Scene2D Canvas replacement and synchronization after
+drawing, in Viewer's order. This remains a CPU profile and opens neither a
+window nor a GPU device.
+
 ## Trace the real window
 
 The demo displays FPS in its title, both normally and with `--placed`, with or

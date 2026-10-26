@@ -1,0 +1,57 @@
+use GFX.UI
+use GFX.Accessibility as AX
+use GFX.Scene2D
+use STD.Math
+use STD.Time
+use Module.Main.Model
+use Module.Main.named
+use Module.InteractionProfile.observe
+
+// Replay the CPU stages in Viewer's actual order. No Window, SDL runner or GPU.
+func run(slider:bool, semantics:bool) {
+    var model = Model(); model.placed = true
+    var runtime = UI.Runtime(UI.Reactive(model.describe))
+    var drawing = runtime.drawing(780, 820); var source = runtime.accessibility()
+    let id = named(source, source.root()!, "Volume", AX.Role.slider)!
+    assert(source.perform(id, AX.Request(AX.Action.focus)))
+    drawing = runtime.drawing(780, 820)
+    if semantics { observe(source, source.root()!); let initial = source.changes() }
+    let bounds = source.read(id)!.bounds
+    let x = bounds.x + bounds.width * 0.5; let y = bounds.y + bounds.height * 0.5
+    var presented = Scene2D.Canvas(drawing, 780, 820)
+    if slider { runtime.pointer_pressed(Math.Vec2(x, y)) }
+    var input = 0.0; var before = 0.0; var paint = 0.0; var replace = 0.0; var after = 0.0
+    var clock = Time.Stopwatch()
+    var step = 0
+    while step < 90 {
+        var amount = step % 30
+        if step % 60 >= 30 { amount = 30 - amount }
+        clock.restart()
+        let updated = runtime.update(1.0 / 60.0)
+        if slider {
+            runtime.pointer_moved(Math.Vec2(bounds.x + 20.0 + amount as float * (bounds.width - 40.0) / 30.0, y))
+        } else {
+            var delta:float = -4.0
+            if step % 60 >= 30 { delta = 4.0 }
+            runtime.pointer_scrolled(Math.Vec2(30.0, 30.0), Math.Vec2(0.0, delta))
+        }
+        input += clock.get_elapsed_milliseconds()
+        clock.restart()
+        if semantics { let root = source.root(); let changes = source.changes() }
+        before += clock.get_elapsed_milliseconds()
+        clock.restart()
+        drawing = runtime.drawing(780, 820)
+        paint += clock.get_elapsed_milliseconds()
+        clock.restart()
+        presented.replace(drawing)
+        replace += clock.get_elapsed_milliseconds()
+        clock.restart()
+        if semantics { let root = source.root(); let changes = source.changes() }
+        after += clock.get_elapsed_milliseconds()
+        step++
+    }
+    if slider { runtime.pointer_released(Math.Vec2(x, y)) }
+    assert(presented.revision() > 1)
+    print("presenter slider=$(slider) semantics=$(semantics) n=90 input_ms=$(input) before_ms=$(before) paint_ms=$(paint) replace_ms=$(replace) after_ms=$(after)")
+}
+func main() { run(true, false); run(true, true); run(false, false); run(false, true) }

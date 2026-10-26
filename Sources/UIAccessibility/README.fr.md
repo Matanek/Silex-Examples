@@ -135,6 +135,12 @@ avec les requêtes de cible IME effectuées par l’hôte. Cette variante compl�
 le profil à une position par dessin ; les compteurs de layouts sont éprouvés
 séparément dans les tests du toolkit.
 
+`PresenterProfile.sx` rejoue séparément slider et défilement, avec et sans
+observation de l’arbre accessible. Il chronomètre les entrées, la synchronisation
+accessible avant dessin, le dessin, le remplacement du Canvas Scene2D et la
+synchronisation après dessin, dans l’ordre de Viewer. Ce profil reste CPU et
+n’ouvre ni fenêtre ni device GPU.
+
 ## Tracer la fenêtre réelle
 
 La démo affiche les FPS dans le titre, en mode normal comme avec `--placed`,
