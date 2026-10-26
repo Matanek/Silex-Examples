@@ -101,3 +101,9 @@ column uses the available space (`stretch_last_column:true`), removing the
 appearance of an empty column on the right. Resize handles appear on hover
 or focus; the divider remains visible through the rows. CPU mode verifies
 the same data and actions.
+
+`full_height_resize:true` is enabled in Équipe. Hover and drag the separator
+between Personne and Domaine from a row or the empty space below the rows to
+resize the first column without selecting a row. The handle and its feedback
+cover the body; the same handle remains available in the header and from the
+keyboard. The toolkit default stays false for header-only resizing.

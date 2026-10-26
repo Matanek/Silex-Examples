@@ -104,3 +104,10 @@ Le tableau affiche un séparateur continu entre ses deux colonnes. La dernière
 occupe l’espace disponible (`stretch_last_column:true`), sans fausse colonne
 vide à droite. Les poignées se révèlent au survol ou au focus ; la séparation
 reste visible dans les lignes. Le mode CPU vérifie les mêmes données et actions.
+
+L’option `full_height_resize:true` est activée dans Équipe. Survoler puis glisser
+le séparateur entre Personne et Domaine depuis une ligne, ou l’espace vide sous
+les lignes, redimensionne la première colonne sans sélectionner de ligne.
+La poignée et sa mise en évidence couvrent le corps ; la même poignée reste
+accessible dans l’en-tête et au clavier. La valeur par défaut du toolkit reste
+false pour conserver le choix d’une poignée limitée à l’en-tête.
