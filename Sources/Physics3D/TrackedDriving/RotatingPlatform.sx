@@ -10,37 +10,41 @@ package func make(rate:int=120) Model.TrackedModel {
     place(model);return model
 }
 package func reset(model:Model.TrackedModel) { model.reset(6);place(model) }
-package func command(model:&Model.TrackedModel,scenario:int) {
+package func command(model:&Model.TrackedModel,scenario:int,combined:bool=false) {
     var spin=0.0
     if scenario>0 && model.steps>=2*model.rate && model.steps<4*model.rate { spin=0.25;if scenario==2 { spin= -spin } }
     model.ground.set_angular_velocity(Math.Vec3(0.0,spin,0.0))
-    var brake=1.0;if scenario==3 { brake=0.0 }
+    var speed=0.0;if combined && spin!=0.0 { speed=2.0;if scenario==2 { speed= -speed } }
+    model.ground.set_linear_velocity(Math.Vec3(0.0,0.0,speed))
+    var brake=1.0;if scenario==3 && (!combined || (model.steps>=2*model.rate && model.steps<4*model.rate)) { brake=0.0 }
     model.drive(0.0,brake:brake)
 }
 func vector(value:Math.Vec3) str { return "$(value.x) $(value.y) $(value.z)" }
-package func observation(model:@Model.TrackedModel,scenario:int) str {
+package func observation(model:@Model.TrackedModel,scenario:int,combined:bool=false) str {
     let carrier=model.ground.transform()
-    return model.observation("tracked-rotating-platform",scenario)+" $(vector(carrier.position)) $(vector(model.ground.linear_velocity())) $(carrier.rotation.x) $(carrier.rotation.y) $(carrier.rotation.z) $(carrier.rotation.w) $(vector(model.ground.angular_velocity()))"
+    var prefix="tracked-rotating-platform";if combined { prefix="tracked-combined-platform" }
+    return model.observation(prefix,scenario)+" $(vector(carrier.position)) $(vector(model.ground.linear_velocity())) $(carrier.rotation.x) $(carrier.rotation.y) $(carrier.rotation.z) $(carrier.rotation.w) $(vector(model.ground.angular_velocity()))"
 }
-package func witness() {
+package func witness(combined:bool=false) {
     for scenario in [0,1,2,3] { for rate in [60,120] {
         var model=make(rate)
         while true {
-            print(observation(model,scenario))
+            print(observation(model,scenario,combined))
             if model.steps==6*rate { break }
-            command(model,scenario)
+            command(model,scenario,combined)
         }
     } }
 }
-package func verify() {
+package func verify(combined:bool=false) {
     for scenario in [0,1,2,3] { for rate in [60,120] {
         var model=make(rate)
-        while model.steps<6*rate { command(model,scenario);model.verify() }
+        while model.steps<6*rate { command(model,scenario,combined);model.verify() }
         var body=model.vehicle.chassis();var support=model.ground
         assert(model.supports()==6 && model.world.body_count()==2)
         assert(body.linear_velocity().length()<0.05 && body.angular_velocity().length()<0.05)
         assert(Math.abs(body.position().y-0.88365)<0.003 && Math.abs(model.normal_force()-981.0)<2.0)
-        assert(support.position()==Math.Vec3(0.0,-0.2,0.0) && support.angular_velocity()==Math.Vec3())
+        var z=0.0;if combined && scenario>0 { z=4.0;if scenario==2 { z= -z } }
+        assert(support.position().nearly_equal(Math.Vec3(0.0,-0.2,z),0.0001) && support.angular_velocity()==Math.Vec3() && support.linear_velocity()==Math.Vec3())
         var expected=0.5;if scenario==0 { expected=0.0 } else if scenario==2 { expected= -0.5 }
         let front=support.rotation().rotate(Math.Vec3.back())
         assert(Math.abs(Math.atan2(front.x,front.z)-expected)<0.0001)
@@ -48,6 +52,9 @@ package func verify() {
         assert(!vehicle.is_valid() && support.is_valid() && model.steps==0)
         assert(model.vehicle.chassis().position()==Math.Vec3(1.0,1.15,0.0) && support.transform()==Model.platform_pose())
     } }
-    print("Rotating platforms: four cases at60/120Hz, retained pivot, final support and explicit reset verified")
+    if combined { print("Combined platforms: four cases at60/120Hz, prescribed translation and rotation, final rest and explicit reset verified") }
+    else { print("Rotating platforms: four cases at60/120Hz, retained pivot, final support and explicit reset verified") }
 }
 test "tracked rotating platform transports through contacts and resets explicitly" { verify() }
+
+test "tracked combined platform transports through contacts and resets explicitly" { verify(true) }

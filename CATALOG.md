@@ -127,3 +127,5 @@ une API isolée ou une infrastructure, plutôt qu'une démonstration destinée �
 - [Réaction du support chenillé](Sources/Physics3D/TrackedSupport/README.fr.md) : supports de 200/1000 kg et contrôle cinématique, impulsions immédiates et bandes libres.
 
 - [Support chenillé tournant](Sources/Physics3D/TrackedSupport/README.fr.md#observer-le-transport-par-un-support-tournant) : rotations opposées, contrôle immobile et chenilles libres ou freinées.
+
+TrackedSupport also provides combined translation and rotation with `--combined`; [commands and scope](Sources/Physics3D/TrackedSupport/README.md#observe-a-support-translating-while-it-rotates).
