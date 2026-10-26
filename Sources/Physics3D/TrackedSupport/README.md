@@ -85,3 +85,50 @@ silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- -
 silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --rotation-witness
 silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --rotation-smoke
 ```
+
+## Observe a support translating while it rotates
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --combined
+```
+
+The three views now compare a support moving along +Z while rotating about +Y,
+its −Z/−Y mirror and a stationary control. The red marker follows the support’s
+actual center; the grid remains fixed in world space.
+
+- **Z / Lancer** sets both ±2 m/s and±0.25 rad/s on the moving supports.
+- **S / Arrêter** sets both velocities to zero without relocating the vehicles.
+- **1 / 2 / 3** only changes the view; **G** locks/frees the tracks.
+- **P** pauses/resumes; **R alone** resets; **Escape** exits.
+
+Wait for landing, then start with the brakes locked: contacts carry and rotate
+the vehicle. Stop, reset with R, free the tracks with G and start again to see
+the belts roll and relative movement develop. The 300×400 left panel displays
+four complete lines: Z speed in m/s followed by Y spin in rad/s, vehicle/support.
+It leaves the remaining viewport available. Actions are immediate and all
+three worlds retain their identities and clocks. Repeating Z does not add speed.
+
+The witness fixes the same four 6 s cases at 60/120 Hz as the combined benchmark:
+the support translates and rotates from 2 s to 4 s, then stops. The free case
+explicitly applies the brakes at 4 s to test final rest. All 4328 states match
+the standalone witness. The profile remains 12/4, with no imposed chassis
+animation. Transmitted point velocity combines support translation and
+rotation about its center.
+
+The support is finite. During prolonged free play the vehicle can leave the
+platform; R resets the experiment. This proof does not cover freely rotating
+finite-mass supports, arbitrary terrain or general driving across supports.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --combined-controls-check
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --combined-physics-check
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --combined-witness
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --hud-check
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --combined-smoke
+```
+
+Checks cover real clicks, point velocity, free/locked belts, pause and R as the
+only reset. The full HUD text is measured from actual Canvas commands in nine
+moving views. The combined smoke is labelled “TEST AUTOMATIQUE”, compares
+all three views, frees then reapplies the brakes before stopping and closes
+itself. It is not a comparative FPS measurement.

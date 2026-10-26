@@ -85,3 +85,53 @@ silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- -
 silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --rotation-witness
 silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --rotation-smoke
 ```
+
+## Observer un support qui avance tout en tournant
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --combined
+```
+
+Les trois vues comparent maintenant un support qui avance en +Z et tourne
+autour de +Y, son miroir −Z/−Y et un contrôle immobile. Le repère rouge suit
+le centre réel du support ; la grille reste fixe dans le monde.
+
+- **Z / Lancer** fixe simultanément ±2 m/s et±0.25 rad/s sur les deux supports.
+- **S / Arrêter** fixe leurs deux vitesses à zéro, sans replacer les véhicules.
+- **1 / 2 / 3** change seulement de vue ; **G** bloque/libère les bandes.
+- **P** pause/reprise ; **R seul** replace les expériences ; **Échap** quitte.
+
+Attendre la réception, puis lancer avec les freins serrés : le véhicule est
+transporté et tourne par ses contacts. Arrêter, repartir avec R, libérer G et
+relancer pour voir les bandes rouler et le mouvement relatif apparaître.
+Le panneau gauche de 300×400 affiche quatre lignes complètes : vitesse Z en m/s
+puis rotation Y en rad/s, véhicule/support. Le HUD laisse le reste de la vue
+disponible. Les commandes agissent immédiatement et les trois mondes gardent
+leurs identités et horloges. RépéterZ ne cumule pas les vitesses.
+
+Le témoin fixe les mêmes quatre cas de 6 s à 60/120 Hz que le benchmark combiné :
+le support avance et tourne entre 2 s et 4 s, puis s’arrête. Dans le cas libre,
+les freins sont serrés explicitement à 4 s pour tester le repos final. Les 4328
+états sont identiques au témoin autonome. Le profil reste 12/4, sans animation
+imposée du châssis. La vitesse transmise combine la translation du support
+et sa rotation autour de son centre.
+
+Le support reste une surface finie. En utilisation libre prolongée, le véhicule
+peut quitter la plateforme ; R ramène l’expérience au départ. Cette preuve
+ne couvre pas un support de masse finie tournant librement, le terrain
+arbitraire ou une conduite générale sur plusieurs supports.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --combined-controls-check
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --combined-physics-check
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --combined-witness
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --hud-check
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --combined-smoke
+```
+
+Les contrôles couvrent les vrais clics, la vitesse au point, les bandes libres
+ou verrouillées, la pause et R seul au départ. Le texte du HUD est mesuré dans
+les vraies commandes Canvas des neuf vues en mouvement. Le smoke combiné
+annonce « TEST AUTOMATIQUE », compare les trois vues, libère puis resserre
+les freins avant l’arrêt final et se ferme seul. Il ne constitue pas une
+mesure comparative de FPS.

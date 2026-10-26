@@ -1166,3 +1166,5 @@ and braking preserve all three worlds; R alone resets.
 [Rotating tracked support](Sources/Physics3D/TrackedSupport/README.md#observe-carrying-by-a-rotating-support)
 compares opposite kinematic rotations and a stationary control, with locked/free
 tracks and immediate actions: append `-- --rotation` to the TrackedSupport command.
+
+TrackedSupport also provides combined translation and rotation with `--combined`; [commands and scope](Sources/Physics3D/TrackedSupport/README.md#observe-a-support-translating-while-it-rotates).
