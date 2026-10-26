@@ -69,7 +69,9 @@ reste fixe dans le monde. Le panneau affiche les vitesses angulaires autour de Y
 Attendre la réception, lancer avec les freins serrés, puis comparer les deux
 sens. Le véhicule est entraîné en rotation. Arrêter avec S, repartir avec R,
 libérer G puis relancer : les bandes roulent et le mouvement relatif devient
-visible. Les trois simulations avancent ensemble ; changer de vue ne réinitialise
+visible. Un plan fixe de collision coïncide avec le dessus du sol quadrillé
+à y = −0.4 m : un véhicule qui quitte la plateforme retombe sur ce sol.
+Les trois simulations avancent ensemble ; changer de vue ne réinitialise
 rien. Lancer plusieurs fois fixe la même vitesse, sans l'accumuler.
 
 Le témoin fixe quatre cas de six secondes à 60/120 Hz : immobile, rotations
@@ -117,7 +119,8 @@ imposée du châssis. La vitesse transmise combine la translation du support
 et sa rotation autour de son centre.
 
 Le support reste une surface finie. En utilisation libre prolongée, le véhicule
-peut quitter la plateforme ; R ramène l’expérience au départ. Cette preuve
+peut quitter la plateforme et retomber sur le sol physique visible. R ramène
+l’expérience au départ en conservant ce sol. Cette preuve
 ne couvre pas un support de masse finie tournant librement, le terrain
 arbitraire ou une conduite générale sur plusieurs supports.
 
@@ -135,3 +138,12 @@ les vraies commandes Canvas des neuf vues en mouvement. Le smoke combiné
 annonce « TEST AUTOMATIQUE », compare les trois vues, libère puis resserre
 les freins avant l’arrêt final et se ferme seul. Il ne constitue pas une
 mesure comparative de FPS.
+
+Le contrôle sans fenêtre `--floor-check` lance la rotation puis libère les
+bandes, attend la sortie du support dans les deux sens et vérifie la réception
+sur les six roues, la hauteur finale, le repos et la conservation du sol aprèsR.
+Il couvre la rotation seule et le mouvement combiné.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --floor-check
+```

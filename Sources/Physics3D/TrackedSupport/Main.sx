@@ -55,6 +55,13 @@ class SupportScene {
         self.rotating=rotating || combined;self.combined=combined;self.controls=Controls.SupportControls(self.rotating,combined)
         if self.rotating { self.rigs=[Rig(RotatingPlatform.make()),Rig(RotatingPlatform.make()),Rig(RotatingPlatform.make())] }
         else { self.rigs=[Rig(DynamicPlatform.make(2)),Rig(DynamicPlatform.make(4)),Rig(Model.TrackedModel(recipe:6,automatic:true,platform:true))] }
+        for rig in self.rigs {
+            if rig.model.foundation==null {
+                rig.model.foundation=rig.model.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+                    ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..transform=Physics.Transform3D(Math.Vec3(0.0,-0.4,0.0))
+                    ..friction=1.0 ..restitution=0.0)
+            }
+        }
         self.ui=UI.Session(self.controls.describe())
     }
 }
@@ -279,6 +286,43 @@ func verify_rotation_controls(combined:bool=false) {
     if combined { print("Combined support controls: real clicks, prescribed point velocity, free tracks, retained worlds, pause and explicit reset verified") }
     else { print("Rotating support controls: real clicks, retained clocks, opposite rotations, locked/free response, pause and explicit reset verified") }
 }
+func verify_floor() {
+    for combined in [false,true] {
+        var world=Resources.World();var meshes=Resources.Meshes3D();var state=SupportScene(true,combined);var simulation=Application.Simulation()
+        startup(world,meshes,state,simulation);ticks(state,simulation,240)
+        click(state,simulation,80.0,184.0);click(state,simulation,220.0,146.0)
+        let sides:float[]=[-0.7,0.7];let heights:float[]=[-0.2,0.2];let ends:float[]=[-1.2,1.2]
+        var landed:bool[]=[false,false];var step=0;var lowest=1.0
+        while step<60*120 && (!landed[0] || !landed[1]) {
+            ticks(state,simulation,1);step++
+            for index in [0,1] {
+                var model=state.rigs[index].model;let pose=model.vehicle.chassis().transform()
+                for x in sides { for y in heights { for z in ends {
+                    let bottom=pose.point(Math.Vec3(x,y,z)).y;lowest=Math.min(lowest,bottom)
+                    if bottom< -0.45 { print("Floor missing: combined=$(combined), step=$(step), chassis bottom=$(bottom)") }
+                    assert(bottom>= -0.45)
+                } } }
+                var contacts=0
+                for wheel in [0,1,2,3,4,5] {
+                    var support=model.vehicle.wheel(wheel).support()
+                    if support!=null && model.foundation!=null && support!.same_body(model.foundation!) { contacts++ }
+                }
+                if contacts==6 { landed[index]=true }
+            }
+        }
+        assert(landed[0] && landed[1]);click(state,simulation,220.0,184.0);click(state,simulation,220.0,146.0);ticks(state,simulation,360)
+        for index in [0,1] {
+            var model=state.rigs[index].model;var body=model.vehicle.chassis()
+            assert(model.foundation!=null && model.world.body_count()==3)
+            assert(Math.abs(body.position().y-0.48365)<0.003 && Math.abs(model.normal_force()-981.0)<2.0)
+            assert(body.linear_velocity().length()<0.05 && body.angular_velocity().length()<0.05)
+        }
+        var floor=state.rigs[0].model.foundation!;var old=state.rigs[0].model.vehicle
+        click(state,simulation,80.0,222.0)
+        assert(!old.is_valid() && floor.is_valid() && state.rigs[0].model.foundation!.same_body(floor) && state.rigs[0].model.world.body_count()==3)
+        print("Support floor: combined=$(combined), both vehicles landed after$(step)ticks, minimum chassis corner=$(lowest), settled at0.48365m and floor retained through reset")
+    }
+}
 func verify_metric_ink(commands:@Canvas.Command[],drawing:Canvas,expected:str) int {
     var found=0
     for command in commands { match command {
@@ -342,9 +386,11 @@ test "support telemetry remains fully visible in the compact HUD" { verify_hud()
 test "dynamic support scene acts immediately and only R resets the experiment" { verify_controls() }
 test "rotating support scene acts without resetting any retained world" { verify_rotation_controls() }
 test "combined support scene composes point velocity without resetting worlds" { verify_rotation_controls(true) }
+test "vehicles leaving rotating or combined supports land on the visible floor" { verify_floor() }
 func main() {
     var smoke=false;var rotating=false;var combined=false
     for argument in Process.arguments() {
+        if argument=="--floor-check" { verify_floor();return }
         if argument=="--hud-check" { verify_hud();return }
         if argument=="--combined" { rotating=true;combined=true }
         if argument=="--combined-witness" { RotatingPlatform.witness(true);return }

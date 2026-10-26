@@ -116,7 +116,8 @@ animation. Transmitted point velocity combines support translation and
 rotation about its center.
 
 The support is finite. During prolonged free play the vehicle can leave the
-platform; R resets the experiment. This proof does not cover freely rotating
+platform and land on the visible physical floor, whose top is at y = −0.4 m.
+R resets the experiment while retaining that floor. This proof does not cover freely rotating
 finite-mass supports, arbitrary terrain or general driving across supports.
 
 ```sh
@@ -132,3 +133,12 @@ only reset. The full HUD text is measured from actual Canvas commands in nine
 moving views. The combined smoke is labelled “TEST AUTOMATIQUE”, compares
 all three views, frees then reapplies the brakes before stopping and closes
 itself. It is not a comparative FPS measurement.
+
+The headless `--floor-check` starts rotation then frees the tracks, waits for
+both directions to leave the support and checks landing on all six wheels,
+final height, rest and floor retention afterR. It covers pure rotation and
+combined motion.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --floor-check
+```
