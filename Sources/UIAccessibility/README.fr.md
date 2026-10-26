@@ -117,3 +117,15 @@ les en-têtes ni les conteneurs, et une cellule du tableau par ses coordonnées.
 Les mêmes identités servent à la hiérarchie et à ces accès indexés. Le mode CPU
 vérifie cette relation sur Équipe ; les tests AppKit vérifient sa traduction
 native sans fenêtre. Ces preuves ne remplacent pas un parcours lecteur d’écran.
+
+## Profil CPU des gestes
+
+Le libellé du volume utilise directement `Text(volume, format:...)` : déplacer
+le slider actualise ce texte sans reconstruire tout le formulaire. Les actions,
+le verrouillage et la source accessible conservent les mêmes états.
+
+[InteractionProfile.sx](InteractionProfile.sx) rejoue les gestes du slider et
+d’une colonne sur ce même modèle, sans fenêtre. Il distingue entrées, dessin,
+préparation Canvas et notifications accessibles, avec et sans observation de
+l’arbre complet. Ses mesures concernent le CPU ; elles ne mesurent ni le GPU,
+ni la présentation, ni les FPS de la fenêtre.

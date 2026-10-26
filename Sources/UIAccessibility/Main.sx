@@ -8,7 +8,7 @@ use GFX.Window
 use STD.Process
 use STD.Math
 
-class Model {
+package class Model {
     var placed:bool = false
     var name:UI.State<str> = UI.State<str>("Ada")
     var message:UI.State<str> = UI.State<str>("Aé👩‍💻中Z\nDeuxième ligne")
@@ -34,6 +34,7 @@ class Model {
         if value == "Linus" { return UI.Text("Systèmes") }
         return UI.Text("Langages")
     }
+    func volume_label(value:float) str { return "Volume : $(value) — plage de 10 à 20" }
     func describe(reads:UI.Reads) UI.View {
         var title = UI.Text("Accessibilité — macOS"); title.style.font_size = 28.0
         var slider = UI.Slider(self.volume, minimum:10.0, maximum:20.0)
@@ -73,7 +74,7 @@ class Model {
             UI.Label("Volume", slider),
             UI.Checkbox("Verrouiller le volume", self.locked, style:choices),
             UI.Text("Notifications : $(reads.read(self.notifications)) · Profil : $(profile)"),
-            UI.Text("Volume : $(reads.read(self.volume)) — plage de 10 à 20"),
+            UI.Text(self.volume, format:self.volume_label),
             UI.CollapsiblePanel("Fichiers", tree, self.details),
             UI.Text("Fichier sélectionné : $(reads.read(self.file) ?? "aucun")"),
             UI.Text("Équipe — 3 lignes, 2 colonnes"),
@@ -102,7 +103,7 @@ func presentation_settings(placed:bool) Viewer.CanvasSettings {
     return settings
 }
 
-func named(source:Accessibility.Source, id:str, name:str, role:Accessibility.Role) str? {
+package func named(source:Accessibility.Source, id:str, name:str, role:Accessibility.Role) str? {
     var semantics = source
     if let element = semantics.read(id) {
         if element.name == name && element.role == role { return id }

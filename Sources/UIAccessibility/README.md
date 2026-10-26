@@ -113,3 +113,15 @@ wrappers, and request a table cell by its coordinates. The hierarchy and indexed
 access use the same identities. CPU mode checks this relationship on Équipe;
 AppKit tests verify its native translation without a window. These proofs do
 not replace a screen-reader path.
+
+## Gesture CPU profile
+
+The volume label directly uses `Text(volume, format:...)`: moving the slider
+updates this text without rebuilding the entire form. Actions, locking and
+the accessible source retain the same state.
+
+[InteractionProfile.sx](InteractionProfile.sx) replays slider and column gestures
+on this same model without a window. It separates input, drawing, Canvas
+preparation and accessibility notifications, with and without observation of
+the entire tree. Its measurements cover CPU work; they measure neither the GPU,
+presentation nor window FPS.

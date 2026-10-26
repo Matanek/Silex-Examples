@@ -1,0 +1,61 @@
+use GFX.UI
+use GFX.Accessibility as AX
+use GFX.Canvas
+use STD.Math
+use STD.Time
+use Module.Main.Model
+use Module.Main.named
+
+// CPU profile of the same form. No Viewer, SDL window or OS capture is opened.
+func observe(source:AX.Source, id:str) {
+    let element = source.read(id)!
+    var index = 0
+    while index < element.child_count {
+        if let child = source.child(id, index) { observe(source, child) }
+        index++
+    }
+}
+func run(slider:bool, semantics:bool) {
+    var model = Model(); var runtime = UI.Runtime(UI.Reactive(model.describe))
+    var drawing = runtime.drawing(780, 820); var source = runtime.accessibility()
+    var id = named(source, source.root()!, "Volume", AX.Role.slider)!
+    if !slider { id = named(source, source.root()!, "", AX.Role.separator)! }
+    assert(source.perform(id, AX.Request(AX.Action.focus)))
+    drawing = runtime.drawing(780, 820)
+    if semantics { observe(source, source.root()!); let initial = source.changes() }
+    let bounds = source.read(id)!.bounds
+    assert(bounds.width > 0.0 && bounds.height > 0.0)
+    let x = bounds.x + bounds.width * 0.5; let y = bounds.y + bounds.height * 0.5
+    assert(runtime.pointer_pressed(Math.Vec2(x, y)))
+    var input = 0.0; var paint = 0.0; var prepare = 0.0; var accessible = 0.0
+    var clock = Time.Stopwatch()
+    var step = 0
+    while step < 90 {
+        var amount = step % 30
+        if step % 60 >= 30 { amount = 30 - amount }
+        var position = x + amount as float * 2.0
+        if slider { position = bounds.x + 24.0 + amount as float * (bounds.width - 48.0) / 30.0 }
+        clock.restart()
+        let updated = runtime.update(1.0 / 60.0)
+        let moved = runtime.pointer_moved(Math.Vec2(position, y))
+        input += clock.get_elapsed_milliseconds()
+        clock.restart()
+        drawing = runtime.drawing(780, 820)
+        paint += clock.get_elapsed_milliseconds()
+        clock.restart()
+        var prepared = drawing.prepared(780, 820)
+        prepare += clock.get_elapsed_milliseconds()
+        if semantics {
+            clock.restart()
+            let changes = source.changes()
+            accessible += clock.get_elapsed_milliseconds()
+        }
+        step++
+    }
+    assert(runtime.pointer_released(Math.Vec2(x, y)))
+    if slider { assert(model.volume.value() > 10.0 && model.volume.value() < 20.0) }
+    print("profile slider=$(slider) semantics=$(semantics) n=90 input_ms=$(input) paint_ms=$(paint) prepare_ms=$(prepare) accessibility_ms=$(accessible)")
+}
+func main() {
+    run(true, false); run(true, true); run(false, false); run(false, true)
+}
