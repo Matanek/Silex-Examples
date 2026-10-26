@@ -3,6 +3,7 @@ use GFX.Accessibility as AX
 use GFX.Canvas
 use STD.Math
 use STD.Time
+use STD.Process
 use Module.Main.Model
 use Module.Main.named
 
@@ -15,7 +16,7 @@ func observe(source:AX.Source, id:str) {
         index++
     }
 }
-func run(slider:bool, semantics:bool) {
+func run(slider:bool, semantics:bool, packets:int = 1, text_target:bool = false) {
     var model = Model(); var runtime = UI.Runtime(UI.Reactive(model.describe))
     var drawing = runtime.drawing(780, 820); var source = runtime.accessibility()
     var id = named(source, source.root()!, "Volume", AX.Role.slider)!
@@ -37,7 +38,16 @@ func run(slider:bool, semantics:bool) {
         if slider { position = bounds.x + 24.0 + amount as float * (bounds.width - 48.0) / 30.0 }
         clock.restart()
         let updated = runtime.update(1.0 / 60.0)
-        let moved = runtime.pointer_moved(Math.Vec2(position, y))
+        var packet = 0
+        while packet < packets {
+            let moved = runtime.pointer_moved(Math.Vec2(position + packet as float * 0.1, y))
+            if text_target {
+                let accepts = runtime.accepts_text_input()
+                let target = runtime.text_input_target()
+                assert(!accepts && target == null)
+            }
+            packet++
+        }
         input += clock.get_elapsed_milliseconds()
         clock.restart()
         drawing = runtime.drawing(780, 820)
@@ -54,8 +64,15 @@ func run(slider:bool, semantics:bool) {
     }
     assert(runtime.pointer_released(Math.Vec2(x, y)))
     if slider { assert(model.volume.value() > 10.0 && model.volume.value() < 20.0) }
-    print("profile slider=$(slider) semantics=$(semantics) n=90 input_ms=$(input) paint_ms=$(paint) prepare_ms=$(prepare) accessibility_ms=$(accessible)")
+    print("profile slider=$(slider) semantics=$(semantics) n=90 packets=$(packets) text_target=$(text_target) input_ms=$(input) paint_ms=$(paint) prepare_ms=$(prepare) accessibility_ms=$(accessible)")
 }
 func main() {
+    for argument in Process.arguments() {
+        if argument == "--bursts" {
+            run(true, false, 1, true); run(true, false, 8, true)
+            run(false, false, 1, true); run(false, false, 8, true)
+            return
+        }
+    }
     run(true, false); run(true, true); run(false, false); run(false, true)
 }

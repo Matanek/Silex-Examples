@@ -1,4 +1,5 @@
 use GFX.UI
+use Module.InteractionTrace.TraceSession
 use GFX.Canvas
 use GFX.Accessibility
 use GFX.Viewer
@@ -270,13 +271,22 @@ test "the placed accessibility page and field stay inside the resized window" { 
 
 func main() {
     var placed = false
+    var trace = false
     for argument in Process.arguments() {
         if argument == "--cpu-check" { check_cpu(); check_cpu(true); check_placed_geometry(); return }
         if argument == "--placed" { placed = true }
+        if argument == "--trace-drag" { trace = true }
     }
     var model = Model()
     model.placed = placed
     var session = UI.Session(UI.Reactive(model.describe))
+    if trace {
+        var traced = TraceSession(session)
+        let code = Viewer.show(traced, presentation_settings(placed))
+        traced.report()
+        if code != 0 { panic("Accessibility viewer failed") }
+        return
+    }
     let code = Viewer.show(session, presentation_settings(placed))
     if code != 0 { panic("Accessibility viewer failed") }
 }

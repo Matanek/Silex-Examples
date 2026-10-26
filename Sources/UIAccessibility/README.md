@@ -125,3 +125,20 @@ on this same model without a window. It separates input, drawing, Canvas
 preparation and accessibility notifications, with and without observation of
 the entire tree. Its measurements cover CPU work; they measure neither the GPU,
 presentation nor window FPS.
+
+The profile accepts `--bursts` to compare one and eight motions per drawing,
+including the host’s IME target queries. This complements the one-position-per-
+drawing profile; toolkit tests check layout counts separately.
+
+## Trace the real window
+
+`--trace-drag` retains the latest 4,096 loop samples in memory and writes CSV to
+stdout after the window closes. Redirect stdout to a file when launching the
+binary. Move the slider and then the separator, and close the window to obtain
+the trace.
+
+`interval_ms` measures elapsed time between updates; `delta_ms` is the delta
+provided by Viewer, clamped to 100 ms by the application. The trace counts
+events and times handle, update, drawing and IME queries. The rest of the
+interval includes rendering, native accessibility, waiting and scheduling; it
+is not isolated GPU time. Tracing is optional and preserves the default session.

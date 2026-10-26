@@ -1,0 +1,110 @@
+use GFX.UI
+use GFX.Canvas
+use GFX.Accessibility
+use GFX.Input.Events
+use GFX.Window
+use STD.Time
+
+struct Sample {
+    let index:int
+    let interval_ms:float
+    let delta_ms:float
+    let motions:int
+    let inputs:int
+    let handle_ms:float
+    let draws:int
+    let drawing_ms:float
+    let ime_queries:int
+    let ime_ms:float
+    let update_ms:float
+}
+
+// Optional diagnostic wrapper. Store samples in memory and print only after
+// Viewer returns; no file IO, native call or console output in the frame loop.
+package class TraceSession:Canvas.Session {
+    private var session:Canvas.Session
+    private var records:Sample[] = []
+    private var next:int = 0
+    private var index:int = 0
+    private var started:bool = false
+    private var frame_clock:Time.Stopwatch = Time.Stopwatch()
+    private var motions:int = 0
+    private var inputs:int = 0
+    private var handle_ms:float = 0.0
+    private var draws:int = 0
+    private var drawing_ms:float = 0.0
+    private var ime_queries:int = 0
+    private var ime_ms:float = 0.0
+    private var update_ms:float = 0.0
+    init(session:Canvas.Session) { self.session = session }
+    func drawing(width:int, height:int) Canvas {
+        var clock = Time.Stopwatch(); clock.start()
+        var drawing = self.session.drawing(width, height)
+        self.drawing_ms += clock.get_elapsed_milliseconds(); self.draws++
+        return drawing
+    }
+    func update(delta:float) bool {
+        if self.started {
+            let sample = Sample(index:self.index, interval_ms:self.frame_clock.get_elapsed_milliseconds(),
+                delta_ms:delta * 1000.0, motions:self.motions, inputs:self.inputs, handle_ms:self.handle_ms,
+                draws:self.draws, drawing_ms:self.drawing_ms, ime_queries:self.ime_queries,
+                ime_ms:self.ime_ms, update_ms:self.update_ms)
+            if self.records.count() < 4096 { self.records.append(sample) }
+            else { self.records[self.next] = sample }
+            self.next = (self.next + 1) % 4096; self.index++
+        }
+        self.frame_clock.restart()
+        self.started = true
+        self.motions = 0; self.inputs = 0; self.handle_ms = 0.0
+        self.draws = 0; self.drawing_ms = 0.0; self.ime_queries = 0
+        self.ime_ms = 0.0; self.update_ms = 0.0
+        var clock = Time.Stopwatch(); clock.start()
+        let changed = self.session.update(delta)
+        self.update_ms = clock.get_elapsed_milliseconds()
+        return changed
+    }
+    func handle(event:@Events.Event) bool {
+        self.inputs++
+        match event {
+            mouse_moved(value) => { self.motions++ }
+            else => {}
+        }
+        var clock = Time.Stopwatch(); clock.start()
+        let changed = self.session.handle(event)
+        self.handle_ms += clock.get_elapsed_milliseconds()
+        return changed
+    }
+    func accepts_text_input() bool { return self.session.accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? {
+        var clock = Time.Stopwatch(); clock.start()
+        let target = self.session.text_input_target()
+        self.ime_ms += clock.get_elapsed_milliseconds(); self.ime_queries++
+        return target
+    }
+    func pointer_cursor() Window.Cursor { return self.session.pointer_cursor() }
+    func accessibility_source() Accessibility.Source? { return self.session.accessibility_source() }
+    func record_count() int { return self.records.count() }
+    func report() {
+        print("ui_drag_trace,index,interval_ms,delta_ms,motions,inputs,handle_ms,draws,drawing_ms,ime_queries,ime_ms,update_ms")
+        for sample in self.records {
+            print("ui_drag_trace,$(sample.index),$(sample.interval_ms),$(sample.delta_ms),$(sample.motions),$(sample.inputs),$(sample.handle_ms),$(sample.draws),$(sample.drawing_ms),$(sample.ime_queries),$(sample.ime_ms),$(sample.update_ms)")
+        }
+    }
+}
+
+test "the optional frame trace preserves session editing focus and semantic source without a window" {
+    var value = UI.State<str>("Ada")
+    var session = UI.Session(UI.TextField(value), autofocus:true)
+    var trace = TraceSession(session)
+    var drawing = trace.drawing(300, 80)
+    let updated = trace.update(0.016)
+    let event = Events.Event.text_input(Events.TextInputEvent(window:Window.Id(value:1 as uint32),
+        text:"!", timestamp:Events.Timestamp(nanoseconds:0 as uint)))
+    assert(trace.handle(event) && value.value() == "Ada!")
+    drawing = trace.drawing(300, 80)
+    assert(trace.accepts_text_input() && trace.text_input_target() != null)
+    var source = trace.accessibility_source()!
+    assert(source.read(source.root()!)!.value == "Ada!")
+    let next = trace.update(0.020)
+    assert(trace.record_count() == 1 && trace.pointer_cursor() == Window.Cursor.standard)
+}

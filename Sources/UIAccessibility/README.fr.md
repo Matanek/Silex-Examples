@@ -129,3 +129,22 @@ d’une colonne sur ce même modèle, sans fenêtre. Il distingue entrées, dess
 préparation Canvas et notifications accessibles, avec et sans observation de
 l’arbre complet. Ses mesures concernent le CPU ; elles ne mesurent ni le GPU,
 ni la présentation, ni les FPS de la fenêtre.
+
+Le profil accepte `--bursts` pour comparer un et huit mouvements par dessin,
+avec les requêtes de cible IME effectuées par l’hôte. Cette variante complète
+le profil à une position par dessin ; les compteurs de layouts sont éprouvés
+séparément dans les tests du toolkit.
+
+## Tracer la fenêtre réelle
+
+L’option `--trace-drag` conserve en mémoire les 4 096 derniers passages dans la
+boucle et écrit un CSV sur stdout après la fermeture de la fenêtre. Redirigez
+stdout vers un fichier lors du lancement du binaire. Déplacez le slider puis
+le séparateur, et fermez la fenêtre pour obtenir la trace.
+
+`interval_ms` mesure le temps réel entre deux updates ; `delta_ms` est le delta
+transmis par Viewer, borné à 100 ms par l’application. La trace compte les
+événements et mesure handle, update, drawing et les requêtes IME. Le reste de
+l’intervalle inclut rendu, accessibilité native, attente et ordonnancement ; il
+ne représente pas un temps GPU isolé. La trace est optionnelle et ne change pas
+la session utilisée par défaut.
