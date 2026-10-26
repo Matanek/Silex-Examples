@@ -1168,3 +1168,5 @@ compares opposite kinematic rotations and a stationary control, with locked/free
 tracks and immediate actions: append `-- --rotation` to the TrackedSupport command.
 
 TrackedSupport also provides combined translation and rotation with `--combined`; [commands and scope](Sources/Physics3D/TrackedSupport/README.md#observe-a-support-translating-while-it-rotates).
+
+TrackedSupport compares finite-mass rotating platforms with imposed rotation using `--dynamic-rotation`; [controls and scope](Sources/Physics3D/TrackedSupport/README.md#compare-rotating-support-reactions).

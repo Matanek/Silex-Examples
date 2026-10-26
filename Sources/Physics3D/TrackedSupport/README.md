@@ -142,3 +142,51 @@ combined motion.
 ```sh
 silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --floor-check
 ```
+
+## Compare rotating support reactions
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --dynamic-rotation
+```
+
+Three worlds compare 1000 kg and 200 kg platforms with imposed rotation. The
+vehicle starts 2.5 m off center. The red marker follows the platform’s actual
+center, which can also move under the vehicle’s reaction. Every world has a
+physical floor matching the grid.
+
+- **Z** applies an angular impulse corresponding to +0.5 rad/s on the support
+  alone. **S** applies the opposite impulse. Impulses accumulate.
+- **1 / 2 / 3** compares masses and imposed speed without resetting.
+- **G** locks/frees tracks; **P** pauses/resumes; **R alone** resets;
+  **Escape** exits.
+
+Wait for landing, press Z once and compare views: the heavier support turns
+around 0.48 rad/s, the lighter around 0.43 rad/s, while the control keeps
+0.50 rad/s. The panel displays actual simulated vehicle/support spin. The
+vehicle adds rotational inertia, slowing the lighter platform more. S removes
+the momentum injected by one Z press; let the bodies settle. Reset with R,
+free the tracks with G and start again to compare free belts.
+
+An impulse does not prescribe a dynamic support’s future speed. The kinematic
+control instead changes its speed by ±0.5 rad/s. No vehicle angle is animated;
+positions and rotations come from the solver. Surfaces are finite: during
+prolonged free play the vehicle may leave the platform and land on the floor.
+
+The standalone witness fixes seven 6 s cases at 60/120 Hz: both directions
+per mass, stationary control, free tracks and imposed comparison. All 7574
+states match the TrackedDynamicRotation benchmark. Dynamic supports keep
+48/4 iterations, the control 12/4. Reset retains the floor. This workload does
+not qualify arbitrary terrain or large free overturning on a moving support.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --dynamic-rotation-controls-check
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --dynamic-rotation-physics-check
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --dynamic-rotation-witness
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --dynamic-rotation-smoke
+```
+
+Checks use real clicks and key events to verify inertia sharing, point transport,
+free belts, pause and R. The HUD stays 300×400 and its text is measured in
+twelve moving views. The “TEST AUTOMATIQUE” smoke compares all three worlds,
+frees then reapplies the brakes before the opposite impulse and closes itself.
+No measured FPS gain is claimed.

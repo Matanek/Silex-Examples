@@ -128,3 +128,5 @@ une API isolée ou une infrastructure, plutôt qu'une démonstration destinée �
 - [Support chenillé tournant](Sources/Physics3D/TrackedSupport/README.fr.md#observer-le-transport-par-un-support-tournant) : rotations opposées, contrôle immobile et chenilles libres ou freinées.
 
 TrackedSupport also provides combined translation and rotation with `--combined`; [commands and scope](Sources/Physics3D/TrackedSupport/README.md#observe-a-support-translating-while-it-rotates).
+
+TrackedSupport compares finite-mass rotating platforms with imposed rotation using `--dynamic-rotation`; [controls and scope](Sources/Physics3D/TrackedSupport/README.md#compare-rotating-support-reactions).

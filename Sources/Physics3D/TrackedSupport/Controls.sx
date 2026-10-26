@@ -6,7 +6,8 @@ use GFX.UI
 package class SupportControls {
     let rotating:bool
     let combined:bool
-    init(rotating:bool=false,combined:bool=false) { self.rotating=rotating || combined;self.combined=combined }
+    let dynamic_rotation:bool
+    init(rotating:bool=false,combined:bool=false,dynamic_rotation:bool=false) { self.rotating=rotating || combined || dynamic_rotation;self.combined=combined;self.dynamic_rotation=dynamic_rotation }
     var selected:int=0
     var brake:bool=true
     var kicks:int[]=[]
@@ -45,6 +46,12 @@ package class SupportControls {
         if self.combined {
             title=UI.Text("Chenilles — support combiné");title.style.height=26.0
             first="+Z / +Y (1)";second="−Z / −Y (2)"
+        }
+        if self.dynamic_rotation {
+            title=UI.Text("Chenilles — rotation libre");title.style.height=26.0
+            help=UI.Text("Comparer les masses et la rotation.\nG : bloquer ou libérer les chenilles.")
+            first="1000 kg (1)";second="200 kg (2)";third="Imposée (3)"
+            start="Impulsion +Y (Z)";stop="Impulsion −Y (S)"
         }
         var root=UI.Column([title,help,
             self.row(self.button(first,self.heavy),self.button(second,self.light)),
