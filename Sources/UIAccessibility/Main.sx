@@ -208,7 +208,10 @@ func check_cpu(placed:bool = false) {
     assert(model.details.value() && source.read(folder)!.expanded == false)
     let table = named(source, root, "Équipe", Accessibility.Role.table)!
     assert(source.read(table)!.row_count == 3 && source.read(table)!.column_count == 2)
-    let row = named(source, table, "", Accessibility.Role.row)!
+    var table_rows = source.rows(table)!
+    assert(table_rows.count() == 3 && table_rows.row(3) == null)
+    let row = table_rows.row(0)!
+    assert(row == named(source, table, "", Accessibility.Role.row)!)
     assert(source.read(row)!.row_index == 0 && source.read(row)!.child_count == 2)
     let cell = source.child(row, 1)!
     assert(source.read(cell)!.column_index == 1 && source.read(cell)!.row_index == 0)

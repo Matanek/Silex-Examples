@@ -111,3 +111,9 @@ les lignes, redimensionne la première colonne sans sélectionner de ligne.
 La poignée et sa mise en évidence couvrent le corps ; la même poignée reste
 accessible dans l’en-tête et au clavier. La valeur par défaut du toolkit reste
 false pour conserver le choix d’une poignée limitée à l’en-tête.
+
+L’inspecteur peut maintenant demander les lignes par `AXRows`, sans inclure
+les en-têtes ni les conteneurs, et une cellule du tableau par ses coordonnées.
+Les mêmes identités servent à la hiérarchie et à ces accès indexés. Le mode CPU
+vérifie cette relation sur Équipe ; les tests AppKit vérifient sa traduction
+native sans fenêtre. Ces preuves ne remplacent pas un parcours lecteur d’écran.

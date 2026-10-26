@@ -107,3 +107,9 @@ between Personne and Domaine from a row or the empty space below the rows to
 resize the first column without selecting a row. The handle and its feedback
 cover the body; the same handle remains available in the header and from the
 keyboard. The toolkit default stays false for header-only resizing.
+
+The inspector can now request rows through `AXRows`, excluding headers and
+wrappers, and request a table cell by its coordinates. The hierarchy and indexed
+access use the same identities. CPU mode checks this relationship on Équipe;
+AppKit tests verify its native translation without a window. These proofs do
+not replace a screen-reader path.
