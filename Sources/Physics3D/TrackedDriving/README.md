@@ -147,3 +147,39 @@ in the native window, with immediate motion, stopping, restarting and braking.
 chassis, wheels, supports, framing and pause. Qualification covers horizontal
 translation, in neutral with no throttle; these four recipes do not prove
 free driving, rotating or dynamic supports, or general terrain.
+
+## Extended driving with an explicit accuracy profile
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --long
+```
+
+Long mode uses 48 velocity/4 position iterations at 120 Hz. Its 20 s cycle settles
+for 2 s, accelerates for 8 s and brakes for 10 s. Press **M** or the pilot button to
+start from the current position. It reaches roughly 90 km/h and travels 176 m on
+the plane. **R alone** returns to the start. **ZQSD**, **Space** and **P** keep
+continuous driving, braking and pause; driving input takes over from the pilot.
+This workload uses flat terrain.
+
+The 300 × 400 HUD stays on the left; the camera and grid follow the vehicle.
+Body/wheel poses, suspension and gears come from simulation. Ordinary actions
+retain the vehicle and clock. M restarts the program without repositioning;
+R repeats the exact witness from rest. Other modes retain their solver profiles.
+
+The forward/reverse standalone witness has 7204 states at 60/120 Hz, matching the
+loaded subset of TrackedAutomaticLong. The 48/4 profile is qualified; the
+original 12/4 long workload still exceeds its 5 cm parity budget at about 7.04 cm.
+This scene does not resolve that 12/4 case or change the SDK. High-speed turns
+and arbitrary terrain are not qualified by this workload.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --long-check
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --long-physics-check
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --long-controls-check
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --long-smoke
+```
+
+The “TEST AUTOMATIQUE” smoke starts one full 20 s cycle through a real click,
+checks rendered poses and the moving camera/grid, then closes itself. Headless
+checks also cover HUD ink, clicks, pause, manual takeover and R. This accuracy
+profile increases iterations; the workload makes no measured FPS claim.
