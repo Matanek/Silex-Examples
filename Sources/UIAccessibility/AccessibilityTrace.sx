@@ -1,0 +1,85 @@
+use GFX.Accessibility as AX
+use GFX.UI
+use STD.Time
+
+package class SourceMetrics {
+    var calls:int = 0
+    var milliseconds:float = 0.0
+    func record(clock:@Time.Stopwatch) {
+        self.calls++
+        self.milliseconds += clock.get_elapsed_milliseconds()
+    }
+    func clear() { self.calls = 0; self.milliseconds = 0.0 }
+}
+
+class TracedRows:AX.Rows {
+    private var source:AX.Rows
+    private var metrics:SourceMetrics
+    init(source:AX.Rows, metrics:SourceMetrics) { self.source = source; self.metrics = metrics }
+    func count() int {
+        var clock = Time.Stopwatch(); clock.start()
+        let result = self.source.count(); self.metrics.record(clock); return result
+    }
+    func row(index:int) str? {
+        var clock = Time.Stopwatch(); clock.start()
+        let result = self.source.row(index); self.metrics.record(clock); return result
+    }
+}
+
+// Measure only the optional diagnostic session, without changing the Source
+// contract or installing timers in the default Viewer/UI path.
+package class TracedSource:AX.Source {
+    private var source:AX.Source
+    private var metrics:SourceMetrics
+    init(source:AX.Source, metrics:SourceMetrics) { self.source = source; self.metrics = metrics }
+    func root() str? {
+        var clock = Time.Stopwatch(); clock.start()
+        let result = self.source.root(); self.metrics.record(clock); return result
+    }
+    func focused() str? {
+        var clock = Time.Stopwatch(); clock.start()
+        let result = self.source.focused(); self.metrics.record(clock); return result
+    }
+    func read(id:str) AX.Element? {
+        var clock = Time.Stopwatch(); clock.start()
+        let result = self.source.read(id); self.metrics.record(clock); return result
+    }
+    func child(id:str, index:int) str? {
+        var clock = Time.Stopwatch(); clock.start()
+        let result = self.source.child(id, index); self.metrics.record(clock); return result
+    }
+    func rows(id:str) AX.Rows? {
+        var clock = Time.Stopwatch(); clock.start()
+        var result = self.source.rows(id); self.metrics.record(clock)
+        if var rows = result { return TracedRows(rows, self.metrics) }
+        return null
+    }
+    func perform(id:str, request:AX.Request) bool {
+        var clock = Time.Stopwatch(); clock.start()
+        let result = self.source.perform(id, request); self.metrics.record(clock); return result
+    }
+    func changes() AX.Change[] {
+        var clock = Time.Stopwatch(); clock.start()
+        let result = self.source.changes(); self.metrics.record(clock); return result
+    }
+}
+
+func key(value:int) str { return "$(value)" }
+func row(value:int) UI.View { return UI.Text("Row $(value)") }
+test "source tracing preserves actions focus notifications and lazy row access" {
+    var volume = UI.State<float>(0.2)
+    var runtime = UI.Runtime(UI.Column([UI.Slider(volume), UI.ListView<int>([1, 2], key, row)]))
+    var drawing = runtime.drawing(400, 200); var metrics = SourceMetrics()
+    var source = TracedSource(runtime.accessibility(), metrics)
+    let root = source.root()!; let slider = source.child(root, 0)!
+    let initial = source.read(slider)!
+    assert(source.perform(slider, AX.Request(AX.Action.focus)) && source.focused() == slider)
+    assert(source.perform(slider, AX.Request(AX.Action.set_value, number:0.7)))
+    assert(volume.value() == 0.7 && source.read(slider)!.number == 0.7)
+    let changes = source.changes(); assert(!changes.is_empty())
+    let wrapper = source.child(root, 1)!
+    let list = source.child(wrapper, 0)!; var rows = source.rows(list)!
+    assert(rows.count() == 2 && rows.row(0) == source.child(list, 0) && rows.row(2) == null)
+    assert(source.rows(slider) == null && metrics.calls >= 14 && metrics.milliseconds >= 0.0)
+    metrics.clear(); assert(metrics.calls == 0 && metrics.milliseconds == 0.0)
+}

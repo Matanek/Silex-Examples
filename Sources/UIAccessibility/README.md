@@ -149,6 +149,8 @@ the trace.
 
 `interval_ms` measures elapsed time between updates; `delta_ms` is the delta
 provided by Viewer, clamped to 100 ms by the application. The trace counts
-events and times handle, update, drawing and IME queries. The rest of the
-interval includes rendering, native accessibility, waiting and scheduling; it
+events and times handle, update, drawing and IME queries. `source_queries` counts
+calls to the accessible Source and its row views; `source_ms` measures their
+combined duration, including the timers used by this optional trace.
+The rest of the interval includes rendering, native work outside the Source, waiting and scheduling; it
 is not isolated GPU time. Tracing is optional and preserves the default session.

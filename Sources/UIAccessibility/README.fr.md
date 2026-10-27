@@ -154,7 +154,9 @@ le séparateur, et fermez la fenêtre pour obtenir la trace.
 
 `interval_ms` mesure le temps réel entre deux updates ; `delta_ms` est le delta
 transmis par Viewer, borné à 100 ms par l’application. La trace compte les
-événements et mesure handle, update, drawing et les requêtes IME. Le reste de
-l’intervalle inclut rendu, accessibilité native, attente et ordonnancement ; il
+événements et mesure handle, update, drawing et les requêtes IME. `source_queries`
+compte les appels à la Source accessible et à ses vues de lignes ; `source_ms`
+mesure leur durée cumulée, avec le coût des horloges de cette trace optionnelle.
+Le reste de l’intervalle inclut rendu, travail natif hors Source, attente et ordonnancement ; il
 ne représente pas un temps GPU isolé. La trace est optionnelle et ne change pas
 la session utilisée par défaut.

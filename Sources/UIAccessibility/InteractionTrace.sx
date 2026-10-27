@@ -4,6 +4,8 @@ use GFX.Accessibility
 use GFX.Input.Events
 use GFX.Window
 use STD.Time
+use Module.AccessibilityTrace.SourceMetrics
+use Module.AccessibilityTrace.TracedSource
 
 struct Sample {
     let index:int
@@ -17,6 +19,8 @@ struct Sample {
     let ime_queries:int
     let ime_ms:float
     let update_ms:float
+    let source_queries:int
+    let source_ms:float
 }
 
 // Optional diagnostic wrapper. Store samples in memory and print only after
@@ -36,6 +40,8 @@ package class TraceSession:Canvas.Session {
     private var ime_queries:int = 0
     private var ime_ms:float = 0.0
     private var update_ms:float = 0.0
+    private var source_metrics:SourceMetrics = SourceMetrics()
+    private var traced_source:Accessibility.Source? = null
     init(session:Canvas.Session) { self.session = session }
     func drawing(width:int, height:int) Canvas {
         var clock = Time.Stopwatch(); clock.start()
@@ -48,7 +54,8 @@ package class TraceSession:Canvas.Session {
             let sample = Sample(index:self.index, interval_ms:self.frame_clock.get_elapsed_milliseconds(),
                 delta_ms:delta * 1000.0, motions:self.motions, inputs:self.inputs, handle_ms:self.handle_ms,
                 draws:self.draws, drawing_ms:self.drawing_ms, ime_queries:self.ime_queries,
-                ime_ms:self.ime_ms, update_ms:self.update_ms)
+                ime_ms:self.ime_ms, update_ms:self.update_ms,
+                source_queries:self.source_metrics.calls, source_ms:self.source_metrics.milliseconds)
             if self.records.count() < 4096 { self.records.append(sample) }
             else { self.records[self.next] = sample }
             self.next = (self.next + 1) % 4096; self.index++
@@ -58,6 +65,7 @@ package class TraceSession:Canvas.Session {
         self.motions = 0; self.inputs = 0; self.handle_ms = 0.0
         self.draws = 0; self.drawing_ms = 0.0; self.ime_queries = 0
         self.ime_ms = 0.0; self.update_ms = 0.0
+        self.source_metrics.clear()
         var clock = Time.Stopwatch(); clock.start()
         let changed = self.session.update(delta)
         self.update_ms = clock.get_elapsed_milliseconds()
@@ -82,12 +90,19 @@ package class TraceSession:Canvas.Session {
         return target
     }
     func pointer_cursor() Window.Cursor { return self.session.pointer_cursor() }
-    func accessibility_source() Accessibility.Source? { return self.session.accessibility_source() }
+    func accessibility_source() Accessibility.Source? {
+        if self.traced_source == null {
+            if let source = self.session.accessibility_source() {
+                self.traced_source = TracedSource(source, self.source_metrics)
+            }
+        }
+        return self.traced_source
+    }
     func record_count() int { return self.records.count() }
     func report() {
-        print("ui_drag_trace,index,interval_ms,delta_ms,motions,inputs,handle_ms,draws,drawing_ms,ime_queries,ime_ms,update_ms")
+        print("ui_drag_trace,index,interval_ms,delta_ms,motions,inputs,handle_ms,draws,drawing_ms,ime_queries,ime_ms,update_ms,source_queries,source_ms")
         for sample in self.records {
-            print("ui_drag_trace,$(sample.index),$(sample.interval_ms),$(sample.delta_ms),$(sample.motions),$(sample.inputs),$(sample.handle_ms),$(sample.draws),$(sample.drawing_ms),$(sample.ime_queries),$(sample.ime_ms),$(sample.update_ms)")
+            print("ui_drag_trace,$(sample.index),$(sample.interval_ms),$(sample.delta_ms),$(sample.motions),$(sample.inputs),$(sample.handle_ms),$(sample.draws),$(sample.drawing_ms),$(sample.ime_queries),$(sample.ime_ms),$(sample.update_ms),$(sample.source_queries),$(sample.source_ms)")
         }
     }
 }
