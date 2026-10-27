@@ -192,3 +192,18 @@ vérifie les poses rendues, la grille et la caméra suivies, puis se ferme seul.
 Les contrôles sans fenêtre vérifient aussi l’encre du HUD, les clics, la pause,
 la reprise manuelle et R. Le profil de précision augmente les itérations ;
 aucune mesure ou promesse de FPS n’est fournie par ce parcours.
+
+### Sens de direction dans le repère du véhicule
+
+En marche avant et en pivot, **Q / flèche gauche** oriente l’avant vers la
+gauche du véhicule ; **D / flèche droite** l’oriente vers sa droite. Ce repère
+suit le véhicule lorsqu’il change de cap. Les vitesses G/D affichées suivent
+la même convention. Cette association corrige les commandes interactives ;
+le parcours automatique rectiligne et les témoins physiques sont conservés.
+
+Le contrôle sans fenêtre inclut les touches logiques AZERTY et les flèches,
+en déplacement et en pivot, avec deux caps initiaux :
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --steering-check
+```

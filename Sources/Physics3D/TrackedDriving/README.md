@@ -183,3 +183,18 @@ The “TEST AUTOMATIQUE” smoke starts one full 20 s cycle through a real click
 checks rendered poses and the moving camera/grid, then closes itself. Headless
 checks also cover HUD ink, clicks, pause, manual takeover and R. This accuracy
 profile increases iterations; the workload makes no measured FPS claim.
+
+### Vehicle-relative steering directions
+
+While driving forward or pivoting, **Q / Left arrow** turns the nose toward
+the vehicle’s left; **D / Right arrow** turns it toward the vehicle’s right.
+The frame follows the vehicle as its heading changes. Displayed left/right
+track speeds use that same convention. This corrects interactive input mapping;
+the straight automatic route and physics witnesses are preserved.
+
+The headless check covers logical AZERTY keys and arrows while moving and
+pivoting, from two initial headings:
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --steering-check
+```

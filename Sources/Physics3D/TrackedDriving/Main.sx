@@ -119,7 +119,7 @@ func labels(state:&TrackedScene,simulation:@Application.Simulation) {
     }
     if state.long_drive { measure="t $(time) s · v $(speed) km/h\n$(state.model.supports()) appuis · $(Math.round(state.model.normal_force()) as int) N" }
     if state.controls.measure.value()!=measure { state.controls.measure.set(measure) }
-    let left=state.model.vehicle.track(Physics.VehicleTrackSide3D.left);let right=state.model.vehicle.track(Physics.VehicleTrackSide3D.right)
+    let left=state.model.vehicle.track(Physics.VehicleTrackSide3D.right);let right=state.model.vehicle.track(Physics.VehicleTrackSide3D.left)
     let l=Math.round(left.linear_speed*100.0)/100.0;let r=Math.round(right.linear_speed*100.0)/100.0
     let power=state.model.vehicle.powertrain();var gearbox="manuel";if state.model.automatic { gearbox="boîte auto" }
     var shifting="";if power.switching_gear { shifting=" · changement" }
@@ -645,9 +645,33 @@ func long_smoke_inputs(state:&TrackedScene,simulation:&Application.Simulation,co
     }
 }
 test "long tracked controls retain the clock and compact telemetry" { verify_long_controls() }
+func verify_vehicle_relative_steering() {
+    for moving in [true,false] { for orientation in [0,1] { for control in [0,1,2,3] {
+        var world=Resources.World();var meshes=Resources.Meshes3D();var state=TrackedScene();var simulation=Application.Simulation();configure_long(state)
+        var body=state.model.vehicle.chassis()
+        body.set_transform(Physics.Transform3D(Math.Vec3(0.0,1.15,0.0),Math.Quat.angle_axis(orientation as float*Math.half_pi(),Math.Vec3.up())))
+        startup(world,meshes,state,simulation);ticks(state,simulation,240)
+        if moving { retained_press(state,simulation,Input.Key.z,122 as uint32);ticks(state,simulation,180) }
+        let forward=body.rotation().rotate(Math.Vec3(0.0,0.0,1.0));let up=body.rotation().rotate(Math.Vec3.up())
+        let left=up.cross(forward).normalized()
+        var key=Input.Key.a;var code=113 as uint32
+        if control==1 { key=Input.Key.d;code=100 as uint32 }
+        else if control==2 { key=Input.Key.left;code=0 as uint32 }
+        else if control==3 { key=Input.Key.right;code=0 as uint32 }
+        retained_press(state,simulation,key,code);ticks(state,simulation,120)
+        let toward_left=body.rotation().rotate(Math.Vec3(0.0,0.0,1.0)).dot(left)
+        var expected=1.0;if control==1 || control==3 { expected= -1.0 }
+        print("Vehicle-relative steering: moving=$(moving), orientation=$(orientation), control=$(control), left projection=$(toward_left)")
+        assert(toward_left*expected>0.02)
+        release(state,key,code)
+    } } }
+    print("Vehicle-relative steering: Q/D and arrows point left/right in forward driving and pivoting at two headings; bodies and clocks retained")
+}
+test "tracked steering follows vehicle-relative left and right" { verify_vehicle_relative_steering() }
 func main() {
     var smoke=false;var live=false;var automatic_smoke=false;var platform=false;var platform_smoke=false;var platform_click_smoke=false;var long_drive=false;var long_smoke=false
     for argument in Process.arguments() {
+        if argument=="--steering-check" { verify_vehicle_relative_steering();return }
         if argument=="--long" { long_drive=true }
         if argument=="--long-smoke" { long_drive=true;long_smoke=true }
         if argument=="--long-check" { LongDriving.witness();return }
