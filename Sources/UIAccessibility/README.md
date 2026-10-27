@@ -143,6 +143,13 @@ by the host: retaining a source or session through a protocol can change cycle
 collector traversal. Compare frozen executables with identical options; this
 CPU profile does not prove the window's FPS.
 
+`ScalingProfile.sx` separately measures 64 idle updates and 64 single-state
+mutations with 16, 128 and 1,024 bound labels mounted in a ScrollView. It counts
+formatting calls and times phases after mounting and warmup. `--check-cache`
+asserts zero idle formatting calls and one per local mutation. This CPU profile
+opens no window or GPU device; it does not by itself qualify a complete
+application, a virtualized collection or rendering.
+
 ## Trace the real window
 
 The demo displays FPS in its title, both normally and with `--placed`, with or

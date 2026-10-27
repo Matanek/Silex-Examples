@@ -1,0 +1,60 @@
+use GFX.UI
+use STD.Time
+use STD.Math
+use STD.Process
+
+// CPU-only retained UI workload. No window, platform runner or GPU.
+class Label {
+    var value:UI.State<float> = UI.State<float>(100.0)
+    var formats:int = 0
+    func format(value:float) str {
+        self.formats++
+        return "Value: $(Math.round(value) as int)"
+    }
+}
+func calls(labels:Label[]) int {
+    var result = 0
+    for label in labels { result += label.formats }
+    return result
+}
+func run(count:int, check:bool) {
+    var labels:Label[] = []; var children:UI.View[] = []
+    var index = 0
+    while index < count {
+        var label = Label(); labels.append(label)
+        children.append(UI.Text(label.value, format:label.format))
+        index++
+    }
+    var runtime = UI.Runtime(UI.ScrollView(UI.Column(children)))
+    var drawing = runtime.drawing(780, 820)
+    // Warm all retained paths, outside measurements.
+    let warm = runtime.update(0.0)
+    drawing = runtime.drawing(780, 820)
+    var clock = Time.Stopwatch()
+    let before_idle = calls(labels)
+    var step = 0
+    clock.restart()
+    while step < 64 {
+        assert(!runtime.update(0.0))
+        step++
+    }
+    let idle_ms = clock.get_elapsed_milliseconds()
+    let idle_formats = calls(labels) - before_idle
+    let before_local = calls(labels)
+    step = 0; clock.restart()
+    while step < 64 {
+        labels[0].value.set(101.0 + (step % 2) as float)
+        assert(runtime.update(0.0))
+        drawing = runtime.drawing(780, 820)
+        step++
+    }
+    let local_ms = clock.get_elapsed_milliseconds()
+    let local_formats = calls(labels) - before_local
+    if check { assert(idle_formats == 0 && local_formats == 64) }
+    print("scaling nodes=$(count) steps=64 idle_ms=$(idle_ms) idle_formats=$(idle_formats) local_ms=$(local_ms) local_formats=$(local_formats)")
+}
+func main() {
+    var check = false
+    for argument in Process.arguments() { if argument == "--check-cache" { check = true } }
+    run(16, check); run(128, check); run(1024, check)
+}
