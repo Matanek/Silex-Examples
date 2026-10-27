@@ -141,6 +141,13 @@ accessible avant dessin, le dessin, le remplacement du Canvas Scene2D et la
 synchronisation après dessin, dans l’ordre de Viewer. Ce profil reste CPU et
 n’ouvre ni fenêtre ni device GPU.
 
+`SessionProfile.sx` rejoue les mêmes gestes à travers `Canvas.Session` et les
+événements complets du présentateur. Son option `--trace` conserve aussi
+l’enveloppe `TraceSession`. Utilisez cette variante pour comparer le coût du
+contrat réellement retenu par l’hôte : garder une source ou une session par un
+protocole peut changer les parcours du collecteur. Comparez des exécutables
+figés avec les mêmes options ; ce profil CPU ne prouve pas les FPS de la fenêtre.
+
 ## Tracer la fenêtre réelle
 
 La démo affiche les FPS dans le titre, en mode normal comme avec `--placed`,
@@ -157,6 +164,11 @@ transmis par Viewer, borné à 100 ms par l’application. La trace compte les
 événements et mesure handle, update, drawing et les requêtes IME. `source_queries`
 compte les appels à la Source accessible et à ses vues de lignes ; `source_ms`
 mesure leur durée cumulée, avec le coût des horloges de cette trace optionnelle.
+
+Pour évaluer la fluidité, lancez d’abord la démo sans `--trace-drag` : les FPS
+restent affichés. L’enveloppe de diagnostic conserve d’autres références et
+ajoute des horloges ; son coût peut être sensible. Activez-la ensuite pour
+localiser un ralentissement, en comparant des essais qui utilisent la même option.
 Le reste de l’intervalle inclut rendu, travail natif hors Source, attente et ordonnancement ; il
 ne représente pas un temps GPU isolé. La trace est optionnelle et ne change pas
 la session utilisée par défaut.
