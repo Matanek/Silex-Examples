@@ -148,7 +148,10 @@ mutations with 16, 128 and 1,024 bound labels mounted in a ScrollView. It counts
 formatting calls and times phases after mounting and warmup. `--check-cache`
 asserts zero idle formatting calls and one per local mutation. This CPU profile
 opens no window or GPU device; it does not by itself qualify a complete
-application, a virtualized collection or rendering.
+application, a virtualized collection or rendering. `--stages` separates update
+and drawing times, compares mutations of the first and last label and counts
+recorded text commands. This instrumented variant is for attribution; compare
+identical options.
 
 ## Trace the real window
 

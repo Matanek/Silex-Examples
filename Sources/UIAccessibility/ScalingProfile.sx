@@ -1,4 +1,5 @@
 use GFX.UI
+use GFX.Canvas
 use STD.Time
 use STD.Math
 use STD.Process
@@ -53,8 +54,57 @@ func run(count:int, check:bool) {
     if check { assert(idle_formats == 0 && local_formats == 64) }
     print("scaling nodes=$(count) steps=64 idle_ms=$(idle_ms) idle_formats=$(idle_formats) local_ms=$(local_ms) local_formats=$(local_formats)")
 }
+// Instrumented attribution, separate from the before/after timing workload.
+func text_commands(commands:@Canvas.Command[]) int {
+    var count = 0
+    for command in commands {
+        match command {
+            text(value) => { count++ }
+            layer(value) => { var nested = value.commands(); count += text_commands(nested) }
+            else => {}
+        }
+    }
+    return count
+}
+func stages(count:int, last:bool) {
+    var labels:Label[] = []; var children:UI.View[] = []
+    var index = 0
+    while index < count {
+        var label = Label(); labels.append(label)
+        children.append(UI.Text(label.value, format:label.format)); index++
+    }
+    var target = 0
+    if last { target = count - 1 }
+    var runtime = UI.Runtime(UI.ScrollView(UI.Column(children)))
+    var drawing = runtime.drawing(780, 820)
+    var initial_commands = drawing.commands()
+    assert(text_commands(initial_commands) == count)
+    var update_ms = 0.0; var drawing_ms = 0.0
+    var clock = Time.Stopwatch(); var step = 0
+    while step < 64 {
+        labels[target].value.set(101.0 + (step % 2) as float)
+        clock.restart(); assert(runtime.update(0.0))
+        update_ms += clock.get_elapsed_milliseconds()
+        clock.restart(); drawing = runtime.drawing(780, 820)
+        drawing_ms += clock.get_elapsed_milliseconds()
+        step++
+    }
+    var commands = drawing.commands()
+    let texts = text_commands(commands)
+    assert(texts == count)
+    print("stages nodes=$(count) last=$(last) steps=64 update_ms=$(update_ms) drawing_ms=$(drawing_ms) text_commands=$(texts)")
+}
 func main() {
-    var check = false
-    for argument in Process.arguments() { if argument == "--check-cache" { check = true } }
+    var check = false; var detailed = false
+    for argument in Process.arguments() {
+        if argument == "--check-cache" { check = true }
+        if argument == "--stages" { detailed = true }
+    }
+    if detailed {
+        stages(16, false); stages(16, true)
+        stages(128, false); stages(128, true)
+        stages(1024, false); stages(1024, true)
+        return
+    }
     run(16, check); run(128, check); run(1024, check)
 }

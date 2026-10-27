@@ -152,6 +152,9 @@ figés avec les mêmes options ; ce profil CPU ne prouve pas les FPS de la fenê
 seul état, avec 16, 128 et 1 024 libellés liés montés dans un ScrollView. Il compte
 les formatages et chronomètre les phases après montage et chauffe. L’option
 `--check-cache` vérifie zéro formatage au repos et un par mutation locale.
+L’option `--stages` sépare les durées d’update et de dessin, compare une mutation
+du premier et du dernier libellé et compte les commandes de texte enregistrées.
+Cette variante instrumentée sert à l’attribution ; comparez des options identiques.
 Ce profil CPU sans fenêtre ni GPU mesure cette charge précise ; il ne qualifie
 pas à lui seul une application complète, une collection virtualisée ou le rendu.
 
