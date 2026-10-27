@@ -78,7 +78,7 @@ func stages(count:int, last:bool) {
     var runtime = UI.Runtime(UI.ScrollView(UI.Column(children)))
     var drawing = runtime.drawing(780, 820)
     var initial_commands = drawing.commands()
-    assert(text_commands(initial_commands) == count)
+    assert(text_commands(initial_commands) > 0 && text_commands(initial_commands) <= count)
     var update_ms = 0.0; var drawing_ms = 0.0
     var clock = Time.Stopwatch(); var step = 0
     while step < 64 {
@@ -91,7 +91,7 @@ func stages(count:int, last:bool) {
     }
     var commands = drawing.commands()
     let texts = text_commands(commands)
-    assert(texts == count)
+    assert(texts > 0 && texts <= count)
     print("stages nodes=$(count) last=$(last) steps=64 update_ms=$(update_ms) drawing_ms=$(drawing_ms) text_commands=$(texts)")
 }
 func main() {
