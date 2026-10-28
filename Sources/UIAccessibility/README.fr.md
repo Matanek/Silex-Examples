@@ -167,6 +167,22 @@ les descriptions de cellules et sépare entrées, accessibilité avant/après de
 dessin UI et remplacement Scene2D. Comparez les mêmes cas et binaires figés ;
 les durées murales CPU n’établissent pas les FPS de la fenêtre.
 
+## Mesurer les phases de la fenêtre
+
+`--trace-frame` active le collecteur de Viewer, en conservant la session et la
+source ordinaires. Il prend priorité sur `--trace-drag` si les deux sont présents.
+Le CSV `ui_frame_trace` est écrit sur stdout après fermeture. Redirigez stdout
+vers un fichier, rejoignez le tableau Équipe, glissez rapidement son séparateur
+pendant quelques secondes puis fermez. Le tampon garde les 8 192 dernières images.
+
+`update_ms` couvre le travail du Viewer, de la session et de l’accessibilité dans
+l’update ; `prepare_ms` mesure ensuite la préparation Scene2D. `submit_ms` couvre
+le rendu/soumission et ses attentes CPU, sans isoler l’exécution GPU. `poll_pre_ms`
+contient le polling/pré-update et le résidu entre images, dont le coût restant des
+marqueurs. Les compteurs de mouvements/molette et commandes aident à distinguer
+rafale d’entrées, préparation et attente. Comparer une trace native à un rejeu CPU
+ne qualifie pas les FPS sans instrumentation ; c’est une preuve d’attribution.
+
 ## Tracer la fenêtre réelle
 
 La démo affiche les FPS dans le titre, en mode normal comme avec `--placed`,

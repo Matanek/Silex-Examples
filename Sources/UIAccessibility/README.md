@@ -162,6 +162,22 @@ descriptions and separates input, accessibility before/after drawing, UI drawing
 and Scene2D replacement. Compare identical cases and frozen binaries; CPU-only
 wall times do not establish window FPS.
 
+## Measure window phases
+
+`--trace-frame` enables Viewer’s collector while retaining the ordinary session
+and source. It takes precedence over `--trace-drag` when both are supplied.
+`ui_frame_trace` CSV is written to stdout after closing. Redirect stdout to a
+file, reach the Team table, drag its separator quickly for a few seconds and
+close the window. The ring retains the latest 8,192 frames.
+
+`update_ms` covers Viewer, session and accessibility work during update;
+`prepare_ms` then covers Scene2D preparation. `submit_ms` covers rendering,
+submission and CPU waits, without isolating GPU execution. `poll_pre_ms` covers
+polling/pre-update and the inter-frame remainder, including remaining marker
+cost. Motion/wheel and command counters distinguish input bursts, preparation
+and waits. Comparing a native trace with a CPU replay does not qualify untraced
+FPS; it provides attribution evidence.
+
 ## Trace the real window
 
 The demo displays FPS in its title, both normally and with `--placed`, with or

@@ -272,14 +272,24 @@ test "the placed accessibility page and field stay inside the resized window" { 
 func main() {
     var placed = false
     var trace = false
+    var frame_trace = false
     for argument in Process.arguments() {
         if argument == "--cpu-check" { check_cpu(); check_cpu(true); check_placed_geometry(); return }
         if argument == "--placed" { placed = true }
         if argument == "--trace-drag" { trace = true }
+        if argument == "--trace-frame" { frame_trace = true }
     }
     var model = Model()
     model.placed = placed
     var session = UI.Session(UI.Reactive(model.describe))
+    if frame_trace {
+        var capture = Viewer.FrameTrace()
+        var settings = presentation_settings(placed); settings.frame_trace = capture
+        let code = Viewer.show(session, settings)
+        capture.report()
+        if code != 0 { panic("Accessibility viewer failed") }
+        return
+    }
     if trace {
         var traced = TraceSession(session)
         let code = Viewer.show(traced, presentation_settings(placed))
