@@ -1,0 +1,80 @@
+use Physics3D.ActiveRagdoll.Model
+use GFX.Physics
+use STD.Math
+use STD.Time.Stopwatch
+
+func valid(character:Model.Character) {
+    assert(character.balance_joint.motor_force().length()==0.0)
+    assert(character.balance_effort<=607.0)
+    for i in [0,1,2,3,4,5,6,7,8,9,10,11,12] {
+        var body=character.body.body(i);let p=body.position()
+        assert(Math.is_finite(p.x) && Math.is_finite(p.y) && Math.is_finite(p.z))
+        assert(body.linear_velocity().length()<15.0 && body.angular_velocity().length()<35.0)
+        if i>0 {
+            var joint=character.body.joint(i)!
+            assert(joint.anchor_error().length()<0.04)
+            if joint.twist_angle()<joint.minimum_twist()-0.1 || joint.twist_angle()>joint.maximum_twist()+0.1 {
+                print("LIMIT part=$(i) time=$(character.elapsed) active=$(character.active) move=$(character.movement.x),$(character.movement.y) angle=$(joint.twist_angle()) range=$(joint.minimum_twist()),$(joint.maximum_twist()) anchor=$(joint.anchor_error().length())")
+            }
+            assert(joint.twist_angle()>=joint.minimum_twist()-0.1 && joint.twist_angle()<=joint.maximum_twist()+0.1)
+            assert(joint.motor_torque().length()<434.0)
+        }
+    }
+}
+func advance(character:Model.Character,seconds:int,rate:int) {
+    var step=0
+    while step<seconds*rate { character.step(1.0/rate as float);valid(character);step++ }
+}
+package func verify() {
+    for rate in [60,120] {
+        var character=Model.Character();advance(character,2,rate)
+        let resting=character.center();advance(character,2,rate)
+        let drift=character.center().subtract(resting).multiply(Math.Vec3(1.0,0.0,1.0)).length()
+        assert(drift<0.03)
+        let start=character.center();character.movement=Math.Vec2(0.0,1.0)
+        advance(character,4,rate);let walked=character.center().subtract(start)
+        assert(walked.z>0.5 && Math.abs(walked.x)<0.3)
+        character.movement=Math.Vec2();advance(character,2,rate)
+        assert(character.body.body(0).linear_velocity().length()<0.2)
+        let turn_start=character.center();character.movement=Math.Vec2(1.0,0.0)
+        advance(character,4,rate);let turned=character.center().subtract(turn_start)
+        assert(turned.x>0.25)
+        assert(character.body.body(0).rotation().rotate(Math.Vec3.up()).y>0.65)
+        character.movement=Math.Vec2();advance(character,2,rate)
+        let old_velocity=character.body.body(1).linear_velocity()
+        let old_pose=character.body.body(1).transform()
+        character.push(Math.Vec3(35.0,0.0,0.0))
+        assert(character.body.body(1).transform()==old_pose)
+        assert(character.body.body(1).linear_velocity().x>old_velocity.x+2.0)
+        character.set_active(false);assert(!character.balance_joint.is_enabled())
+        advance(character,2,rate)
+        assert(character.center().y<0.6 && character.balance_effort==0.0)
+        for i in [1,2,3,4,5,6,7,8,9,10,11,12] { assert(character.body.joint(i)!.motor_torque().length()==0.0) }
+        var stale=character.body.body(0);character.destroy()
+        assert(!stale.is_valid() && character.world.body_count()==1 && !character.balance_joint.is_valid())
+        print("$(rate)Hz: rest drift $(drift), forward $(walked.z), turn $(turned.x), passive fall and lifetime verified")
+    }
+    // No ground friction: internal drives and an angular-only helper cannot
+    // translate the total center of mass horizontally.
+    var free=Model.Character(friction:0.0);let initial=free.center()
+    free.movement=Math.Vec2(0.0,1.0);advance(free,4,120)
+    assert(free.center().subtract(initial).multiply(Math.Vec3(1.0,0.0,1.0)).length()<0.001)
+}
+package func verify_directions() {
+    let directions:Math.Vec2[]=[Math.Vec2(0.0,1.0),Math.Vec2(1.0,0.0),Math.Vec2(0.0,-1.0),Math.Vec2(-1.0,0.0)]
+    for direction in directions {
+        var character=Model.Character();let initial=character.center()
+        character.movement=direction;advance(character,4,120)
+        let motion=character.center().subtract(initial)
+        let progress=Math.Vec2(motion.x,motion.z).dot(direction)
+        assert(progress>0.5 && character.body.body(0).rotation().rotate(Math.Vec3.up()).y>0.65)
+        print("DIRECTION $(direction.x),$(direction.y) forward_progress=$(progress)")
+        character.destroy()
+    }
+}
+test "physical biped walks, turns, stops and falls with bounded efforts at 60/120Hz" { verify() }
+test "all world directions including a half turn retain physical locomotion" { verify_directions() }
+func main() {
+    var clock=Stopwatch();clock.restart();verify();verify_directions()
+    print("Active ragdoll headless qualification: $(clock.get_elapsed_seconds()) seconds")
+}

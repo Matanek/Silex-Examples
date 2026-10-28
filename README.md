@@ -1024,6 +1024,17 @@ and floor contacts take over; Space also pauses the lift.
 [Guide français](Sources/Physics3D/RagdollDrive/README.fr.md).
 
 
+## Active mechanical character
+
+[The puppet workshop](Sources/Physics3D/ActiveRagdoll/README.md) combines a
+thirteen-body ragdoll, bounded joint motors, assisted balance and real foot
+contacts. Hold ZQSD to walk and turn, P to push, F to compare active and passive
+physics, R to restart. A smooth camera and compact left HUD keep the character
+visible. This first course will grow into object and world interactions.
+
+`silex run Silex-Examples/Sources/Physics3D/ActiveRagdoll/Main.sx --release`.
+[Guide français](Sources/Physics3D/ActiveRagdoll/README.fr.md).
+
 ## Hierarchical data trees
 
 `Sources/UITreeView/Main.sx` explores 50,000 leaves and a deep branch with

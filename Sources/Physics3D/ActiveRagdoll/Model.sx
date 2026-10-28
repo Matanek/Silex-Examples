@@ -1,0 +1,121 @@
+use Physics3D.ActiveRagdoll.Anatomy
+use GFX.Physics
+use STD.Math
+
+package class Character {
+    var world:Physics.World3D
+    var body:Physics.Ragdoll3D
+    var anatomy:Physics.Ragdoll3DSettings
+    var floor:Physics.RigidBody3D
+    var balance_joint:Physics.SixDOFConstraint3D
+    var active:bool=true
+    var movement:Math.Vec2=Math.Vec2()
+    var elapsed:float=0.0
+    var phase:float=0.0
+    var gait_strength:float=0.0
+    var heading:float=0.0
+    var support_count:int=0
+    var balance_effort:float=0.0
+    private var applied_heading:float=0.0
+    private var applied_lean:float=0.0
+    private var contacts:Physics.Contact3D[]=[]
+    private var targets:Physics.Transform3D[]=[]
+    init(friction:float=0.9,position_iterations:int=32) {
+        self.world=Physics.World3D(Physics.World3DSettings() ..velocity_iterations=24 ..position_iterations=position_iterations)
+        self.floor=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=friction)
+        self.anatomy=Anatomy.settings()
+        self.body=self.world.create_ragdoll(self.anatomy,Physics.Transform3D(Math.Vec3(0.0,1.055,0.0)))
+        self.balance_joint=self.world.create_six_dof_constraint(self.floor,self.body.body(0),Physics.SixDOFConstraint3DSettings()
+            ..rotation_x_motor=Physics.AngularMotor3D.position(0.0,350.0,1000.0,100.0)
+            ..rotation_y_motor=Physics.AngularMotor3D.position(0.0,350.0,1000.0,100.0)
+            ..rotation_z_motor=Physics.AngularMotor3D.position(0.0,350.0,1000.0,100.0))
+        self.balance_joint.set_enabled(false)
+        for index in [0,1,2,3,4,5,6,7,8,9,10,11,12] { self.targets.append(self.anatomy.part(index).local_transform) }
+    }
+    func destroy() { self.world.destroy_ragdoll(self.body) }
+    func center() Math.Vec3 {
+        var center=Math.Vec3();var mass=0.0
+        for index in [0,1,2,3,4,5,6,7,8,9,10,11,12] {
+            var part=self.body.body(index);let m=part.mass_properties().mass
+            center=center.add(part.world_center_of_mass().multiply(m));mass+=m
+        }
+        return center.divide(mass)
+    }
+    func set_active(active:bool) {
+        self.active=active
+        if !active { self.body.stop_motors();self.balance_joint.set_enabled(false);self.balance_effort=0.0 }
+    }
+    func push(impulse:Math.Vec3) { self.body.body(1).apply_impulse(impulse) }
+    private func target(index:int,angle:float) {
+        self.targets[index]=Physics.Transform3D(self.anatomy.part(index).local_transform.position,
+            Math.Quat.angle_axis(angle,Math.Vec3(1.0,0.0,0.0)))
+    }
+    private func pose(delta:float) {
+        let moving=self.movement.length_squared()>0.01
+        var strength=0.0
+        if moving {
+            strength=Math.min(1.0,self.movement.length())
+            let desired=Math.atan2(self.movement.x,self.movement.y)
+            var turn=desired-self.heading
+            if turn>Math.pi() { turn-=Math.two_pi() }
+            if turn< -Math.pi() { turn+=Math.two_pi() }
+            self.heading+=Math.clamp(turn,-2.5*delta,2.5*delta)
+            if self.heading>Math.pi() { self.heading-=Math.two_pi() }
+            if self.heading< -Math.pi() { self.heading+=Math.two_pi() }
+
+        }
+        self.gait_strength+=(strength-self.gait_strength)*(1.0-Math.exp(-8.0*delta))
+        if self.gait_strength<0.001 && !moving { self.gait_strength=0.0 }
+        strength=self.gait_strength
+        if strength>0.01 { self.phase+=delta*Math.two_pi()*1.2 }
+        self.target(1,0.04*strength)
+        self.target(2,-0.04*strength)
+        for leg in [7,10] {
+            var shift=0.0;if leg==10 { shift=Math.pi() }
+            let cycle=self.phase+shift
+            // Stance travels front-to-back; the return path lifts the foot.
+            // Two-link inverse kinematics changes targets, never body positions.
+            let foot_z=0.18*Math.sin(cycle)*strength
+            let down=0.84-0.02*strength-0.13*Math.max(0.0,Math.cos(cycle))*strength
+            let reach=Math.min(0.84,Math.sqrt(down*down+foot_z*foot_z))
+            let knee=2.0*Math.acos(reach/0.84)
+            let hip=Math.atan2(-foot_z,down)-knee*0.5
+            self.target(leg,hip);self.target(leg+1,knee)
+            let parent=self.body.body(0).rotation().multiply(Math.Quat.angle_axis(hip+knee,Math.Vec3.right()))
+            var flat=parent.conjugated().multiply(Math.Quat.angle_axis(self.heading,Math.Vec3.up()))
+            if strength==0.0 { flat=Math.Quat.identity() }
+            self.targets[leg+2]=Physics.Transform3D(self.anatomy.part(leg+2).local_transform.position,flat)
+        }
+        self.target(3,0.25*Math.sin(self.phase)*strength)
+        self.target(5,-0.25*Math.sin(self.phase)*strength)
+        self.target(4,0.15*strength);self.target(6,0.15*strength)
+        self.body.drive_to_local_pose(self.targets,250.0,900.0,35.0)
+    }
+    private func balance() {
+        let up=self.body.body(0).rotation().rotate(Math.Vec3.up())
+        let lean=0.08*Math.min(1.0,self.movement.length())
+        if self.heading!=self.applied_heading {
+            self.balance_joint.set_rotation_y_motor(Physics.AngularMotor3D.position(self.heading,350.0,1000.0,100.0));self.applied_heading=self.heading
+        }
+        if lean!=self.applied_lean {
+            self.balance_joint.set_rotation_x_motor(Physics.AngularMotor3D.position(lean,350.0,1000.0,100.0));self.applied_lean=lean
+        }
+        let enabled=self.active && self.support_count>0 && up.y>0.3
+        if self.balance_joint.is_enabled()!=enabled { self.balance_joint.set_enabled(enabled) }
+    }
+    func step(delta:float) {
+        if self.active { self.pose(delta);self.balance() }
+        self.world.step(delta);self.elapsed+=delta
+        self.balance_effort=self.balance_joint.motor_torque().length()
+        self.world.write_contacts(self.contacts);self.support_count=0
+        for foot in [9,12] {
+            var part=self.body.body(foot);var supported=false
+            for contact in self.contacts {
+                if (contact.first_body().same_body(part) && contact.second_body().same_body(self.floor)) ||
+                    (contact.second_body().same_body(part) && contact.first_body().same_body(self.floor)) { if contact.normal_impulse()>0.001 { supported=true } }
+            }
+            if supported { self.support_count++ }
+        }
+    }
+}

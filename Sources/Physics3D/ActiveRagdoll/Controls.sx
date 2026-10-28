@@ -1,0 +1,83 @@
+use GFX.Color
+use GFX.Input
+use GFX.Input.Events
+use GFX.UI
+use STD.Math
+
+package static struct Hud { let width:int=272;let height:int=400 }
+func letter(key:@Events.KeyEvent,lower:uint32,upper:uint32,physical:Input.Key) bool {
+    return key.keycode==lower || key.keycode==upper || (key.keycode==0 as uint32 && key.key==physical)
+}
+package class Controls {
+    var forward:bool=false
+    var backward:bool=false
+    var left:bool=false
+    var right:bool=false
+    var resets:int=0
+    var toggles:int=0
+    var pushes:int=0
+    var mode:UI.State<str> =UI.State<str>("F : relâcher les articulations")
+    var measurement:UI.State<str> =UI.State<str>("")
+    func release() { self.forward=false;self.backward=false;self.left=false;self.right=false }
+    func reset() { self.resets++;self.release() }
+    func toggle() { self.toggles++ }
+    func push() { self.pushes++ }
+    // Screen-relative intent is converted into a world direction by the scene.
+    func movement() Math.Vec2 {
+        var x=0.0;var y=0.0
+        if self.forward { y+=1.0 }if self.backward { y-=1.0 }
+        if self.left { x-=1.0 }if self.right { x+=1.0 }
+        let value=Math.Vec2(x,y)
+        if value.length_squared()>1.0 { return value.normalized() }
+        return value
+    }
+    func held(key:@Events.KeyEvent,down:bool) bool {
+        if letter(key,122 as uint32,90 as uint32,Input.Key.z) { self.forward=down;return true }
+        if letter(key,115 as uint32,83 as uint32,Input.Key.s) { self.backward=down;return true }
+        if letter(key,113 as uint32,81 as uint32,Input.Key.q) { self.left=down;return true }
+        if letter(key,100 as uint32,68 as uint32,Input.Key.d) { self.right=down;return true }
+        return false
+    }
+    func handle(event:@Events.Event) bool {
+        match event {
+            key_pressed(key) => {
+                if self.held(key,true) { return true }
+                let reset=letter(key,114 as uint32,82 as uint32,Input.Key.r)
+                let toggle=letter(key,102 as uint32,70 as uint32,Input.Key.f)
+                let push=letter(key,112 as uint32,80 as uint32,Input.Key.p)
+                if reset || toggle || push {
+                    if !key.repeated {
+                        if reset { self.reset() }else if toggle { self.toggle() }else { self.push() }
+                    }
+                    return true
+                }
+            }
+            key_released(key) => { return self.held(key,false) }
+            window_focus_lost(_) => { self.release() }
+            else => {}
+        }
+        return false
+    }
+    func text(value:str) UI.Text {
+        var result=UI.Text(value);result.style.font_size=13.0;return result
+    }
+    func button(value:str,action:func()) UI.Button {
+        var result=UI.Button(value,action)
+        result.style.height=32.0;result.style.font_size=13.0
+        result.style.background=Color.slate_700();result.style.radius=5.0
+        return result
+    }
+    func mode_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.mode),self.toggle) }
+    func metrics(reads:UI.Reads) UI.View { return self.text(reads.read(self.measurement)) }
+    func describe() UI.View {
+        var title=self.text("L’atelier du pantin");title.style.font_size=19.0
+        var root=UI.Column([title,UI.Reactive(self.metrics),
+            self.text("ZQSD maintenus : marcher\nP : impulsion sur le torse"),
+            UI.Reactive(self.mode_button),self.button("P : pousser",self.push),self.button("R : recommencer",self.reset),
+            self.text("Équilibre assisté en mode actif\nÉchap : fermer")])
+        root.style.padding=UI.Insets(12.0);root.style.gap=7.0
+        root.style.background=Color.slate_900().with_alpha(0.87)
+        root.style.foreground=Color.slate_100();root.style.radius=8.0
+        return root
+    }
+}
