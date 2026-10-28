@@ -16,6 +16,11 @@ package class Character {
     var heading:float=0.0
     var support_count:int=0
     var balance_effort:float=0.0
+    var recovering:bool=false
+    var grounded:bool=false
+    var correcting:bool=false
+    private var recovery_extension:float=0.0
+    private var recovery_stable:float=0.0
     private var applied_heading:float=0.0
     private var applied_lean:float=0.0
     private var contacts:Physics.Contact3D[]=[]
@@ -52,11 +57,28 @@ package class Character {
             Math.Quat.angle_axis(angle,Math.Vec3(1.0,0.0,0.0)))
     }
     private func pose(delta:float) {
-        let moving=self.movement.length_squared()>0.01
+        var intent=self.movement
+        self.correcting=false
+        if intent.length_squared()<0.01 && self.grounded && !self.recovering {
+            // Predict where the mass is going relative to the actual feet.
+            // Outside their support footprint, take a step toward it.
+            var pelvis=self.body.body(0)
+            let frame=Math.Quat.angle_axis(self.heading,Math.Vec3.up()).conjugated()
+            let capture=frame.rotate(self.center().add(pelvis.linear_velocity().multiply(0.2)))
+            let left=frame.rotate(self.body.body(9).position())
+            let right=frame.rotate(self.body.body(12).position())
+            let dx=capture.x-Math.clamp(capture.x,Math.min(left.x,right.x)-0.11,Math.max(left.x,right.x)+0.11)
+            let dz=capture.z-Math.clamp(capture.z,Math.min(left.z,right.z)-0.19,Math.max(left.z,right.z)+0.19)
+            if dx*dx+dz*dz>0.0025 {
+                let toward=frame.conjugated().rotate(Math.Vec3(dx,0.0,dz)).normalized()
+                intent=Math.Vec2(toward.x,toward.z).multiply(0.65);self.correcting=true
+            }
+        }
+        let moving=!self.recovering && intent.length_squared()>0.01
         var strength=0.0
         if moving {
-            strength=Math.min(1.0,self.movement.length())
-            let desired=Math.atan2(self.movement.x,self.movement.y)
+            strength=Math.min(1.0,intent.length())
+            let desired=Math.atan2(intent.x,intent.y)
             var turn=desired-self.heading
             if turn>Math.pi() { turn-=Math.two_pi() }
             if turn< -Math.pi() { turn+=Math.two_pi() }
@@ -68,7 +90,8 @@ package class Character {
         self.gait_strength+=(strength-self.gait_strength)*(1.0-Math.exp(-8.0*delta))
         if self.gait_strength<0.001 && !moving { self.gait_strength=0.0 }
         strength=self.gait_strength
-        if strength>0.01 { self.phase+=delta*Math.two_pi()*1.2 }
+        if self.recovering { self.phase+=delta*Math.two_pi()*1.2 }
+        else if strength>0.01 { self.phase+=delta*Math.two_pi()*0.9 }
         self.target(1,0.04*strength)
         self.target(2,-0.04*strength)
         for leg in [7,10] {
@@ -76,8 +99,8 @@ package class Character {
             let cycle=self.phase+shift
             // Stance travels front-to-back; the return path lifts the foot.
             // Two-link inverse kinematics changes targets, never body positions.
-            let foot_z=0.18*Math.sin(cycle)*strength
-            let down=0.84-0.02*strength-0.13*Math.max(0.0,Math.cos(cycle))*strength
+            let foot_z=0.30*Math.sin(cycle)*strength
+            let down=0.84-0.07*strength-0.19*Math.max(0.0,Math.cos(cycle))*strength
             let reach=Math.min(0.84,Math.sqrt(down*down+foot_z*foot_z))
             let knee=2.0*Math.acos(reach/0.84)
             let hip=Math.atan2(-foot_z,down)-knee*0.5
@@ -87,28 +110,59 @@ package class Character {
             if strength==0.0 { flat=Math.Quat.identity() }
             self.targets[leg+2]=Physics.Transform3D(self.anatomy.part(leg+2).local_transform.position,flat)
         }
-        self.target(3,0.25*Math.sin(self.phase)*strength)
-        self.target(5,-0.25*Math.sin(self.phase)*strength)
-        self.target(4,0.15*strength);self.target(6,0.15*strength)
+        if self.recovering {
+            self.target(1,0.0);self.target(2,0.0)
+            for leg in [7,10] {
+                var shift=0.0;if leg==10 { shift=Math.pi() }
+                let cycle=self.phase+shift
+                let searching=1.0-self.recovery_extension
+                let knee=(1.0+0.7*Math.cos(cycle))*searching
+                let hip=(-knee*0.5+0.45*Math.sin(cycle)*searching)
+                self.target(leg,hip);self.target(leg+1,knee);self.target(leg+2,-hip-knee)
+            }
+        }
         self.body.drive_to_local_pose(self.targets,250.0,900.0,35.0)
+        // Arms have anatomical stops, but no driven gait or recovery pose.
+        // Their swing comes from gravity, inertia and body contacts.
+        for arm in [3,4,5,6] {
+            var joint=self.body.joint(arm)!
+            joint.set_twist_motor(null);joint.set_swing_motor(null)
+        }
     }
     private func balance() {
-        let up=self.body.body(0).rotation().rotate(Math.Vec3.up())
-        let lean=0.08*Math.min(1.0,self.movement.length())
+        var lean=0.08*Math.min(1.0,self.movement.length())
+        if self.recovering { lean=0.0 }
         if self.heading!=self.applied_heading {
             self.balance_joint.set_rotation_y_motor(Physics.AngularMotor3D.position(self.heading,350.0,1000.0,100.0));self.applied_heading=self.heading
         }
         if lean!=self.applied_lean {
             self.balance_joint.set_rotation_x_motor(Physics.AngularMotor3D.position(lean,350.0,1000.0,100.0));self.applied_lean=lean
         }
-        let enabled=self.active && self.support_count>0 && up.y>0.3
+        let enabled=self.active && (self.grounded || self.support_count>0)
         if self.balance_joint.is_enabled()!=enabled { self.balance_joint.set_enabled(enabled) }
     }
+    private func recovery(delta:float) {
+        var pelvis=self.body.body(0)
+        let up=pelvis.rotation().rotate(Math.Vec3.up()).y
+        if !self.recovering && (pelvis.position().y<0.75 || up<0.55) {
+            self.recovering=true;self.recovery_extension=0.0;self.recovery_stable=0.0
+        }
+        if self.recovering {
+            if up>0.75 { self.recovery_extension=Math.min(1.0,self.recovery_extension+delta/1.2) }
+            else { self.recovery_extension=Math.max(0.0,self.recovery_extension-delta/0.4) }
+            if up>0.85 && pelvis.position().y>0.90 && self.support_count>0 { self.recovery_stable+=delta }
+            else { self.recovery_stable=0.0 }
+            if self.recovery_stable>0.35 { self.recovering=false;self.phase=0.0;self.gait_strength=0.0 }
+        }
+    }
     func step(delta:float) {
-        if self.active { self.pose(delta);self.balance() }
+        if self.active { self.recovery(delta);self.pose(delta);self.balance() }
         self.world.step(delta);self.elapsed+=delta
         self.balance_effort=self.balance_joint.motor_torque().length()
-        self.world.write_contacts(self.contacts);self.support_count=0
+        self.world.write_contacts(self.contacts);self.support_count=0;self.grounded=false
+        for contact in self.contacts {
+            if (contact.first_body().same_body(self.floor) || contact.second_body().same_body(self.floor)) && contact.normal_impulse()>0.001 { self.grounded=true }
+        }
         for foot in [9,12] {
             var part=self.body.body(foot);var supported=false
             for contact in self.contacts {

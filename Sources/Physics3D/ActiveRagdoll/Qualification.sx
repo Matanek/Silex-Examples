@@ -18,6 +18,7 @@ func valid(character:Model.Character) {
             }
             assert(joint.twist_angle()>=joint.minimum_twist()-0.1 && joint.twist_angle()<=joint.maximum_twist()+0.1)
             assert(joint.motor_torque().length()<434.0)
+            if i==3 || i==4 || i==5 || i==6 { assert(joint.motor_torque().length()==0.0) }
         }
     }
 }
@@ -32,8 +33,18 @@ package func verify() {
         let drift=character.center().subtract(resting).multiply(Math.Vec3(1.0,0.0,1.0)).length()
         assert(drift<0.03)
         let start=character.center();character.movement=Math.Vec2(0.0,1.0)
-        advance(character,4,rate);let walked=character.center().subtract(start)
-        assert(walked.z>0.5 && Math.abs(walked.x)<0.3)
+        var low=100.0;var high= -100.0;var clearance=0.0;var step=0
+        while step<4*rate {
+            character.step(1.0/rate as float);valid(character)
+            let foot=character.body.body(9).position()
+            let relative=foot.subtract(character.body.body(0).position())
+            low=Math.min(low,relative.z);high=Math.max(high,relative.z)
+            clearance=Math.max(clearance,foot.y-0.06);step++
+        }
+        let walked=character.center().subtract(start)
+        print("GAIT $(rate)Hz forward=$(walked.z) lateral=$(walked.x) foot_span=$(high-low) clearance=$(clearance)")
+        assert(walked.z>2.0 && Math.abs(walked.x)<0.3)
+        assert(high-low>0.32 && clearance>0.09)
         character.movement=Math.Vec2();advance(character,2,rate)
         assert(character.body.body(0).linear_velocity().length()<0.2)
         let turn_start=character.center();character.movement=Math.Vec2(1.0,0.0)
@@ -72,9 +83,33 @@ package func verify_directions() {
         character.destroy()
     }
 }
+package func verify_recovery() {
+    let directions:Math.Vec3[]=[Math.Vec3(1.0,0.0,0.0),Math.Vec3(-1.0,0.0,0.0),Math.Vec3(0.0,0.0,1.0),Math.Vec3(0.0,0.0,-1.0)]
+    for rate in [60,120] {
+        for direction in directions {
+            var c=Model.Character();advance(c,2,rate)
+            c.set_active(false);c.push(direction.multiply(55.0));advance(c,3,rate)
+            assert(c.center().y<0.65)
+            var original=c.body.body(0);let before=original.transform()
+            c.set_active(true);assert(original.transform()==before)
+            advance(c,8,rate)
+            assert(!c.recovering && original.is_valid())
+            assert(original.position().y>0.90 && original.rotation().rotate(Math.Vec3.up()).y>0.9)
+            let start=c.center();c.movement=Math.Vec2(0.0,1.0);advance(c,4,rate)
+            assert(c.center().subtract(start).z>1.0)
+            c.movement=Math.Vec2();advance(c,3,rate)
+            // The same recovery is automatic after a shove in active mode.
+            c.push(direction.multiply(65.0));advance(c,10,rate)
+            assert(!c.recovering && original.position().y>0.90 && original.rotation().rotate(Math.Vec3.up()).y>0.9)
+            print("RECOVERY $(rate)Hz direction=$(direction.x),$(direction.z) passive->active and active shove verified")
+            c.destroy()
+        }
+    }
+}
+test "fallen character searches for support, gets up and walks again with passive arms" { verify_recovery() }
 test "physical biped walks, turns, stops and falls with bounded efforts at 60/120Hz" { verify() }
 test "all world directions including a half turn retain physical locomotion" { verify_directions() }
 func main() {
-    var clock=Stopwatch();clock.restart();verify();verify_directions()
+    var clock=Stopwatch();clock.restart();verify();verify_directions();verify_recovery()
     print("Active ragdoll headless qualification: $(clock.get_elapsed_seconds()) seconds")
 }

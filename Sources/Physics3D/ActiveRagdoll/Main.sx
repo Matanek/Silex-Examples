@@ -40,13 +40,14 @@ func remember(state:&Scene) {
     for i in [0,1,2,3,4,5,6,7,8,9,10,11,12] { state.previous.append(copy state.character.body.body(i).transform()) }
 }
 func view(target:Math.Vec3) Scene3D.Transform {
-    let eye=target.add(Math.Vec3(3.0,2.4,-5.0));let toward=target.subtract(eye)
+    let eye=target.add(Math.Vec3(3.0,2.1,4.5));let toward=target.subtract(eye)
     let yaw=Math.atan2(-toward.x,-toward.z)
     let pitch=Math.atan2(toward.y,Math.sqrt(toward.x*toward.x+toward.z*toward.z))
     return Scene3D.Transform(eye,Math.Quat.angle_axis(yaw,Math.Vec3.up()).multiply(Math.Quat.angle_axis(pitch,Math.Vec3.right())))
 }
 func labels(state:&Scene) {
     var mode="ACTIF";var action="F : relâcher les articulations"
+    if state.character.recovering { mode="SE RELÈVE" }
     if !state.character.active { mode="PASSIF";action="F : activer les articulations" }
     if state.controls.mode.value()!=action { state.controls.mode.set(action) }
     let speed=Math.round(state.character.body.body(0).linear_velocity().length()*100.0)/100.0
@@ -219,7 +220,7 @@ func main() {
     for argument in Process.arguments() {
         if argument=="--controls-check" { verify_controls();return }
         if argument=="--profile-cost" { profile_cost();return }
-        if argument=="--physics-check" { Qualification.verify();Qualification.verify_directions();return }
+        if argument=="--physics-check" { Qualification.verify();Qualification.verify_directions();Qualification.verify_recovery();return }
     }
     Application() ..add_resource(Scene())
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title="L’atelier du pantin — ragdoll actif" ..width=1280 ..height=800))
