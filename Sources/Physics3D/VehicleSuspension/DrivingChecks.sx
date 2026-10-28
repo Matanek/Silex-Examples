@@ -1,0 +1,106 @@
+use Physics3D.VehicleSuspension.Model
+use Physics3D.VehicleSuspension.Terrain
+use GFX.Physics
+use STD.Math
+
+func advance(model:Model.SuspensionModel,steps:int,rate:int,forward:bool=false,reverse:bool=false,left:bool=false,right:bool=false,hand:bool=false) {
+    var step=0;while step<steps {
+        model.drive_held(forward,reverse,left,right,hand,1.0/rate as float);model.step(1.0/rate as float);step++
+    }
+}
+package func acceleration() {
+    for rate in [60,120] { for monster in [false,true] { for soft in [false,true] {
+        var model=Model.SuspensionModel(contacts:Model.ContactMode.sphere,soft:soft,anti_roll:true,playground:true)
+        if monster { model.toggle_monster() }
+        advance(model,2*rate,rate);let start=model.vehicle.chassis().position()
+        advance(model,rate,rate,forward:true)
+        var body=model.vehicle.chassis();print("RC acceleration $(rate) monster=$(monster) soft=$(soft) speed=$(body.linear_velocity().length()) distance=$(body.position().z-start.z)")
+        assert(body.linear_velocity().z>5.0 && body.position().z-start.z>1.5)
+        assert(body.rotation().rotate(Math.Vec3.up()).y>0.65)
+        advance(model,3*rate,rate,reverse:true)
+        print("RC reverse $(rate) monster=$(monster) speed=$(body.linear_velocity().z) y=$(body.position().y) up=$(body.rotation().rotate(Math.Vec3.up()).y) gear=$(model.vehicle.powertrain().gear) gas=$(model.throttle) supports=$(model.supports())")
+        assert(body.linear_velocity().z< -1.0)
+        let count=model.world.body_count();var old=model.vehicle;model.toggle_monster()
+        assert(!old.is_valid() && model.world.body_count()==count && model.terrain.count()==Terrain.obstacles().count())
+        if !monster { assert(model.vehicle.wheel_settings(0).radius==0.65) }
+    } } }
+}
+package func handbrake() {
+    for rate in [60,120] { for left in [false,true] {
+        var model=Model.SuspensionModel(contacts:Model.ContactMode.sphere,soft:true,anti_roll:true,playground:true)
+        advance(model,2*rate,rate);advance(model,rate,rate,forward:true)
+        advance(model,rate/2,rate,forward:true,left:left,right:!left,hand:true)
+        let rear=Math.abs(model.vehicle.wheel(0).angular_velocity)+Math.abs(model.vehicle.wheel(2).angular_velocity)
+        let front=Math.abs(model.vehicle.wheel(1).angular_velocity)+Math.abs(model.vehicle.wheel(3).angular_velocity)
+        var body=model.vehicle.chassis();let relative=body.transform().inverse_vector(body.linear_velocity())
+        print("RC handbrake $(rate) left=$(left) rear=$(rear) front=$(front) lateral=$(relative.x) yaw=$(body.angular_velocity().y)")
+        assert(rear<0.05 && front>1.0 && Math.abs(relative.x)>0.15 && Math.abs(body.angular_velocity().y)>0.05)
+        assert(body.rotation().rotate(Math.Vec3.up()).y>0.5)
+        advance(model,rate/2,rate,forward:true)
+        assert(Math.abs(model.vehicle.wheel(0).angular_velocity)+Math.abs(model.vehicle.wheel(2).angular_velocity)>1.0)
+    } }
+}
+package func terrain() {
+    for rate in [60,120] {
+        var model=Model.SuspensionModel(contacts:Model.ContactMode.sphere,soft:true,anti_roll:true,playground:true)
+        model.toggle_monster();model.vehicle.chassis().set_transform(Physics.Transform3D(Math.Vec3(-10.0,1.85,2.0)))
+        advance(model,2*rate,rate);let initial=model.vehicle.chassis().position().y
+        var peak=initial;var contacted=false;var step=0
+        while step<rate*3 {
+            model.drive_held(true,false,false,false,false,1.0/rate as float);model.step(1.0/rate as float)
+            var body=model.vehicle.chassis();peak=Math.max(peak,body.position().y)
+            assert(body.position().y>0.1 && body.position().y<15.0 && body.linear_velocity().length()<45.0)
+            for i in [0,1,2,3] {
+                if let support=model.vehicle.wheel(i).support() {
+                    for obstacle in model.terrain { if support.same_body(obstacle) { contacted=true } }
+                }
+            }
+            step++
+        }
+        print("Monster obstacles $(rate) peak=$(peak) rest=$(initial) z=$(model.vehicle.chassis().position().z)")
+        assert(contacted && peak>initial+0.2 && model.vehicle.chassis().position().z>10.0)
+    }
+}
+package func overturned() {
+    let modes:Model.ContactMode[]=[Model.ContactMode.ray,Model.ContactMode.sphere,Model.ContactMode.wide,Model.ContactMode.narrow]
+    for mode in modes {
+        var model=Model.SuspensionModel(contacts:mode,soft:true,playground:true)
+        model.vehicle.chassis().set_transform(Physics.Transform3D(Math.Vec3(0.0,0.21,0.0),Math.Quat(0.0,0.0,1.0,0.0)))
+        var step=0;while step<240 {
+            model.step(1.0/120.0)
+            for i in [0,1,2,3] {
+                let wheel=model.vehicle.wheel(i)
+                assert(wheel.length==model.vehicle.wheel_settings(i).maximum_length && wheel.normal_force==0.0 && wheel.support()==null)
+            }
+            step++
+        }
+    }
+}
+package func ramps() {
+    for rate in [60,120] { for monster in [false,true] {
+        var model=Model.SuspensionModel(contacts:Model.ContactMode.sphere,soft:true,anti_roll:true,playground:true)
+        if monster { model.toggle_monster() }
+        advance(model,2*rate,rate);var lost=false;var landed=false;var touched=false;var peak=0.0;var step=0
+        while step<6*rate {
+            model.drive_held(true,false,false,false,false,1.0/rate as float);model.step(1.0/rate as float)
+            var body=model.vehicle.chassis();peak=Math.max(peak,body.position().y)
+            assert(body.position().y>0.1 && body.position().y<20.0 && body.linear_velocity().length()<60.0)
+            for i in [0,1,2,3] {
+                if let support=model.vehicle.wheel(i).support() {
+                    if support.same_body(model.terrain[0]) { touched=true }
+                }
+            }
+            if touched && model.supports()==0 { lost=true }
+            if lost && model.supports()>0 { landed=true }
+            step++
+        }
+        print("RC ramps $(rate) monster=$(monster) touched=$(touched) lost=$(lost) landed=$(landed) peak=$(peak)")
+        assert(touched && lost && landed && peak>2.0)
+    } }
+}
+test "RC and monster accelerate promptly and brake before reversing" { acceleration() }
+test "held handbrake locks only the rear wheels and produces a physical mirrored slide" { handbrake() }
+test "monster physical wheels traverse actual obstacles" { terrain() }
+test "overturned rendered wheel lengths remain extended for every detector" { overturned() }
+test "RC and monster launch and regain real support on the ramp course" { ramps() }
+func main() { acceleration();handbrake();terrain();overturned();ramps();print("RC / Monster physics checks passed") }

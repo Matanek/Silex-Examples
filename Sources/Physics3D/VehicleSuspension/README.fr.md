@@ -1,176 +1,80 @@
-# Ressentir les suspensions et comparer le basculement
+# Piloter une voiture RC ou un Monster truck
 
-Un châssis de 100 kg repose sur quatre roues suspendues. Un moteur de 30 N·m
-entraîne les roues arrière à travers une boîte automatique. Les contacts des
-pneus font accélérer, tourner et freiner le véhicule. Les jantes blanches
-montrent leur rotation ; la bande jaune indique l’avant. La caméra suit le
-châssis et le quadrillage métrique rend le déplacement visible. Une bande
-violette surélevée se trouve devant lui ; le mode **cylindre 40 cm** est choisi au départ.
+La voiture démarre avec une forte accélération, quatre roues motrices, des
+suspensions souples et des contacts sphériques. Le panneau de 280 × 360 pixels
+reste à gauche pour dégager la voiture et le terrain. Le quadrillage mesure des
+mètres ; la caméra suit le déplacement et reste orientable à la souris.
 
-Les suspensions **souples** sont choisies au départ. **Z** fait cabrer la
-caisse ; **X puis F** fait plonger son nez au freinage. Les flèches gauche et
-droite font incliner la caisse vers l’extérieur des virages. **M** recrée
-le véhicule avec le réglage ferme précédent ; refaire les mêmes manœuvres
-pour comparer. Le bouton indique le réglage et les mesures donnent le tangage
-et le roulis physiques. Attendre la réception avant d’accélérer.
-
-**A** compare l’anti-roulis : après un premier virage avec **Z et ←/→**,
-appuyer sur A, attendre la nouvelle réception, puis refaire la même manœuvre.
-La caisse penche moins vers l’extérieur. Le bouton indique le choix courant.
-Le départ reste souple, sans anti-roulis, comme le réglage précédent ; M permet
-toujours de comparer souple/ferme. Gaz, pneus et amortisseurs restent identiques
-entre les deux essais A. En ligne droite, le cabrage et la plongée restent présents.
-
-
-**O** fait bondir le châssis avec une impulsion de roulis. Pour comparer depuis
-le repos, appuyer sur R, attendre la réception puis O : sans protection, la
-voiture peut se retourner. **L** recrée le même véhicule avec une limite
-d’inclinaison totale de 45° ; attendre la réception et refaire O. La caisse
-s’incline fortement puis retrouve ses appuis. La correction est progressive,
-avec un léger dépassement transitoire de la cible.
-
-Le départ reste souple, sans barre ni limite. L conserve suspension, pneus,
-adhérence et obstacle ; R, M, T, G et A conservent le choix de limite. Les deux
-boutons ont le même effet que les touches. Le bond de 500 N·s et l’impulsion
-angulaire de 400 N·m·s sont identiques dans les deux cas ; les angles affichés
-et le rendu viennent de la simulation.
-
-Le preset souple utilise 1 200 N/m et 160 N·s/m par roue, contre 10 000 et
-1 000 pour le ferme. Sa détente maximale de 77,985 cm compense la compression
-statique plus grande et conserve une hauteur de repos d’environ 87,55 cm.
-Le moteur, la masse, l’inertie et les pneus sont identiques entre presets.
-Les rotations viennent des efforts aux contacts et des quatre suspensions.
-Les cylindres larges limitent plus le roulis que les rayons ; les détecteurs
-restent comparables avec T, sans promettre la même inclinaison.
-
-Depuis la racine du workspace :
+Depuis `/Users/nekmata/Projects/SilexProject` :
 
 ```sh
 silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release
 ```
 
-Pour comparer, attendre la réception puis appuyer sur **Z** et laisser le
-véhicule traverser la bande violette. Les pneus de 40 cm trouvent un appui
-sur ses bords et la caisse monte. **T** recrée le même véhicule avec des pneus
-de 8 cm : refaire **Z**, ils passent à côté et la caisse garde ses appuis au sol.
-Leur largeur visible change avec leur largeur physique. Le moteur, le rayon
-de roue et la bande restent identiques.
+## Conduire
 
-T parcourt ensuite **rayon → sphère → cylindre 40 cm → cylindre 8 cm → rayon**.
-Le bouton indique le mode courant. Les rayons centraux manquent également la
-bande ; la sphère de recherche de 12 cm atteint ses arêtes.
+- Maintenir **Z** pour accélérer ; relâcher pour rouler sur l’élan.
+- Maintenir **S** pour freiner, puis reculer après ralentissement. Depuis la
+  marche arrière, Z freine avant de repartir vers l’avant.
+- Maintenir **Q / D** pour tourner à gauche/droite relativement au véhicule.
+  Le braquage se recentre au relâchement et diminue avec la vitesse.
+  Les lettres suivent le clavier logique : ZQSD sur AZERTY.
+- Maintenir **Espace** pour bloquer les roues arrière. En virage, l’arrière
+  dérive sous les efforts des pneus ; relâcher pour retrouver la motricité.
+  Les roues avant restent entraînées si Z est maintenu.
+- **R** repart au départ avec le profil choisi et libère les commandes.
+- **Échap** quitte. La perte de focus relâche les touches ; Espace ne met plus
+  la simulation en pause.
 
-Après la réception, **Z** accélère devant, **S** demande la marche arrière et
-**X** relâche l’accélérateur. Ces commandes restent choisies après relâchement
-de la touche. **←/→** choisissent un braquage maintenu ; **↑** recentre.
-**F/H** activent ou libèrent leurs freins. **R** repart d’un véhicule neuf,
-accélérateur relâché et roues droites. Les boutons ont les mêmes effets.
+## Changer de profil et essayer le terrain
 
-- **Z / Accélérer** choisit un accélérateur de 60 % et le sens avant.
-- **S / Reculer** choisit 50 % et le sens arrière. La boîte ouvre puis reprend
-  son embrayage ; un véhicule qui avançait doit d’abord ralentir.
-- **X / Relâcher** remet l’accélérateur à zéro. Les pneus continuent à rouler.
-- **←/→ / Braquer** choisit 18° aux roues avant ; **↑** recentre. Droite et
-  gauche suivent le véhicule, repéré par sa bande jaune, et non le bord de l’écran.
-- **F / Frein** active ou libère les quatre freins de 1500 N·m par roue.
-- **H / Frein à main** active ou libère les seuls freins arrière de 20 N·m.
-- **O / Basculer** ajoute un bond et une impulsion angulaire autour de l’avant
-  du châssis. Attendre la réception d’un véhicule neuf pour comparer.
-- **L / Limite** alterne libre/45°, recrée le véhicule et reprend la simulation,
-  avec les mêmes autres réglages. La borne concerne tangage et roulis ensemble.
-- **A / Anti-roulis** active ou désactive deux barres de 1000 N/m et recrée
-  seulement le véhicule, commandes relâchées et simulation reprise. R, M, T et G
-  conservent ce choix. Le couplage cesse pour une paire lorsqu’une roue perd son appui.
-- **M / Suspension** alterne souple/ferme et recrée le véhicule, commandes
-  relâchées et simulation reprise. R, G et T conservent ce choix.
-- **T / Contacts** parcourt les quatre modes et recrée le véhicule, gaz,
-  direction et freins relâchés. Les cylindres ont une largeur totale de 40 ou
-  8 cm, un rayon de 30 cm et un axe orienté par le braquage ; le mode sphère
-  conserve un rayon de recherche distinct de 12 cm. La bande mesure
-  1,68 × 0,18 × 4 m et passe à 6 cm des axes de roue : 4 cm de demi-largeur
-  ne suffisent pas à la toucher, 20 cm suffisent.
-- **G / Adhérence** change le mode et recrée le véhicule. Sans adhérence,
-  les suspensions portent toujours le châssis et les rotors restent reliés au
-  moteur, mais les courbes de friction sont nulles. Z fait tourner les roues
-  sans pousser le châssis ; P montre une glissade que les freins ne peuvent arrêter.
-- **P / Pousser devant** applique une impulsion de 200 N·s selon l’avant du
-  châssis, distincte du moteur. **V** pousse de côté avec la même impulsion.
-- **B / Bondir** applique 500 N·s verticalement : perte puis reprise d’appui.
-- **C / Surcharger** ajoute une force vers le bas pendant deux secondes ;
-  les suspensions se compriment jusqu’aux butées puis se détendent.
-- **Espace / Pause** fige le châssis, les roues, le régime et la surcharge.
-- **R / Recréer** conserve le mode choisi, relâche l’accélérateur et les freins,
-  recentre la direction et recrée le véhicule en hauteur.
-- **Échap** ferme la fenêtre.
+**N** alterne voiture RC et Monster truck. Le rayon physique des roues passe
+de 32 à 65 cm ; leur voie, leur inertie et le débattement changent également.
+Les roues dessinées reprennent ces dimensions réelles. La masse reste de 100 kg,
+avec les collisions continues du châssis activées et un centre de masse bas pour freiner sans faire systématiquement un tonneau.
+Le moteur de 180 N·m entraîne deux différentiels et trois rapports automatiques,
+avec des passages courts. Le profil RC atteint environ 33–34 km/h après une
+seconde d’accélération dans les essais à 60/120 Hz ; le Monster environ 39–40.
+Ces réglages sont ludiques et ne représentent pas un véhicule réel calibré.
 
-Accélérateur, braquage et freins se combinent. Relâcher l’accélérateur avec X
-avant de tester un arrêt, puis F pour le frein normal. Un nouvel appui sur F
-le libère. Les actions reprennent une simulation en pause ; l’auto-répétition
-est ignorée. G, R et T réinitialisent toutes les commandes ; G et R conservent le mode de contact choisi.
+Le terrain contient huit obstacles fixes : un petit tremplin devant le départ,
+un tremplin plus haut dans son prolongement, un plan incliné latéral,
+trois marches de l’autre côté, une traverse basse et une rampe plus raide.
+Leurs formes et poses physiques sont aussi utilisées par le rendu. Les essais
+vérifient le passage des marches avec le Monster, l’envol et la reprise des
+appuis sur le parcours des rampes. Les manœuvres excessives peuvent retourner
+le véhicule ; R permet de repartir.
 
-Le panneau indique vitesse, braquage, hauteur, appuis et efforts de suspension,
-puis régime moteur, rapport, embrayage et accélérateur. Rapport 0 : point mort ;
-rapport négatif : marche arrière. Les changements de rapport sont automatiques.
-Au repos : environ 88 cm, quatre appuis et 981 N.
+Les boutons du panneau et leurs touches permettent aussi de comparer :
 
-## Vérifications
+- **M** : suspension souple/ferme.
+- **T** : contacts sphère, cylindre large, cylindre étroit, rayon, puis sphère.
+- **A** : barres anti-roulis.
+- **L** : limite d’inclinaison totale de 60° ou mode libre.
+
+Ces changements recréent le véhicule au départ et relâchent les commandes ;
+le terrain reste en place. **O** donne une impulsion de basculement, **B** un
+bond, **C** une surcharge de deux secondes. **G** reste un raccourci de diagnostic
+pour couper/rétablir l’adhérence en recréant le véhicule. Le moteur ne force ni pose, ni vitesse de caisse,
+ni angle de dérive. Le frein arrière de 4000 N·m par roue et l’adhérence combinée
+partagent réellement le budget d’efforts longitudinal/latéral.
+
+Sur le dos, les roues se détendent sans attraper de faux appuis dans le sol.
+Le châssis repose sur sa collision ; le défaut d’alternance comprimée/détendue
+des contacts cylindriques est couvert par une régression du SDK.
+
+## Vérifier sans fenêtre
 
 ```sh
-silex compile Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release -o .silex/vehicle-suspension
-.silex/vehicle-suspension --physics-check
-.silex/vehicle-suspension --controls-check
-.silex/vehicle-suspension --smoke
+silex test Silex-Examples/Sources/Physics3D/VehicleSuspension/DrivingChecks.sx
+silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/DrivingChecks.sx --release
+silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release -- --controls-check
 ```
 
-Le parcours **TEST AUTOMATIQUE** se ferme après les essais de suspension,
-roulement, adhérence, braquage et freins, puis accélération, marche arrière,
-arrêts, roues motorisées sans adhérence et pause du moteur sur sol simple.
-Il compare ensuite le même obstacle en rayon, sphère, cylindre large puis
-cylindre étroit : appuis de bande, montée de caisse, changement de mode et
-pause. Il poursuit avec le preset souple sur sol simple : cabrage, plongée,
-virages opposés, retour au repos, pause et recréation ferme/souple. Attendre
-sa fermeture normale. Il contrôle physique, transforms rendus et cadrage depuis la vraie
-caméra ECS. Les largeurs rendues des pneus/moyeux et les dimensions/pose du
-mesh de bande sont comparées à leurs réglages physiques ; les points d’appui
-sur la bande restent dans le cadre utile.
-Les parcours sans fenêtre vérifient physique à 60/120 Hz (dont les deux presets, les longueurs de suspension,
-le retour au repos et l’absence de balancement moteur sans adhérence) et
-commandes clavier/boutons ; ils ne remplacent pas l’appréciation du rendu.
-
-Simulation à 120 Hz ; poses, longueurs et angles sont interpolés au rendu.
-Les meshes sont créés une fois et partagés, la grille se recentre par tranches
-de cinq mètres et le panneau se rafraîchit au plus dix fois par seconde ou
-après commande. Les appuis observés au début d’un pas peuvent présenter un
-léger décalage avec la pose finale interpolée lors d’un impact.
-
-Guides SDK : [suspensions](../../../../Packages/GFX.Physics/Docs/FR/VehicleSuspension3D.md),
-[pneus](../../../../Packages/GFX.Physics/Docs/FR/PassiveTires3D.md),
-[direction et freins](../../../../Packages/GFX.Physics/Docs/FR/VehicleControls3D.md)
-et [groupe moteur](../../../../Packages/GFX.Physics/Docs/FR/VehiclePowertrain3D.md).
-
-## Vérifier la comparaison anti-roulis
-
-Le parcours sans fenêtre `-- --anti-roll-check` compare les virages opposés et
-la ligne droite en rayon/cylindre large à 60/120 Hz, la récupération après
-freinage, l’absence d’effet sans adhérence et le franchissement avec pneus
-40/8 cm. Le même SDK produit ces réactions aux points d’appui physiques.
-Le choix n’ajoute aucun angle de présentation et ne définit pas de limite
-d’inclinaison maximale. Les barres reproduisent le couplage de ressorts Jolt,
-qui dépend aussi du pas fixe et de l’amortissement.
-
-Le smoke conserve les essais précédents puis compare les deux virages avec
-barres, les transforms rendus, la pause et la recréation. Les fenêtres
-TEST AUTOMATIQUE se ferment à la fin. L’essai interactif sert à apprécier la
-souplesse et la lisibilité de cette différence.
-
-## Vérifier le basculement et la protection
-
-`-- --tilt-check` sélectionne les 16 recettes de basculement sans fenêtre :
-60/120 Hz, impulsions opposées, rayons/cylindres, souple/ferme et barres.
-Les tests contrôlent l’impulsion réelle, le retournement libre, l’inclinaison
-protégée, les appuis et le poids moyen sur la dernière seconde de récupération.
-Les huit parcours physiques précédents restent exécutés par `--physics-check`.
-
-Le smoke poursuit les essais précédents avec les deux basculements, les poses
-physiques rendues, la pause et la recréation de limite. L’essai interactif sert
-à apprécier la lisibilité et la sensation de cette protection optionnelle.
+Les contrôles couvrent accélération, freinage avant inversion, blocage arrière
+et dérive miroir, gros pneus sur obstacles, sauts/réceptions, roues retournées,
+entrées maintenues/relâchées, focus, répétition, boutons, dimensions du rendu et
+bornes du HUD. Les anciens témoins physiques restent disponibles avec
+`--physics-check` ; ils conservent leurs configurations historiques. Le mode
+`--smoke` est un test graphique automatique qui ouvre une fenêtre et se ferme
+à la fin ; il reste distinct du parcours interactif.

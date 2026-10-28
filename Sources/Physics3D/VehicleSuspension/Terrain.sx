@@ -1,0 +1,30 @@
+use GFX.Physics
+use STD.Math
+
+package struct Obstacle {
+    let size:Math.Vec3
+    let pose:Physics.Transform3D
+    init(size:Math.Vec3,position:Math.Vec3,rotation:Math.Quat=Math.Quat()) {
+        self.size=size;self.pose=Physics.Transform3D(position,rotation)
+    }
+}
+package func obstacles() Obstacle[] {
+    return [
+        Obstacle(Math.Vec3(6.0,0.4,8.0),Math.Vec3(0.0,0.99,16.0),Math.Quat.angle_axis(-0.2,Math.Vec3.right())),
+        Obstacle(Math.Vec3(7.0,0.5,10.0),Math.Vec3(0.0,1.96,36.0),Math.Quat.angle_axis(-0.35,Math.Vec3.right())),
+        Obstacle(Math.Vec3(8.0,0.4,9.0),Math.Vec3(13.0,1.06,17.0),Math.Quat.angle_axis(0.22,Math.Vec3.back())),
+        Obstacle(Math.Vec3(6.0,0.25,3.0),Math.Vec3(-10.0,0.125,10.0)),
+        Obstacle(Math.Vec3(6.0,0.5,3.0),Math.Vec3(-10.0,0.25,13.0)),
+        Obstacle(Math.Vec3(6.0,0.8,3.0),Math.Vec3(-10.0,0.4,16.0)),
+        Obstacle(Math.Vec3(9.0,0.35,0.8),Math.Vec3(11.0,0.175,32.0)),
+        Obstacle(Math.Vec3(5.0,0.6,6.0),Math.Vec3(-14.0,1.52,32.0),Math.Quat.angle_axis(-0.42,Math.Vec3.right()))
+    ]
+}
+package func create(world:Physics.World3D) Physics.RigidBody3D[] {
+    var bodies:Physics.RigidBody3D[]=[]
+    for obstacle in obstacles() {
+        bodies.append(world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.box(Physics.Box3D(obstacle.size)) ..transform=obstacle.pose ..friction=1.0))
+    }
+    return bodies
+}
