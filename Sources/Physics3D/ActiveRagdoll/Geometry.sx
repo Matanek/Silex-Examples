@@ -1,0 +1,60 @@
+use GFX.Scene3D.Geometry.Mesh
+use GFX.Scene3D.Geometry.Vertex
+use STD.Math
+
+// Unit diameter. A sphere is one unit high; the capsule is two units high.
+// Both are shared by every corresponding part, built only at scene startup.
+package func rounded(straight:float) Mesh {
+    var vertices:Vertex[]=[];var indices:uint32[]=[]
+    let segments=20;var rings=18;if straight==0.0 { rings=17 }
+    var row=0
+    while row<rings {
+        var latitude= -Math.half_pi()+row as float*Math.pi()/16.0
+        var offset=0.0
+        if straight>0.0 {
+            if row<=8 { offset= -straight*0.5 }
+            else { latitude=(row-9) as float*Math.pi()/16.0;offset=straight*0.5 }
+        }
+        var column=0
+        while column<=segments {
+            let longitude=column as float*Math.two_pi()/segments as float
+            let normal=Math.Vec3(Math.cos(latitude)*Math.cos(longitude),Math.sin(latitude),Math.cos(latitude)*Math.sin(longitude))
+            let point=normal.multiply(0.5).add(Math.Vec3(0.0,offset,0.0))
+            vertices.append(Vertex(point,normal))
+            if row<rings-1 && column<segments {
+                let a=(row*(segments+1)+column) as uint32
+                let b=a+(segments+1) as uint32
+                let triangle_indices:uint32[]=[a,b,b+1 as uint32,a,b+1 as uint32,a+1 as uint32]
+                for index in triangle_indices { indices.append(index) }
+            }
+            column++
+        }
+        row++
+    }
+    return Mesh(vertices,indices)
+}
+
+test "rounded mannequin meshes have finite outward surfaces and nominal bounds" {
+    let lengths:float[]=[0.0,1.0]
+    for straight in lengths {
+        let mesh=rounded(straight);let vertices=mesh.vertices();let indices=mesh.indices()
+        assert(!mesh.is_empty())
+        var low=Math.Vec3(10.0);var high=Math.Vec3(-10.0)
+        for vertex in vertices {
+            let p=vertex.position
+            assert(Math.is_finite(p.x) && Math.is_finite(p.y) && Math.is_finite(p.z))
+            assert(Math.abs(vertex.normal.length_squared()-1.0)<0.00001)
+            low=Math.Vec3(Math.min(low.x,p.x),Math.min(low.y,p.y),Math.min(low.z,p.z))
+            high=Math.Vec3(Math.max(high.x,p.x),Math.max(high.y,p.y),Math.max(high.z,p.z))
+        }
+        assert(low.nearly_equal(Math.Vec3(-0.5,-(straight+1.0)*0.5,-0.5),0.00001))
+        assert(high.nearly_equal(Math.Vec3(0.5,(straight+1.0)*0.5,0.5),0.00001))
+        var i=0
+        while i<indices.count() {
+            let a=vertices[indices[i] as int];let b=vertices[indices[i+1] as int];let c=vertices[indices[i+2] as int]
+            let normal=b.position.subtract(a.position).cross(c.position.subtract(a.position))
+            if normal.length_squared()>0.000000000001 { assert(normal.dot(a.normal.add(b.normal).add(c.normal))>0.0) }
+            i+=3
+        }
+    }
+}
