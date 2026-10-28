@@ -1048,6 +1048,7 @@ Use `-- --cpu-check` for the pure CPU path without opening a window.
 [RC car / Monster truck](Sources/Physics3D/VehicleSuspension/README.md) provides
 held ZQSD driving, a rear handbrake on Space, strong four-wheel-drive acceleration,
 a compact left HUD and eight physical obstacles including ramps and steps.
+Solid wheel sides also collide during rollover.
 N switches real wheel sizes and suspension travel; M/T/A/L compare suspension,
 contacts, anti-roll bars and tilt limits. Run
 `silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release`.

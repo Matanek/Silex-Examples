@@ -4,6 +4,11 @@ use STD.Math
 package func radius(monster:bool) float { if monster { return 0.65 }return 0.32 }
 package func chassis_size(monster:bool) Math.Vec3 { if monster { return Math.Vec3(1.6,0.5,2.8) }return Math.Vec3(1.4,0.4,2.4) }
 package func create_vehicle(world:Physics.World3D,contact:Physics.WheelContact3D,monster:bool,soft:bool,anti_roll:bool,limited:bool,grip:bool) Physics.WheeledVehicle3D {
+    var width=0.2;if monster { width=0.72 }
+    match contact {
+        cylinder(value)=>{ width=value }
+        else=>{}
+    }
     var coefficient=2.25;if !grip { coefficient=0.0 }
     let curve=Physics.TireFrictionCurve3D([Math.Vec2(0.0,coefficient)])
     var inertia=1.0;if monster { inertia=4.0 }
@@ -15,7 +20,7 @@ package func create_vehicle(world:Physics.World3D,contact:Physics.WheelContact3D
         var steering=0.0;var handbrake=4000.0;if z>0.0 { steering=0.6;handbrake=0.0 }
         wheels.append(Physics.Wheel3DSettings(Math.Vec3(track*x,0.0,station*z),radius:radius(monster),maximum_length:length,
             stiffness:stiffness,damping:damping,tire:tire,contact:contact,maximum_steering_angle:steering,
-            maximum_brake_torque:2200.0,maximum_handbrake_torque:handbrake))
+            maximum_brake_torque:2200.0,maximum_handbrake_torque:handbrake,side_collision_width:width))
     } }
     var bars:Physics.VehicleAntiRollBar3DSettings[]=[]
     if anti_roll { bars=[Physics.VehicleAntiRollBar3DSettings(0,2,stiffness:1200.0),Physics.VehicleAntiRollBar3DSettings(1,3,stiffness:1200.0)] }

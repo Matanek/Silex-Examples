@@ -1,9 +1,10 @@
 # Drive an RC car or a monster truck
 
-The car starts with strong acceleration, four-wheel drive, soft suspension and
-sphere contacts. A 280 × 360 pixel panel stays on the left, leaving the vehicle
-and terrain visible. Grid spacing is one meter; the camera follows movement and
-can still be orbited with the mouse.
+The car starts with strong acceleration, four-wheel drive, soft suspension,
+sphere sweeps and solid tire sides. A 280 × 360 pixel panel uses natural text
+heights and stays on the left, leaving the vehicle and terrain visible. Grid
+spacing is one meter; the camera follows movement and can still be orbited
+with the mouse.
 
 From the `SilexProject` workspace root:
 
@@ -57,7 +58,9 @@ grip by recreating the vehicle. The engine imposes no chassis pose, velocity or
 slide angle. A 4000 Nm rear handbrake per wheel and combined tire friction
 actually share the longitudinal/lateral force budget.
 
-When overturned, wheels extend without catching fictitious floor support.
+The wheel sides hit the floor during rollover using their actual width, even
+when suspension support is unavailable. This side envelope stays active with
+each of the four sweep modes. When overturned, wheels extend without catching fictitious floor support.
 The chassis rests on its own collision shape; a package regression covers the
 cylinder-contact compression/extension alternation.
 
@@ -72,7 +75,8 @@ silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release -
 Checks cover acceleration, braking before reversing, rear locking and mirrored
 slides, large physical wheels on obstacles, jumps/landings, inverted wheels,
 held/released inputs, focus, repetition, buttons, rendered dimensions and HUD
-bounds. Historical physical witnesses remain available through `--physics-check`
+bounds and the actual text height after visible actions. Historical physical
+witnesses remain available through `--physics-check`
 with their original configurations. `--smoke` is an automatic graphical test
 that opens a window and closes when complete; it remains separate from the
 interactive playground.

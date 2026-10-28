@@ -98,9 +98,40 @@ package func ramps() {
         assert(touched && lost && landed && peak>2.0)
     } }
 }
+package func rollover_sides() {
+    let modes:Model.ContactMode[]=[Model.ContactMode.ray,Model.ContactMode.sphere,Model.ContactMode.wide,Model.ContactMode.narrow]
+    let angles:float[]=[-110.0,-90.0,90.0,110.0]
+    for mode in modes { for monster in [false,true] { for angle in angles {
+        var model=Model.SuspensionModel(contacts:mode,soft:true,playground:true)
+        if monster { model.toggle_monster() }
+        model.vehicle.chassis().set_transform(Physics.Transform3D(Math.Vec3(0.0,3.0,0.0),
+            Math.Quat.angle_axis(Math.radians(angle),Math.Vec3(0.0,0.0,1.0))))
+        let width=Model.wheel_width(mode,monster)
+        var step=0;var checked=0
+        while step<240 {
+            model.step(1.0/120.0)
+            let pose=model.vehicle.chassis().transform()
+            if pose.vector(Math.Vec3.up()).y<=0.00001 {
+                let axle=pose.vector(Math.Vec3.right()).y
+                for index in [0,1,2,3] {
+                    let wheel=model.vehicle.wheel_settings(index)
+                    assert(wheel.side_collision_width==width)
+                    let center=pose.point(wheel.position.add(wheel.direction.multiply(model.vehicle.wheel(index).length)))
+                    let extent=width*0.5*Math.abs(axle)+wheel.radius*Math.sqrt(Math.max(0.0,1.0-axle*axle))
+                    assert(center.y-extent> -0.002)
+                }
+                checked++
+            }
+            step++
+        }
+        assert(checked>0)
+    } } }
+    print("RC / Monster wheel sides stay above the floor in both rollover directions for every detector")
+}
 test "RC and monster accelerate promptly and brake before reversing" { acceleration() }
 test "held handbrake locks only the rear wheels and produces a physical mirrored slide" { handbrake() }
 test "monster physical wheels traverse actual obstacles" { terrain() }
 test "overturned rendered wheel lengths remain extended for every detector" { overturned() }
 test "RC and monster launch and regain real support on the ramp course" { ramps() }
-func main() { acceleration();handbrake();terrain();overturned();ramps();print("RC / Monster physics checks passed") }
+test "RC and monster wheel sides collide in both rollover directions for every detector" { rollover_sides() }
+func main() { rollover_sides();acceleration();handbrake();terrain();overturned();ramps();print("RC / Monster physics checks passed") }

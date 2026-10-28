@@ -18,7 +18,7 @@ package class SuspensionControls {
     func release() { self.forward_held=false;self.reverse_held=false;self.left_held=false;self.right_held=false;self.rear_held=false }
     func monster() { self.models++;self.release() }
     func monster_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.monster_text),self.monster) }
-    func text(value:str,height:float) UI.Text { var text=UI.Text(value);text.style.height=height;text.style.font_size=13.0;return text }
+    func text(value:str,height:float?=null) UI.Text { var text=UI.Text(value);text.style.height=height;text.style.font_size=13.0;return text }
 
     var tilt_changes:int=0
     var tilt_text:UI.State<str> =UI.State<str>("Limite inactive (L)")
@@ -60,7 +60,7 @@ package class SuspensionControls {
     func forward_drive() { self.throttles.append(0.6) }
     func coast() { self.throttles.append(0.0) }
     func reverse_drive() { self.throttles.append(-0.5) }
-    func power_metrics(reads:UI.Reads) UI.View { return self.text(reads.read(self.power_measure),36.0) }
+    func power_metrics(reads:UI.Reads) UI.View { return self.text(reads.read(self.power_measure)) }
     func left() { self.directions.append(-0.6) }
     func center() { self.directions.append(0.0) }
     func right() { self.directions.append(0.6) }
@@ -82,14 +82,14 @@ package class SuspensionControls {
         return result
     }
     func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause) }
-    func status(reads:UI.Reads) UI.View { return self.text(reads.read(self.feedback),36.0) }
-    func metrics(reads:UI.Reads) UI.View { return self.text(reads.read(self.measure),36.0) }
+    func status(reads:UI.Reads) UI.View { return self.text(reads.read(self.feedback)) }
+    func metrics(reads:UI.Reads) UI.View { return self.text(reads.read(self.measure)) }
     func describe() UI.View {
         var first=UI.Row([self.button("R : repartir",self.reset),UI.Reactive(self.monster_button)]);first.style.gap=8.0
         var second=UI.Row([UI.Reactive(self.contact_button),UI.Reactive(self.suspension_button)]);second.style.gap=8.0
         var third=UI.Row([UI.Reactive(self.anti_roll_button),UI.Reactive(self.tilt_button)]);third.style.gap=8.0
-        var title=self.text("Voiture RC / Monster",24.0);title.style.font_size=18.0
-        var help=self.text("Z / S : gaz, frein puis recul\nQ / D : direction\nEspace maintenu : frein AR\nO : basculer · B : bond · C : charge",66.0)
+        var title=self.text("Voiture RC / Monster");title.style.font_size=18.0
+        var help=self.text("Z / S : gaz, frein puis recul\nQ / D : direction\nEspace maintenu : frein AR\nO : basculer · B : bond · C : charge")
         var rows:UI.View[]=[title,UI.Reactive(self.metrics),UI.Reactive(self.power_metrics),UI.Reactive(self.status),first,second,third,help]
         if self.automatic { rows=[self.text("TEST AUTOMATIQUE",24.0),UI.Reactive(self.metrics),UI.Reactive(self.power_metrics)] }
         var root=UI.Column(rows);root.style.padding=UI.Insets(12.0);root.style.gap=6.0

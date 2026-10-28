@@ -1,9 +1,10 @@
 # Piloter une voiture RC ou un Monster truck
 
 La voiture démarre avec une forte accélération, quatre roues motrices, des
-suspensions souples et des contacts sphériques. Le panneau de 280 × 360 pixels
-reste à gauche pour dégager la voiture et le terrain. Le quadrillage mesure des
-mètres ; la caméra suit le déplacement et reste orientable à la souris.
+suspensions souples, des balayages sphériques et des flancs de pneus solides.
+Le panneau de 280 × 360 pixels laisse le texte prendre sa hauteur réelle et
+reste à gauche pour dégager la voiture et le terrain. Le quadrillage mesure
+des mètres ; la caméra suit le déplacement et reste orientable à la souris.
 
 Depuis `/Users/nekmata/Projects/SilexProject` :
 
@@ -59,7 +60,10 @@ pour couper/rétablir l’adhérence en recréant le véhicule. Le moteur ne for
 ni angle de dérive. Le frein arrière de 4000 N·m par roue et l’adhérence combinée
 partagent réellement le budget d’efforts longitudinal/latéral.
 
-Sur le dos, les roues se détendent sans attraper de faux appuis dans le sol.
+Les flancs des roues heurtent le sol pendant un retournement, avec leur
+largeur réelle, même lorsque la suspension ne peut pas porter l’appui.
+Cette enveloppe latérale reste active avec chacun des quatre balayages. Sur le
+dos, les roues se détendent sans attraper de faux appuis dans le sol.
 Le châssis repose sur sa collision ; le défaut d’alternance comprimée/détendue
 des contacts cylindriques est couvert par une régression du SDK.
 
@@ -74,7 +78,8 @@ silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release -
 Les contrôles couvrent accélération, freinage avant inversion, blocage arrière
 et dérive miroir, gros pneus sur obstacles, sauts/réceptions, roues retournées,
 entrées maintenues/relâchées, focus, répétition, boutons, dimensions du rendu et
-bornes du HUD. Les anciens témoins physiques restent disponibles avec
+bornes du HUD et hauteur réelle de chaque texte après les actions visibles.
+Les anciens témoins physiques restent disponibles avec
 `--physics-check` ; ils conservent leurs configurations historiques. Le mode
 `--smoke` est un test graphique automatique qui ouvre une fenêtre et se ferme
 à la fin ; il reste distinct du parcours interactif.

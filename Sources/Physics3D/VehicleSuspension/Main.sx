@@ -1,6 +1,7 @@
 use GFX.Application
 use GFX.Accessibility
 use GFX.Color
+use GFX.Canvas
 use GFX.Components
 use GFX.ECS
 use GFX.Input
@@ -175,7 +176,7 @@ func perform(state:&SuspensionScene,simulation:&Application.Simulation) {
     }
     while state.controls.suspension_changes>0 {
         state.controls.suspension_changes--;state.model.toggle_suspension();remember(state);state.accumulator=0.0;simulation.resume();changed=true
-        state.controls.feedback.set("Suspension changée — comparer en roulant.")
+        state.controls.feedback.set("Suspension changée — comparer.")
     }
     while state.controls.contact_changes>0 {
         state.controls.contact_changes--;state.model.toggle_contact();remember(state);state.accumulator=0.0;simulation.resume();changed=true
@@ -183,7 +184,7 @@ func perform(state:&SuspensionScene,simulation:&Application.Simulation) {
     }
     while state.controls.grips>0 {
         state.controls.grips--;state.model.toggle_grip();remember(state);state.accumulator=0.0;simulation.resume();changed=true
-        state.controls.feedback.set("Comparaison changée — véhicule recréé. P pousse devant ; V pousse de côté. Les repères du sol indiquent le déplacement.")
+        state.controls.feedback.set("Adhérence changée — R pour repartir.")
     }
     if state.controls.throttles.count()>0 {
         for throttle in state.controls.throttles { state.model.accelerate(throttle) }
@@ -213,11 +214,11 @@ func perform(state:&SuspensionScene,simulation:&Application.Simulation) {
     }
     while state.controls.jumps>0 {
         state.controls.jumps--;state.model.jump();simulation.resume();changed=true
-        state.controls.feedback.set("Bond reconnu — le châssis emporte ses roues, perd ses appuis puis retombe sur ses ressorts.")
+        state.controls.feedback.set("Bond — attendre la réception.")
     }
     while state.controls.loads>0 {
         state.controls.loads--;state.model.load();simulation.resume();changed=true
-        state.controls.feedback.set("Surcharge reconnue — les suspensions se compriment pendant 2 s, puis se détendent sous le poids seul.")
+        state.controls.feedback.set("Surcharge pendant 2 secondes.")
     }
     while state.controls.resets>0 {
         state.controls.resets--;state.model.reset();remember(state);state.accumulator=0.0;simulation.resume();changed=true
@@ -691,13 +692,30 @@ func verify_hud(source:Accessibility.Source,id:str) {
     assert(element.bounds.x>=0.0 && element.bounds.y>=0.0)
     assert(element.bounds.x+element.bounds.width<=Controls.Hud.width as float+0.01)
     assert(element.bounds.y+element.bounds.height<=Controls.Hud.height as float+0.01)
+    if element.role==Accessibility.Role.text {
+        var canvas=Canvas();var size=13.0;if element.name=="Voiture RC / Monster" { size=18.0 }
+        let text=canvas.measure_text(element.name,Canvas.TextStyle(size:size))
+        if text.width>element.bounds.width+0.01 || text.height>element.bounds.height+0.01 { print("HUD overflow: $(element.name) measured $(text.width)x$(text.height) bounds $(element.bounds.width)x$(element.bounds.height)") }
+        assert(text.width<=element.bounds.width+0.01 && text.height<=element.bounds.height+0.01)
+    }
     var index=0;while index<element.child_count {
         if let child=source.child(id,index) { verify_hud(source,child) }
         index++
     }
 }
+func click_hud(session:&UI.Session,source:Accessibility.Source,id:str,name:str) bool {
+    let element=source.read(id)!
+    if element.role==Accessibility.Role.button && element.name==name {
+        InputCheck.click(session,element.bounds.x+element.bounds.width*0.5,element.bounds.y+element.bounds.height*0.5);return true
+    }
+    var index=0;while index<element.child_count {
+        if let child=source.child(id,index) { if click_hud(session,source,child,name) { return true } }
+        index++
+    }
+    return false
+}
 func verify_controls() {
-    var world=Resources.World();var meshes=Resources.Meshes3D();var state=SuspensionScene(soft:true,playground:true);var simulation=Application.Simulation()
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=SuspensionScene(contacts:Model.ContactMode.sphere,soft:true,playground:true);var simulation=Application.Simulation()
     var camera=Resources.ViewportCamera3D(camera_settings())
     startup(world,meshes,state,simulation);render(world,state,camera);verify_framing(world,state,camera.transform())
     var accessible=state.ui.accessibility();verify_hud(accessible,accessible.root()!)
@@ -731,13 +749,20 @@ func verify_controls() {
     render(world,state,camera);assert(Math.abs(world.get<Components.Transform3D>(state.tires[0]).scale.x*0.3-0.65)<0.00001)
     assert(state.controls.handle(InputCheck.key_event(Input.Key.n,78 as uint32,true)));perform(state,simulation);assert(state.model.monster)
     assert(state.controls.handle(InputCheck.key_event(Input.Key.r,82 as uint32)));perform(state,simulation);assert(state.model.monster)
-    // Retained layout: title24 + metrics36 + engine36 + feedback30 + gaps.
-    old=state.model.vehicle;InputCheck.click(state.ui,74.0,177.0);perform(state,simulation);assert(!old.is_valid())
-    InputCheck.click(state.ui,206.0,177.0);perform(state,simulation);assert(!state.model.monster)
+    old=state.model.vehicle
+    assert(click_hud(state.ui,accessible,accessible.root()!,"R : repartir"));perform(state,simulation);assert(!old.is_valid())
+    var drawing=state.ui.drawing(Controls.Hud.width,Controls.Hud.height)
+    assert(click_hud(state.ui,accessible,accessible.root()!,"N : voiture RC"));perform(state,simulation);assert(!state.model.monster)
     assert(!simulation.is_paused())
     for i in [0,1,2,3] {
         let settings=state.model.vehicle.wheel_settings(i);let tire=world.get<Components.Transform3D>(state.tires[i])
         assert(settings.radius>0.0 && tire.scale.x>0.0)
+    }
+    let keys:Input.Key[]=[Input.Key.m,Input.Key.t,Input.Key.a,Input.Key.l,Input.Key.o,Input.Key.b,Input.Key.c,Input.Key.g]
+    for key in keys {
+        assert(state.controls.handle(InputCheck.key_event(key)));perform(state,simulation)
+        drawing=state.ui.drawing(Controls.Hud.width,Controls.Hud.height)
+        verify_hud(accessible,accessible.root()!)
     }
     print("Vehicle controls: held ZQSD, Space rear brake, release, repeat, profile/reset buttons, compact HUD and real wheel radius verified")
 }
