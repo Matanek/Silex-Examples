@@ -1,0 +1,124 @@
+use STD.Math
+
+package struct Support {
+    let pelvis:Math.Vec3
+    let center:Math.Vec3
+    let velocity:Math.Vec3
+    let left:Math.Vec3
+    let right:Math.Vec3
+    let left_loaded:bool
+    let right_loaded:bool
+    init(pelvis:Math.Vec3,center:Math.Vec3,velocity:Math.Vec3,left:Math.Vec3,right:Math.Vec3,left_loaded:bool,right_loaded:bool) {
+        self.pelvis=pelvis;self.center=center;self.velocity=velocity
+        self.left=left;self.right=right;self.left_loaded=left_loaded;self.right_loaded=right_loaded
+    }
+    func foot(which:int) Math.Vec3 { if which==0 { return self.left }
+        return self.right }
+    func loaded(which:int) bool { if which==0 { return self.left_loaded }
+        return self.right_loaded }
+}
+
+package class Plan {
+    var feet:Math.Vec3[]=[]
+    var swing:int= -1
+    var progress:float=0.0
+    var from:Math.Vec3=Math.Vec3()
+    var to:Math.Vec3=Math.Vec3()
+    var next:int=0
+    var steps:int=0
+    var timeouts:int=0
+    var initialized:bool=false
+    func reset() { self.initialized=false;self.swing= -1;self.progress=0.0 }
+    func update(support:Support,intent:Math.Vec2,heading:float,delta:float) {
+        let rotation=Math.Quat.angle_axis(heading,Math.Vec3.up())
+        let side=rotation.rotate(Math.Vec3.right())
+        let forward=rotation.rotate(Math.Vec3(0.0,0.0,1.0))
+        let velocity=support.velocity.multiply(Math.Vec3(1.0,0.0,1.0))
+        let desired=Math.Vec3(intent.x,0.0,intent.y).multiply(1.5)
+        if !self.initialized {
+            self.feet.clear()
+            for foot in [0,1] { let p=support.foot(foot);self.feet.append(Math.Vec3(p.x,0.06,p.z)) }
+            self.initialized=true
+        }
+        if self.swing>=0 {
+            self.progress+=delta/0.42
+            let phase=Math.min(1.0,self.progress)
+            let eased=phase*phase*(3.0-2.0*phase)
+            self.feet[self.swing]=self.from.lerp(self.to,eased).add(Math.Vec3(0.0,0.20*Math.sin(Math.pi()*phase),0.0))
+            if phase==1.0 && (support.loaded(self.swing) || self.progress>1.35) {
+                let p=support.foot(self.swing)
+                self.feet[self.swing]=Math.Vec3(p.x,0.06,p.z)
+                if support.loaded(self.swing) { self.steps++ }else { self.timeouts++ }
+                self.next=1-self.swing;self.swing= -1
+            }
+        }
+        if self.swing<0 {
+            let capture=support.center.add(velocity.multiply(0.28))
+            let middle=self.feet[0].add(self.feet[1]).multiply(0.5)
+            let error=capture.subtract(middle)
+            let moving=intent.length_squared()>0.01
+            let unstable=Math.abs(error.dot(side))>0.16 || Math.abs(error.dot(forward))>0.14
+            if moving || unstable {
+                var foot=self.next
+                if !moving && Math.abs(error.dot(side))>0.16 { if error.dot(side)>0.0 { foot=1 }else { foot=0 } }
+                var sign= -1.0;if foot==1 { sign=1.0 }
+                var target=support.center.add(velocity.multiply(0.20)).add(desired.multiply(0.38)).add(side.multiply(sign*0.16)).add(forward.multiply(0.07))
+                if !moving { target=capture.add(side.multiply(sign*0.16)) }
+                let pelvis=support.pelvis
+                var reach=target.subtract(pelvis).multiply(Math.Vec3(1.0,0.0,1.0))
+                if reach.length()>0.65 { reach=reach.normalized().multiply(0.65) }
+                target=Math.Vec3(pelvis.x+reach.x,0.06,pelvis.z+reach.z)
+                if target.subtract(self.feet[foot]).length()>0.12 {
+                    self.swing=foot;self.progress=0.0;self.from=self.feet[foot];self.to=target
+                }
+            }
+        }
+    }
+}
+
+func standing(center:Math.Vec3=Math.Vec3(0.0,1.0,0.09)) Support {
+    return Support(Math.Vec3(0.0,1.055,0.0),center,Math.Vec3(),
+        Math.Vec3(-0.16,0.06,0.09),Math.Vec3(0.16,0.06,0.09),true,true)
+}
+
+test "quiet support keeps both foot targets fixed" {
+    var plan=Plan();let support=standing();var frame=0
+    while frame<240 { plan.update(support,Math.Vec2(),0.0,1.0/120.0);frame++ }
+    assert(plan.swing== -1 && plan.steps==0 && plan.timeouts==0)
+    assert(plan.feet[0]==support.left && plan.feet[1]==support.right)
+}
+
+test "a long swing lifts one foot while the stance target stays planted" {
+    var plan=Plan();let support=standing();let command=Math.Vec2(0.0,1.0)
+    plan.update(support,command,0.0,0.01)
+    let unloaded=Support(support.pelvis,support.center,support.velocity,support.left,support.right,false,true)
+    assert(plan.swing==0 && plan.to.z-support.left.z>0.45)
+    var frame=0
+    while frame<20 {
+        plan.update(unloaded,command,0.0,0.01)
+        assert(plan.feet[1]==support.right);frame++
+    }
+    assert(plan.feet[0].y>0.24 && plan.feet[0].z>support.left.z+0.20)
+    while frame<45 { plan.update(unloaded,command,0.0,0.01);frame++ }
+    assert(plan.steps==0 && plan.swing==0)
+    let landed=Support(support.pelvis,support.center,support.velocity,plan.to,support.right,true,true)
+    plan.update(landed,command,0.0,0.01)
+    assert(plan.steps==1 && plan.timeouts==0)
+}
+
+test "missing contact retries without reporting a successful step" {
+    var plan=Plan();let support=standing()
+    let airborne=Support(support.pelvis,support.center,support.velocity,support.left,support.right,false,false)
+    var frame=0
+    while frame<65 { plan.update(airborne,Math.Vec2(0.0,1.0),0.0,0.01);frame++ }
+    assert(plan.steps==0 && plan.timeouts==1)
+}
+
+test "lateral imbalance seeks support on the falling side without input" {
+    var right=Plan();var left=Plan()
+    right.update(standing(Math.Vec3(0.4,1.0,0.09)),Math.Vec2(),0.0,0.01)
+    left.update(standing(Math.Vec3(-0.4,1.0,0.09)),Math.Vec2(),0.0,0.01)
+    assert(right.swing==1 && right.to.x>0.4)
+    assert(left.swing==0 && left.to.x< -0.4)
+    assert(right.feet[0]==standing().left && left.feet[1]==standing().right)
+}
