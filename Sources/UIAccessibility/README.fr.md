@@ -207,3 +207,20 @@ localiser un ralentissement, en comparant des essais qui utilisent la même opti
 Le reste de l’intervalle inclut rendu, travail natif hors Source, attente et ordonnancement ; il
 ne représente pas un temps GPU isolé. La trace est optionnelle et ne change pas
 la session utilisée par défaut.
+
+
+## Compléter la qualification macOS
+
+Ajouter `--complete` au lancement interactif pour afficher les onglets
+Navigation/Préférences, Select/ComboBox, menu, toolbar, aide et dialogue.
+Le tableau Équipe possède une colonne Personne triable. `--placed` peut rester
+actif pour éprouver les coordonnées avec origine de présentation décalée.
+
+Dans l’inspecteur, vérifier colonnes, en-têtes et tri, sélection et repli de
+l’arbre, onglets et dialogue modal. Dans les champs, interroger plages et
+positions avec les accents combinés/emoji, puis après défilement. Avec
+VoiceOver, vérifier lecture et actions de ces nouveaux parcours ; les tests
+CPU et AppKit sans fenêtre ne remplacent pas cet essai système. Le parcours
+bouton/champ déjà confirmé ne nécessite pas un nouvel essai identique.
+`--cpu-check` conserve ses sorties et vérifie aussi les onglets, les colonnes
+et l’annulation du dialogue sans ouvrir de fenêtre.

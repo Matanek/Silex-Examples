@@ -6,11 +6,17 @@ use GFX.Viewer
 use GFX.Input.Events
 use GFX.Input.Keyboard
 use GFX.Window
+use GFX.Color
 use STD.Process
 use STD.Math
+use STD.Text.UTF8
 
 package class Model {
     var placed:bool = false
+    var complete:bool = false
+    var tab:UI.State<str?> = UI.State<str?>("navigation")
+    var choice:UI.State<str?> = UI.State<str?>("Rapide")
+    var dialog:UI.State<bool> = UI.State<bool>(false)
     var name:UI.State<str> = UI.State<str>("Ada")
     var message:UI.State<str> = UI.State<str>("Aé👩‍💻中Z\nDeuxième ligne")
     var presses:UI.State<int> = UI.State<int>(0)
@@ -23,6 +29,17 @@ package class Model {
     var file:UI.State<str?> = UI.State<str?>(null)
     var hidden_focus:UI.State<bool> = UI.State<bool>(false)
     var person:UI.State<str?> = UI.State<str?>(null)
+    func open_dialog() { self.dialog.set(true) }
+    func close_dialog() { self.dialog.set(false) }
+    func compare_names(first:str, second:str) int {
+        let left = UTF8.scalars(first); let right = UTF8.scalars(second); var index = 0
+        while index < left.count() && index < right.count() {
+            if left[index] < right[index] { return -1 }
+            if left[index] > right[index] { return 1 }
+            index++
+        }
+        return left.count()-right.count()
+    }
     func activate() { self.presses.set(self.presses.value() + 1) }
     func toggle_focus() { self.hidden_focus.set(!self.hidden_focus.value()) }
     func file_key(value:str) str { return value }
@@ -53,11 +70,11 @@ package class Model {
         var message = UI.TextArea(self.message, smooth_scroll:true, scroll_chain:false)
         message.style.height = 110.0
         var table = UI.TableView<str>(["Ada", "Linus", "Grace"], self.file_key, [
-            UI.TableColumn<str>("name", "Personne", self.file_row, width:260.0),
+            UI.TableColumn<str>("name", "Personne", self.file_row, width:260.0, compare:self.compare_names),
             UI.TableColumn<str>("team", "Domaine", self.team_cell, width:220.0)
         ], selection:self.person, smooth_scroll:true, scroll_chain:false, stretch_last_column:true, full_height_resize:true)
         table.style.height = 190.0
-        var root = UI.Column([
+        var nodes:UI.View[] = [
             title,
             UI.Text("Essayez les contrôles et l’option de contour. Tab conserve la navigation."),
             UI.Button(focus_label, self.toggle_focus),
@@ -81,26 +98,54 @@ package class Model {
             UI.Text("Équipe — 3 lignes, 2 colonnes"),
             UI.Accessible(table, "Équipe"),
             UI.Text("Personne sélectionnée : $(reads.read(self.person) ?? "aucune")")
-        ])
+        ]
+        if self.complete {
+            var action = UI.Command("Action de menu",self.activate)
+            nodes.append(UI.Text("Complétion macOS — onglets, choix, menu et dialogue"))
+            nodes.append(UI.Tabs([
+                UI.Tab("navigation","Navigation",UI.Text("Premier panneau")),
+                UI.Tab("preferences","Préférences",UI.Text("Second panneau"))
+            ],self.tab))
+            let options:UI.SelectOption<str>[] = [UI.SelectOption<str>("Rapide","Rapide"),UI.SelectOption<str>("Précis","Précis")]
+            nodes.append(UI.Label("Mode de rendu",UI.Select<str>(options,self.choice)))
+            nodes.append(UI.Label("Recherche de mode",UI.ComboBox<str>(options,self.choice)))
+            nodes.append(UI.Menu("Actions macOS",[UI.MenuItem.command(action)]))
+            nodes.append(UI.Toolbar([action]))
+            nodes.append(UI.Tooltip(UI.Button("Aide",self.activate),UI.Text("Aide accessible du contrôle")))
+            nodes.append(UI.Button("Ouvrir le dialogue",self.open_dialog))
+            nodes.append(UI.Text("Choix courant : $(reads.read(self.choice) ?? "aucun")"))
+        }
+        var root = UI.Column(nodes)
         root.style.padding = UI.Insets(20.0); root.style.gap = 14.0
         root.style.theme = UI.Theme.dark()
         var page = UI.ScrollView(root, smooth_scroll:true)
-        if !self.placed { return page }
+        if !self.placed {
+            if self.complete { return self.with_dialog(page) }
+            return page
+        }
         // The root receives the viewport. Size its child instead, leaving room
         // for the Viewer's positive position and anchor on both axes.
         page.style.relative_width = 0.9; page.style.relative_height = 0.9
         var frame = UI.Column([page])
         frame.style.padding = UI.Insets(top:0.0, right:48.0, bottom:32.0, left:0.0)
+        if self.complete { return self.with_dialog(frame) }
         return frame
+    }
+    private func with_dialog(base:UI.View) UI.View {
+        var content = UI.Column([UI.Text("Dialogue macOS"),UI.Button("Fermer le dialogue",self.close_dialog)])
+        content.style.width = 360.0; content.style.padding = UI.Insets(20.0)
+        content.style.theme = UI.Theme.dark(); content.style.background = Color.slate_900()
+        return UI.Accessible(UI.Dialog(base,content,self.dialog),"Dialogue macOS")
     }
 }
 
-func presentation_settings(placed:bool) Viewer.CanvasSettings {
+func presentation_settings(placed:bool, complete:bool = false) Viewer.CanvasSettings {
     var settings = Viewer.CanvasSettings(width:780, height:820, title:"Silex — Accessibilité macOS J5", show_fps:true)
     if placed {
         settings.position = Math.Vec2(24.0, 16.0); settings.anchor = Math.Vec2(0.05)
         settings.title = "Silex — Accessibilité macOS J5 · Placement ajusté"
     }
+    if complete { settings.title = "Silex — Accessibilité macOS · Complétion" }
     return settings
 }
 
@@ -269,22 +314,42 @@ func check_placed_geometry() {
 }
 test "the placed accessibility page and field stay inside the resized window" { check_placed_geometry() }
 
+func check_complete() {
+    var model = Model(); model.complete = true
+    var session = UI.Session(UI.Reactive(model.describe)); var drawing = session.drawing(780,820)
+    var source = session.accessibility()
+    let preferences = named(source,source.root()!,"Préférences",Accessibility.Role.tab)!
+    assert(source.perform(preferences,Accessibility.Request(Accessibility.Action.activate)))
+    assert(model.tab.value() == "preferences")
+    let table = named(source,source.root()!,"Équipe",Accessibility.Role.table)!
+    var columns = source.columns(table)!
+    assert(columns.count() == 2 && source.read(columns.column(0)!)!.header != null)
+    let open = named(source,source.root()!,"Ouvrir le dialogue",Accessibility.Role.button)!
+    assert(source.perform(open,Accessibility.Request(Accessibility.Action.activate)))
+    assert(model.dialog.value())
+    assert(source.read(source.root()!)!.role == Accessibility.Role.dialog && source.read(source.root()!)!.name == "Dialogue macOS")
+    assert(source.perform(source.root()!,Accessibility.Request(Accessibility.Action.dismiss)))
+    assert(!model.dialog.value())
+}
+
 func main() {
+    var complete = false
     var placed = false
     var trace = false
     var frame_trace = false
     for argument in Process.arguments() {
-        if argument == "--cpu-check" { check_cpu(); check_cpu(true); check_placed_geometry(); return }
+        if argument == "--cpu-check" { check_cpu(); check_cpu(true); check_placed_geometry(); check_complete(); return }
         if argument == "--placed" { placed = true }
+        if argument == "--complete" { complete = true }
         if argument == "--trace-drag" { trace = true }
         if argument == "--trace-frame" { frame_trace = true }
     }
     var model = Model()
-    model.placed = placed
+    model.placed = placed; model.complete = complete
     var session = UI.Session(UI.Reactive(model.describe))
     if frame_trace {
         var capture = Viewer.FrameTrace()
-        var settings = presentation_settings(placed); settings.frame_trace = capture
+        var settings = presentation_settings(placed,complete); settings.frame_trace = capture
         let code = Viewer.show(session, settings)
         capture.report()
         if code != 0 { panic("Accessibility viewer failed") }
@@ -292,11 +357,11 @@ func main() {
     }
     if trace {
         var traced = TraceSession(session)
-        let code = Viewer.show(traced, presentation_settings(placed))
+        let code = Viewer.show(traced, presentation_settings(placed,complete))
         traced.report()
         if code != 0 { panic("Accessibility viewer failed") }
         return
     }
-    let code = Viewer.show(session, presentation_settings(placed))
+    let code = Viewer.show(session, presentation_settings(placed,complete))
     if code != 0 { panic("Accessibility viewer failed") }
 }

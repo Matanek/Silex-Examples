@@ -201,3 +201,17 @@ its overhead can be noticeable. Enable it afterwards to locate a slowdown,
 comparing runs that use the same option.
 The rest of the interval includes rendering, native work outside the Source, waiting and scheduling; it
 is not isolated GPU time. Tracing is optional and preserves the default session.
+
+## Complete macOS qualification
+
+Add `--complete` to an interactive launch to show Navigation/Préférences tabs,
+Select/ComboBox, menu, toolbar, help and dialog. The Équipe table has a sortable
+Personne column. Keep `--placed` to exercise a shifted presentation origin.
+
+In the inspector, check columns, headers and sorting, tree selection/disclosure,
+tabs and modal dialog. Query text spans and positions with combining accents
+and emoji, including after scrolling. Use VoiceOver to check reading/actions
+on these new paths; CPU and headless AppKit checks do not replace that system
+run. The previously confirmed button/field path needs no identical retest.
+`--cpu-check` keeps its output and additionally checks tabs, columns and dialog
+cancellation without opening a window.
