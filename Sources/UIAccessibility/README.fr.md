@@ -158,6 +158,15 @@ Cette variante instrumentée sert à l’attribution ; comparez des options iden
 Ce profil CPU sans fenêtre ni GPU mesure cette charge précise ; il ne qualifie
 pas à lui seul une application complète, une collection virtualisée ou le rendu.
 
+`ColumnResizeProfile.sx` rejoue le redimensionnement via `Canvas.Session`,
+les événements complets et les requêtes IME de Viewer, sans fenêtre ni GPU.
+Il compare un et huit mouvements par dessin, avec et sans observation accessible,
+sur la démo placée et un tableau de 50 000 lignes/six colonnes. L’observation
+du grand tableau se limite aux huit premiers enfants de chaque niveau. Il compte
+les descriptions de cellules et sépare entrées, accessibilité avant/après dessin,
+dessin UI et remplacement Scene2D. Comparez les mêmes cas et binaires figés ;
+les durées murales CPU n’établissent pas les FPS de la fenêtre.
+
 ## Tracer la fenêtre réelle
 
 La démo affiche les FPS dans le titre, en mode normal comme avec `--placed`,

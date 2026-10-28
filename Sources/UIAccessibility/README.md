@@ -153,6 +153,15 @@ and drawing times, compares mutations of the first and last label and counts
 recorded text commands. This instrumented variant is for attribution; compare
 identical options.
 
+`ColumnResizeProfile.sx` replays column resizing through `Canvas.Session`,
+full events and Viewer-style IME queries, without a window or GPU. It compares
+one and eight motions per drawing, with and without accessibility observation,
+on the placed demo and a 50,000-row/six-column table. Observation of the large
+table is limited to the first eight children at each level. It counts cell
+descriptions and separates input, accessibility before/after drawing, UI drawing
+and Scene2D replacement. Compare identical cases and frozen binaries; CPU-only
+wall times do not establish window FPS.
+
 ## Trace the real window
 
 The demo displays FPS in its title, both normally and with `--placed`, with or

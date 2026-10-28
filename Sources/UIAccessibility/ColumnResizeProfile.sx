@@ -1,0 +1,101 @@
+use GFX.UI
+use GFX.Canvas
+use GFX.Scene2D
+use GFX.Accessibility as AX
+use GFX.Input.Events
+use GFX.Input.Pointer
+use STD.Math
+use STD.Time
+use Module.Main.Model
+use Module.Main.named
+use Module.InteractionProfile.observe
+
+// Replays Viewer order through Canvas.Session, with no window or GPU.
+class Table {
+    var width:UI.State<float> = UI.State<float>(260.0)
+    var cells:int = 0
+    var values:int[] = []
+    init(count:int) { var index = 0; while index < count { self.values.append(index); index++ } }
+    func key(value:int) str { return "row-$(value)" }
+    func cell(value:int) UI.View { self.cells++; return UI.Text("Cell $(value)") }
+    func view() UI.View {
+        var columns:UI.TableColumn<int>[] = [UI.TableColumn<int>("first", "First", self.cell, width:self.width)]
+        var index = 1
+        while index < 6 { columns.append(UI.TableColumn<int>("c$(index)", "Column $(index)", self.cell, width:90.0)); index++ }
+        var table = UI.TableView<int>(self.values, self.key, columns, full_height_resize:true)
+        table.style.height = 340.0
+        return table
+    }
+}
+func observe_bounded(source:AX.Source, id:str) {
+    let element = source.read(id)!
+    var index = 0
+    while index < element.child_count && index < 8 {
+        if let child = source.child(id, index) { observe_bounded(source, child) }
+        index++
+    }
+}
+func run(large:bool, semantics:bool, packets:int) {
+    var model = Model(); model.placed = true
+    var count = 0
+    if large { count = 50_000 }
+    var table = Table(count)
+    var view:UI.View = UI.Reactive(model.describe)
+    var scenario = "demo"
+    if large { view = table.view(); scenario = "large" }
+    var session:Canvas.Session = UI.Session(view)
+    var drawing = session.drawing(780, 820); var source = session.accessibility_source()!
+    let id = named(source, source.root()!, "", AX.Role.separator)!
+    assert(source.perform(id, AX.Request(AX.Action.focus)))
+    drawing = session.drawing(780, 820)
+    if semantics {
+        if large { observe_bounded(source, source.root()!) }
+        else { observe(source, source.root()!) }
+        let initial = source.changes()
+    }
+    let bounds = source.read(id)!.bounds
+    assert(bounds.width > 0.0 && bounds.height > 0.0)
+    let x = bounds.x + bounds.width * 0.5; let y = bounds.y + bounds.height * 0.5
+    var presented = Scene2D.Canvas(drawing, 780, 820)
+    assert(session.handle(Events.Event.mouse_button_pressed(Events.MouseButtonEvent(
+        position:Math.Vec2(x, y), button:Pointer.MouseButton.left, down:true,
+        timestamp:Events.Timestamp(nanoseconds:0 as uint)))))
+    var input = 0.0; var before = 0.0; var paint = 0.0; var replace = 0.0; var after = 0.0
+    let initial_cells = table.cells
+    var clock = Time.Stopwatch(); var step = 0
+    while step < 60 {
+        var amount = step % 20
+        if step % 40 >= 20 { amount = 20 - amount }
+        clock.restart()
+        let updated = session.update(1.0 / 60.0)
+        var packet = 0
+        while packet < packets {
+            session.handle(Events.Event.mouse_moved(Events.MouseMotionEvent(
+                position:Math.Vec2(x + amount as float * 3.0 + packet as float * 0.1, y),
+                delta:Math.Vec2(), timestamp:Events.Timestamp(nanoseconds:0 as uint))))
+            assert(!session.accepts_text_input() && session.text_input_target() == null)
+            packet++
+        }
+        input += clock.get_elapsed_milliseconds(); clock.restart()
+        if semantics { let root = source.root(); let changes = source.changes() }
+        before += clock.get_elapsed_milliseconds(); clock.restart()
+        drawing = session.drawing(780, 820)
+        paint += clock.get_elapsed_milliseconds(); clock.restart()
+        presented.replace(drawing)
+        replace += clock.get_elapsed_milliseconds(); clock.restart()
+        if semantics { let root = source.root(); let changes = source.changes() }
+        after += clock.get_elapsed_milliseconds(); step++
+    }
+    assert(session.handle(Events.Event.mouse_button_released(Events.MouseButtonEvent(
+        position:Math.Vec2(x, y), button:Pointer.MouseButton.left, down:false,
+        timestamp:Events.Timestamp(nanoseconds:0 as uint)))))
+    assert(presented.revision() > 1)
+    let described = table.cells - initial_cells
+    print("resize scenario=$(scenario) semantics=$(semantics) packets=$(packets) n=60 cells=$(described) input_ms=$(input) before_ms=$(before) paint_ms=$(paint) replace_ms=$(replace) after_ms=$(after)")
+}
+func main() {
+    run(false, false, 1); run(false, false, 8)
+    run(false, true, 1); run(false, true, 8)
+    run(true, false, 1); run(true, false, 8)
+    run(true, true, 1); run(true, true, 8)
+}
