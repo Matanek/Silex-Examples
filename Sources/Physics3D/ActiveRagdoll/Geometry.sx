@@ -35,7 +35,7 @@ package func rounded(straight:float) Mesh {
 }
 
 test "rounded mannequin meshes have finite outward surfaces and nominal bounds" {
-    let lengths:float[]=[0.0,1.0]
+    let lengths:float[]=[0.0,0.6,1.0,3.0]
     for straight in lengths {
         let mesh=rounded(straight);let vertices=mesh.vertices();let indices=mesh.indices()
         assert(!mesh.is_empty())
