@@ -30,6 +30,7 @@ package class Plan {
     var initialized:bool=false
     // Holding the stance does not disable explicitly commanded movement.
     var allow_corrections:bool=true
+    init(allow_corrections:bool=true) { self.allow_corrections=allow_corrections }
     func reset() { self.initialized=false;self.swing= -1;self.progress=0.0 }
     func update(support:Support,intent:Math.Vec2,heading:float,delta:float) {
         let rotation=Math.Quat.angle_axis(heading,Math.Vec3.up())
@@ -150,7 +151,7 @@ test "one loaded foot defines the support while the other remains unloaded" {
 }
 
 test "holding the stance suppresses automatic steps while preserving movement intent" {
-    var plan=Plan();plan.allow_corrections=false
+    var plan=Plan(allow_corrections:false)
     let support=standing(Math.Vec3(0.4,1.0,0.09))
     plan.update(support,Math.Vec2(),0.0,0.01)
     assert(plan.swing== -1)
