@@ -28,6 +28,8 @@ package class Plan {
     var steps:int=0
     var timeouts:int=0
     var initialized:bool=false
+    // Holding the stance does not disable explicitly commanded movement.
+    var allow_corrections:bool=true
     func reset() { self.initialized=false;self.swing= -1;self.progress=0.0 }
     func update(support:Support,intent:Math.Vec2,heading:float,delta:float) {
         let rotation=Math.Quat.angle_axis(heading,Math.Vec3.up())
@@ -54,10 +56,14 @@ package class Plan {
         }
         if self.swing<0 {
             let capture=support.center.add(velocity.multiply(0.28))
-            let middle=self.feet[0].add(self.feet[1]).multiply(0.5)
+            // Balance is measured against the feet that actually carry the
+            // character, independently of their possibly unreached targets.
+            var middle=support.left.add(support.right).multiply(0.5)
+            if support.left_loaded && !support.right_loaded { middle=support.left }
+            if support.right_loaded && !support.left_loaded { middle=support.right }
             let error=capture.subtract(middle)
             let moving=intent.length_squared()>0.01
-            let unstable=Math.abs(error.dot(side))>0.16 || Math.abs(error.dot(forward))>0.14
+            let unstable=self.allow_corrections && (Math.abs(error.dot(side))>0.16 || Math.abs(error.dot(forward))>0.14)
             if moving || unstable {
                 var foot=self.next
                 if !moving && Math.abs(error.dot(side))>0.16 { if error.dot(side)>0.0 { foot=1 }else { foot=0 } }
@@ -121,4 +127,33 @@ test "lateral imbalance seeks support on the falling side without input" {
     assert(right.swing==1 && right.to.x>0.4)
     assert(left.swing==0 && left.to.x< -0.4)
     assert(right.feet[0]==standing().left && left.feet[1]==standing().right)
+}
+
+test "balanced measured support does not chase old foot targets after translation" {
+    var plan=Plan();let initial=standing()
+    plan.update(initial,Math.Vec2(),0.0,0.01)
+    let shift=Math.Vec3(0.5,0.0,-0.4)
+    let measured=Support(initial.pelvis.add(shift),initial.center.add(shift),Math.Vec3(),
+        initial.left.add(shift),initial.right.add(shift),true,true)
+    var frame=0
+    while frame<240 { plan.update(measured,Math.Vec2(),0.0,0.01);frame++ }
+    assert(plan.swing== -1 && plan.steps==0)
+    assert(plan.feet[0]==initial.left && plan.feet[1]==initial.right)
+}
+
+test "one loaded foot defines the support while the other remains unloaded" {
+    var plan=Plan()
+    let measured=Support(Math.Vec3(0.22,1.0,0.0),Math.Vec3(0.22,1.0,0.09),Math.Vec3(),
+        Math.Vec3(-0.22,0.06,0.09),Math.Vec3(0.22,0.06,0.09),false,true)
+    plan.update(measured,Math.Vec2(),0.0,0.01)
+    assert(plan.swing== -1)
+}
+
+test "holding the stance suppresses automatic steps while preserving movement intent" {
+    var plan=Plan();plan.allow_corrections=false
+    let support=standing(Math.Vec3(0.4,1.0,0.09))
+    plan.update(support,Math.Vec2(),0.0,0.01)
+    assert(plan.swing== -1)
+    plan.update(support,Math.Vec2(0.0,1.0),0.0,0.01)
+    assert(plan.swing==0)
 }
