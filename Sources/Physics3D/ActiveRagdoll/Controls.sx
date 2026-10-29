@@ -74,7 +74,7 @@ package class Controls {
         var root=UI.Column([title,UI.Reactive(self.metrics),
             self.text("ZQSD maintenus : marcher\nP : impulsion sur le torse"),
             UI.Reactive(self.mode_button),self.button("P : pousser",self.push),self.button("R : recommencer",self.reset),
-            self.text("Équilibre assisté en mode actif\nÉchap : fermer")])
+            self.text("Mode actif : bassin droit\nÉchap : fermer")])
         root.style.padding=UI.Insets(12.0);root.style.gap=7.0
         root.style.background=Color.slate_900().with_alpha(0.87)
         root.style.foreground=Color.slate_100();root.style.radius=8.0

@@ -1,15 +1,17 @@
+use Physics3D.ActiveRagdoll.LegPose
 use GFX.Physics
 use STD.Math
 
 package func size(index:int) Math.Vec3 {
     if index==0 { return Math.Vec3(0.34,0.22,0.22) }
-    if index==1 { return Math.Vec3(0.36,0.32,0.24) }
-    if index==2 { return Math.Vec3(0.46,0.38,0.34) }
-    if index==3 || index==5 { return Math.Vec3(0.15,0.36,0.17) }
-    if index==4 || index==6 { return Math.Vec3(0.14,0.32,0.16) }
-    if index==7 || index==10 { return Math.Vec3(0.19,0.42,0.2) }
-    if index==8 || index==11 { return Math.Vec3(0.16,0.42,0.18) }
-    return Math.Vec3(0.22,0.12,0.38)
+    if index==1 { return Math.Vec3(0.44,0.42,0.26) }
+    if index==2 { return Math.Vec3(0.27,0.32,0.24) }
+    if index==3 || index==5 { return Math.Vec3(0.17,0.30,0.18) }
+    // The forearm body also contains its flat hand, without a wrist joint yet.
+    if index==4 || index==6 { return Math.Vec3(0.13,0.41,0.14) }
+    if index==7 || index==10 { return Math.Vec3(0.22,0.42,0.21) }
+    if index==8 || index==11 { return Math.Vec3(0.18,0.42,0.18) }
+    return Math.Vec3(0.15,0.12,0.25)
 }
 func mass(index:int) float {
     if index==0 { return 8.0 }if index==1 { return 12.0 }if index==2 { return 4.0 }
@@ -19,8 +21,8 @@ func mass(index:int) float {
 }
 package func settings() Physics.Ragdoll3DSettings {
     let parents:int[]=[-1,0,1,1,3,1,5,0,7,8,0,10,11]
-    let anchors:Math.Vec3[]=[Math.Vec3(),Math.Vec3(0.0,0.15,0.0),Math.Vec3(0.0,0.43,0.0),
-        Math.Vec3(-0.28,0.32,0.0),Math.Vec3(0.0,-0.36,0.0),Math.Vec3(0.28,0.32,0.0),Math.Vec3(0.0,-0.36,0.0),
+    let anchors:Math.Vec3[]=[Math.Vec3(),Math.Vec3(0.0,0.15,0.0),Math.Vec3(0.0,0.46,0.0),
+        Math.Vec3(-0.25,0.38,0.0),Math.Vec3(0.0,-0.30,0.0),Math.Vec3(0.25,0.38,0.0),Math.Vec3(0.0,-0.30,0.0),
         Math.Vec3(-0.16,-0.11,0.0),Math.Vec3(0.0,-0.42,0.0),Math.Vec3(0.0,-0.42,0.0),
         Math.Vec3(0.16,-0.11,0.0),Math.Vec3(0.0,-0.42,0.0),Math.Vec3(0.0,-0.42,0.0)]
     var parts:Physics.RagdollPart3D[]=[]
@@ -29,7 +31,7 @@ package func settings() Physics.Ragdoll3DSettings {
         let inertia=Math.Vec3(s.y*s.y+s.z*s.z,s.x*s.x+s.z*s.z,s.x*s.x+s.y*s.y).multiply(m/12.0)
         var offset=Math.Vec3()
         if index==1 { offset=Math.Vec3(0.0,0.18,0.0) }
-        else if index==2 { offset=Math.Vec3(0.0,0.19,0.0) }
+        else if index==2 { offset=Math.Vec3(0.0,0.20,0.0) }
         else if index==9 || index==12 { offset=Math.Vec3(0.0,-0.04,0.09) }
         else if index>2 { offset=Math.Vec3(0.0,-s.y*0.5,0.0) }
         var limits=Physics.SwingTwistConstraint3DSettings() ..minimum_twist= -0.7 ..maximum_twist=0.7
@@ -42,6 +44,7 @@ package func settings() Physics.Ragdoll3DSettings {
             limits.minimum_twist=0.0;limits.maximum_twist=2.2
             limits.swing_limits=Physics.SwingLimits3D.cone(Math.Vec2(0.02,0.02))
         }
+        if index==4 || index==6 { limits.minimum_twist= -2.2;limits.maximum_twist=0.0 }
         if index==9 || index==12 { limits.minimum_twist= -1.0 }
         let body=Physics.RigidBody3DSettings() ..shape=Physics.Shape3D.box(Physics.Box3D(s))
             ..mass_properties=Physics.MassProperties3D(m,inertia) ..allow_sleep=false
@@ -50,4 +53,25 @@ package func settings() Physics.Ragdoll3DSettings {
             local_transform:Physics.Transform3D(anchors[index]),body_offset:Physics.Transform3D(offset),joint:limits))
     }
     return Physics.Ragdoll3DSettings(parts,self_collision:true)
+}
+
+// Initial placement only: muscles start from a supported stance rather than
+// immediately asking straight legs to shorten after the first gravity step.
+package func standing_pose(configuration:Physics.Ragdoll3DSettings) Physics.Transform3D[] {
+    let root=Math.Vec3(0.0,0.99,0.0)
+    var poses:Physics.Transform3D[]=[]
+    for index in [0,1,2,3,4,5,6,7,8,9,10,11,12] { poses.append(configuration.part(index).local_transform) }
+    poses[0]=Physics.Transform3D(root)
+    // Initial clearance only: the arms remain unmotorized during simulation.
+    poses[3]=Physics.Transform3D(configuration.part(3).local_transform.position,Math.Quat.angle_axis(-0.15,Math.Vec3.back()))
+    poses[5]=Physics.Transform3D(configuration.part(5).local_transform.position,Math.Quat.angle_axis(0.15,Math.Vec3.back()))
+    for leg in [7,10] {
+        let anchor=configuration.part(leg).local_transform.position
+        let foot=Math.Vec3(anchor.x,size(leg+2).y*0.5,configuration.part(leg+2).body_offset.position.z)
+        let solved=LegPose.solve(root,Math.Quat.identity(),anchor,foot,0.0)
+        poses[leg]=Physics.Transform3D(anchor,solved.hip)
+        poses[leg+1]=Physics.Transform3D(configuration.part(leg+1).local_transform.position,solved.knee)
+        poses[leg+2]=Physics.Transform3D(configuration.part(leg+2).local_transform.position,solved.ankle)
+    }
+    return poses
 }

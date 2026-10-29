@@ -22,7 +22,7 @@ use STD.Process
 use STD.Time.Stopwatch
 
 class Scene {
-    var character:Model.Character=Model.Character()
+    var character:Model.Character=Model.Character(ready_pose:true)
     var controls:Controls.Controls=Controls.Controls()
     var ui:UI.Session
     var pieces:Visuals.Piece[]=[]
@@ -31,9 +31,17 @@ class Scene {
     var panel:ECS.Entity=ECS.Entity()
     var camera:ECS.Entity=ECS.Entity()
     var accumulator:float=0.0
+    let physics_step:float=1.0/60.0
     var telemetry:float=0.0
+    var fps_clock:Stopwatch=Stopwatch()
+    var fps_frames:int=0
+    var fps:int=0
+    var log_frames:bool=false
     var look:Math.Vec3=Math.Vec3(0.0,1.0,0.0)
-    init() { self.ui=UI.Session(self.controls.describe()) }
+    init(log_frames:bool=false) {
+        self.ui=UI.Session(self.controls.describe())
+        self.log_frames=log_frames
+    }
 }
 func remember(state:&Scene) {
     state.previous.clear()
@@ -51,14 +59,17 @@ func labels(state:&Scene) {
     if !state.character.active { mode="PASSIF";action="F : activer les articulations" }
     if state.controls.mode.value()!=action { state.controls.mode.set(action) }
     let speed=Math.round(state.character.body.body(0).linear_velocity().length()*100.0)/100.0
-    let torque=Math.round(state.character.balance_effort) as int
-    let text="$(mode) · appuis $(state.character.support_count)/2\nVitesse $(speed) m/s\nAssistance : $(torque) N·m"
+    var effort="Bassin droit · rotation Y"
+    if state.character.recovering { effort="Relevage en cours" }
+    if !state.character.active { effort="Rotations libres" }
+    let text="$(mode) · appuis $(state.character.support_count)/2\n$(state.fps) FPS · $(speed) m/s\n$(effort)"
     if state.controls.measurement.value()!=text { state.controls.measurement.set(text) }
 }
 func perform(state:&Scene) {
     while state.controls.resets>0 {
         state.controls.resets--;state.character.destroy()
-        state.character=Model.Character();remember(state);state.accumulator=0.0
+        state.character=Model.Character(ready_pose:true)
+        remember(state);state.accumulator=0.0
         state.look=state.character.center();labels(state)
     }
     while state.controls.toggles>0 {
@@ -91,12 +102,13 @@ func startup(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources
     state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform(position:Math.Vec2()))
         ..with(Scene2D.Canvas(state.ui.drawing(Controls.Hud.width,Controls.Hud.height),Controls.Hud.width,Controls.Hud.height)
             ..anchor=Math.Vec2() ..pivot=Math.Vec2() ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+    state.fps_clock.restart()
 }
 func update(world:&Resources.World,input:@Resources.InputState,state:&Scene,simulation:&Application.Simulation,controller:&Application.Controller) {
     if input.is_pressed(Input.Key.escape) { controller.stop() }
     for event in input.events() { if !state.controls.handle(event) { let handled=state.ui.handle(event) } }
     perform(state)
-    let delta=1.0/120.0
+    let delta=copy state.physics_step
     state.accumulator+=Math.min(0.1,simulation.delta())
     while state.accumulator>=delta {
         remember(state);state.character.step(delta);state.accumulator-=delta
@@ -109,9 +121,19 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&Scene,simu
     if state.ui.update(0.0) {
         world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(Controls.Hud.width,Controls.Hud.height)) })
     }
+    state.fps_frames++
+    let elapsed=state.fps_clock.get_elapsed_seconds()
+    if elapsed>=1.0 {
+        state.fps=Math.round(state.fps_frames as float/elapsed) as int
+        if state.log_frames {
+            let frame_ms=elapsed*1000.0/state.fps_frames as float
+            print("FRAME fps=$(state.fps) ms_per_frame=$(frame_ms) simulation_time=$(state.character.elapsed) active=$(state.character.active)")
+        }
+        state.fps_frames=0;state.fps_clock.restart()
+    }
 }
 func render(world:&Resources.World,state:&Scene) {
-    state.current.clear();let alpha=Math.clamp(state.accumulator*120.0,0.0,1.0)
+    state.current.clear();let alpha=Math.clamp(state.accumulator/state.physics_step,0.0,1.0)
     for i in [0,1,2,3,4,5,6,7,8,9,10,11,12] {
         let previous=state.previous[i];let current=state.character.body.body(i).transform()
         var rotation=current.rotation;if previous.rotation.dot(rotation)<0.0 { rotation=rotation.multiply(-1.0) }
@@ -152,7 +174,14 @@ func click_hud(session:&UI.Session,source:Accessibility.Source,id:str,name:str) 
 func verify_controls() {
     var world=Resources.World();var meshes=Resources.Meshes3D();var images=Resources.Images();var state=Scene()
     startup(world,meshes,images,state);render(world,state)
-    assert(state.pieces.count()>25)
+    // Each physical body must be represented, independently of its decoration count.
+    var represented:bool[]=[];var part=0
+    while part<state.character.body.part_count() { represented.append(false);part++ }
+    for piece in state.pieces {
+        assert(piece.part>=0 && piece.part<represented.count())
+        represented[piece.part]=true
+    }
+    for visible in represented { assert(visible) }
     var accessible=state.ui.accessibility();verify_hud(accessible,accessible.root()!)
     var original=state.character.body
     // Logical Z must win over a different physical key on an AZERTY keyboard.
@@ -217,13 +246,17 @@ func profile_cost() {
     }
 }
 func main() {
+    var log_frames=false
     for argument in Process.arguments() {
+        if argument=="--fps-log" { log_frames=true }
         if argument=="--controls-check" { verify_controls();return }
         if argument=="--profile-cost" { profile_cost();return }
+        if argument=="--directions-check" { Qualification.verify_directions();return }
+        if argument=="--recovery-check" { Qualification.verify_recovery();return }
         if argument=="--physics-check" { Qualification.verify();Qualification.verify_directions();Qualification.verify_recovery();return }
     }
-    Application() ..add_resource(Scene())
-        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title="L’atelier du pantin — ragdoll actif" ..width=1280 ..height=800))
+    Application() ..add_resource(Scene(log_frames:log_frames))
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title="Mannequin bleu — essai interactif en cours" ..width=1280 ..height=800))
         ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
         ..add_system(Application.Schedule.startup,startup)
         ..add_system(Application.Schedule.update,update)

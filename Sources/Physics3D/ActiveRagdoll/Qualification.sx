@@ -5,7 +5,8 @@ use STD.Time.Stopwatch
 
 func valid(character:Model.Character) {
     assert(character.balance_joint.motor_force().length()==0.0)
-    assert(character.balance_effort<=607.0)
+    assert(Math.is_finite(character.balance_effort))
+    assert(character.balance_joint.motor_torque().length()<=100.1)
     for i in [0,1,2,3,4,5,6,7,8,9,10,11,12] {
         var body=character.body.body(i);let p=body.position()
         assert(Math.is_finite(p.x) && Math.is_finite(p.y) && Math.is_finite(p.z))
@@ -50,7 +51,7 @@ package func verify() {
         let turn_start=character.center();character.movement=Math.Vec2(1.0,0.0)
         advance(character,4,rate);let turned=character.center().subtract(turn_start)
         assert(turned.x>0.25)
-        assert(character.body.body(0).rotation().rotate(Math.Vec3.up()).y>0.65)
+        assert(character.body.body(0).rotation().rotate(Math.Vec3.up()).y>0.99)
         character.movement=Math.Vec2();advance(character,2,rate)
         let old_velocity=character.body.body(1).linear_velocity()
         let old_pose=character.body.body(1).transform()
@@ -78,12 +79,12 @@ package func verify_directions() {
         character.movement=direction;advance(character,4,120)
         let motion=character.center().subtract(initial)
         let progress=Math.Vec2(motion.x,motion.z).dot(direction)
-        assert(progress>0.5 && character.body.body(0).rotation().rotate(Math.Vec3.up()).y>0.65)
+        assert(progress>0.5 && character.body.body(0).rotation().rotate(Math.Vec3.up()).y>0.99)
         print("DIRECTION $(direction.x),$(direction.y) forward_progress=$(progress)")
         character.destroy()
     }
 }
-package func verify_recovery() {
+package func verify_recovery(activation_only:bool=false) {
     let directions:Math.Vec3[]=[Math.Vec3(1.0,0.0,0.0),Math.Vec3(-1.0,0.0,0.0),Math.Vec3(0.0,0.0,1.0),Math.Vec3(0.0,0.0,-1.0)]
     for rate in [60,120] {
         for direction in directions {
@@ -92,7 +93,20 @@ package func verify_recovery() {
             assert(c.center().y<0.65)
             var original=c.body.body(0);let before=original.transform()
             c.set_active(true);assert(original.transform()==before)
-            advance(c,8,rate)
+            if activation_only {
+                advance(c,1,rate);c.destroy()
+                print("Activation: anatomical limits retained through the first second")
+                return
+            }
+            var getup_time= -1.0;var frame=0
+            while frame<8*rate {
+                c.step(1.0/rate as float);valid(c)
+                if getup_time<0.0 && !c.recovering && original.position().y>0.90 &&
+                    original.rotation().rotate(Math.Vec3.up()).y>0.99 && c.support_count>0 {
+                    getup_time=(frame+1) as float/rate as float
+                }
+                frame++
+            }
             assert(!c.recovering && original.is_valid())
             assert(original.position().y>0.90 && original.rotation().rotate(Math.Vec3.up()).y>0.9)
             let start=c.center();c.movement=Math.Vec2(0.0,1.0);advance(c,4,rate)
@@ -101,7 +115,7 @@ package func verify_recovery() {
             // The same recovery is automatic after a shove in active mode.
             c.push(direction.multiply(65.0));advance(c,10,rate)
             assert(!c.recovering && original.position().y>0.90 && original.rotation().rotate(Math.Vec3.up()).y>0.9)
-            print("RECOVERY $(rate)Hz direction=$(direction.x),$(direction.z) passive->active and active shove verified")
+            print("RECOVERY $(rate)Hz direction=$(direction.x),$(direction.z) getup_seconds=$(getup_time) passive->active and active shove verified")
             c.destroy()
         }
     }

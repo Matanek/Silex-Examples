@@ -1,4 +1,5 @@
 use Physics3D.ActiveRagdoll.Anatomy
+use Physics3D.ActiveRagdoll.Geometry
 use GFX.Color
 use GFX.Components
 use GFX.ECS
@@ -15,129 +16,58 @@ package struct Piece {
         self.entity=entity;self.part=part;self.offset=offset
     }
 }
-func quad(vertices:&Scene3D.Geometry.Vertex[],indices:&uint32[],a:Math.Vec3,b:Math.Vec3,c:Math.Vec3,d:Math.Vec3,normal:Math.Vec3) {
-    let first=vertices.count() as uint32
-    let points:Math.Vec3[]=[a,b,c,d]
-    for point in points { vertices.append(Scene3D.Geometry.Vertex(point,normal)) }
-    for index in [0,1,2,0,2,3] { indices.append(first+index as uint32) }
-}
-// A real hexagonal ring, shared by the eyes, wrists and articulated bolts.
-func nut() Scene3D.Geometry.Mesh {
-    var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[];var i=0
-    while i<6 {
-        let a=i as float*Math.two_pi()/6.0;let b=(i+1) as float*Math.two_pi()/6.0
-        let first=Math.Vec3(Math.cos(a)*0.5,0.0,Math.sin(a)*0.5);let second=Math.Vec3(Math.cos(b)*0.5,0.0,Math.sin(b)*0.5)
-        let h=Math.Vec3(0.0,0.5,0.0);let outward=first.add(second).normalized()
-        quad(vertices,indices,first.subtract(h),first.add(h),second.add(h),second.subtract(h),outward)
-        quad(vertices,indices,second.multiply(0.48).subtract(h),second.multiply(0.48).add(h),first.multiply(0.48).add(h),first.multiply(0.48).subtract(h),outward.negated())
-        quad(vertices,indices,first.add(h),first.multiply(0.48).add(h),second.multiply(0.48).add(h),second.add(h),Math.Vec3.up())
-        quad(vertices,indices,second.subtract(h),second.multiply(0.48).subtract(h),first.multiply(0.48).subtract(h),first.subtract(h),Math.Vec3.down())
-        i++
-    }
-    return Scene3D.Geometry.Mesh(vertices,indices)
-}
-func prism(sides:int) Scene3D.Geometry.Mesh {
-    var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[];var i=0
-    let h=Math.Vec3(0.0,0.5,0.0)
-    while i<sides {
-        let a=i as float*Math.two_pi()/sides as float
-        let b=(i+1) as float*Math.two_pi()/sides as float
-        let first=Math.Vec3(Math.cos(a)*0.5,0.0,Math.sin(a)*0.5)
-        let second=Math.Vec3(Math.cos(b)*0.5,0.0,Math.sin(b)*0.5)
-        quad(vertices,indices,first.subtract(h),first.add(h),second.add(h),second.subtract(h),first.add(second).normalized())
-        let cap_sides:int[]=[-1,1]
-        for side in cap_sides {
-            let top=h.multiply(side as float);let start=vertices.count() as uint32
-            let normal=Math.Vec3(0.0,side as float,0.0)
-            vertices.append(Scene3D.Geometry.Vertex(top,normal))
-            vertices.append(Scene3D.Geometry.Vertex(first.add(top),normal))
-            vertices.append(Scene3D.Geometry.Vertex(second.add(top),normal))
-            indices.append(start)
-            if side>0 { indices.append(start+2 as uint32);indices.append(start+1 as uint32) }
-            else { indices.append(start+1 as uint32);indices.append(start+2 as uint32) }
-        }
-        i++
-    }
-    return Scene3D.Geometry.Mesh(vertices,indices)
-}
 package func entity(world:&Resources.World,mesh:Scene3D.MeshHandle,size:Math.Vec3,color:Color) ECS.Entity {
     return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(scale:size))
         ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.65)))
 }
+// The abdomen has three visible shells on the existing pelvis/trunk bodies.
+// Those seams describe the reference silhouette; they are not extra spine joints.
 package func create(world:&Resources.World,meshes:&Resources.Meshes3D,pieces:&Piece[]) {
-    // Shared once per scene: faceted metal, hollow hex nuts and flat jacket panels.
     let cube=meshes.add(Scene3D.Geometry.Cube.make())
-    let cylinder=meshes.add(prism(8))
-    let hexagon=meshes.add(prism(6))
-    let ring=meshes.add(nut())
-    let purple=Color.bytes(67,43,92);let cream=Color.bytes(220,172,151)
-    let orange=Color.bytes(244,112,52);let dark=Color.bytes(43,27,62)
-    let metal=Color.bytes(128,110,137);let ivory=Color.bytes(216,216,205)
-    let front=Math.Quat.angle_axis(Math.half_pi(),Math.Vec3.right())
-    let sideways=Math.Quat.angle_axis(Math.half_pi(),Math.Vec3.back())
-    // Narrow spindle waist and nut-shaped hips leave the mechanical frame exposed.
-    pieces.append(Piece(entity(world,cylinder,Math.Vec3(0.11,0.36,0.11),purple),0,
-        Physics.Transform3D(Math.Vec3(0.0,0.10,0.0))))
-    pieces.append(Piece(entity(world,ring,Math.Vec3(0.25,0.08,0.25),purple),0,
-        Physics.Transform3D(Math.Vec3(0.0,-0.04,0.0))))
-    pieces.append(Piece(entity(world,cube,Math.Vec3(0.38,0.09,0.17),purple),0,
-        Physics.Transform3D(Math.Vec3(0.0,-0.10,0.0))))
-    pieces.append(Piece(entity(world,cube,Anatomy.size(1),orange),1))
-    pieces.append(Piece(entity(world,cylinder,Math.Vec3(0.10,0.18,0.10),purple),1,
-        Physics.Transform3D(Math.Vec3(0.0,0.25,0.0))))
-    pieces.append(Piece(entity(world,cube,Math.Vec3(0.07,0.38,0.05),dark),1,
-        Physics.Transform3D(Math.Vec3(0.02,-0.01,0.145),Math.Quat.angle_axis(-0.35,Math.Vec3.back()))))
-    pieces.append(Piece(entity(world,cube,Math.Vec3(0.09,0.24,0.06),Color.bytes(132,199,130)),1,
-        Physics.Transform3D(Math.Vec3(0.0,0.03,-0.15))))
-    // Oversized faceted head, cap and beard. The dark eye recesses sit behind real holes.
-    pieces.append(Piece(entity(world,hexagon,Math.Vec3(0.46,0.34,0.38),purple),2,
-        Physics.Transform3D(rotation:front)))
-    pieces.append(Piece(entity(world,cylinder,Math.Vec3(0.48,0.09,0.40),metal),2,
-        Physics.Transform3D(Math.Vec3(0.0,0.16,0.0))))
-    pieces.append(Piece(entity(world,hexagon,Math.Vec3(0.32,0.10,0.16),metal),2,
-        Physics.Transform3D(Math.Vec3(0.0,-0.105,0.15),front)))
-    let head_sides:int[]=[-1,1]
-    for side in head_sides {
-        let x=side as float*0.103
-        pieces.append(Piece(entity(world,cylinder,Math.Vec3(0.12,0.02,0.12),dark),2,
-            Physics.Transform3D(Math.Vec3(x,0.025,0.18),front)))
-        pieces.append(Piece(entity(world,ring,Math.Vec3(0.17,0.055,0.17),cream),2,
-            Physics.Transform3D(Math.Vec3(x,0.025,0.205),front)))
-        pieces.append(Piece(entity(world,hexagon,Math.Vec3(0.08,0.035,0.08),cream),2,
-            Physics.Transform3D(Math.Vec3(side as float*0.23,0.0,0.0),sideways)))
+    let sphere=meshes.add(Geometry.rounded(0.0))
+    let capsule=meshes.add(Geometry.rounded(1.0))
+    let limb=meshes.add(Geometry.rounded(3.0))
+    let head=meshes.add(Geometry.rounded(0.6))
+    let neck=meshes.add(Scene3D.Geometry.Cylinder.make())
+    let blue=Color.bytes(66,88,153)
+    let across=Math.Quat.angle_axis(Math.half_pi(),Math.Vec3.back())
+    pieces.append(Piece(entity(world,capsule,Math.Vec3(0.20,0.225,0.25),blue),0,
+        Physics.Transform3D(Math.Vec3(0.0,-0.03,0.0),across)))
+    pieces.append(Piece(entity(world,capsule,Math.Vec3(0.115,0.18,0.24),blue),0,
+        Physics.Transform3D(Math.Vec3(0.0,0.095,0.0),across)))
+    pieces.append(Piece(entity(world,capsule,Math.Vec3(0.115,0.195,0.25),blue),1,
+        Physics.Transform3D(Math.Vec3(0.0,-0.12,0.0),across)))
+    pieces.append(Piece(entity(world,capsule,Math.Vec3(0.16,0.215,0.27),blue),1,
+        Physics.Transform3D(Math.Vec3(0.0,0.015,0.0),across)))
+    pieces.append(Piece(entity(world,capsule,Math.Vec3(0.19,0.265,0.28),blue),1,
+        Physics.Transform3D(Math.Vec3(0.0,0.18,0.0),across)))
+    pieces.append(Piece(entity(world,neck,Math.Vec3(0.11,0.075,0.11),blue),1,
+        Physics.Transform3D(Math.Vec3(0.0,0.305,0.0))))
+    pieces.append(Piece(entity(world,head,Math.Vec3(0.27,0.20,0.24),blue),2))
+    let sides:int[]=[-1,1]
+    for side in sides {
+        pieces.append(Piece(entity(world,sphere,Math.Vec3(0.037),blue),2,
+            Physics.Transform3D(Math.Vec3(side as float*0.055,0.015,0.125))))
     }
     for upper in [3,5] {
-        pieces.append(Piece(entity(world,cylinder,Anatomy.size(upper),purple),upper))
-        pieces.append(Piece(entity(world,hexagon,Math.Vec3(0.22,0.14,0.22),orange),upper,
-            Physics.Transform3D(Math.Vec3(0.0,0.13,0.0))))
-        pieces.append(Piece(entity(world,ring,Math.Vec3(0.18,0.10,0.18),cream),upper,
-            Physics.Transform3D(Math.Vec3(0.0,-0.17,0.0),sideways)))
-    }
-    for hand in [4,6] {
-        pieces.append(Piece(entity(world,cylinder,Math.Vec3(0.075,0.26,0.075),cream),hand,
-            Physics.Transform3D(Math.Vec3(0.0,0.02,0.0))))
-        pieces.append(Piece(entity(world,hexagon,Math.Vec3(0.15,0.14,0.16),purple),hand,
-            Physics.Transform3D(Math.Vec3(0.0,0.03,0.0))))
-        pieces.append(Piece(entity(world,ring,Math.Vec3(0.22,0.09,0.22),cream),hand,
-            Physics.Transform3D(Math.Vec3(0.0,-0.15,0.0),front)))
+        pieces.append(Piece(entity(world,limb,Math.Vec3(0.17,0.075,0.18),blue),upper))
+        pieces.append(Piece(entity(world,sphere,Math.Vec3(0.20),blue),upper,
+            Physics.Transform3D(Math.Vec3(0.0,0.15,0.0))))
+        pieces.append(Piece(entity(world,sphere,Math.Vec3(0.12),blue),upper,
+            Physics.Transform3D(Math.Vec3(0.0,-0.15,0.0))))
+        let forearm=upper+1
+        pieces.append(Piece(entity(world,limb,Math.Vec3(0.12,0.0625,0.14),blue),forearm,
+            Physics.Transform3D(Math.Vec3(0.0,0.08,0.0))))
+        pieces.append(Piece(entity(world,cube,Math.Vec3(0.09,0.16,0.05),blue),forearm,
+            Physics.Transform3D(Math.Vec3(0.0,-0.125,0.0))))
     }
     for thigh in [7,10] {
-        pieces.append(Piece(entity(world,cylinder,Math.Vec3(0.15,0.36,0.16),purple),thigh))
-        pieces.append(Piece(entity(world,hexagon,Math.Vec3(0.24,0.12,0.24),purple),thigh,
-            Physics.Transform3D(Math.Vec3(0.0,0.17,0.0))))
-        pieces.append(Piece(entity(world,ring,Math.Vec3(0.18,0.09,0.18),cream),thigh,
-            Physics.Transform3D(Math.Vec3(0.0,-0.19,0.0),sideways)))
+        pieces.append(Piece(entity(world,limb,Math.Vec3(0.22,0.105,0.21),blue),thigh))
+        pieces.append(Piece(entity(world,sphere,Math.Vec3(0.14),blue),thigh,
+            Physics.Transform3D(Math.Vec3(0.0,-0.21,0.0))))
         let shin=thigh+1
-        pieces.append(Piece(entity(world,cylinder,Math.Vec3(0.09,0.38,0.09),cream),shin))
-        pieces.append(Piece(entity(world,hexagon,Math.Vec3(0.22,0.26,0.22),purple),shin,
-            Physics.Transform3D(Math.Vec3(0.0,-0.07,0.0))))
-        pieces.append(Piece(entity(world,ring,Math.Vec3(0.25,0.09,0.25),purple),shin,
-            Physics.Transform3D(Math.Vec3(0.0,0.10,0.0))))
-        let foot=thigh+2
-        pieces.append(Piece(entity(world,cube,Math.Vec3(0.22,0.09,0.22),purple),foot,
-            Physics.Transform3D(Math.Vec3(0.0,0.0,-0.07))))
-        pieces.append(Piece(entity(world,ring,Math.Vec3(0.23,0.09,0.23),ivory),foot,
-            Physics.Transform3D(Math.Vec3(0.0,-0.01,0.10))))
+        pieces.append(Piece(entity(world,limb,Math.Vec3(0.18,0.105,0.18),blue),shin))
+        pieces.append(Piece(entity(world,cube,Anatomy.size(thigh+2),blue),thigh+2))
     }
 }
 package func apply(world:&Resources.World,pieces:@Piece[],poses:@Physics.Transform3D[]) {
