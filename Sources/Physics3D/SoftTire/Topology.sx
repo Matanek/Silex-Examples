@@ -7,6 +7,7 @@ package static struct Profile {
     let major_radius:float=0.9
     let section_radius:float=0.3
     let half_width:float=0.3
+    let inverse_mass:float=20.0
 }
 
 func vertex(ring:int, slice:int) int {
@@ -14,7 +15,7 @@ func vertex(ring:int, slice:int) int {
         (slice+Profile.slices)%Profile.slices
 }
 
-package func make_tire() Physics.SoftBody3DDefinition {
+package func make_tire(compliance:float=0.0005) Physics.SoftBody3DDefinition {
     var positions:Math.Vec3[]=[];var faces:int[]=[]
     var masses:float[]=[];var edges:Physics.SoftEdge3D[]=[];var bends:Physics.SoftBend3D[]=[]
     var ring=0
@@ -25,13 +26,13 @@ package func make_tire() Physics.SoftBody3DDefinition {
             let cross_angle=2.0*Math.pi()*(slice as float)/(Profile.slices as float)
             let radius=Profile.major_radius+Profile.section_radius*Math.cos(cross_angle)
             positions.append(Math.Vec3(Profile.half_width*Math.sin(cross_angle),radius*Math.cos(angle),radius*Math.sin(angle)))
-            masses.append(20.0)
+            masses.append(Profile.inverse_mass)
             let a=vertex(ring,slice);let b=vertex(ring+1,slice)
             let c=vertex(ring,slice+1);let d=vertex(ring+1,slice+1)
             faces.append(a);faces.append(b);faces.append(c)
             faces.append(b);faces.append(d);faces.append(c)
-            edges.append(Physics.SoftEdge3D(a,b,0.00002));edges.append(Physics.SoftEdge3D(a,c,0.00002))
-            edges.append(Physics.SoftEdge3D(a,d,0.00004));edges.append(Physics.SoftEdge3D(b,c,0.00004))
+            edges.append(Physics.SoftEdge3D(a,b,compliance));edges.append(Physics.SoftEdge3D(a,c,compliance))
+            edges.append(Physics.SoftEdge3D(a,d,compliance*2.0));edges.append(Physics.SoftEdge3D(b,c,compliance*2.0))
             bends.append(Physics.SoftBend3D(b,c,a,d,0.005))
             slice++
         }

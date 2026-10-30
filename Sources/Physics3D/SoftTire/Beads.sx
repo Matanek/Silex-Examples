@@ -1,0 +1,67 @@
+use GFX.Physics
+use STD.Math
+use Physics3D.SoftTire.Topology
+
+struct Bead {
+    let vertex:int
+    let local_point:Math.Vec3
+}
+
+// An implicit spring at each bead transfers both force and torque. All tire
+// vertices remain dynamic; no fixed target or position teleport is involved.
+package class Seat {
+    private var tire:Physics.SoftBody3D
+    private var rim:Physics.RigidBody3D
+    private var beads:Bead[]=[]
+    init(tire:Physics.SoftBody3D,rim:Physics.RigidBody3D) {
+        self.tire=tire;self.rim=rim
+        let pose=rim.transform()
+        var ring=0
+        while ring<Topology.Profile.segments {
+            for slice in [3,5] {
+                let vertex=ring*Topology.Profile.slices+slice
+                self.beads.append(Bead(vertex:vertex,local_point:pose.inverse_point(tire.position(vertex))))
+            }
+            ring++
+        }
+    }
+    func solve(delta:float) {
+        let pose=self.rim.transform();let center=self.rim.world_center_of_mass()
+        let mass=self.rim.mass_properties()
+        let stiffness=24000.0;let damping=55.0
+        let softness=1.0/(delta*(damping+delta*stiffness))
+        let bias=stiffness/(damping+delta*stiffness)
+        let axes:Math.Vec3[]=[Math.Vec3(1.0,0.0,0.0),Math.Vec3.up(),Math.Vec3(0.0,0.0,1.0)]
+        for bead in self.beads {
+            let point=self.tire.position(bead.vertex)
+            let arm=point.subtract(center)
+            let error=point.subtract(pose.point(bead.local_point))
+            var velocity=self.tire.velocity(bead.vertex)
+            var linear=self.rim.linear_velocity();var angular=self.rim.angular_velocity()
+            var combined=Math.Vec3()
+            for axis in axes {
+                let local_arm=pose.inverse_vector(arm.cross(axis))
+                let inverse=pose.vector(Math.Vec3(local_arm.x/mass.local_inertia.x,
+                    local_arm.y/mass.local_inertia.y,local_arm.z/mass.local_inertia.z))
+                let denominator=Topology.Profile.inverse_mass+1.0/mass.mass+arm.cross(axis).dot(inverse)+softness
+                let relative=velocity.subtract(linear.add(angular.cross(arm)))
+                let magnitude= -(relative.dot(axis)+bias*error.dot(axis))/denominator
+                let impulse=axis.multiply(magnitude)
+                velocity=velocity.add(impulse.multiply(Topology.Profile.inverse_mass))
+                linear=linear.subtract(impulse.divide(mass.mass))
+                angular=angular.subtract(inverse.multiply(magnitude))
+                combined=combined.add(impulse)
+            }
+            self.tire.apply_impulse(bead.vertex,combined)
+            // Publish one reciprocal pair, at the same world point.
+            self.rim.apply_impulse(combined.negated(),point)
+        }
+    }
+    func maximum_error() float {
+        let pose=self.rim.transform();var result=0.0
+        for bead in self.beads {
+            result=Math.max(result,self.tire.position(bead.vertex).subtract(pose.point(bead.local_point)).length())
+        }
+        return result
+    }
+}

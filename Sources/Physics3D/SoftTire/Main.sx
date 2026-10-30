@@ -88,7 +88,7 @@ func restart(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TireScene)
 }
 
 func labels(state:&TireScene) {
-    var pressure="normal";if state.panel.pressure_level==1 { pressure="souple" }
+    var pressure="cross";if state.panel.pressure_level==1 { pressure="très bas" }
 if state.panel.pressure_level==2 { pressure="ferme" }
     let mass=state.panel.mass() as int
     let height=Math.round(state.rig.rim.position().y*100.0) as int
@@ -205,7 +205,7 @@ func verify_controls() {
     state.panel.handle(key_event(Input.Key.c,99 as uint32));perform(world,meshes,state)
     assert(initial==state.rig.tire! && initial.is_valid() && state.rig.rim.mass_properties().mass==50.0)
     state.panel.handle(key_event(Input.Key.p,112 as uint32));perform(world,meshes,state)
-    assert(initial==state.rig.tire! && initial.is_valid() && state.rig.pressure==500.0)
+    assert(initial==state.rig.tire! && initial.is_valid() && state.rig.pressure==50.0)
     state.panel.handle(key_event(Input.Key.o,111 as uint32));perform(world,meshes,state)
     assert(initial==state.rig.tire! && initial.is_valid() && !state.rig.obstacle.is_enabled())
     assert(!world.get<Components.Mesh3D>(state.obstacle).visible)
@@ -218,7 +218,7 @@ func verify_controls() {
     state.panel.handle(key_event(Input.Key.space,32 as uint32));assert(state.panel.brake)
     state.panel.handle(key_event(Input.Key.r,114 as uint32));perform(world,meshes,state)
     assert(initial!=state.rig.tire! && state.rig.tire!.is_valid())
-    assert(state.rig.rim.mass_properties().mass==50.0 && state.rig.pressure==500.0)
+    assert(state.rig.rim.mass_properties().mass==50.0 && state.rig.pressure==50.0)
     verify_mesh(state,meshes)
     labels(state)
     var drawing=state.ui.drawing(Controls.Hud.width,Controls.Hud.height)

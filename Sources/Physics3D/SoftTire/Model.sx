@@ -1,6 +1,7 @@
 use GFX.Physics
 use STD.Math
 use Physics3D.SoftTire.Topology
+use Physics3D.SoftTire.Beads
 
 package func rim_mass(mass:float) Physics.MassProperties3D {
     let radius=0.58;let width=0.5
@@ -16,8 +17,11 @@ package class TireRig {
     var floor:Physics.RigidBody3D
     var obstacle:Physics.RigidBody3D
     var pressure:float
-    init(mass:float=20.0, pressure:float=1500.0, with_tire:bool=true, with_obstacle:bool=false) {
-        self.world=Physics.World3D(Physics.World3DSettings() ..soft_body_substeps=8 ..velocity_iterations=24)
+    var seat:Beads.Seat?=null
+    var seated:bool
+    init(mass:float=20.0, pressure:float=150.0, with_tire:bool=true, with_obstacle:bool=false,
+        seated:bool=true,compliance:float=0.0005) {
+        self.world=Physics.World3D(Physics.World3DSettings() ..soft_body_substeps=2 ..velocity_iterations=24)
         let center=Math.Vec3(0.0,1.24,0.0)
         let rotation=Math.Quat.angle_axis(Math.pi()*0.5,Math.Vec3(0.0,0.0,1.0))
         var support=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
@@ -39,22 +43,29 @@ package class TireRig {
             ..second_local_frame=Physics.Transform3D(Math.Vec3(),rotation.conjugated())
             ..translation_x=(Physics.LinearAxis3DSettings() ..limit=Physics.LinearLimit3D.locked)
             ..swing_limits=Physics.SwingLimits3D.cone(Math.Vec2()))
-        self.pressure=pressure;self.tire=null
+        self.pressure=pressure;self.tire=null;self.seated=seated
         if with_tire {
-            self.tire=self.world.create_soft_body(Topology.make_tire(),Physics.SoftBody3DSettings()
+            var body=self.world.create_soft_body(Topology.make_tire(compliance),Physics.SoftBody3DSettings()
                 ..transform=Physics.Transform3D(center) ..pressure=pressure
                 ..linear_damping=0.9 ..friction=1.4 ..vertex_radius=0.035
                 ..collision_filter=Physics.CollisionFilter3D(category_bits:4,mask_bits:3))
+            self.tire=body;self.seat=Beads.Seat(body,self.rim)
         }
     }
     func step(throttle:float=0.0, brake:bool=false) {
-        if Math.abs(throttle)>0.01 || brake {
-            var target=throttle*5.0
-            if brake { target=0.0 }
-            let torque=Math.clamp((target-self.rim.angular_velocity().x)*35.0,-150.0,150.0)
-            self.rim.apply_torque(Math.Vec3(torque,0.0,0.0))
+        // Four reciprocal coupling steps, each with two soft iterations: the
+        // original eight soft substeps are preserved, without an outer-frame lag.
+        let delta=1.0/480.0;var part=0
+        while part<4 {
+            if Math.abs(throttle)>0.01 || brake {
+                var target=throttle*5.0
+                if brake { target=0.0 }
+                let torque=Math.clamp((target-self.rim.angular_velocity().x)*35.0,-150.0,150.0)
+                self.rim.apply_torque(Math.Vec3(torque,0.0,0.0))
+            }
+            if self.seated { if var seat=self.seat { seat.solve(delta) } }
+            self.world.step(delta);part++
         }
-        self.world.step(1.0/120.0)
     }
     func set_load(mass:float) { self.rim.set_mass_properties(rim_mass(mass)) }
     func set_pressure(pressure:float) {

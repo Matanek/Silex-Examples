@@ -1,4 +1,5 @@
 use Physics3D.SoftTire.Model
+use Physics3D.SoftTire.BeadChecks
 use GFX.Physics
 use STD.Process
 use STD.Math
@@ -14,7 +15,7 @@ package struct Observation {
     init() {}
 }
 
-package func inspect(name:str, mass:float=20.0, pressure:float=1500.0,
+package func inspect(name:str, mass:float=20.0, pressure:float=150.0,
     with_tire:bool=true, drive:bool=false, frames:int=480) Observation {
     var clock=Time.Clock()
     let initial_tick=clock.tick()
@@ -44,8 +45,8 @@ package func inspect(name:str, mass:float=20.0, pressure:float=1500.0,
     assert(result.guide_vertical<0.00001)
     if with_tire {
         assert(result.height>0.8 && result.height<1.7)
-        assert(result.minimum>=0.029 && result.volume>1.0 && result.volume<1.8)
-        assert(rig.maximum_radius()<1.5)
+        assert(result.minimum>=0.029 && result.volume>0.7 && result.volume<3.0)
+        assert(rig.maximum_radius()<1.8)
         for position in rig.tire!.positions() {
             assert(Math.is_finite(position.x) && Math.is_finite(position.y) && Math.is_finite(position.z))
         }
@@ -58,23 +59,17 @@ package func inspect(name:str, mass:float=20.0, pressure:float=1500.0,
 
 package func verify() {
     let bare=inspect("bare",with_tire:false,frames:120)
-    let normal=inspect("normal")
-    let heavy=inspect("heavy",mass:50.0)
-    let low=inspect("low",pressure:500.0)
-    let rolling=inspect("drive",drive:true,frames:600)
-    assert(bare.height<0.0 && normal.height>0.8)
-    assert(heavy.height<normal.height-0.02)
-    assert(low.volume<normal.volume-0.004)
-    assert(rolling.distance>3.6 && rolling.peak>normal.height+0.12)
-    print("Soft tire checks passed: support, load, pressure, torque and obstacle")
+    assert(bare.height<0.0)
+    BeadChecks.verify()
+    print("Soft tire checks passed: reciprocal beads, low inflation, load and sustained driving")
 }
 
 func main() {
-    var mass=20.0;var pressure=1500.0;var with_tire=true;var drive=false;var frames=480
+    var mass=20.0;var pressure=150.0;var with_tire=true;var drive=false;var frames=480
     for arg in Process.arguments() {
         if arg=="--verify" { verify();return }
         if arg=="--heavy" { mass=50.0 }
-        if arg=="--low" { pressure=500.0 }
+        if arg=="--low" { pressure=50.0 }
         if arg=="--bare" { with_tire=false }
         if arg=="--drive" { drive=true;frames=600 }
         if arg=="--quick" { frames=120 }

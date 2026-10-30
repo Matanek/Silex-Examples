@@ -1,0 +1,159 @@
+use Physics3D.SoftTire.Model
+use Physics3D.SoftTire.Topology
+use STD.Math
+use STD.Process
+
+package struct Observation {
+    var height:float=0.0
+    var lowest:float=100.0
+    var volume:float=0.0
+    var distance:float=0.0
+    var error:float=0.0
+    var width:float=0.0
+    var mean_height:float=0.0
+    var minimum_floor:float=100.0
+    var maximum_z:float=0.0
+    var maximum_radius:float=0.0
+    var clearance:float=100.0
+    init() {}
+}
+
+func momentum(rig:Model.TireRig,angular:bool) Math.Vec3 {
+    let mass=rig.rim.mass_properties();let pose=rig.rim.transform()
+    var result=rig.rim.linear_velocity().multiply(mass.mass)
+    if angular {
+        let spin=pose.inverse_vector(rig.rim.angular_velocity())
+        result=rig.rim.world_center_of_mass().cross(result).add(pose.vector(
+            Math.Vec3(spin.x*mass.local_inertia.x,spin.y*mass.local_inertia.y,spin.z*mass.local_inertia.z)))
+    }
+    var vertex=0
+    while vertex<rig.tire!.vertex_count() {
+        let value=rig.tire!.velocity(vertex).divide(Topology.Profile.inverse_mass)
+        if angular { result=result.add(rig.tire!.position(vertex).cross(value)) }
+        else { result=result.add(value) }
+        vertex++
+    }
+    return result
+}
+
+package func reciprocal() {
+    var rig=Model.TireRig()
+    rig.world.step(1.0/120.0)
+    assert(rig.seat!.maximum_error()>0.00001)
+    rig.tire!.apply_impulse(3,Math.Vec3(1.0,-0.2,0.4))
+    let linear=momentum(rig,false);let angular=momentum(rig,true)
+    rig.seat!.solve(1.0/120.0)
+    let linear_error=momentum(rig,false).subtract(linear).length()
+    let angular_error=momentum(rig,true).subtract(angular).length()
+    assert(linear_error<0.0001 && angular_error<0.0001)
+    assert(rig.rim.linear_velocity().length()>0.0001 && rig.rim.angular_velocity().length()>0.0001)
+    print("Bead reciprocal impulses passed: linear_error=",linear_error," angular_error=",angular_error)
+}
+
+package func inspect(name:str,pressure:float=150.0,compliance:float=0.0005,
+    mass:float=20.0,frames:int=480,seated:bool=true,lateral:bool=false,drive:bool=false) Observation {
+    var rig=Model.TireRig(mass,pressure,with_obstacle:drive,seated:seated,compliance:compliance)
+    if lateral {
+        var vertex=0
+        while vertex<rig.tire!.vertex_count() {
+            rig.tire!.apply_impulse(vertex,Math.Vec3(2.0/Topology.Profile.inverse_mass,0.0,0.0));vertex++
+        }
+    }
+    var result=Observation();var frame=0
+    while frame<frames {
+        var throttle=0.0;var brake=false
+        if drive {
+            if frame>=240 && frame<960 { throttle=1.0 }
+            if frame>=960 && frame<1200 { brake=true }
+            if frame>=1200 && frame<1800 { throttle= -1.0 }
+            if frame>=1800 && frame<2160 { brake=true }
+            if frame>=2160 { throttle=1.0 }
+            if frame==600 { rig.set_pressure(50.0) }
+            if frame==960 { rig.set_pressure(1500.0) }
+            if frame==1200 { rig.set_pressure(150.0) }
+            if frame==1440 { rig.set_load(50.0) }
+        }
+        if lateral && frame<240 {
+            var vertex=0
+            while vertex<rig.tire!.vertex_count() {
+                rig.tire!.apply_impulse(vertex,Math.Vec3(500.0/120.0/(rig.tire!.vertex_count() as float),0.0,0.0))
+                vertex++
+            }
+        }
+        rig.step(throttle,brake)
+        if frame>=frames-240 { result.mean_height+=rig.rim.position().y }
+        result.maximum_z=Math.max(result.maximum_z,rig.rim.position().z)
+        if frame%12==0 {
+            result.minimum_floor=Math.min(result.minimum_floor,rig.minimum_y())
+            result.maximum_radius=Math.max(result.maximum_radius,rig.maximum_radius())
+            if drive {
+                for point in rig.tire!.positions() {
+                    let nearest=Math.Vec3(Math.clamp(point.x,-1.0,1.0),Math.clamp(point.y,0.0,0.18),Math.clamp(point.z,2.75,3.25))
+                    result.clearance=Math.min(result.clearance,point.subtract(nearest).length())
+                }
+            }
+        }
+        result.error=Math.max(result.error,rig.seat!.maximum_error())
+        result.lowest=Math.min(result.lowest,rig.rim.position().y)
+        assert(Math.is_finite(result.error) && Math.is_finite(rig.rim.position().y))
+        if frame%120==119 {
+            print(name," frame=",frame+1," height=",rig.rim.position().y," z=",rig.rim.position().z,
+                " error=",rig.seat!.maximum_error()," floor=",rig.minimum_y()," volume=",rig.volume())
+        }
+        frame++
+    }
+    result.mean_height/=Math.min(frames,240) as float
+    result.height=rig.rim.position().y;result.distance=rig.rim.position().z;result.volume=rig.volume()
+    var lower=100.0;var upper= -100.0
+    for point in rig.tire!.positions() {
+        assert(Math.is_finite(point.x) && Math.is_finite(point.y) && Math.is_finite(point.z))
+        lower=Math.min(lower,point.x);upper=Math.max(upper,point.x)
+    }
+    result.width=upper-lower
+    if seated {
+        assert(result.error<0.05 && result.minimum_floor>=0.025 && result.lowest>0.6)
+        assert(result.maximum_radius<1.8 && result.volume>0.7 && result.volume<3.0)
+        if drive { assert(result.maximum_z>4.0 && result.clearance>=0.025) }
+        assert(Math.abs(rig.guide.reaction_force().y)<0.00001)
+    }
+    print(name," summary: height=",result.height," width=",result.width," volume=",result.volume,
+        " mean_height=",result.mean_height," peak_bead_error=",result.error," lowest=",result.lowest," z=",result.distance)
+    return result
+}
+
+package func verify() {
+    reciprocal()
+    let unseated=inspect("unseated",frames:120,seated:false,lateral:true)
+    let retained=inspect("retained",frames:120,lateral:true)
+    assert(unseated.error>0.5 && retained.error<0.05)
+    let cross=inspect("cross")
+    let firm=inspect("firm",pressure:1500.0)
+    let flat=inspect("low",pressure:50.0)
+    let heavy=inspect("heavy",mass:50.0)
+    let heavy_low=inspect("heavy_low",pressure:50.0,mass:50.0)
+    let heavy_firm=inspect("heavy_firm",pressure:1500.0,mass:50.0)
+    assert(cross.mean_height<firm.mean_height-0.025)
+    assert(heavy.mean_height<cross.mean_height-0.025)
+    assert(flat.volume<firm.volume-0.02 && heavy_low.mean_height<heavy_firm.mean_height)
+    let driving=inspect("driving",frames:2400,drive:true)
+    print("Soft tire bead checks passed: retained beads, inflation, load, braking, reverse and obstacle")
+}
+
+func main() {
+    var pressure=150.0;var compliance=0.0005;var frames=480;var mass=20.0
+    var seated=true;var lateral=false;var drive=false
+    for arg in Process.arguments() {
+        if arg=="--verify" { verify();return }
+        if arg=="--reciprocal" { reciprocal();return }
+        if arg=="--soft" { pressure=150.0 }
+        if arg=="--firm" { pressure=1500.0 }
+        if arg=="--plush" { pressure=150.0;compliance=0.0005 }
+        if arg=="--flat" { pressure=50.0 }
+        if arg=="--heavy" { mass=50.0 }
+        if arg=="--unseated" { seated=false }
+        if arg=="--lateral" { lateral=true }
+        if arg=="--quick" { frames=120 }
+        if arg=="--long" { frames=2400;drive=true }
+    }
+    let result=inspect("bead",pressure,compliance,mass,frames,seated,lateral,drive)
+}
