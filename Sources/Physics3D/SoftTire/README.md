@@ -25,7 +25,8 @@ has a much higher simulation cost.
 | Mouse | Orbit the camera and adjust its distance |
 | Escape | Quit |
 
-The compact HUD stays on the left and the camera follows the wheel. Yellow
+The compact HUD stays on the left and displays measured FPS; the camera follows
+the wheel. Yellow
 markers on the rim and carcass help distinguish their rotation. Changing the
 load, inflation or obstacle does not reset the wheel.
 
@@ -69,6 +70,14 @@ obstacle clearance. It creates no window. `--controls-check` verifies only
 controls, reset, mesh updates and HUD bounds; `--bench` measures one simulated
 second without rendering. `--smoke`
 opens a test window, drives the wheel and closes after five simulated seconds.
+`--profile` opens a twelve-second automated window and reports average FPS,
+longest frame interval and time spent stepping physics. `--fleet-bench` measures
+four complete tires in independent worlds without a window. It excludes
+rendering and a shared chassis, so it does not measure monster-truck FPS.
+`--profile-four` runs four independent physical tires in the graphical process,
+with one tire displayed, to measure simulation scaling in that context. It does
+not measure rendering four tires or a complete shared vehicle.
+
 
 This experimental prototype qualifies one guided wheel against rigid bodies.
 A full monster truck still needs wheel integration and qualification for its

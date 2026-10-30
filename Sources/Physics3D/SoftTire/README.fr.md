@@ -26,7 +26,7 @@ vérifications et son coût de simulation est beaucoup plus élevé.
 | Souris | Orienter la caméra et régler sa distance |
 | Échap | Quitter |
 
-Le HUD compact reste à gauche ; la caméra suit la roue. Les repères jaunes
+Le HUD compact reste à gauche et affiche les FPS observés ; la caméra suit la roue. Les repères jaunes
 sur la jante et la carcasse permettent de distinguer leur rotation. Les
 changements de charge, de gonflage et d’obstacle ne réinitialisent pas la roue.
 
@@ -69,7 +69,15 @@ combine vingt secondes de moteur, freinage, marche arrière, changement de
 gonflage et de charge, avec contrôle des talons et du contact avec l’obstacle.
 Il ne crée aucune fenêtre. `--controls-check` vérifie uniquement les commandes,
 le reset, le maillage et le HUD ; `--bench` mesure une seconde simulée sans rendu. `--smoke` ouvre une fenêtre de test,
-fait avancer la roue et se ferme après cinq secondes simulées.
+fait avancer la roue et se ferme après cinq secondes simulées. `--profile` mesure
+les frames pendant douze secondes murales dans une fenêtre, puis imprime FPS
+moyens, intervalle maximal et temps passé dans les pas physiques.
+`--profile-four` ajoute trois roues physiques indépendantes dans cette même
+fenêtre, avec une seule roue affichée, pour mesurer la charge de quatre
+simulations en contexte graphique. Cela ne mesure pas le rendu de quatre roues.
+`--fleet-bench` mesure sans fenêtre quatre roues complètes dans quatre mondes
+indépendants. Ce coût ne comprend ni rendu, ni châssis partagé : il ne constitue
+pas une mesure des FPS d’un monster truck.
 
 Ce prototype expérimental qualifie une roue guidée contre des corps rigides.
 Un monster truck complet demandera encore l’assemblage des roues au véhicule

@@ -17,11 +17,15 @@ use Physics3D.SoftTire.Model
 use Physics3D.SoftTire.Controls
 use Physics3D.SoftTire.Visuals
 use Physics3D.SoftTire.Checks
+use Physics3D.SoftTire.Metrics
+use Physics3D.SoftTire.Fleet
+use STD.Time
 use STD.Math
 use STD.Process
 
 class TireScene {
     var rig:Model.TireRig=Model.TireRig(with_obstacle:true)
+    var extra_rigs:Model.TireRig[]=[]
     var panel:Controls.Panel=Controls.Panel()
     var ui:UI.Session
     var presenter:Physics.SoftBodyMesh3D?=null
@@ -33,6 +37,8 @@ class TireScene {
     var hud:ECS.Entity=ECS.Entity()
     var accumulator:float=0.0
     var telemetry:float=0.0
+    var metrics:Metrics=Metrics()
+    var profile:bool=false
     var smoke:bool=false
     var steps:int=0
     init() { self.ui=UI.Session(self.panel.describe()) }
@@ -93,8 +99,9 @@ if state.panel.pressure_level==2 { pressure="ferme" }
     let mass=state.panel.mass() as int
     let height=Math.round(state.rig.rim.position().y*100.0) as int
     let speed=Math.round(state.rig.rim.linear_velocity().z*3.6) as int
+    let fps=Math.round(state.metrics.fps) as int
     state.panel.settings.set("Charge jante : $(mass) kg\nGonflage : $(pressure)")
-    state.panel.metrics.set("Hauteur axe : $(height) cm\nVitesse : $(speed) km/h\nGuidage latéral du banc")
+    state.panel.metrics.set("Hauteur axe : $(height) cm\nVitesse : $(speed) km/h · $(fps) FPS\nGuidage latéral du banc")
 }
 
 func perform(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TireScene) {
@@ -112,16 +119,23 @@ func perform(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TireScene)
 func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TireScene,input:@Resources.InputState,
     simulation:@Application.Simulation,controller:&Application.Controller,camera:&Resources.ViewportCamera3D) {
     if input.is_pressed(Input.Key.escape) { controller.stop();return }
-    if !state.smoke {
+    if !state.smoke && !state.profile {
         for event in input.events() { state.panel.handle(event) }
         perform(world,meshes,state)
     }
+    if state.profile && state.metrics.elapsed>=12.0 {
+        state.metrics.report(copy state.steps)
+        print("profile simulated_tires=",1+state.extra_rigs.count()," displayed_tires=1 hub_z=",state.rig.rim.position().z," bead_error=",state.rig.seat!.maximum_error())
+        controller.stop();return
+    }
+    var physics_clock=Time.Stopwatch();physics_clock.start()
     state.accumulator+=Math.min(simulation.delta(),0.1)
     while state.accumulator>=1.0/120.0 {
         var throttle=0.0;if state.panel.forward { throttle+=1.0 }
     if state.panel.reverse { throttle-=1.0 }
-        if state.smoke && state.steps>=240 { throttle=1.0 }
+        if (state.smoke || state.profile) && state.steps>=240 { throttle=1.0 }
         state.rig.step(throttle,copy state.panel.brake)
+        for rig in state.extra_rigs { rig.step(throttle,copy state.panel.brake) }
         state.accumulator-=1.0/120.0;state.steps++
         if state.smoke && state.steps>=600 {
             assert(state.rig.rim.position().y>0.5 && state.rig.minimum_y()>0.029)
@@ -129,6 +143,7 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TireScene,i
             controller.stop();return
         }
     }
+    state.metrics.physics_seconds+=physics_clock.get_elapsed_seconds()
     camera.set_target(Math.Vec3(0.0,1.0,state.rig.rim.position().z+0.8))
     state.telemetry+=simulation.delta()
     if state.telemetry>=0.15 {
@@ -141,6 +156,7 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TireScene,i
 }
 
 func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TireScene) {
+    state.metrics.frame()
     if var presenter=state.presenter { presenter.update(meshes) }
     let pose=state.rig.rim.transform()
     world.update<Components.Transform3D>(state.rim,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
@@ -229,14 +245,24 @@ func verify_controls() {
 
 func main() {
     for arg in Process.arguments() {
+        if arg=="--fleet-bench" { Fleet.measure(4);return }
         if arg=="--check" { Checks.verify();verify_controls();return }
         if arg=="--controls-check" { verify_controls();return }
         if arg=="--bench" { let sample=Checks.inspect("bench",frames:120);return }
         if arg=="--drive-check" { let sample=Checks.inspect("drive",drive:true,frames:600);return }
     }
     var state=TireScene()
-    for arg in Process.arguments() { if arg=="--smoke" { state.smoke=true } }
+    for arg in Process.arguments() {
+        if arg=="--smoke" { state.smoke=true }
+        if arg=="--profile" { state.profile=true }
+        if arg=="--profile-four" {
+            state.profile=true
+            for _ in 0...3 { state.extra_rigs.append(Model.TireRig(with_obstacle:true)) }
+        }
+    }
     var title="Prototype pneu souple — Z/S moteur · Espace frein · C charge · P gonflage"
+    if state.profile { title="MESURE FPS — pneu souple — 12 secondes" }
+    if !state.extra_rigs.is_empty() { title="MESURE FPS — 4 pneus simulés / 1 affiché — 12 secondes" }
     if state.smoke { title="TEST AUTOMATIQUE — pneu souple — fermeture automatique" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))

@@ -1,0 +1,19 @@
+use Physics3D.SoftTire.Model
+use STD.Time
+use STD.Math
+
+// Independent rigs measure four complete tire workloads, without claiming
+// vehicle chassis, suspension or interactions between these worlds.
+package func measure(count:int) {
+    var rigs:Model.TireRig[]=[]
+    for _ in 0...count { rigs.append(Model.TireRig()) }
+    var clock=Time.Stopwatch();clock.start()
+    for _ in 0...120 { for rig in rigs { rig.step() } }
+    let seconds=clock.get_elapsed_seconds()
+    for rig in rigs {
+        assert(rig.minimum_y()>=0.029 && rig.rim.position().y>0.8)
+        assert(rig.seat!.maximum_error()<0.05)
+    }
+    print("fleet independent_worlds=",count," wall_seconds=",seconds,
+        " milliseconds_per_120hz_tick=",seconds*1000.0/120.0)
+}
