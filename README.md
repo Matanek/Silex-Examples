@@ -36,6 +36,10 @@ The [rigid shapes scene](Sources/Physics3D/RigidShapesScene/README.md) shows
 cylinders, tapered shapes, capsule/box/convex sweeps, a terrain opening and an
 infinite supporting plane in one window.
 
+The [soft tire prototype](Sources/Physics3D/SoftTire/README.md) puts a powered
+dynamic rim inside a pressurized deformable carcass. Change its load and
+inflation, brake, and climb a small step on a guided single-wheel rig.
+
 The [reactive UI form](Sources/UIReactiveForm.sx) demonstrates shared state,
 keyed editable rows, keyboard focus and hidden/disabled controls. Enable automatic
 reordering, select text in a row, and keep typing: the edit stays with that row.

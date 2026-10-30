@@ -1,0 +1,47 @@
+use GFX.Scene3D
+use STD.Math
+
+package func rim_mesh() Scene3D.Geometry.Mesh {
+    var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[]
+    var side=0
+    while side<2 {
+        let height=(side as float)*0.5-0.25
+        var index=0
+        while index<32 {
+            let angle=(index as float)*2.0*Math.pi()/32.0
+            let normal=Math.Vec3(Math.cos(angle),0.0,Math.sin(angle))
+            vertices.append(Scene3D.Geometry.Vertex(position:Math.Vec3(normal.x*0.58,height,normal.z*0.58),normal:normal))
+            index++
+        }
+        side++
+    }
+    var index=0
+    while index<32 {
+        let next=(index+1)%32
+        let triangles:int[]=[index,index+32,next,next,index+32,next+32]
+        for value in triangles { indices.append(value as uint32) }
+        index++
+    }
+    side=0
+    while side<2 {
+        let offset=vertices.count();let height=(side as float)*0.5-0.25
+        var normal=Math.Vec3(0.0,-1.0,0.0);if side==1 { normal=Math.Vec3.up() }
+        vertices.append(Scene3D.Geometry.Vertex(position:Math.Vec3(0.0,height,0.0),normal:normal))
+        index=0
+        while index<32 {
+            let angle=(index as float)*2.0*Math.pi()/32.0
+            vertices.append(Scene3D.Geometry.Vertex(position:Math.Vec3(Math.cos(angle)*0.58,height,Math.sin(angle)*0.58),normal:normal))
+            index++
+        }
+        index=0
+        while index<32 {
+            let a=offset+1+index;let b=offset+1+(index+1)%32
+            indices.append(offset as uint32)
+            if side==0 { indices.append(a as uint32);indices.append(b as uint32) }
+            else { indices.append(b as uint32);indices.append(a as uint32) }
+            index++
+        }
+        side++
+    }
+    return Scene3D.Geometry.Mesh(vertices,indices)
+}

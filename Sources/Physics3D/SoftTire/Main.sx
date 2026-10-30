@@ -1,0 +1,249 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Input.Events
+use GFX.Window
+use GFX.Accessibility
+use GFX.Canvas
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Scene3D
+use GFX.UI
+use Physics3D.SoftTire.Model
+use Physics3D.SoftTire.Controls
+use Physics3D.SoftTire.Visuals
+use Physics3D.SoftTire.Checks
+use STD.Math
+use STD.Process
+
+class TireScene {
+    var rig:Model.TireRig=Model.TireRig(with_obstacle:true)
+    var panel:Controls.Panel=Controls.Panel()
+    var ui:UI.Session
+    var presenter:Physics.SoftBodyMesh3D?=null
+    var rubber:ECS.Entity=ECS.Entity()
+    var rim:ECS.Entity=ECS.Entity()
+    var obstacle:ECS.Entity=ECS.Entity()
+    var spokes:ECS.Entity[]=[]
+    var marks:ECS.Entity[]=[]
+    var hud:ECS.Entity=ECS.Entity()
+    var accumulator:float=0.0
+    var telemetry:float=0.0
+    var smoke:bool=false
+    var steps:int=0
+    init() { self.ui=UI.Session(self.panel.describe()) }
+    func present(meshes:&Resources.Meshes3D) {
+        self.presenter=Physics.SoftBodyMesh3D(self.rig.tire!,meshes)
+    }
+}
+
+func visual(world:&Resources.World,mesh:Scene3D.MeshHandle,size:Math.Vec3,color:Color) ECS.Entity {
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(scale:size))
+        ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.75)))
+}
+
+func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TireScene) {
+    let cube=meshes.add(Scene3D.Geometry.Cube.make())
+    let floor=visual(world,cube,Math.Vec3(6.0,0.1,40.0),Color.bytes(75,87,101))
+    world.update<Components.Transform3D>(floor,func(t:&Components.Transform3D) { t.position=Math.Vec3(0.0,-0.05,0.0) })
+    var index= -20
+    while index<=20 {
+        let line=visual(world,cube,Math.Vec3(6.0,0.004,0.015),Color.bytes(120,136,150))
+        let z=index as float
+        world.update<Components.Transform3D>(line,func(t:&Components.Transform3D) { t.position=Math.Vec3(0.0,0.004,z) })
+        index++
+    }
+    state.obstacle=visual(world,cube,Math.Vec3(2.0,0.18,0.5),Color.bytes(90,180,200))
+    world.update<Components.Transform3D>(state.obstacle,func(t:&Components.Transform3D) { t.position=Math.Vec3(0.0,0.09,3.0) })
+    state.rim=visual(world,meshes.add(Visuals.rim_mesh()),Math.Vec3(1.0),Color.bytes(220,130,45))
+    let spoke_sizes:Math.Vec3[]=[Math.Vec3(1.0,0.03,0.07),Math.Vec3(0.07,0.03,1.0)]
+    for size in spoke_sizes {
+        state.spokes.append(visual(world,cube,size,Color.bytes(255,220,135)))
+    }
+    state.present(meshes)
+    state.rubber=visual(world,state.presenter!.mesh(),Math.Vec3(1.0),Color.bytes(55,65,83))
+    for _ in 0...4 { state.marks.append(visual(world,cube,Math.Vec3(0.07),Color.bytes(240,185,65))) }
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.5)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.5,-1.0,-0.3).normalized(),intensity:3.0)
+        ..shadow_distance=30.0))
+    labels(state)
+    state.hud=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform(position:Math.Vec2(12.0,12.0)))
+        ..with(Scene2D.Canvas(state.ui.drawing(Controls.Hud.width,Controls.Hud.height),Controls.Hud.width,Controls.Hud.height) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+            ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+    print("Prototype pneu souple. Z/S moteur, Espace frein, C charge, P gonflage, O obstacle, R reset.")
+}
+
+func restart(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TireScene) {
+    if var presenter=state.presenter { presenter.remove(meshes) }
+    state.presenter=null
+    state.rig=Model.TireRig(state.panel.mass(),state.panel.pressure(),with_obstacle:copy state.panel.obstacle)
+    state.present(meshes)
+    let asset=state.presenter!.mesh()
+    world.update<Components.Mesh3D>(state.rubber,func(m:&Components.Mesh3D) { m.asset=asset })
+    state.accumulator=0.0;state.steps=0;state.panel.reset=false
+}
+
+func labels(state:&TireScene) {
+    var pressure="normal";if state.panel.pressure_level==1 { pressure="souple" }
+if state.panel.pressure_level==2 { pressure="ferme" }
+    let mass=state.panel.mass() as int
+    let height=Math.round(state.rig.rim.position().y*100.0) as int
+    let speed=Math.round(state.rig.rim.linear_velocity().z*3.6) as int
+    state.panel.settings.set("Charge jante : $(mass) kg\nGonflage : $(pressure)")
+    state.panel.metrics.set("Hauteur axe : $(height) cm\nVitesse : $(speed) km/h\nGuidage latéral du banc")
+}
+
+func perform(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TireScene) {
+    if state.panel.reset { restart(world,meshes,state) }
+    if state.panel.changed {
+        state.rig.set_load(state.panel.mass());state.rig.set_pressure(state.panel.pressure())
+        state.rig.obstacle.set_enabled(copy state.panel.obstacle);state.panel.changed=false
+    }
+    let visible=state.rig.obstacle.is_enabled()
+    if world.get<Components.Mesh3D>(state.obstacle).visible!=visible {
+        world.update<Components.Mesh3D>(state.obstacle,func(m:&Components.Mesh3D) { m.visible=visible })
+    }
+}
+
+func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TireScene,input:@Resources.InputState,
+    simulation:@Application.Simulation,controller:&Application.Controller,camera:&Resources.ViewportCamera3D) {
+    if input.is_pressed(Input.Key.escape) { controller.stop();return }
+    if !state.smoke {
+        for event in input.events() { state.panel.handle(event) }
+        perform(world,meshes,state)
+    }
+    state.accumulator+=Math.min(simulation.delta(),0.1)
+    while state.accumulator>=1.0/120.0 {
+        var throttle=0.0;if state.panel.forward { throttle+=1.0 }
+    if state.panel.reverse { throttle-=1.0 }
+        if state.smoke && state.steps>=240 { throttle=1.0 }
+        state.rig.step(throttle,copy state.panel.brake)
+        state.accumulator-=1.0/120.0;state.steps++
+        if state.smoke && state.steps>=600 {
+            assert(state.rig.rim.position().y>0.5 && state.rig.minimum_y()>0.029)
+            print("Soft tire graphical smoke passed")
+            controller.stop();return
+        }
+    }
+    camera.set_target(Math.Vec3(0.0,1.0,state.rig.rim.position().z+0.8))
+    state.telemetry+=simulation.delta()
+    if state.telemetry>=0.15 {
+        labels(state)
+        state.telemetry=0.0
+    }
+    if state.ui.update(0.0) {
+        world.update<Scene2D.Canvas>(state.hud,func(c:&Scene2D.Canvas) { c.replace(state.ui.drawing(Controls.Hud.width,Controls.Hud.height)) })
+    }
+}
+
+func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TireScene) {
+    if var presenter=state.presenter { presenter.update(meshes) }
+    let pose=state.rig.rim.transform()
+    world.update<Components.Transform3D>(state.rim,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
+    let face=pose.point(Math.Vec3(0.0,-0.27,0.0))
+    for spoke in state.spokes {
+        world.update<Components.Transform3D>(spoke,func(t:&Components.Transform3D) { t.position=face;t.rotation=pose.rotation })
+    }
+    var index=0
+    while index<state.marks.count() {
+        let point=state.rig.tire!.position(index*(state.rig.tire!.vertex_count()/4))
+        world.update<Components.Transform3D>(state.marks[index],func(t:&Components.Transform3D) { t.position=point })
+        index++
+    }
+
+}
+
+func key_event(key:Input.Key,code:uint32) Events.Event {
+    let modifiers=Input.Modifiers(shift:false,control:false,alt:false,system:false,
+        left_shift:false,right_shift:false,level5:false,left_control:false,right_control:false,
+        left_alt:false,right_alt:false,left_system:false,right_system:false,mode:false,
+        caps_lock:false,num_lock:false,scroll_lock:false)
+    return Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:0 as uint32),
+        keyboard:Input.KeyboardId(value:0 as uint32),key:key,keycode:code,raw:0 as uint16,
+        repeated:false,modifiers:modifiers,timestamp:Input.Timestamp(nanoseconds:0 as uint)))
+}
+
+func verify_hud(source:Accessibility.Source,id:str) {
+    let element=source.read(id)!
+    assert(element.bounds.x>=0.0 && element.bounds.y>=0.0)
+    assert(element.bounds.x+element.bounds.width<=Controls.Hud.width as float+0.01 &&
+        element.bounds.y+element.bounds.height<=Controls.Hud.height as float+0.01)
+    if element.role==Accessibility.Role.text {
+        var canvas=Canvas();var size=14.0
+        if element.name=="Pneu souple — prototype" { size=18.0 }
+        let measured=canvas.measure_text(element.name,Canvas.TextStyle(size:size))
+        assert(measured.width<=element.bounds.width+0.01 && measured.height<=element.bounds.height+0.01)
+    }
+    var child=0
+    while child<element.child_count {
+        if let next=source.child(id,child) { verify_hud(source,next) }
+        child++
+    }
+}
+
+func verify_mesh(state:TireScene,meshes:&Resources.Meshes3D) {
+    state.rig.step()
+    assert(state.presenter!.update(meshes))
+    let vertices=meshes.snapshot(state.presenter!.mesh()).vertices()
+    assert(vertices.count()==state.rig.tire!.vertex_count())
+    var index=0
+    while index<vertices.count() {
+        assert(vertices[index].position.nearly_equal(state.rig.tire!.position(index),0.000001))
+        index++
+    }
+}
+
+func verify_controls() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=TireScene()
+    startup(world,meshes,state)
+    verify_mesh(state,meshes)
+    var initial=state.rig.tire!
+    state.panel.handle(key_event(Input.Key.c,99 as uint32));perform(world,meshes,state)
+    assert(initial==state.rig.tire! && initial.is_valid() && state.rig.rim.mass_properties().mass==50.0)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));perform(world,meshes,state)
+    assert(initial==state.rig.tire! && initial.is_valid() && state.rig.pressure==500.0)
+    state.panel.handle(key_event(Input.Key.o,111 as uint32));perform(world,meshes,state)
+    assert(initial==state.rig.tire! && initial.is_valid() && !state.rig.obstacle.is_enabled())
+    assert(!world.get<Components.Mesh3D>(state.obstacle).visible)
+    state.panel.handle(key_event(Input.Key.w,122 as uint32));assert(state.panel.forward)
+    match key_event(Input.Key.w,122 as uint32) {
+        key_pressed(key)=>{ state.panel.handle(Events.Event.key_released(key)) }
+        else=>{ assert(false) }
+    }
+    assert(!state.panel.forward)
+    state.panel.handle(key_event(Input.Key.space,32 as uint32));assert(state.panel.brake)
+    state.panel.handle(key_event(Input.Key.r,114 as uint32));perform(world,meshes,state)
+    assert(initial!=state.rig.tire! && state.rig.tire!.is_valid())
+    assert(state.rig.rim.mass_properties().mass==50.0 && state.rig.pressure==500.0)
+    verify_mesh(state,meshes)
+    labels(state)
+    var drawing=state.ui.drawing(Controls.Hud.width,Controls.Hud.height)
+    var source=state.ui.accessibility()
+    verify_hud(source,source.root()!)
+    print("Soft tire controls passed: AZERTY input, parameters preserve the rig, explicit reset, live deformation, bounded HUD")
+}
+
+func main() {
+    for arg in Process.arguments() {
+        if arg=="--check" { Checks.verify();verify_controls();return }
+        if arg=="--controls-check" { verify_controls();return }
+        if arg=="--bench" { let sample=Checks.inspect("bench",frames:120);return }
+        if arg=="--drive-check" { let sample=Checks.inspect("drive",drive:true,frames:600);return }
+    }
+    var state=TireScene()
+    for arg in Process.arguments() { if arg=="--smoke" { state.smoke=true } }
+    var title="Prototype pneu souple — Z/S moteur · Espace frein · C charge · P gonflage"
+    if state.smoke { title="TEST AUTOMATIQUE — pneu souple — fermeture automatique" }
+    Application() ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target=Math.Vec3(0.0,1.0,0.8) ..distance=6.5 ..yaw=Math.radians(70.0) ..pitch=Math.radians(-15.0)))
+        ..add_system(Application.Schedule.startup,startup)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}
