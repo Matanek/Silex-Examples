@@ -1,0 +1,46 @@
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Resources
+use GFX.Scene3D
+use GFX.Scene3D.Skybox.ProceduralSky
+use Physics3D.MonsterTruck.Terrain
+use Physics3D.MonsterTruck.Primitives
+use Physics3D.MonsterTruck.WheelView
+use Physics3D.MonsterTruck.Markings
+use Physics3D.MotorcycleDriving.Ground
+use STD.Math
+
+func obstacle_color(section:Terrain.Section) Color {
+    match section {
+        bumps=>{ return Color.bytes(59,172,198) }
+        blocks=>{ return Color.bytes(255,168,52) }
+        jump=>{ return Color.bytes(221,71,55) }
+        steps=>{ return Color.bytes(135,111,196) }
+        rough=>{ return Color.bytes(59,172,198) }
+        else=>{ return Color.bytes(255,168,52) }
+    }
+}
+
+package func create(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images) {
+    let ground=Ground.create(world,meshes,images)
+    let cube=meshes.add(Scene3D.Geometry.Cube.make())
+    let sphere=meshes.add(Primitives.sphere())
+    let cylinder=meshes.add(Scene3D.Geometry.Cylinder.make())
+    for piece in Terrain.layout() {
+        var asset=cube;var size=piece.size
+        let color=obstacle_color(Terrain.section(piece.position))
+        if piece.kind==1 { asset=sphere;size=Math.Vec3(piece.size.x) }
+        if piece.kind==2 { asset=cylinder;size=Math.Vec3(piece.size.x*2.0,piece.size.y*2.0,piece.size.x*2.0) }
+        let entity=WheelView.mesh_entity(world,asset,color,roughness:0.9)
+        let position=piece.position;let rotation=piece.rotation
+        world.update<Components.Transform3D>(entity,func(t:&Components.Transform3D) {
+            t.position=position;t.rotation=rotation;t.scale=size
+        })
+    }
+    Markings.create(world,meshes,cube)
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.55)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:3.0)
+        ..shadow_distance=65.0))
+    world.spawn(ECS.EntityRecipe() ..with(Scene3D.Skybox.procedural(ProceduralSky.day())))
+}

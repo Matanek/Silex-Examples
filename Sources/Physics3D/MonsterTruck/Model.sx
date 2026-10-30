@@ -1,0 +1,77 @@
+use GFX.Physics
+use STD.Math
+use Physics3D.MonsterTruck.Wheel
+use Physics3D.MonsterTruck.TyreProfile
+use Physics3D.MonsterTruck.Terrain
+
+package class Truck {
+    var world:Physics.World3D
+    var chassis:Physics.RigidBody3D
+    var wheels:Wheel[]=[]
+    var steering:float=0.0
+    var gas:float=0.0
+    var brake:bool=false
+    var handbrake:bool=false
+    var steps:int=0
+    init(workers:int=1,obstacles:bool=false) {
+        self.world=Physics.World3D(Physics.World3DSettings() ..soft_body_substeps=2 ..velocity_iterations=8)
+        if workers>1 { self.world.enable_parallelism(workers) }
+        self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0
+            ..collision_filter=Physics.CollisionFilter3D(category_bits:1,mask_bits:14))
+        self.chassis=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..shape=Terrain.chassis_shape()
+            ..transform=Physics.Transform3D(Math.Vec3(0.0,2.35,0.0))
+            ..mass_properties=Physics.MassProperties3D(150.0,Math.Vec3(269.8,319.6,60.4))
+            ..allow_sleep=false ..linear_damping=0.05 ..angular_damping=0.15
+            ..collision_filter=Physics.CollisionFilter3D(category_bits:8,mask_bits:1))
+        if obstacles { Terrain.create(self.world) }
+        var definition=TyreProfile.make()
+        let sides:float[]=[-1.85,1.85];let axles:float[]=[-1.7,1.7]
+        for x in sides { for z in axles {
+            self.wheels.append(Wheel(self.world,self.chassis,definition,Math.Vec3(x,-1.05,z)))
+        } }
+    }
+    func controls(throttle:float,turn:float,brake:bool=false,handbrake:bool=false) {
+        self.gas=throttle;self.brake=brake;self.handbrake=handbrake
+        let speed=self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z
+        let target=turn*0.55/(1.0+speed*speed/50.0)
+        self.steering+=Math.clamp(target-self.steering,-0.035,0.035)
+        for wheel in self.wheels { wheel.steer(self.steering) }
+    }
+    func held(forward:bool,reverse:bool,left:bool,right:bool,handbrake:bool,boost:bool) {
+        let speed=self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z
+        var throttle=0.0;var braking=false
+        if forward && !reverse {
+            if speed< -0.5 { braking=true }
+            else { throttle=1.0;if boost { throttle=1.5 } }
+        }
+        if reverse {
+            if speed>0.5 { braking=true } else { throttle= -0.75 }
+        }
+        var turn=0.0;if left { turn+=1.0 }
+        if right { turn-=1.0 }
+        self.controls(throttle,turn,braking,handbrake)
+    }
+    func set_pressure(value:float) {
+        for wheel in self.wheels { wheel.tyre.set_pressure(value) }
+    }
+    func step() {
+        let delta=1.0/480.0
+        for _ in 0...4 {
+            for wheel in self.wheels { wheel.couple(self.chassis,self.gas,self.steering,self.brake,self.handbrake,delta) }
+            self.world.step(delta)
+        }
+        self.steps++
+    }
+    func maximum_bead_error() float {
+        var error=0.0
+        for wheel in self.wheels { error=Math.max(error,wheel.seat.maximum_error()) }
+        return error
+    }
+    func minimum_y() float {
+        var result=100.0
+        for wheel in self.wheels { for p in wheel.tyre.positions() { result=Math.min(result,p.y) } }
+        return result
+    }
+}

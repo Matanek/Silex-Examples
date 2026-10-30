@@ -1,0 +1,72 @@
+use GFX.Components
+use GFX.Input
+use GFX.Input.Events
+use GFX.Resources
+use GFX.Scene3D
+use GFX.Window
+use Physics3D.MonsterTruck.Scene
+use Physics3D.MonsterTruck.Controls
+use Physics3D.MonsterTruck.HudChecks
+use STD.Math
+
+func key_event(key:Input.Key,code:uint32) Events.Event {
+    let modifiers=Input.Modifiers(shift:false,control:false,alt:false,system:false,
+        left_shift:false,right_shift:false,level5:false,left_control:false,right_control:false,
+        left_alt:false,right_alt:false,left_system:false,right_system:false,mode:false,
+        caps_lock:false,num_lock:false,scroll_lock:false)
+    return Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:0 as uint32),
+        keyboard:Input.KeyboardId(value:0 as uint32),key:key,keycode:code,raw:0 as uint16,
+        repeated:false,modifiers:modifiers,timestamp:Input.Timestamp(nanoseconds:0 as uint)))
+}
+
+package func verify() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var images=Resources.Images()
+    var state=Scene.TruckScene(1)
+    Scene.startup(world,meshes,images,state);state.view!.update(world,meshes);Scene.follow(world,state,0.016)
+    let count=world.entities().count()
+    var tyre=state.truck.wheels[0].tyre
+    let rim=state.view!.wheels[0].rim;let rubber=state.view!.wheels[0].rubber
+    // Logical AZERTY letters may arrive with QWERTY physical scan codes.
+    let forward=key_event(Input.Key.w,122 as uint32);let left=key_event(Input.Key.a,113 as uint32)
+    state.panel.handle(forward);state.panel.handle(left)
+    state.panel.handle(key_event(Input.Key.space,32 as uint32))
+    assert(state.panel.forward && state.panel.left && state.panel.handbrake && !state.panel.reset)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
+    assert(state.panel.inflation==1 && tyre==state.truck.wheels[0].tyre && !state.panel.reset)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
+    assert(state.panel.inflation==2 && tyre==state.truck.wheels[0].tyre)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
+    assert(state.panel.inflation==0 && tyre==state.truck.wheels[0].tyre)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
+    state.panel.handle(Events.Event.mouse_button_pressed(Events.MouseButtonEvent(
+        window:Window.Id(value:0 as uint32),mouse:Input.MouseId(value:0 as uint32),button:Input.MouseButton.left,
+        down:true,clicks:1 as uint8,position:Math.Vec2(640.0,400.0),timestamp:Input.Timestamp(nanoseconds:0 as uint))))
+    assert(!state.panel.reset)
+    state.panel.handle(Events.Event.window_focus_lost(Events.WindowEvent(
+        window:Window.Id(value:0 as uint32),timestamp:Input.Timestamp(nanoseconds:0 as uint))))
+    assert(!state.panel.forward && !state.panel.left && !state.panel.handbrake && !state.panel.boost)
+    state.panel.handle(key_event(Input.Key.r,114 as uint32));Scene.perform(world,meshes,state)
+    assert(tyre!=state.truck.wheels[0].tyre && !tyre.is_valid())
+    assert(world.entities().count()==count && state.view!.wheels[0].rim==rim && state.view!.wheels[0].rubber==rubber)
+    assert(state.panel.inflation==1 && state.truck.world.worker_count()==1)
+    state.view!.update(world,meshes)
+    let points=meshes.snapshot(state.view!.wheels[0].presenter.mesh()).vertices()
+    for index in 0...points.count() {
+        assert(points[index].position.nearly_equal(state.truck.wheels[0].tyre.position(index),0.000001))
+    }
+    Scene.labels(state);let updated=state.ui.update(0.0)
+    HudChecks.verify(state.ui)
+    Scene.follow(world,state,0.016)
+    let camera=world.get<Components.Camera3D>(state.camera)
+    let transform=world.get<Components.Transform3D>(state.camera)
+    let center=camera.project(state.truck.chassis.position(),transform,Math.Vec2(1280.0,800.0))!
+    let left_point=camera.project(state.truck.chassis.position().add(Math.Vec3.right()),transform,Math.Vec2(1280.0,800.0))!
+    assert(left_point.x<center.x)
+    for wheel in state.truck.wheels { for point in wheel.tyre.positions() {
+        let screen=camera.project(point,transform,Math.Vec2(1280.0,800.0))!
+        assert(screen.x>310.0 && screen.x<1280.0 && screen.y>0.0 && screen.y<800.0)
+    } }
+    print("Monster scene checks passed: input, reset, true tyre meshes, HUD and chase framing")
+}
+
+func main() { verify() }

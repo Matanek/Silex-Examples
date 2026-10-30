@@ -1,0 +1,84 @@
+use GFX.Components
+use GFX.ECS
+use GFX.Resources
+use GFX.Scene2D
+use GFX.UI
+use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.Controls
+use Physics3D.MonsterTruck.PickupView
+use Physics3D.MonsterTruck.Environment
+use Physics3D.MonsterTruck.Terrain
+use Physics3D.SoftTire.Metrics
+use STD.Math
+
+package class TruckScene {
+    var truck:Model.Truck
+    var panel:Controls.Panel=Controls.Panel()
+    var ui:UI.Session
+    var view:PickupView?=null
+    var camera:ECS.Entity=ECS.Entity()
+    var hud:ECS.Entity=ECS.Entity()
+    var accumulator:float=0.0
+    var telemetry:float=0.0
+    var focus:Math.Vec3=Math.Vec3(0.0,2.6,1.5)
+    var yaw:float=Math.pi()
+    var distance:float=10.5
+    var metrics:Metrics=Metrics()
+    var profile:bool=false
+    let workers:int
+    init(workers:int=4) {
+        self.workers=workers;self.truck=Model.Truck(workers,obstacles:true)
+        self.ui=UI.Session(self.panel.describe())
+    }
+    func create_view(world:&Resources.World,meshes:&Resources.Meshes3D) {
+        self.view=PickupView(self.truck,world,meshes)
+    }
+    func reset(world:&Resources.World,meshes:&Resources.Meshes3D) {
+        var next=Model.Truck(self.workers,obstacles:true)
+        next.set_pressure(self.panel.pressure())
+        self.view!.rebind(next,world,meshes);self.truck=next
+        self.accumulator=0.0;self.focus=Math.Vec3(0.0,2.6,1.5);self.yaw=Math.pi()
+        self.panel.reset=false
+    }
+}
+
+package func labels(state:&TruckScene) {
+    let speed=Math.round(state.truck.chassis.linear_velocity().length()*3.6) as int
+    let fps=Math.round(state.metrics.fps) as int
+    state.panel.metrics.set("Vitesse : $(speed) km/h\n$(fps) FPS")
+    var name="cross"
+    if state.panel.inflation==1 { name="bas" }
+    if state.panel.inflation==2 { name="ferme" }
+    let section=Terrain.section_name(Terrain.section(state.truck.chassis.position()))
+    state.panel.settings.set("Gonflage : $(name)\nSecteur : $(section)")
+}
+
+package func startup(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images,state:&TruckScene) {
+    Environment.create(world,meshes,images);state.create_view(world,meshes)
+    state.camera=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
+        ..with(Components.Camera3D(vertical_fov:Math.radians(62.0),far_plane:450.0)))
+    labels(state)
+    state.hud=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform(position:Math.Vec2(12.0,12.0)))
+        ..with(Scene2D.Canvas(state.ui.drawing(Controls.Hud.width,Controls.Hud.height),Controls.Hud.width,Controls.Hud.height)
+            ..anchor=Math.Vec2() ..pivot=Math.Vec2() ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+}
+
+package func perform(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TruckScene) {
+    if state.panel.reset { state.reset(world,meshes) }
+    if state.panel.changed { state.truck.set_pressure(state.panel.pressure());state.panel.changed=false }
+}
+
+package func follow(world:&Resources.World,state:&TruckScene,delta:float) {
+    let forward=state.truck.chassis.transform().vector(Math.Vec3.back())
+    let target=state.truck.chassis.position().add(Math.Vec3(0.0,0.25,0.0)).add(forward.multiply(1.5))
+    let blend=1.0-Math.exp(-Math.min(delta,0.1)*5.0)
+    state.focus=state.focus.add(target.subtract(state.focus).multiply(blend))
+    let desired=Math.atan2(forward.x,forward.z)+Math.pi()
+    var difference=desired-state.yaw
+    while difference>Math.pi() { difference-=Math.two_pi() }
+    while difference< -Math.pi() { difference+=Math.two_pi() }
+    state.yaw+=difference*blend
+    let rotation=Math.Quat.angle_axis(state.yaw,Math.Vec3.up()).multiply(Math.Quat.angle_axis(-0.28,Math.Vec3.right()))
+    let position=state.focus.subtract(rotation.rotate(Math.Vec3.front()).multiply(state.distance))
+    world.update<Components.Transform3D>(state.camera,func(t:&Components.Transform3D) { t.position=position;t.rotation=rotation })
+}

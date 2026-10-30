@@ -1,0 +1,38 @@
+use GFX.Accessibility
+use GFX.Canvas
+use GFX.UI
+use Physics3D.MonsterTruck.Controls
+
+func inspect(source:Accessibility.Source,id:str) {
+    let element=source.read(id)!
+    assert(element.bounds.x>=0.0 && element.bounds.y>=0.0)
+    assert(element.bounds.x+element.bounds.width<=Controls.Hud.width as float+0.01)
+    assert(element.bounds.y+element.bounds.height<=Controls.Hud.height as float+0.01)
+    if element.role==Accessibility.Role.text {
+        var canvas=Canvas();var size=14.0
+        if element.name=="MONSTER PICKUP" { size=18.0 }
+        let measured=canvas.measure_text(element.name,Canvas.TextStyle(size:size))
+        if measured.width>element.bounds.width+0.01 || measured.height>element.bounds.height+0.01 {
+            print("HUD overflow: ",element.name," measured=",measured.width," x ",measured.height,
+                " available=",element.bounds.width," x ",element.bounds.height)
+        }
+        assert(measured.width<=element.bounds.width+0.01 && measured.height<=element.bounds.height+0.01)
+    }
+    for index in 0...element.child_count {
+        if let child=source.child(id,index) { inspect(source,child) }
+    }
+}
+
+package func verify(session:&UI.Session) {
+    var drawing=session.drawing(Controls.Hud.width,Controls.Hud.height)
+    var source=session.accessibility();inspect(source,source.root()!)
+}
+
+func main() {
+    var panel=Controls.Panel()
+    panel.metrics.set("Vitesse : 120 km/h\n240 FPS")
+    panel.settings.set("Gonflage : ferme\nSecteur : Blocs progressifs")
+    var ui=UI.Session(panel.describe());let updated=ui.update(0.0)
+    verify(ui)
+    print("Monster HUD text fits its left panel")
+}

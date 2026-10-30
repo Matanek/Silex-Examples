@@ -1,0 +1,80 @@
+use GFX.Application
+use GFX.Components
+use GFX.Input
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use Physics3D.MonsterTruck.Scene
+use Physics3D.MonsterTruck.Controls
+use Physics3D.MonsterTruck.Checks
+use Physics3D.MonsterTruck.SceneChecks
+use STD.Math
+use STD.Process
+use STD.Time
+
+func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.TruckScene,input:@Resources.InputState,
+    simulation:@Application.Simulation,controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop();return }
+    if !state.profile {
+        for event in input.events() {
+            state.panel.handle(event)
+            match event {
+                mouse_wheel(wheel)=>{ state.distance=Math.clamp(state.distance-wheel.delta.y*0.75,7.0,18.0) }
+                else=>{}
+            }
+        }
+        Scene.perform(world,meshes,state)
+    }
+    if state.profile && state.metrics.elapsed>=12.0 {
+        state.metrics.report(state.truck.steps)
+        print("truck x=",state.truck.chassis.position().x," y=",state.truck.chassis.position().y,
+            " z=",state.truck.chassis.position().z," bead=",state.truck.maximum_bead_error())
+        controller.stop();return
+    }
+    var clock=Time.Stopwatch();clock.start()
+    state.accumulator=Math.min(state.accumulator+Math.min(simulation.delta(),0.1),0.1)
+    var ticks=0
+    while state.accumulator>=1.0/120.0 && ticks<8 {
+        if state.profile {
+            var gas=0.0;if state.truck.steps>=240 { gas=1.0 }
+            state.truck.controls(gas,0.0)
+        } else {
+            state.truck.held(copy state.panel.forward,copy state.panel.reverse,copy state.panel.left,
+                copy state.panel.right,copy state.panel.handbrake,copy state.panel.boost)
+        }
+        state.truck.step();state.accumulator-=1.0/120.0;ticks++
+    }
+    state.metrics.physics_seconds+=clock.get_elapsed_seconds()
+    state.telemetry+=simulation.delta()
+    if state.telemetry>=0.15 { Scene.labels(state);state.telemetry=0.0 }
+    if state.ui.update(0.0) {
+        world.update<Scene2D.Canvas>(state.hud,func(c:&Scene2D.Canvas) {
+            c.replace(state.ui.drawing(Controls.Hud.width,Controls.Hud.height))
+        })
+    }
+    Scene.follow(world,state,simulation.delta())
+}
+
+func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.TruckScene) {
+    state.metrics.frame();state.view!.update(world,meshes)
+}
+
+func main() {
+    var workers=4;var profile=false
+    for arg in Process.arguments() {
+        if arg=="--check" { Checks.verify();return }
+        if arg=="--scene-check" { SceneChecks.verify();return }
+        if arg=="--single" { workers=1 }
+        if arg=="--profile" { profile=true }
+    }
+    var state=Scene.TruckScene(workers);state.profile=profile
+    var title="MONSTER PICKUP — ZQSD · Espace frein à main · Maj boost"
+    if profile { title="MESURE AUTOMATIQUE — Monster pickup — 12 secondes" }
+    Application() ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
+        ..add_plugin(Plugins.Input()) ..add_plugin(Plugins.Time())
+        ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
+        ..add_system(Application.Schedule.startup,Scene.startup)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}

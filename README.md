@@ -40,6 +40,11 @@ The [soft tire prototype](Sources/Physics3D/SoftTire/README.md) puts a powered
 dynamic rim inside a pressurized deformable carcass. Change its load and
 inflation, brake, and climb a small step on a guided single-wheel rig.
 
+The [monster pickup](Sources/Physics3D/MonsterTruck/README.md) combines four
+soft tires and physical suspension in a drivable vehicle. Use ZQSD and the
+rear handbrake to explore bumps, blocks, steps and ramps, and compare inflation
+settings without restarting.
+
 The [reactive UI form](Sources/UIReactiveForm.sx) demonstrates shared state,
 keyed editable rows, keyboard focus and hidden/disabled controls. Enable automatic
 reordering, select text in a row, and keep typing: the edit stays with that row.
