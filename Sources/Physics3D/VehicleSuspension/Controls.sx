@@ -3,7 +3,23 @@ use GFX.Input
 use GFX.Input.Events
 use GFX.UI
 
+package static struct Hud { let width:int=280;let height:int=360 }
+func letter(key:@Events.KeyEvent,lower:uint32,upper:uint32,physical:Input.Key) bool {
+    return key.keycode==lower || key.keycode==upper || (key.keycode==0 as uint32 && key.key==physical)
+}
 package class SuspensionControls {
+    var forward_held:bool=false
+    var reverse_held:bool=false
+    var left_held:bool=false
+    var right_held:bool=false
+    var rear_held:bool=false
+    var models:int=0
+    var monster_text:UI.State<str> =UI.State<str>("N : Monster")
+    func release() { self.forward_held=false;self.reverse_held=false;self.left_held=false;self.right_held=false;self.rear_held=false }
+    func monster() { self.models++;self.release() }
+    func monster_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.monster_text),self.monster) }
+    func text(value:str,height:float?=null) UI.Text { var text=UI.Text(value);text.style.height=height;text.style.font_size=13.0;return text }
+
     var tilt_changes:int=0
     var tilt_text:UI.State<str> =UI.State<str>("Limite inactive (L)")
     var topples:int=0
@@ -44,7 +60,7 @@ package class SuspensionControls {
     func forward_drive() { self.throttles.append(0.6) }
     func coast() { self.throttles.append(0.0) }
     func reverse_drive() { self.throttles.append(-0.5) }
-    func power_metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.power_measure)) }
+    func power_metrics(reads:UI.Reads) UI.View { return self.text(reads.read(self.power_measure)) }
     func left() { self.directions.append(-0.6) }
     func center() { self.directions.append(0.0) }
     func right() { self.directions.append(0.6) }
@@ -58,63 +74,70 @@ package class SuspensionControls {
     func grip_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.grip_text),self.toggle_grip) }
     func jump() { self.jumps++ }
     func load() { self.loads++ }
-    func reset() { self.resets++ }
+    func reset() { self.resets++;self.release() }
     func pause() { self.pauses++ }
     func button(text:str,action:func()) UI.Button {
         var result=UI.Button(text,action)
-        result.style.width=220.0;result.style.height=38.0;result.style.background=Color.slate_700();result.style.radius=5.0
+        result.style.width=124.0;result.style.height=30.0;result.style.font_size=13.0;result.style.background=Color.slate_700();result.style.radius=5.0
         return result
     }
     func pause_button(reads:UI.Reads) UI.View { return self.button(reads.read(self.pause_text),self.pause) }
-    func status(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.feedback)) }
-    func metrics(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.measure)) }
+    func status(reads:UI.Reads) UI.View { return self.text(reads.read(self.feedback)) }
+    func metrics(reads:UI.Reads) UI.View { return self.text(reads.read(self.measure)) }
     func describe() UI.View {
-        var actions=UI.Row([self.button("Bondir (B)",self.jump),self.button("Surcharger 2 s (C)",self.load),self.button("Recréer (R)",self.reset),UI.Reactive(self.pause_button),self.button("Basculer (O)",self.topple)])
-        actions.style.gap=12.0
-        var rolling=UI.Row([self.button("Pousser devant (P)",self.push_forward),self.button("Pousser de côté (V)",self.push_sideways),UI.Reactive(self.grip_button),UI.Reactive(self.anti_roll_button),UI.Reactive(self.tilt_button)]);rolling.style.gap=12.0
-        var driving=UI.Row([self.button("Gauche (←)",self.left),self.button("Centrer (↑)",self.center),self.button("Droite (→)",self.right),UI.Reactive(self.brake_button),UI.Reactive(self.handbrake_button)]);driving.style.gap=12.0
-        var power=UI.Row([self.button("Accélérer (Z)",self.forward_drive),self.button("Relâcher (X)",self.coast),self.button("Reculer (S)",self.reverse_drive),UI.Reactive(self.contact_button),UI.Reactive(self.suspension_button)]);power.style.gap=12.0
-        var title=UI.Text("Suspensions — protection au basculement");title.style.height=28.0
-        var help=UI.Text("Z/S : gaz · X : relâcher · ←/→ : braquer · F/H : freins · T : contacts · M : suspension · A : anti-roulis · O : basculer · L : limite · R : recréer");help.style.height=24.0
-        var rows:UI.View[]=[title,help,
-            actions,rolling,driving,power,UI.Reactive(self.status),UI.Reactive(self.metrics),UI.Reactive(self.power_metrics)]
-        if self.automatic { rows=[UI.Text("TEST AUTOMATIQUE — suspensions et mouvements de caisse — fermeture à la fin"),UI.Reactive(self.metrics),UI.Reactive(self.power_metrics)] }
-        var root=UI.Column(rows);root.style.padding=UI.Insets(16.0);root.style.gap=8.0
-        root.style.background=Color.slate_900().with_alpha(0.94);root.style.foreground=Color.slate_100();root.style.radius=8.0
+        var first=UI.Row([self.button("R : repartir",self.reset),UI.Reactive(self.monster_button)]);first.style.gap=8.0
+        var second=UI.Row([UI.Reactive(self.contact_button),UI.Reactive(self.suspension_button)]);second.style.gap=8.0
+        var third=UI.Row([UI.Reactive(self.anti_roll_button),UI.Reactive(self.tilt_button)]);third.style.gap=8.0
+        var title=self.text("Voiture RC / Monster");title.style.font_size=18.0
+        var help=self.text("Z / S : gaz, frein puis recul\nQ / D : direction\nEspace maintenu : frein AR\nO : basculer · B : bond · C : charge")
+        var rows:UI.View[]=[title,UI.Reactive(self.metrics),UI.Reactive(self.power_metrics),UI.Reactive(self.status),first,second,third,help]
+        if self.automatic { rows=[self.text("TEST AUTOMATIQUE",24.0),UI.Reactive(self.metrics),UI.Reactive(self.power_metrics)] }
+        var root=UI.Column(rows);root.style.padding=UI.Insets(12.0);root.style.gap=6.0
+        root.style.background=Color.slate_900().with_alpha(0.88);root.style.foreground=Color.slate_100();root.style.radius=8.0
         return root
+    }
+    func held(key:@Events.KeyEvent,down:bool) bool {
+        if key.key==Input.Key.space { self.rear_held=down;return true }
+        if letter(key,122 as uint32,90 as uint32,Input.Key.z) { self.forward_held=down;return true }
+        if letter(key,115 as uint32,83 as uint32,Input.Key.s) { self.reverse_held=down;return true }
+        if letter(key,113 as uint32,81 as uint32,Input.Key.q) { self.left_held=down;return true }
+        if letter(key,100 as uint32,68 as uint32,Input.Key.d) { self.right_held=down;return true }
+        return false
     }
     func handle(event:@Events.Event) bool {
         if self.automatic { return false }
         match event {
-            key_pressed(key) => {
-                let code=key.keycode
-                let jump=code==98 as uint32 || code==66 as uint32 || (code==0 as uint32 && key.key==Input.Key.b)
-                let load=code==99 as uint32 || code==67 as uint32 || (code==0 as uint32 && key.key==Input.Key.c)
-                let reset=code==114 as uint32 || code==82 as uint32 || (code==0 as uint32 && key.key==Input.Key.r)
-                let forward=code==112 as uint32 || code==80 as uint32 || (code==0 as uint32 && key.key==Input.Key.p)
-                let sideways=code==118 as uint32 || code==86 as uint32 || (code==0 as uint32 && key.key==Input.Key.v)
-                let grip=code==103 as uint32 || code==71 as uint32 || (code==0 as uint32 && key.key==Input.Key.g)
-                let tilt=code==108 as uint32 || code==76 as uint32 || (code==0 as uint32 && key.key==Input.Key.l)
-                let topple=code==111 as uint32 || code==79 as uint32 || (code==0 as uint32 && key.key==Input.Key.o)
-                let anti_roll=code==97 as uint32 || code==65 as uint32 || (code==0 as uint32 && key.key==Input.Key.a)
-                let suspension=code==109 as uint32 || code==77 as uint32 || (code==0 as uint32 && key.key==Input.Key.m)
-                let contact=code==116 as uint32 || code==84 as uint32 || (code==0 as uint32 && key.key==Input.Key.t)
-                let forward_drive=code==122 as uint32 || code==90 as uint32 || (code==0 as uint32 && key.key==Input.Key.z)
-                let reverse_drive=code==115 as uint32 || code==83 as uint32 || (code==0 as uint32 && key.key==Input.Key.s)
-                let coast=code==120 as uint32 || code==88 as uint32 || (code==0 as uint32 && key.key==Input.Key.x)
-                let left=key.key==Input.Key.left
-                let right=key.key==Input.Key.right
-                let center=key.key==Input.Key.up
-                let brake=code==102 as uint32 || code==70 as uint32 || (code==0 as uint32 && key.key==Input.Key.f)
-                let handbrake=code==104 as uint32 || code==72 as uint32 || (code==0 as uint32 && key.key==Input.Key.h)
-                if tilt || topple || anti_roll || suspension || contact || forward_drive || reverse_drive || coast || left || right || center || brake || handbrake || jump || load || reset || forward || sideways || grip || key.key==Input.Key.space {
+            key_pressed(key)=>{
+                if self.held(key,true) { return true }
+                let reset=letter(key,114 as uint32,82 as uint32,Input.Key.r)
+                let profile=letter(key,110 as uint32,78 as uint32,Input.Key.n)
+                let contact=letter(key,116 as uint32,84 as uint32,Input.Key.t)
+                let spring=letter(key,109 as uint32,77 as uint32,Input.Key.m)
+                let bars=letter(key,97 as uint32,65 as uint32,Input.Key.a)
+                let limit=letter(key,108 as uint32,76 as uint32,Input.Key.l)
+                let topple=letter(key,111 as uint32,79 as uint32,Input.Key.o)
+                let jump=letter(key,98 as uint32,66 as uint32,Input.Key.b)
+                let load=letter(key,99 as uint32,67 as uint32,Input.Key.c)
+                let grip=letter(key,103 as uint32,71 as uint32,Input.Key.g)
+                if reset || profile || contact || spring || bars || limit || topple || jump || load || grip {
                     if !key.repeated {
-                        if tilt { self.toggle_tilt_limit() } else if topple { self.topple() } else if anti_roll { self.toggle_anti_roll() } else if suspension { self.toggle_suspension() } else if contact { self.toggle_contact() } else if forward_drive { self.forward_drive() } else if reverse_drive { self.reverse_drive() } else if coast { self.coast() } else if left { self.left() } else if right { self.right() } else if center { self.center() } else if brake { self.brake() } else if handbrake { self.handbrake() } else if forward { self.push_forward() } else if sideways { self.push_sideways() } else if grip { self.toggle_grip() } else if jump { self.jump() } else if load { self.load() } else if reset { self.reset() } else { self.pause() }
+                        if reset { self.reset() }
+                        else if profile { self.monster() }
+                        else if contact { self.toggle_contact() }
+                        else if spring { self.toggle_suspension() }
+                        else if bars { self.toggle_anti_roll() }
+                        else if limit { self.toggle_tilt_limit() }
+                        else if topple { self.topple() }
+                        else if jump { self.jump() }
+                        else if load { self.load() }
+                        else if grip { self.toggle_grip() }
                     }
                     return true
                 }
             }
-            else => {}
+            key_released(key)=>{ return self.held(key,false) }
+            window_focus_lost(_)=>{ self.release() }
+            else=>{}
         }
         return false
     }

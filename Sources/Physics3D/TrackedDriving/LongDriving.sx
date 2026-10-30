@@ -1,0 +1,43 @@
+use GFX.Physics
+use Physics3D.TrackedDriving.Model
+use STD.Math
+
+package func make(rate:int=120) Model.TrackedModel { return Model.TrackedModel(recipe:6,rate:rate,automatic:true,velocity_iterations:48) }
+package func command(model:&Model.TrackedModel,step:int,direction:int=1) {
+    var gas=0.0;var brake=0.04
+    if step>=2*model.rate && step<10*model.rate { gas=0.8*direction as float;brake=0.0 }
+    model.drive(gas,brake:brake)
+}
+package func verify_state(model:@Model.TrackedModel) {
+    var body=model.vehicle.chassis()
+    assert(body.is_valid() && model.world.body_count()==2 && body.position().length()<250.0)
+    assert(body.position().y>0.3 && body.position().y<4.0 && body.linear_velocity().length()<25.1 && body.angular_velocity().length()<5.0)
+    assert(Math.abs(body.rotation().length_squared()-1.0)<0.0001)
+    for i in [0,1,2,3,4,5] { let wheel=model.vehicle.wheel(i);assert(wheel.length>=0.0 && wheel.length<=0.60001 && wheel.normal_force>=0.0) }
+}
+package func verify_finished(model:@Model.TrackedModel,direction:int=1) {
+    verify_state(model);var body=model.vehicle.chassis()
+    assert(model.steps==20*model.rate && model.supports()==6 && model.vehicle.powertrain().gear==0)
+    assert(body.position().z*direction as float>170.0 && Math.abs(body.position().x)<0.005 && Math.abs(model.yaw())<0.0001)
+    assert(Math.abs(body.position().y-0.88365)<0.003 && Math.abs(model.normal_force()-981.0)<2.0)
+    assert(body.linear_velocity().length()<0.05 && body.angular_velocity().length()<0.05)
+}
+package func witness() {
+    for scenario in [0,1] { for rate in [60,120] {
+        var direction=1;if scenario==1 { direction= -1 }
+        var model=make(rate)
+        while true { print(model.observation("tracked-auto-long",scenario));if model.steps==20*rate { break } command(model,model.steps,direction) }
+    } }
+}
+package func verify() {
+    for direction in [1,-1] { for rate in [60,120] {
+        var model=make(rate)
+        while model.steps<20*rate { command(model,model.steps,direction);verify_state(model) }
+        verify_finished(model,direction);var old=model.vehicle;var ground=model.ground
+        model.reset(6);assert(!old.is_valid() && ground.is_valid() && model.steps==0 && model.automatic)
+        while model.steps<20*rate { command(model,model.steps,direction) }
+        verify_finished(model,direction)
+    } }
+    print("Long tracked driving:48/4 forward/reverse,20s launch/brake,176m straightness, rest and profile retained by reset at60/120Hz verified")
+}
+test "extended tracked scene retains its qualified solver profile" { verify() }

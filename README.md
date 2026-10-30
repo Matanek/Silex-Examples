@@ -1045,42 +1045,12 @@ Use `-- --cpu-check` for the pure CPU path without opening a window.
 
 ## Powered driving, steering and suspension
 
-[VehicleSuspension](Sources/Physics3D/VehicleSuspension/README.md) drops a 100 kg
-chassis onto four suspended wheels. B jumps, C overloads for two seconds, Space
-pauses and R recreates. Green pads show support lost in flight and regained on
-landing. P pushes forward and spins passive tires through ground contact; V
-pushes sideways to test lateral grip. G recreates the vehicle with zero tire friction
-for a sliding comparison. White hub bars show physical rotation, a yellow strip
-marks the front, and the following camera keeps the metric ground grid visible.
-Left/right arrows select maintained front-wheel steering; Up centers it. F toggles
-the service brake, H the rear handbrake. R/G release brakes and center steering.
-The rendered wheels follow their physical steering angles. Z selects maintained forward throttle, S reverse, and X releases throttle.
-A 30 N·m engine drives the rear wheels through an automatic gearbox; RPM,
-gear and clutch are visible. The no-grip comparison retains rotors with zero
-friction curves, so powered wheels spin without propelling the chassis. R/G
-also release throttle.
-
-O applies a real jump and roll impulse. L recreates the same vehicle with a
-45° total tilt limit: wait for landing and repeat O to compare free overturning
-with protected recovery. Soft suspension and no limit remain the initial choice.
-
-A compares paired anti-roll bars on the same setup, recreating the vehicle
-and reducing outside lean in turns. It starts without bars; R/M/T/G preserve
-the choice. Straight acceleration pitch and braking dive remain physical.
-
-Soft suspension is selected initially. Z raises the nose, X then F makes it
-dive under braking, and steering leans the chassis towards the outside of a
-turn. M recreates with the previous firm setup for comparison; R/G/T preserve
-the preset. Engine, mass, tires and resting ride height stay comparable.
-Pitch and roll telemetry comes from the physical chassis transform.
-
-A purple raised band compares ray, sphere and cylindrical wheel contacts.
-The 40 cm cylinder mode starts selected: Z crosses the band and lifts the
-chassis. T recreates with 8 cm tires, which miss its edges; repeat Z to compare.
-Visible tire width follows physical width. Further T presses cycle rays,
-spheres, wide cylinders and narrow cylinders. The band, engine and 30 cm wheel
-radius stay the same. R/G preserve the contact mode.
-
+[RC car / Monster truck](Sources/Physics3D/VehicleSuspension/README.md) provides
+held ZQSD driving, a rear handbrake on Space, strong four-wheel-drive acceleration,
+a compact left HUD and eight physical obstacles including ramps and steps.
+Solid wheel sides also collide during rollover.
+N switches real wheel sizes and suspension travel; M/T/A/L compare suspension,
+contacts, anti-roll bars and tilt limits. Run
 `silex run Silex-Examples/Sources/Physics3D/VehicleSuspension/Main.sx --release`.
 [Guide français](Sources/Physics3D/VehicleSuspension/README.fr.md).
 
@@ -1168,3 +1138,22 @@ compares opposite kinematic rotations and a stationary control, with locked/free
 tracks and immediate actions: append `-- --rotation` to the TrackedSupport command.
 
 TrackedSupport also provides combined translation and rotation with `--combined`; [commands and scope](Sources/Physics3D/TrackedSupport/README.md#observe-a-support-translating-while-it-rotates).
+
+TrackedSupport compares finite-mass rotating platforms with imposed rotation using `--dynamic-rotation`; [controls and scope](Sources/Physics3D/TrackedSupport/README.md#compare-rotating-support-reactions).
+
+TrackedDriving provides an explicit 48/4 extended flat-driving mode with `--long`; [controls and scope](Sources/Physics3D/TrackedDriving/README.md#extended-driving-with-an-explicit-accuracy-profile).
+
+## Soft bodies and cloth
+
+[SoftBodiesScene](Sources/Physics3D/SoftBodiesScene.sx) shows suspended cloth
+with moving anchor markers, draping over a rigid sphere and a falling deformable
+cube. Space applies an impulse, A toggles anchor movement, P pauses, R restarts
+and Escape exits. The mouse controls the orbit camera. From the SilexProject
+workspace root:
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/SoftBodiesScene.sx --release
+```
+
+`--smoke` selects a finite automated run; the default is interactive. Vertices
+collide with rigids; self-collision and soft/soft collision are not provided.

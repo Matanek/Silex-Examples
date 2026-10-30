@@ -147,3 +147,54 @@ Il couvre la rotation seule et le mouvement combiné.
 ```sh
 silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --floor-check
 ```
+
+## Comparer la réaction des supports tournants
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --dynamic-rotation
+```
+
+Les trois mondes comparent une plateforme de 1000 kg, une de 200 kg et une
+rotation imposée. Le véhicule part à 2,5 m du centre. Le repère rouge suit
+le vrai centre de la plateforme, qui peut aussi se déplacer sous la réaction
+du véhicule. Le sol quadrillé possède son plan de collision dans chaque monde.
+
+- **Z** applique une impulsion angulaire correspondant à +0.5 rad/s sur le
+  support seul. **S** applique l’impulsion opposée. Les impulsions s’additionnent.
+- **1 / 2 / 3** compare les masses et la vitesse imposée, sans reset.
+- **G** bloque/libère les bandes ; **P** pause/reprise ; **R seul** replace ;
+  **Échap** quitte.
+
+Attendre la réception, appuyer une fois sur Z, puis comparer les vues : le
+support lourd tourne vers 0.48 rad/s, le léger vers 0.43 rad/s, tandis que
+le contrôle garde 0.50 rad/s. Le panneau affiche les vitesses angulaires
+réellement simulées du véhicule et du support. Le véhicule entraîne une
+partie de l’inertie : la plateforme légère ralentit davantage. S retire le
+moment injecté par un appui sur Z ; laisser les corps revenir au repos.
+Repartir avec R, libérer G puis relancer pour comparer les bandes libres.
+
+Une impulsion sur un support dynamique ne fixe pas sa vitesse future. Le
+contrôle cinématique change au contraire sa vitesse de ±0.5 rad/s. Aucun
+angle du véhicule n’est animé ; les positions et rotations viennent du solveur.
+Les surfaces sont finies : en jeu libre prolongé, le véhicule peut sortir
+de la plateforme et retomber sur le sol.
+
+Le témoin autonome fixe sept cas de 6 s à 60/120 Hz, dont deux sens par masse,
+contrôle immobile, bandes libres et comparaison imposée. Ses 7574 états sont
+identiques au benchmark TrackedDynamicRotation. Les supports dynamiques
+conservent 48/4 itérations, le contrôle 12/4. Le modèle garde le même sol lors
+du reset. Ce parcours ne qualifie pas les terrains arbitraires ou les grands
+basculements libres d’un véhicule sur un support en mouvement.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --dynamic-rotation-controls-check
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --dynamic-rotation-physics-check
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --dynamic-rotation-witness
+silex run Silex-Examples/Sources/Physics3D/TrackedSupport/Main.sx --release -- --dynamic-rotation-smoke
+```
+
+Les contrôles utilisent les vrais clics et événements clavier, vérifient le
+partage d’inertie, le transport au point, les bandes libres, la pause et R.
+Le HUD reste de 300×400 et son texte est mesuré dans douze vues en mouvement.
+Le smoke « TEST AUTOMATIQUE » compare les trois mondes, libère puis resserre
+les freins avant l’impulsion opposée et se ferme seul. Aucun gain FPS mesuré.

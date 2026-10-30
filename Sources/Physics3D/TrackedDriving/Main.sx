@@ -1,4 +1,5 @@
 use GFX.Application
+use GFX.Canvas
 use GFX.Color
 use GFX.Components
 use GFX.ECS
@@ -11,6 +12,7 @@ use GFX.UI
 use GFX.Window
 use GFX.Input.Events
 use GFX.Physics
+use Physics3D.TrackedDriving.LongDriving
 use Physics3D.TrackedDriving.Model
 use Physics3D.TrackedDriving.Controls
 use Physics3D.TrackedDriving.Driving
@@ -21,6 +23,9 @@ use STD.Math
 use STD.Process
 
 class TrackedScene {
+    var long_drive:bool=false
+    var long_smoke:bool=false
+    var long_event:int=0
     var model:Model.TrackedModel=Model.TrackedModel()
     var controls:Controls.TrackedControls=Controls.TrackedControls()
     var ui:UI.Session
@@ -65,6 +70,11 @@ class TrackedScene {
     var held_steps:int=0
     init() { self.ui=UI.Session(self.controls.describe()) }
 }
+func hud_width(state:@TrackedScene) int { if state.long_drive { return 300 } return 1180 }
+func hud_height(state:@TrackedScene) int { if state.long_drive { return 400 } return 280 }
+func configure_long(state:&TrackedScene) {
+    state.long_drive=true;state.model=LongDriving.make();state.controls.long_drive=true;state.controls.automatic=false;state.ui=UI.Session(state.controls.describe())
+}
 func visual(world:&Resources.World,mesh:Scene3D.MeshHandle,size:Math.Vec3,color:Color) ECS.Entity {
     return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(scale:size))
         ..with(Components.Mesh3D(mesh)) ..with(Components.Material3D(albedo:color,roughness:0.7)))
@@ -83,7 +93,7 @@ func labels(state:&TrackedScene,simulation:@Application.Simulation) {
     var terrain="Plat";if state.model.ramp!=null { terrain="Rampe" }
     if state.model.platform { terrain="Plateforme longitudinale";if state.platform_axis==1 { terrain="Plateforme latérale" } }
     var phase="$(terrain) · conduite libre"
-    var cycle=14;if state.model.automatic { cycle=16 } if state.model.platform { cycle=6 }
+    var cycle=14;if state.model.automatic { cycle=16 } if state.model.platform { cycle=6 } if state.long_drive { cycle=20 }
     if state.autopilot { phase="$(terrain) · pilotage auto $(Math.min(state.auto_steps/120,cycle))/$(cycle) s" }
     if state.model.platform && !state.platform_smoke {
         phase="$(terrain) · à l’arrêt — cliquer sur un déplacement"
@@ -93,6 +103,7 @@ func labels(state:&TrackedScene,simulation:@Application.Simulation) {
     else if state.model.landed && state.model.supports()==6 { phase+=" · appuis repris" }
     if state.controls.braking { phase+=" · freinage" }
     if state.smoke && !state.live_smoke && !state.platform_click_smoke && !state.automatic_smoke && !state.platform_smoke { phase="$(Model.recipe_name(state.model.recipe)) · $(state.model.phase())" }
+    if state.long_drive { phase="Trajet long · 48/4\nM : lancer le parcours";if state.autopilot { phase="Trajet long · 48/4\nPilote $(Math.min(state.auto_steps/120,20))/20 s" } if simulation.is_paused() { phase="Trajet long · 48/4\nPAUSE · P pour reprendre" } }
     if state.controls.phase.value()!=phase { state.controls.phase.set(phase) }
     var body=state.model.vehicle.chassis();let speed=Math.round(body.linear_velocity().length()*36.0)/10.0
     let time=Math.round(state.model.steps as float/12.0)/10.0
@@ -106,12 +117,14 @@ func labels(state:&TrackedScene,simulation:@Application.Simulation) {
         var brake="Frein libre (G)";if state.platform_braked { brake="Frein serré (G)" }
         if state.controls.brake_text.value()!=brake { state.controls.brake_text.set(brake) }
     }
+    if state.long_drive { measure="t $(time) s · v $(speed) km/h\n$(state.model.supports()) appuis · $(Math.round(state.model.normal_force()) as int) N" }
     if state.controls.measure.value()!=measure { state.controls.measure.set(measure) }
-    let left=state.model.vehicle.track(Physics.VehicleTrackSide3D.left);let right=state.model.vehicle.track(Physics.VehicleTrackSide3D.right)
+    let left=state.model.vehicle.track(Physics.VehicleTrackSide3D.right);let right=state.model.vehicle.track(Physics.VehicleTrackSide3D.left)
     let l=Math.round(left.linear_speed*100.0)/100.0;let r=Math.round(right.linear_speed*100.0)/100.0
     let power=state.model.vehicle.powertrain();var gearbox="manuel";if state.model.automatic { gearbox="boîte auto" }
     var shifting="";if power.switching_gear { shifting=" · changement" }
-    let tracks="Bandes G/D $(l) / $(r) m/s · $(gearbox) · rapport $(power.gear) · $(Math.round(power.engine_rpm) as int) RPM · embrayage $(Math.round(power.clutch*100.0) as int)%$(shifting)"
+    var tracks="Bandes G/D $(l) / $(r) m/s · $(gearbox) · rapport $(power.gear) · $(Math.round(power.engine_rpm) as int) RPM · embrayage $(Math.round(power.clutch*100.0) as int)%$(shifting)"
+    if state.long_drive { tracks="Rapport $(power.gear) · $(Math.round(power.engine_rpm) as int) RPM\nEmbrayage $(Math.round(power.clutch*100.0) as int)%\nBandes $(l)/$(r) m/s" }
     if state.controls.tracks.value()!=tracks { state.controls.tracks.set(tracks) }
 }
 func recreate(state:&TrackedScene,simulation:&Application.Simulation,recipe:int) {
@@ -147,6 +160,11 @@ func perform(state:&TrackedScene,simulation:&Application.Simulation) {
     if changed { labels(state,simulation) }
 }
 func step_free(state:&TrackedScene) {
+    if state.long_drive && state.autopilot {
+        LongDriving.command(state.model,state.auto_steps);state.auto_steps++
+        if state.auto_steps>=2400 { state.autopilot=false }
+        return
+    }
     if state.model.platform {
         var velocity=Math.Vec3()
         if state.autopilot {
@@ -205,7 +223,7 @@ func startup(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TrackedSce
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:2.5)))
     simulation.resume();remember(state);labels(state,simulation)
     state.panel=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform())
-        ..with(Scene2D.Canvas(state.ui.drawing(1180,280),1180,280) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
+        ..with(Scene2D.Canvas(state.ui.drawing(hud_width(state),hud_height(state)),hud_width(state),hud_height(state)) ..anchor=Math.Vec2() ..pivot=Math.Vec2()
             ..space=Scene2D.CanvasSpace.viewport ..layer=100))
 }
 func camera_settings() Plugins.ViewportCamera3D.Settings {
@@ -219,14 +237,16 @@ func verify_framing(world:@Resources.World,state:@TrackedScene,view:Scene3D.Tran
     for x in sides { for y in sides { for z in sides {
         let corner=body.position.add(body.rotation.rotate(Math.Vec3(0.7*x as float,0.2*y as float,1.2*z as float)))
         let point=camera.project(corner,view,Math.Vec2(1280.0,800.0))!
-        assert(point.x>20.0 && point.x<1260.0 && point.y>290.0 && point.y<780.0)
+        assert(point.x>20.0 && point.x<1260.0 && point.y>20.0 && point.y<780.0)
+        if state.long_drive { assert(point.x>312.0 || point.y>412.0) } else { assert(point.y>290.0) }
     } } }
     for i in [0,1,2,3,4,5] {
         let tire=world.get<Components.Transform3D>(state.tires[i])
         for x in sides { for y in sides { for z in sides {
             let corner=tire.position.add(tire.rotation.rotate(Math.Vec3(0.3*x as float,0.2*y as float,0.3*z as float)))
             let point=camera.project(corner,view,Math.Vec2(1280.0,800.0))!
-            assert(point.x>20.0 && point.x<1260.0 && point.y>290.0 && point.y<780.0)
+            assert(point.x>20.0 && point.x<1260.0 && point.y>20.0 && point.y<780.0)
+            if state.long_drive { assert(point.x>312.0 || point.y>412.0) } else { assert(point.y>290.0) }
         } } }
     }
 }
@@ -256,7 +276,7 @@ func render(world:&Resources.World,state:&TrackedScene,camera:&Resources.Viewpor
         let visible=wheel.support()!=null
         if world.get<Components.Mesh3D>(state.markers[i]).visible!=visible { world.update<Components.Mesh3D>(state.markers[i],func(m:&Components.Mesh3D) { m.visible=visible }) }
         if visible { world.update<Components.Transform3D>(state.markers[i],func(t:&Components.Transform3D) { t.position=wheel.contact_point.add(Math.Vec3(0.0,0.015,0.0));t.rotation=Math.Quat() }) }
-        if state.smoke {
+        if state.smoke || state.long_smoke {
             assert(world.get<Components.Transform3D>(state.tires[i]).position.nearly_equal(center,0.00001))
             assert(world.get<Components.Transform3D>(state.tires[i]).rotation==tire_rotation)
             assert(world.get<Components.Transform3D>(state.spokes[i]).rotation==spin)
@@ -265,7 +285,7 @@ func render(world:&Resources.World,state:&TrackedScene,camera:&Resources.Viewpor
     }
     let ramp_visible=state.model.recipe==7
     if world.get<Components.Mesh3D>(state.ramp).visible!=ramp_visible { world.update<Components.Mesh3D>(state.ramp,func(m:&Components.Mesh3D) { m.visible=ramp_visible }) }
-    if state.smoke {
+    if state.smoke || state.long_smoke {
         let actual=world.get<Components.Transform3D>(state.ramp);let expected=Model.ramp_pose()
         assert(actual.position==expected.position && actual.rotation==expected.rotation && actual.scale==Model.ramp_size())
         assert(world.get<Components.Mesh3D>(state.ramp).visible==ramp_visible)
@@ -274,7 +294,7 @@ func render(world:&Resources.World,state:&TrackedScene,camera:&Resources.Viewpor
         let current_platform=state.model.ground.transform()
         let platform_pose=Physics.Transform3D(state.previous_platform.position.lerp(current_platform.position,alpha),current_platform.rotation)
         world.update<Components.Transform3D>(state.platform,func(t:&Components.Transform3D) { t.position=platform_pose.position;t.rotation=platform_pose.rotation })
-        if state.smoke {
+        if state.smoke || state.long_smoke {
             let actual=world.get<Components.Transform3D>(state.platform)
             assert(actual.position.nearly_equal(platform_pose.position,0.00001) && actual.rotation==platform_pose.rotation && actual.scale==Model.platform_size())
             assert(!world.get<Components.Mesh3D>(state.floor).visible)
@@ -294,7 +314,7 @@ func render(world:&Resources.World,state:&TrackedScene,camera:&Resources.Viewpor
     }
     camera.set_target(pose.position.add(Math.Vec3(0.0,1.975,0.0)));let view=camera.transform()
     if world.is_alive(camera.entity()) { world.update<Components.Transform3D>(camera.entity(),func(t:&Components.Transform3D) { t.position=view.position;t.rotation=view.rotation }) }
-    if state.smoke {
+    if state.smoke || state.long_smoke {
         assert(world.is_alive(camera.entity()))
         let actual=world.get<Components.Transform3D>(camera.entity())
         assert(actual.position.nearly_equal(view.position,0.00001) && actual.rotation==view.rotation)
@@ -348,7 +368,8 @@ func next_smoke(state:&TrackedScene,simulation:&Application.Simulation,controlle
 }
 func update(world:&Resources.World,input:@Resources.InputState,state:&TrackedScene,simulation:&Application.Simulation,controller:&Application.Controller) {
     if input.is_pressed(Input.Key.escape) { controller.stop() }
-    if state.platform_click_smoke { platform_click_inputs(state,simulation,controller) }
+    if state.long_smoke { long_smoke_inputs(state,simulation,controller) }
+    else if state.platform_click_smoke { platform_click_inputs(state,simulation,controller) }
     else if state.live_smoke { live_smoke_inputs(state,simulation,controller) }
     else if state.smoke {
         if simulation.is_paused() { next_smoke(state,simulation,controller) }
@@ -359,7 +380,7 @@ func update(world:&Resources.World,input:@Resources.InputState,state:&TrackedSce
     advance(state,simulation,simulation.delta())
     state.telemetry+=simulation.delta()
     if state.telemetry>=0.1 { state.telemetry=0.0;labels(state,simulation) }
-    if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(1180,280)) }) }
+    if state.ui.update(0.0) { world.update<Scene2D.Canvas>(state.panel,func(canvas:&Scene2D.Canvas) { canvas.replace(state.ui.drawing(hud_width(state),hud_height(state))) }) }
 }
 func press(state:&TrackedScene,simulation:&Application.Simulation,key:Input.Key,code:uint32,repeated:bool=false) {
     assert(state.controls.handle(InputCheck.key_event(key,code,repeated)));perform(state,simulation)
@@ -375,6 +396,7 @@ func advance(state:&TrackedScene,simulation:&Application.Simulation,delta:float)
     state.accumulator+=delta
     var duration=state.model.duration();if state.automatic_smoke { duration=16 }
     while state.accumulator>=1.0/120.0 && !simulation.is_paused() {
+        if state.long_smoke && state.model.steps>=2400 { state.accumulator=0.0;break }
         if state.smoke && !state.live_smoke && !state.platform_click_smoke && state.model.steps>=duration*120 { state.accumulator=0.0;break }
         remember(state)
         if state.smoke && !state.live_smoke && !state.platform_click_smoke && !state.automatic_smoke && !state.platform_smoke { state.model.step();state.model.verify() }
@@ -579,9 +601,82 @@ func platform_click_inputs(state:&TrackedScene,simulation:&Application.Simulatio
 test "tracked moving platform controls retain the real vehicle and support" { verify_platform_controls() }
 test "tracked scene controls apply to the real vehicle" { verify_controls() }
 test "tracked continuous controls retain the automatic vehicle" { verify_controls(true) }
+func long_click(state:&TrackedScene,simulation:&Application.Simulation,x:float,y:float) {
+    var body=state.model.vehicle.chassis();let pose=copy body.transform();let clock=copy state.model.steps
+    InputCheck.click(state.ui,x,y);perform(state,simulation)
+    assert(body.is_valid() && state.model.vehicle.chassis().same_body(body) && body.transform()==pose && state.model.steps==clock)
+}
+func verify_long_ink(commands:@Canvas.Command[],drawing:Canvas,expected:str) int {
+    var found=0
+    for command in commands { match command {
+        text(value)=> { if value.value==expected {
+            let measured=drawing.measure_text(value.value,value.style);let clip=value.clip!
+            assert(value.position.x>=clip.position.x && value.position.y>=clip.position.y)
+            assert(value.position.x+measured.width<=clip.position.x+clip.size.x+0.01)
+            assert(value.position.y+measured.height<=clip.position.y+clip.size.y+0.01 && value.position.y+measured.height<=388.0);found++
+        } }
+        layer(value)=> { found+=verify_long_ink(value.commands(),drawing,expected) }
+        else=>{}
+    } }
+    return found
+}
+func verify_long_controls() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var state=TrackedScene();var simulation=Application.Simulation();configure_long(state)
+    startup(world,meshes,state,simulation);ticks(state,simulation,240)
+    var body=state.model.vehicle.chassis();var ground=state.model.ground
+    long_click(state,simulation,80.0,139.0);assert(state.autopilot)
+    ticks(state,simulation,600);assert(body.position().z>8.0 && body.linear_velocity().length()>8.0)
+    labels(state,simulation);var drawing=state.ui.drawing(300,400)
+    let texts:str[]=[state.controls.phase.value(),state.controls.measure.value(),state.controls.tracks.value()]
+    for text in texts { assert(verify_long_ink(drawing.commands(),drawing,text)==1) }
+    long_click(state,simulation,220.0,139.0);let clock=copy state.model.steps;let held=copy body.transform();ticks(state,simulation,30)
+    assert(simulation.is_paused() && body.transform()==held && state.model.steps==clock)
+    long_click(state,simulation,220.0,139.0);ticks(state,simulation,1800);assert(!state.autopilot && state.auto_steps==2400 && body.linear_velocity().length()<0.05)
+    retained_press(state,simulation,Input.Key.z,122 as uint32);assert(!state.autopilot);ticks(state,simulation,120);release(state,Input.Key.z,122 as uint32)
+    assert(body.is_valid() && ground.is_valid());InputCheck.click(state.ui,80.0,185.0);perform(state,simulation)
+    assert(!body.is_valid() && ground.is_valid() && state.model.steps==0 && state.model.automatic)
+    print("Long tracked controls: real clicks, continuous driving,20s retained clock, pause, compact HUD and explicit reset verified")
+}
+func long_smoke_inputs(state:&TrackedScene,simulation:&Application.Simulation,controller:&Application.Controller) {
+    if state.long_event==0 { long_click(state,simulation,80.0,139.0);assert(state.autopilot);state.long_event=1 }
+    if state.model.steps>=2400 {
+        LongDriving.verify_finished(state.model);assert(state.frames[6]>0 && !state.autopilot && state.auto_steps==2400)
+        print("Long tracked smoke:48/4,20s launch/shifts/brake,176m, rendered body/wheels, moving grid, camera and compact HUD verified");controller.stop()
+    }
+}
+test "long tracked controls retain the clock and compact telemetry" { verify_long_controls() }
+func verify_vehicle_relative_steering() {
+    for moving in [true,false] { for orientation in [0,1] { for control in [0,1,2,3] {
+        var world=Resources.World();var meshes=Resources.Meshes3D();var state=TrackedScene();var simulation=Application.Simulation();configure_long(state)
+        var body=state.model.vehicle.chassis()
+        body.set_transform(Physics.Transform3D(Math.Vec3(0.0,1.15,0.0),Math.Quat.angle_axis(orientation as float*Math.half_pi(),Math.Vec3.up())))
+        startup(world,meshes,state,simulation);ticks(state,simulation,240)
+        if moving { retained_press(state,simulation,Input.Key.z,122 as uint32);ticks(state,simulation,180) }
+        let forward=body.rotation().rotate(Math.Vec3(0.0,0.0,1.0));let up=body.rotation().rotate(Math.Vec3.up())
+        let left=up.cross(forward).normalized()
+        var key=Input.Key.a;var code=113 as uint32
+        if control==1 { key=Input.Key.d;code=100 as uint32 }
+        else if control==2 { key=Input.Key.left;code=0 as uint32 }
+        else if control==3 { key=Input.Key.right;code=0 as uint32 }
+        retained_press(state,simulation,key,code);ticks(state,simulation,120)
+        let toward_left=body.rotation().rotate(Math.Vec3(0.0,0.0,1.0)).dot(left)
+        var expected=1.0;if control==1 || control==3 { expected= -1.0 }
+        print("Vehicle-relative steering: moving=$(moving), orientation=$(orientation), control=$(control), left projection=$(toward_left)")
+        assert(toward_left*expected>0.02)
+        release(state,key,code)
+    } } }
+    print("Vehicle-relative steering: Q/D and arrows point left/right in forward driving and pivoting at two headings; bodies and clocks retained")
+}
+test "tracked steering follows vehicle-relative left and right" { verify_vehicle_relative_steering() }
 func main() {
-    var smoke=false;var live=false;var automatic_smoke=false;var platform=false;var platform_smoke=false;var platform_click_smoke=false
+    var smoke=false;var live=false;var automatic_smoke=false;var platform=false;var platform_smoke=false;var platform_click_smoke=false;var long_drive=false;var long_smoke=false
     for argument in Process.arguments() {
+        if argument=="--steering-check" { verify_vehicle_relative_steering();return }
+        if argument=="--long" { long_drive=true }
+        if argument=="--long-smoke" { long_drive=true;long_smoke=true }
+        if argument=="--long-check" { LongDriving.witness();return }
+        if argument=="--long-physics-check" { LongDriving.verify();return }
+        if argument=="--long-controls-check" { verify_long_controls();return }
         if argument=="--physics-check" { Model.verify_physics();Model.verify_recreation();Model.verify_ramp();return }
         if argument=="--oracle-check" { Model.witness();return }
         if argument=="--ramp-check" { Model.witness(true);return }
@@ -622,6 +717,7 @@ func main() {
         }
         state.ui=UI.Session(state.controls.describe())
     }
+    if long_drive { configure_long(state);state.long_smoke=long_smoke;title="Chenilles — conduite longue 48/4";if long_smoke { title="TEST AUTOMATIQUE — conduite longue — fermeture à la fin" } }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
         ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())

@@ -1,5 +1,7 @@
 use GFX.Physics
 use STD.Math
+use Physics3D.VehicleSuspension.Playground
+use Physics3D.VehicleSuspension.Terrain
 package enum ContactMode { ray; sphere; wide; narrow }
 package func contact_name(mode:ContactMode) str {
     match mode {
@@ -9,7 +11,8 @@ package func contact_name(mode:ContactMode) str {
         narrow => { return "cylindre 8 cm" }
     }
 }
-package func wheel_width(mode:ContactMode) float {
+package func wheel_width(mode:ContactMode,monster:bool=false) float {
+    if monster { if mode==ContactMode.narrow { return 0.18 }return 0.72 }
     match mode {
         wide => { return 0.4 }
         narrow => { return 0.08 }
@@ -29,7 +32,17 @@ package func pitch(pose:Physics.Transform3D) float {
 package func roll(pose:Physics.Transform3D) float {
     return Math.atan2(pose.vector(Math.Vec3.right()).y,pose.vector(Math.Vec3.up()).y)
 }
-func create_vehicle(world:Physics.World3D, grip:bool, contacts:ContactMode, soft:bool, anti_roll:bool, limited_tilt:bool) Physics.WheeledVehicle3D {
+func create_vehicle(world:Physics.World3D, grip:bool, contacts:ContactMode, soft:bool, anti_roll:bool, limited_tilt:bool,playground:bool=false,monster:bool=false) Physics.WheeledVehicle3D {
+    if playground {
+        var contact=Physics.WheelContact3D.ray
+        match contacts {
+            sphere=>{ contact=Physics.WheelContact3D.sphere(Playground.radius(monster)) }
+            wide=>{ contact=Physics.WheelContact3D.cylinder(wheel_width(contacts,monster)) }
+            narrow=>{ contact=Physics.WheelContact3D.cylinder(wheel_width(contacts,monster)) }
+            else=>{}
+        }
+        return Playground.create_vehicle(world,contact,monster,soft,anti_roll,limited_tilt,grip)
+    }
     var wheels:Physics.Wheel3DSettings[]=[]
     var tire=Physics.Tire3DSettings()
     if !grip {
@@ -69,6 +82,9 @@ func create_vehicle(world:Physics.World3D, grip:bool, contacts:ContactMode, soft
 package class SuspensionModel {
     var world:Physics.World3D=Physics.World3D()
     var vehicle:Physics.WheeledVehicle3D
+    var playground:bool=false
+    var monster:bool=false
+    var terrain:Physics.RigidBody3D[]=[]
     var obstacle:bool=false
     var barrier:Physics.RigidBody3D?=null
     var contacts:ContactMode=ContactMode.ray
@@ -86,7 +102,9 @@ package class SuspensionModel {
     var steps:int=0
     var jumps:int=0
     var loads:int=0
-    init(obstacle:bool=false,contacts:ContactMode=ContactMode.ray,soft:bool=false,anti_roll:bool=false,limited_tilt:bool=false) {
+    init(obstacle:bool=false,contacts:ContactMode=ContactMode.ray,soft:bool=false,anti_roll:bool=false,limited_tilt:bool=false,playground:bool=false) {
+        self.playground=playground
+        if playground { self.terrain=Terrain.create(self.world) }
         self.obstacle=obstacle;self.contacts=contacts;self.soft=soft;self.anti_roll=anti_roll;self.limited_tilt=limited_tilt
         self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
             ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0)
@@ -94,16 +112,27 @@ package class SuspensionModel {
             self.barrier=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
                 ..shape=Physics.Shape3D.box(Physics.Box3D(obstacle_size())) ..transform=obstacle_transform() ..friction=1.0)
         }
-        self.vehicle=create_vehicle(self.world,self.grip,self.contacts,self.soft,self.anti_roll,self.limited_tilt)
+        self.vehicle=create_vehicle(self.world,self.grip,self.contacts,self.soft,self.anti_roll,self.limited_tilt,self.playground,self.monster)
     }
     func reset() {
-        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world,self.grip,self.contacts,self.soft,self.anti_roll,self.limited_tilt)
+        self.world.destroy_wheeled_vehicle(self.vehicle);self.vehicle=create_vehicle(self.world,self.grip,self.contacts,self.soft,self.anti_roll,self.limited_tilt,self.playground,self.monster)
         self.topples=0;self.load_remaining=0.0;self.steps=0;self.jumps=0;self.loads=0;self.pushes=0;self.steering=0.0;self.throttle=0.0;self.braking=false;self.handbraking=false
     }
     func apply_controls() {
         var brake=0.0;var hand=0.0;if self.braking { brake=1.0 }
         if self.handbraking { hand=1.0 }
         self.vehicle.set_controls(steering:self.steering,brake:brake,handbrake:hand,throttle:self.throttle)
+    }
+    func toggle_monster() { self.monster=!self.monster;self.reset() }
+    func drive_held(forward:bool,reverse:bool,left:bool,right:bool,handbrake:bool,delta:float) {
+        let speed=self.vehicle.chassis().transform().inverse_vector(self.vehicle.chassis().linear_velocity()).z
+        var gas=0.0;self.braking=false
+        if forward && !reverse { if speed< -0.5 { self.braking=true }else { gas=1.0 } }
+        if reverse { if speed>0.5 { self.braking=true }else { gas= -0.8 } }
+        var target=0.0;if left { target-=1.0 }if right { target+=1.0 }
+        target*=1.0/(1.0+speed*speed/90.0)
+        self.steering+=Math.clamp(target-self.steering,-delta*5.0,delta*5.0)
+        self.throttle=gas;self.handbraking=handbrake;self.apply_controls()
     }
     func accelerate(value:float) { self.throttle=value;self.apply_controls() }
     func steer(value:float) { self.steering=value;self.apply_controls() }

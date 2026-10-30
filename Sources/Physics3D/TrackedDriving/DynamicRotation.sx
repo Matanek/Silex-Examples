@@ -1,0 +1,57 @@
+use GFX.Physics
+use Physics3D.TrackedDriving.Model
+use STD.Math
+
+package func place(model:Model.TrackedModel) { model.vehicle.chassis().set_transform(Physics.Transform3D(Math.Vec3(2.5,1.15,0.0))) }
+package func make(mass:float,rate:int=120) Model.TrackedModel {
+    var model=Model.TrackedModel(recipe:6,rate:rate,automatic:true,platform:true,dynamic_mass:mass)
+    if mass==0.0 {
+        model.foundation=model.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..transform=Physics.Transform3D(Math.Vec3(0.0,-0.4,0.0)) ..friction=0.0 ..restitution=0.0)
+    }
+    place(model);return model
+}
+package func reset(model:Model.TrackedModel) { model.reset(6);place(model) }
+package func kick(support:Physics.RigidBody3D,direction:int) {
+    if support.body_type()==Physics.BodyType3D.dynamic { support.apply_angular_impulse(Math.Vec3(0.0,support.mass_properties().local_inertia.y*0.5*direction as float,0.0)) }
+    else { support.set_angular_velocity(support.angular_velocity().add(Math.Vec3(0.0,0.5*direction as float,0.0))) }
+}
+package func command(model:Model.TrackedModel,scenario:int) {
+    if scenario==6 {
+        var spin=0.0;if model.steps>=2*model.rate && model.steps<4*model.rate { spin=0.5 }
+        model.ground.set_angular_velocity(Math.Vec3(0.0,spin,0.0))
+    } else if scenario>0 && (model.steps==2*model.rate || model.steps==4*model.rate) {
+        var direction=1;if scenario==2 || scenario==4 { direction= -direction }
+        if model.steps==4*model.rate { direction= -direction }
+        kick(model.ground,direction)
+    }
+    var brake=1.0;if scenario==5 && model.steps>=2*model.rate && model.steps<4*model.rate { brake=0.0 }
+    model.drive(0.0,brake:brake)
+}
+func vector(value:Math.Vec3) str { return "$(value.x) $(value.y) $(value.z)" }
+package func observation(model:@Model.TrackedModel,scenario:int) str {
+    let carrier=model.ground.transform()
+    return model.observation("tracked-dynamic-rotation",scenario)+" $(vector(carrier.position)) $(vector(model.ground.linear_velocity())) $(carrier.rotation.x) $(carrier.rotation.y) $(carrier.rotation.z) $(carrier.rotation.w) $(vector(model.ground.angular_velocity()))"
+}
+package func witness() {
+    for scenario in [0,1,2,3,4,5,6] { for rate in [60,120] {
+        var mass=1000.0;if scenario>=3 && scenario<=5 { mass=200.0 } else if scenario==6 { mass=0.0 }
+        var model=make(mass,rate)
+        while true { print(observation(model,scenario));if model.steps==6*rate { break } command(model,scenario) }
+    } }
+}
+package func verify() {
+    for scenario in [0,1,2,3,4,5,6] { for rate in [60,120] {
+        var mass=1000.0;if scenario>=3 && scenario<=5 { mass=200.0 } else if scenario==6 { mass=0.0 }
+        var model=make(mass,rate)
+        while model.steps<6*rate { command(model,scenario);model.verify() }
+        var body=model.vehicle.chassis()
+        assert(model.world.body_count()==3 && model.supports()==6)
+        assert(Math.abs(body.position().y-model.ground.position().y-0.2-0.88365)<0.003 && Math.abs(model.normal_force()-981.0)<2.0)
+        assert(body.linear_velocity().length()<0.05 && body.angular_velocity().length()<0.05 && model.ground.angular_velocity().length()<0.05)
+        var floor=model.foundation!;var old=model.vehicle;reset(model)
+        assert(!old.is_valid() && floor.is_valid() && model.world.body_count()==3 && model.vehicle.chassis().position()==Math.Vec3(2.5,1.15,0.0))
+    } }
+    print("Dynamic rotating supports: seven cases at60/120Hz, angular impulse sharing, final rest and retained floors verified")
+}
+test "finite rotating supports share momentum and retain their floor through reset" { verify() }

@@ -63,10 +63,11 @@ package class TrackedModel {
     var driven_yaw:float=0.0
     var normal_sum:float=0.0
     var normal_samples:int=0
-    init(recipe:int=0,rate:int=120,automatic:bool=false,platform:bool=false,dynamic_mass:float=0.0) {
+    init(recipe:int=0,rate:int=120,automatic:bool=false,platform:bool=false,dynamic_mass:float=0.0,velocity_iterations:int=12) {
         self.automatic=automatic;self.platform=platform;self.dynamic_mass=dynamic_mass
         assert(dynamic_mass==0.0 || (platform && (dynamic_mass==200.0 || dynamic_mass==1000.0)))
         if dynamic_mass>0.0 { self.world=Physics.World3D(Physics.World3DSettings() ..velocity_iterations=48) }
+        else if velocity_iterations!=12 { self.world=Physics.World3D(Physics.World3DSettings() ..velocity_iterations=velocity_iterations) }
         assert(!platform || (recipe==6 && automatic))
         assert(recipe>=0 && recipe<8 && (rate==60 || rate==120))
         self.recipe=recipe;self.rate=rate

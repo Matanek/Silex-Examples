@@ -154,3 +154,56 @@ avec plateforme, châssis, roues, appuis, cadrage et pause contrôlés.
 Cette qualification porte sur la translation horizontale, au point mort et
 sans gaz ; conduite libre, support rotatif ou dynamique et terrains généraux
 ne sont pas prouvés par ces quatre recettes.
+
+## Conduite longue avec un profil de précision explicite
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --long
+```
+
+Le mode long utilise 48 itérations de vitesse et 4 de position à 120 Hz, pour un
+trajet 20 s : réception 2 s, accélération 8 s et freinage 10 s. Appuyer sur **M** ou
+« Pilote ON/OFF » pour lancer le cycle depuis la position courante. Il atteint
+environ 90 km/h et parcourt 176 m sur le plan. **R seul** remet au départ.
+**ZQSD**, **Espace** et **P** conservent conduite continue, frein et pause ; une
+commande de conduite reprend la main sur le pilote. Le terrain du test est plat.
+
+Le HUD 300 × 400 reste à gauche ; caméra et grille suivent le véhicule. Les
+positions, roues, suspensions et rapports viennent de la simulation. Les
+commandes ordinaires ne recréent pas le véhicule et ne remettent pas l’horloge
+à zéro. M relance le programme, sans replacer le véhicule ; R permet de refaire
+le témoin exact depuis le repos. Les autres modes gardent leurs profils.
+
+Le témoin autonome avant/arrière à 60/120 Hz contient 7204 états identiques au
+sous-ensemble chargé de TrackedAutomaticLong. Son profil 48/4 est qualifié ;
+le trajet long au profil 12/4 conserve son échec de parité d’environ 7,04 cm pour
+un budget 5 cm. Cette scène ne résout pas ce cas 12/4 et ne modifie pas le SDK.
+Elle ne qualifie pas les virages à grande vitesse ni les terrains arbitraires.
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --long-check
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --long-physics-check
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --long-controls-check
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --long-smoke
+```
+
+Le smoke ouvre « TEST AUTOMATIQUE », lance un cycle complet 20 s par un vrai clic,
+vérifie les poses rendues, la grille et la caméra suivies, puis se ferme seul.
+Les contrôles sans fenêtre vérifient aussi l’encre du HUD, les clics, la pause,
+la reprise manuelle et R. Le profil de précision augmente les itérations ;
+aucune mesure ou promesse de FPS n’est fournie par ce parcours.
+
+### Sens de direction dans le repère du véhicule
+
+En marche avant et en pivot, **Q / flèche gauche** oriente l’avant vers la
+gauche du véhicule ; **D / flèche droite** l’oriente vers sa droite. Ce repère
+suit le véhicule lorsqu’il change de cap. Les vitesses G/D affichées suivent
+la même convention. Cette association corrige les commandes interactives ;
+le parcours automatique rectiligne et les témoins physiques sont conservés.
+
+Le contrôle sans fenêtre inclut les touches logiques AZERTY et les flèches,
+en déplacement et en pivot, avec deux caps initiaux :
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/TrackedDriving/Main.sx --release -- --steering-check
+```
