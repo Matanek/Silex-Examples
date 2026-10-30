@@ -1142,3 +1142,18 @@ TrackedSupport also provides combined translation and rotation with `--combined`
 TrackedSupport compares finite-mass rotating platforms with imposed rotation using `--dynamic-rotation`; [controls and scope](Sources/Physics3D/TrackedSupport/README.md#compare-rotating-support-reactions).
 
 TrackedDriving provides an explicit 48/4 extended flat-driving mode with `--long`; [controls and scope](Sources/Physics3D/TrackedDriving/README.md#extended-driving-with-an-explicit-accuracy-profile).
+
+## Soft bodies and cloth
+
+[SoftBodiesScene](Sources/Physics3D/SoftBodiesScene.sx) shows suspended cloth
+with moving anchor markers, draping over a rigid sphere and a falling deformable
+cube. Space applies an impulse, A toggles anchor movement, P pauses, R restarts
+and Escape exits. The mouse controls the orbit camera. From the SilexProject
+workspace root:
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/SoftBodiesScene.sx --release
+```
+
+`--smoke` selects a finite automated run; the default is interactive. Vertices
+collide with rigids; self-collision and soft/soft collision are not provided.

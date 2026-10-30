@@ -1,0 +1,201 @@
+use GFX.Application
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene3D
+use STD.Math
+use STD.Process
+
+class SoftScene {
+    var physics:Physics.World3D = Physics.World3D()
+    var bodies:Physics.SoftBody3D[] = []
+    var meshes:Physics.SoftBodyMesh3D[] = []
+    var entities:ECS.Entity[] = []
+    var anchors:ECS.Entity[] = []
+    var anchor_offset:float = 0.0
+    var elapsed:float = 0.0
+    var accumulator:float = 0.0
+    var moving:bool = true
+    var smoke:bool = false
+    var steps:int = 0
+}
+
+func restart(world:&Resources.World, meshes:&Resources.Meshes3D, state:&SoftScene) {
+    for mesh in state.meshes { mesh.remove(meshes) }
+    for body in state.bodies { state.physics.destroy_soft_body(body) }
+    state.bodies = []; state.meshes = []
+    var index = 0
+    while index < 3 {
+        var definition = Physics.SoftBody3DDefinition.cloth(9,9,0.22,bend_compliance:0.05,fixed_vertices:[0,8])
+        var position = Math.Vec3(-3.0,2.4,0.0)
+        var tint = Color.bytes(82,164,236)
+        if index == 1 {
+            definition = Physics.SoftBody3DDefinition.cloth(9,9,0.22,bend_compliance:0.05)
+            position = Math.Vec3(0.0,2.4,0.0); tint = Color.bytes(113,213,162)
+        }
+        if index == 2 {
+            definition = Physics.SoftBody3DDefinition.cube(size:0.9,compliance:0.0002,volume_compliance:0.00001)
+            position = Math.Vec3(3.0,3.0,0.0); tint = Color.bytes(246,171,78)
+        }
+        var body = state.physics.create_soft_body(definition,Physics.SoftBody3DSettings()
+            ..transform = Physics.Transform3D(position) ..vertex_radius = 0.04 ..linear_damping = 0.3)
+        var presenter = Physics.SoftBodyMesh3D(body,meshes)
+        state.bodies.append(body); state.meshes.append(presenter)
+        let asset = presenter.mesh()
+        if index < state.entities.count() {
+            world.update<Components.Mesh3D>(state.entities[index],func(mesh:&Components.Mesh3D) { mesh.asset = asset })
+        } else {
+            state.entities.append(world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
+                ..with(Components.Mesh3D(asset)) ..with(Components.Material3D(albedo:tint,roughness:0.75))
+                ..with(Components.MaterialSettings3D(double_sided:true))))
+        }
+        index++
+    }
+    state.elapsed = 0.0; state.accumulator = 0.0; state.steps = 0; state.anchor_offset = 0.0
+}
+
+func sphere_mesh(radius:float) Scene3D.Geometry.Mesh {
+    let rings = 12
+    let segments = 20
+    var vertices:Scene3D.Geometry.Vertex[] = []
+    var indices:uint32[] = []
+    var ring = 0
+    while ring <= rings {
+        let latitude = Math.pi() * ring as float / rings as float
+        let height = Math.cos(latitude)
+        let spread = Math.sin(latitude)
+        var segment = 0
+        while segment <= segments {
+            let longitude = 2.0 * Math.pi() * segment as float /
+                segments as float
+            let normal = Math.Vec3(spread * Math.cos(longitude), height,
+                spread * Math.sin(longitude))
+            vertices.append(Scene3D.Geometry.Vertex(
+                position:normal.multiply(radius), normal:normal,
+                uv:Math.Vec2(segment as float / segments as float,
+                    ring as float / rings as float)))
+            segment++
+        }
+        ring++
+    }
+    ring = 0
+    while ring < rings {
+        var segment = 0
+        while segment < segments {
+            let first = ring * (segments + 1) + segment
+            let below = first + segments + 1
+            indices.append(first as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append(below as uint32)
+            indices.append((first + 1) as uint32)
+            indices.append((below + 1) as uint32)
+            indices.append(below as uint32)
+            segment++
+        }
+        ring++
+    }
+    return Scene3D.Geometry.Mesh(vertices, indices)
+}
+
+func startup(world:&Resources.World, meshes:&Resources.Meshes3D, state:&SoftScene) {
+    state.physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.plane(Physics.Plane3D()))
+    world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:Math.Vec3(0.0,-0.1,0.0),scale:Math.Vec3(15.0,0.2,9.0)))
+        ..with(Components.Mesh3D(meshes.add(Scene3D.Geometry.Cube.make())))
+        ..with(Components.Material3D(albedo:Color.bytes(68,77,94),roughness:0.95)))
+    state.physics.create_rigid_body(Physics.RigidBody3DSettings() ..body_type = Physics.BodyType3D.fixed
+        ..shape = Physics.Shape3D.sphere(Physics.Sphere3D(0.6)) ..transform = Physics.Transform3D(Math.Vec3(0.0,0.65,0.0)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:Math.Vec3(0.0,0.65,0.0),scale:Math.Vec3(1.2)))
+        ..with(Components.Mesh3D(meshes.add(sphere_mesh(0.5))))
+        ..with(Components.Material3D(albedo:Color.bytes(210,216,225),roughness:0.6)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.4)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:3.0)
+        ..shadow_distance = 25.0))
+    let marker = meshes.add(sphere_mesh(0.5))
+    var marker_index = 0
+    while marker_index < 2 {
+        state.anchors.append(world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(scale:Math.Vec3(0.12)))
+            ..with(Components.Mesh3D(marker)) ..with(Components.Material3D(albedo:Color.bytes(255,205,105)))))
+        marker_index++
+    }
+    restart(world,meshes,state)
+    print("Corps souples 3D : tissu suspendu, drapage sur sphere et cube deformable.")
+    print("Espace : impulsion. A : attaches mobiles. P : pause. R : recommencer. Echap : quitter. Souris : camera orbitale.")
+}
+
+func gust(state:&SoftScene) {
+    var index = 0
+    for body in state.bodies {
+        var vertex = 0
+        while vertex < body.vertex_count() {
+            if index == 2 {
+                if vertex == 6 { body.apply_impulse(vertex,Math.Vec3(0.4,0.7,-0.2)) }
+            } else { body.apply_impulse(vertex,Math.Vec3(0.03,0.18,-0.06)) }
+            vertex++
+        }
+        index++
+    }
+}
+
+func update(world:&Resources.World, meshes:&Resources.Meshes3D, state:&SoftScene,
+    input:@Resources.InputState, simulation:&Application.Simulation, controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop() }
+    if !state.smoke {
+        if input.is_pressed(Input.Key.r) { restart(world,meshes,state) }
+        if input.is_pressed(Input.Key.space) { gust(state) }
+        if input.is_pressed(Input.Key.a) { state.moving = !state.moving }
+        if input.is_pressed(Input.Key.p) {
+            if simulation.is_paused() { simulation.resume() } else { simulation.pause() }
+        }
+    }
+    state.accumulator += Math.min(simulation.delta(),0.1)
+    let delta = 1.0/60.0
+    while state.accumulator >= delta {
+        state.elapsed += delta
+        if state.moving { state.anchor_offset = Math.sin(state.elapsed*1.2)*0.5 }
+        // Snapshot the scalar before the next mutation of the scene resource.
+        let shift = copy state.anchor_offset
+        let rest = state.bodies[0].definition().positions()
+        state.bodies[0].set_fixed_position(0,rest[0].add(Math.Vec3(-3.0+shift,2.4,0.0)))
+        state.bodies[0].set_fixed_position(8,rest[8].add(Math.Vec3(-3.0+shift,2.4,0.0)))
+        if state.smoke && state.steps == 120 { gust(state) }
+        state.physics.step(delta)
+        state.accumulator -= delta; state.steps++
+        if state.smoke && state.steps >= 240 {
+            for body in state.bodies {
+                for position in body.positions() { assert(position.y >= 0.039 && position.y < 10.0) }
+            }
+            print("Soft Scene3D smoke passed: deformations, anchors and impulse")
+            controller.stop(); return
+        }
+    }
+}
+
+func render(world:&Resources.World, meshes:&Resources.Meshes3D, state:&SoftScene) {
+    for mesh in state.meshes { mesh.update(meshes) }
+    var index = 0
+    while index < state.anchors.count() {
+        let position = state.bodies[0].position(index*8)
+        world.update<Components.Transform3D>(state.anchors[index],func(transform:&Components.Transform3D) { transform.position = position })
+        index++
+    }
+}
+
+func main() {
+    var state = SoftScene()
+    for argument in Process.arguments() { if argument == "--smoke" { state.smoke = true } }
+    var title = "Corps souples 3D | Espace : impulsion | A : attaches | P : pause | R : reset"
+    if state.smoke { title = "TEST AUTOMATIQUE — corps souples 3D — fermeture automatique" }
+    Application() ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title = title ..width = 1200 ..height = 760))
+        ..add_plugin(Plugins.Time()) ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Plugins.ViewportCamera3D(Plugins.ViewportCamera3D.Settings()
+            ..target = Math.Vec3(0.0,1.1,0.0) ..distance = 11.0 ..yaw = Math.radians(-10.0) ..pitch = Math.radians(-22.0)))
+        ..add_system(Application.Schedule.startup,startup)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}
