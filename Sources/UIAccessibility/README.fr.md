@@ -1,4 +1,4 @@
-# Inspecter et actionner une session UI sur macOS
+# Inspecter et actionner une session UI desktop
 
 Cette démonstration interactive présente un champ **Nom**, le bouton **Valider**
 ainsi que des cases à cocher, un groupe **Profil**, un curseur **Volume** et un
@@ -224,3 +224,36 @@ CPU et AppKit sans fenêtre ne remplacent pas cet essai système. Le parcours
 bouton/champ déjà confirmé ne nécessite pas un nouvel essai identique.
 `--cpu-check` conserve ses sorties et vérifie aussi les onglets, les colonnes
 et l’annulation du dialogue sans ouvrir de fenêtre.
+
+## Linux — pont AT-SPI expérimental
+
+La même démo sert au pont Linux. Les constructions ARM64 et x64 depuis le Mac
+vérifient l’émission et la liaison ; elles ne qualifient ni le bureau Linux ni
+Orca. Le pont Windows UI Automation reste en préparation.
+
+Sur une machine Linux avec une session graphique, la bibliothèque `libdbus-1`
+et le service de session `org.a11y.Bus`, lancer le binaire Linux correspondant
+avec `--complete --placed`. Le lancement est manuel : aucun essai natif Linux
+n’est déduit des tests sans fenêtre exécutés sur le Mac.
+
+Avec un client AT-SPI, vérifier les noms, rôles, états désactivés et actions des
+mêmes contrôles. Vérifier aussi onglets, listes, dépliage de l’arbre, en-têtes et
+cellules du tableau, ainsi que l’ouverture et la fermeture du dialogue. Avec
+Orca, qualifier la navigation, les annonces de changement et l’édition Unicode.
+Les positions natives de texte comptent des scalaires Unicode sur AT-SPI ; les
+sélections de l’éditeur conservent des graphèmes entiers.
+
+Tester le placement, le redimensionnement et différentes échelles sur X11 puis
+Wayland. Une position écran inconnue sous Wayland reste indisponible ; les
+coordonnées relatives ne doivent pas être transformées en fausse position
+globale. Fermer la fenêtre pendant qu’un client conserve des objets doit rendre
+ces objets inaccessibles sans arrêt anormal de l’application ou du client.
+
+Pour un nouveau build depuis le workspace de développement :
+
+```sh
+silex compile Silex-Examples/Sources/UIAccessibility/Main.sx --target linux-x64 --debug --output /tmp/ui-accessibility-linux-x64
+```
+
+Remplacer `linux-x64` par `linux-arm64` pour ARM64. Ce sont des candidats
+expérimentaux tant que cette qualification native manque.

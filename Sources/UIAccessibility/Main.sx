@@ -54,7 +54,7 @@ package class Model {
     }
     func volume_label(value:float) str { return "Volume : $(value) — plage de 10 à 20" }
     func describe(reads:UI.Reads) UI.View {
-        var title = UI.Text("Accessibilité — macOS"); title.style.font_size = 28.0
+        var title = UI.Text("Accessibilité — contrôles desktop"); title.style.font_size = 28.0
         var slider = UI.Slider(self.volume, minimum:10.0, maximum:20.0)
         slider.style.disabled = reads.read(self.locked)
         var choices = UI.Style()
@@ -101,7 +101,7 @@ package class Model {
         ]
         if self.complete {
             var action = UI.Command("Action de menu",self.activate)
-            nodes.append(UI.Text("Complétion macOS — onglets, choix, menu et dialogue"))
+            nodes.append(UI.Text("Onglets, choix, menu et dialogue"))
             nodes.append(UI.Tabs([
                 UI.Tab("navigation","Navigation",UI.Text("Premier panneau")),
                 UI.Tab("preferences","Préférences",UI.Text("Second panneau"))
@@ -109,7 +109,7 @@ package class Model {
             let options:UI.SelectOption<str>[] = [UI.SelectOption<str>("Rapide","Rapide"),UI.SelectOption<str>("Précis","Précis")]
             nodes.append(UI.Label("Mode de rendu",UI.Select<str>(options,self.choice)))
             nodes.append(UI.Label("Recherche de mode",UI.ComboBox<str>(options,self.choice)))
-            nodes.append(UI.Menu("Actions macOS",[UI.MenuItem.command(action)]))
+            nodes.append(UI.Menu("Actions",[UI.MenuItem.command(action)]))
             nodes.append(UI.Toolbar([action]))
             nodes.append(UI.Tooltip(UI.Button("Aide",self.activate),UI.Text("Aide accessible du contrôle")))
             nodes.append(UI.Button("Ouvrir le dialogue",self.open_dialog))
@@ -132,20 +132,20 @@ package class Model {
         return frame
     }
     private func with_dialog(base:UI.View) UI.View {
-        var content = UI.Column([UI.Text("Dialogue macOS"),UI.Button("Fermer le dialogue",self.close_dialog)])
+        var content = UI.Column([UI.Text("Dialogue"),UI.Button("Fermer le dialogue",self.close_dialog)])
         content.style.width = 360.0; content.style.padding = UI.Insets(20.0)
         content.style.theme = UI.Theme.dark(); content.style.background = Color.slate_900()
-        return UI.Accessible(UI.Dialog(base,content,self.dialog),"Dialogue macOS")
+        return UI.Accessible(UI.Dialog(base,content,self.dialog),"Dialogue")
     }
 }
 
 func presentation_settings(placed:bool, complete:bool = false) Viewer.CanvasSettings {
-    var settings = Viewer.CanvasSettings(width:780, height:820, title:"Silex — Accessibilité macOS J5", show_fps:true)
+    var settings = Viewer.CanvasSettings(width:780, height:820, title:"Silex — Accessibilité desktop", show_fps:true)
     if placed {
         settings.position = Math.Vec2(24.0, 16.0); settings.anchor = Math.Vec2(0.05)
-        settings.title = "Silex — Accessibilité macOS J5 · Placement ajusté"
+        settings.title = "Silex — Accessibilité desktop · Placement ajusté"
     }
-    if complete { settings.title = "Silex — Accessibilité macOS · Complétion" }
+    if complete { settings.title = "Silex — Accessibilité desktop · Contrôles" }
     return settings
 }
 
@@ -308,7 +308,7 @@ func check_placed_geometry() {
         let bounds = source.read(field)!.bounds
         assert(bounds.width > 0.0 && bounds.x >= page.x)
         assert(bounds.x + bounds.width <= page.x + page.width + 0.001)
-        let title = source.read(named(source, root, "Accessibilité — macOS", Accessibility.Role.text)!)!
+        let title = source.read(named(source, root, "Accessibilité — contrôles desktop", Accessibility.Role.text)!)!
         assert(!title.offscreen && title.bounds.y >= page.y)
     }
 }
@@ -327,7 +327,7 @@ func check_complete() {
     let open = named(source,source.root()!,"Ouvrir le dialogue",Accessibility.Role.button)!
     assert(source.perform(open,Accessibility.Request(Accessibility.Action.activate)))
     assert(model.dialog.value())
-    assert(source.read(source.root()!)!.role == Accessibility.Role.dialog && source.read(source.root()!)!.name == "Dialogue macOS")
+    assert(source.read(source.root()!)!.role == Accessibility.Role.dialog && source.read(source.root()!)!.name == "Dialogue")
     assert(source.perform(source.root()!,Accessibility.Request(Accessibility.Action.dismiss)))
     assert(!model.dialog.value())
 }

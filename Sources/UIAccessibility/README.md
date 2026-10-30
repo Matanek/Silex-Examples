@@ -1,4 +1,4 @@
-# Inspect and operate a UI session on macOS
+# Inspect and operate a desktop UI session
 
 This interactive example presents a **Nom** field, a **Valider** button,
 checkboxes, a **Profil** radio group, a **Volume** slider and a **Fichiers** panel
@@ -215,3 +215,34 @@ on these new paths; CPU and headless AppKit checks do not replace that system
 run. The previously confirmed button/field path needs no identical retest.
 `--cpu-check` keeps its output and additionally checks tabs, columns and dialog
 cancellation without opening a window.
+
+## Linux — experimental AT-SPI bridge
+
+The same demo exercises the Linux bridge. ARM64 and x64 cross-builds from the
+Mac verify emission and linking; they do not qualify a Linux desktop or Orca.
+The Windows UI Automation bridge remains in preparation.
+
+On a Linux machine with a graphical session, the `libdbus-1` library and the
+`org.a11y.Bus` session service, launch the matching Linux binary with
+`--complete --placed`. Launch is manual: headless tests on the Mac do not imply
+native Linux testing.
+
+Use an AT-SPI client to check names, roles, disabled states and actions for the
+same controls. Also check tabs, lists, tree disclosure, table headers and cells,
+and opening and closing the dialog. With Orca, qualify navigation, change
+announcements and Unicode editing. Native AT-SPI text positions count Unicode
+scalars; editor selections preserve whole graphemes.
+
+Test placement, resizing and different scales on X11, then Wayland. An unknown
+screen position on Wayland remains unavailable; relative coordinates must not
+be turned into a fabricated global position. Closing the window while a client
+retains objects must make them unavailable without crashing either process.
+
+For a new build from the development workspace:
+
+```sh
+silex compile Silex-Examples/Sources/UIAccessibility/Main.sx --target linux-x64 --debug --output /tmp/ui-accessibility-linux-x64
+```
+
+Replace `linux-x64` with `linux-arm64` for ARM64. These remain experimental
+candidates until this native qualification is completed.
