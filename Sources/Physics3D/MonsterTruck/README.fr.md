@@ -12,17 +12,18 @@ Les faces jaunes et rouges montrent les trajectoires, avec des bordures blanches
 Depuis la racine du workspace contenant `Silex-Examples/`, avec ses packages locaux :
 
 ```sh
-silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release
+silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native
 ```
 
 Pour compiler sans ouvrir de fenêtre :
 
 ```sh
-silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o /private/tmp/silex-monster-truck-demo
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --debug -o /private/tmp/silex-monster-truck-debug-demo
 ```
 
-Lancer ensuite `/private/tmp/silex-monster-truck-demo` sans option, depuis
-n’importe quel dossier. Utiliser Release pour l’essai interactif.
+Lancer ensuite `/private/tmp/silex-monster-truck-debug-demo` sans option, depuis
+n’importe quel dossier. `run` utilise Debug par défaut ; `--release` reste
+disponible pour comparer les modes.
 
 | Commande | Action |
 | --- | --- |
@@ -43,6 +44,11 @@ En marche avant, A ou ← fait partir le nez à gauche ; les roues arrière
 braquent donc à droite. Le couplage initial commande les deux essieux en sens
 opposés pour serrer le virage. Les touches arrière prennent la priorité sur ce
 couplage. En mode indépendant, Q + E ou D + A permet de rouler en crabe.
+
+La caméra suit la direction du déplacement horizontal, avec un horizon fixe.
+Elle conserve son dernier cap à faible vitesse ou à l’arrêt ; un cabrage ou un
+retournement ne la fait donc pas pivoter avec le châssis. Le recul inverse
+progressivement la vue dans la nouvelle direction de déplacement.
 
 Commencer tout droit par la grande table, puis la butte centrale et ses quatre
 accès. À gauche se trouvent un tremplin et une réception séparée ; à droite,
@@ -91,11 +97,11 @@ pas disponibles.
 Ces commandes quittent avant la création de l’application graphique :
 
 ```sh
-/private/tmp/silex-monster-truck-demo --check
-/private/tmp/silex-monster-truck-demo --scene-check
-/private/tmp/silex-monster-truck-demo --arena-check
-/private/tmp/silex-monster-truck-demo --slope-check
-/private/tmp/silex-monster-truck-demo --ramp-check
+/private/tmp/silex-monster-truck-debug-demo --check
+/private/tmp/silex-monster-truck-debug-demo --scene-check
+/private/tmp/silex-monster-truck-debug-demo --arena-check
+/private/tmp/silex-monster-truck-debug-demo --slope-check
+/private/tmp/silex-monster-truck-debug-demo --ramp-check
 ```
 
 Elles couvrent la physique, les gonflages, le centrage, les figures sur appuis

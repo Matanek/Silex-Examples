@@ -12,17 +12,18 @@ speed. Yellow and red surfaces mark the lines, with white borders.
 From the workspace root containing `Silex-Examples/`, with its local packages:
 
 ```sh
-silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release
+silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native
 ```
 
 To compile without opening a window:
 
 ```sh
-silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o /private/tmp/silex-monster-truck-demo
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --debug -o /private/tmp/silex-monster-truck-debug-demo
 ```
 
-Then run `/private/tmp/silex-monster-truck-demo` without arguments from any
-directory. Use Release for interactive trials.
+Then run `/private/tmp/silex-monster-truck-debug-demo` without arguments from any
+directory. `run` uses Debug by default; `--release` remains available to compare
+the modes.
 
 | Control | Action |
 | --- | --- |
@@ -43,6 +44,10 @@ While driving forward, A or ← turns the nose left, so the rear wheels steer
 right. Initial coupled steering moves the axles in opposite directions to
 tighten turns. Rear inputs override coupling. In independent mode, Q + E or
 D + A enables crab motion.
+
+The camera follows horizontal travel with a level horizon. It holds its last
+course at low speed or at rest, so wheelies and rollovers do not rotate it with
+the chassis. Reversing gradually turns the view toward the new travel direction.
 
 Start straight ahead with the large table, then explore the central mound
 and its four approaches. The left side has a takeoff and separate landing;
@@ -89,11 +94,11 @@ Self-collision and soft/soft contacts are unavailable.
 These commands exit before creating the graphical application:
 
 ```sh
-/private/tmp/silex-monster-truck-demo --check
-/private/tmp/silex-monster-truck-demo --scene-check
-/private/tmp/silex-monster-truck-demo --arena-check
-/private/tmp/silex-monster-truck-demo --slope-check
-/private/tmp/silex-monster-truck-demo --ramp-check
+/private/tmp/silex-monster-truck-debug-demo --check
+/private/tmp/silex-monster-truck-debug-demo --scene-check
+/private/tmp/silex-monster-truck-debug-demo --arena-check
+/private/tmp/silex-monster-truck-debug-demo --slope-check
+/private/tmp/silex-monster-truck-debug-demo --ramp-check
 ```
 
 They cover physics, inflation, centering, short stunt inputs, controls, HUD,

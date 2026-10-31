@@ -9,6 +9,7 @@ use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.PickupView
 use Physics3D.MonsterTruck.Environment
 use Physics3D.MonsterTruck.Terrain
+use Physics3D.MonsterTruck.ChaseCamera
 use Physics3D.SoftTire.Metrics
 use STD.Math
 
@@ -21,9 +22,7 @@ package class TruckScene {
     var hud:ECS.Entity=ECS.Entity()
     var accumulator:float=0.0
     var telemetry:float=0.0
-    var focus:Math.Vec3=Math.Vec3(0.0,2.6,1.5)
-    var yaw:float=Math.pi()
-    var distance:float=10.5
+    var chase:ChaseCamera
     var metrics:Metrics=Metrics()
     var profile:bool=false
     var slope_profile:bool=false
@@ -35,9 +34,9 @@ package class TruckScene {
         else if ramp {self.truck=Model.Truck(workers,obstacles:true,
             spawn:Physics.Transform3D(Math.Vec3(-2.0,2.35,8.0),Math.Quat.angle_axis(0.3,Math.Vec3.up())))}
         else { self.truck=Model.Truck(workers,obstacles:true) }
+        self.chase=ChaseCamera(self.truck.chassis.position(),self.truck.chassis.transform().vector(Math.Vec3.back()))
         if profile { self.ui=UI.Session(self.panel.measurement(slope,ramp)) }
         else { self.ui=UI.Session(self.panel.describe()) }
-        if slope || ramp { self.focus=self.truck.chassis.position().add(Math.Vec3(0.0,0.25,1.5)) }
     }
     func create_view(world:&Resources.World,meshes:&Resources.Meshes3D) {
         self.view=PickupView(self.truck,world,meshes)
@@ -46,7 +45,7 @@ package class TruckScene {
         var next=Model.Truck(self.workers,obstacles:true)
         next.set_pressure(self.panel.pressure())
         self.view!.rebind(next,world,meshes);self.truck=next
-        self.accumulator=0.0;self.focus=Math.Vec3(0.0,2.6,1.5);self.yaw=Math.pi()
+        self.accumulator=0.0;self.chase.reset(self.truck.chassis.position())
         self.panel.reset=false
     }
 }
@@ -79,16 +78,7 @@ package func perform(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Tr
 }
 
 package func follow(world:&Resources.World,state:&TruckScene,delta:float) {
-    let forward=state.truck.chassis.transform().vector(Math.Vec3.back())
-    let target=state.truck.chassis.position().add(Math.Vec3(0.0,0.25,0.0)).add(forward.multiply(1.5))
-    let blend=1.0-Math.exp(-Math.min(delta,0.1)*5.0)
-    state.focus=state.focus.add(target.subtract(state.focus).multiply(blend))
-    let desired=Math.atan2(forward.x,forward.z)+Math.pi()
-    var difference=desired-state.yaw
-    while difference>Math.pi() { difference-=Math.two_pi() }
-    while difference< -Math.pi() { difference+=Math.two_pi() }
-    state.yaw+=difference*blend
-    let rotation=Math.Quat.angle_axis(state.yaw,Math.Vec3.up()).multiply(Math.Quat.angle_axis(-0.28,Math.Vec3.right()))
-    let position=state.focus.subtract(rotation.rotate(Math.Vec3.front()).multiply(state.distance))
-    world.update<Components.Transform3D>(state.camera,func(t:&Components.Transform3D) { t.position=position;t.rotation=rotation })
+    state.chase.update(state.truck.chassis.position(),state.truck.chassis.linear_velocity(),delta)
+    let pose=state.chase.transform()
+    world.update<Components.Transform3D>(state.camera,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
 }

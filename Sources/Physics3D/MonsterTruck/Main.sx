@@ -23,7 +23,7 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
         for event in input.events() {
             state.panel.handle(event)
             match event {
-                mouse_wheel(wheel)=>{ state.distance=Math.clamp(state.distance-wheel.delta.y*0.75,7.0,18.0) }
+                mouse_wheel(wheel)=>{ state.chase.distance=Math.clamp(state.chase.distance-wheel.delta.y*0.75,7.0,18.0) }
                 else=>{}
             }
         }

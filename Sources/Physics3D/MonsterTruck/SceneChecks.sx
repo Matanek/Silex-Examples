@@ -86,8 +86,8 @@ package func verify() {
     var measurement=UI.Session(state.panel.measurement(false,true))
     let measured=measurement.update(0.0);HudChecks.verify(measurement)
     Scene.follow(world,state,0.016)
-    let camera=world.get<Components.Camera3D>(state.camera)
-    let transform=world.get<Components.Transform3D>(state.camera)
+    let camera=copy world.get<Components.Camera3D>(state.camera)
+    let transform=copy world.get<Components.Transform3D>(state.camera)
     let center=camera.project(state.truck.chassis.position(),transform,Math.Vec2(1280.0,800.0))!
     let left_point=camera.project(state.truck.chassis.position().add(Math.Vec3.right()),transform,Math.Vec2(1280.0,800.0))!
     assert(left_point.x<center.x)
@@ -95,7 +95,21 @@ package func verify() {
         let screen=camera.project(point,transform,Math.Vec2(1280.0,800.0))!
         assert(screen.x>310.0 && screen.x<1280.0 && screen.y>0.0 && screen.y<800.0)
     } }
-    print("Monster scene checks passed: input, reset, true tyre meshes, HUD and chase framing")
+    // The same travel direction must keep the same course even as the body
+    // stands on its rear wheels, rolls onto its roof, or pitches beyond vertical.
+    state.truck.chassis.set_linear_velocity(Math.Vec3(0.0,0.0,5.0))
+    let heading=state.chase.yaw
+    let tilts:float[]=[Math.half_pi(),Math.pi(),Math.pi()*1.5]
+    let axes:Math.Vec3[]=[Math.Vec3.right(),Math.Vec3.back()]
+    for axis in axes { for angle in tilts {
+        state.truck.chassis.set_transform(Physics.Transform3D(state.truck.chassis.position(),
+            Math.Quat.angle_axis(angle,axis)))
+        Scene.follow(world,state,0.016)
+        assert(Math.abs(state.chase.yaw-heading)<0.00001)
+        let view=world.get<Components.Transform3D>(state.camera)
+        assert(Math.abs(view.rotation.rotate(Math.Vec3.right()).y)<0.00001)
+    } }
+    print("Monster scene checks passed: input, reset, true tyre meshes, HUD, travel camera and rollover horizon")
 }
 
 func main() { verify() }

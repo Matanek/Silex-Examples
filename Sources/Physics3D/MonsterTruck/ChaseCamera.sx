@@ -1,0 +1,77 @@
+use GFX.Scene3D
+use STD.Math
+
+// Updated once per rendered frame. Only horizontal travel chooses the course;
+// suspension pitch, wheelies and roll never enter the camera orientation.
+package class ChaseCamera {
+    var focus:Math.Vec3
+    var yaw:float
+    var distance:float=10.5
+    private var course:float
+    private var following_motion:bool=false
+
+    init(position:Math.Vec3,forward:Math.Vec3=Math.Vec3.back()) {
+        self.focus=position;self.yaw=Math.pi();self.course=self.yaw
+        self.reset(position,forward)
+    }
+
+    func reset(position:Math.Vec3,forward:Math.Vec3=Math.Vec3.back()) {
+        var heading=Math.Vec3(forward.x,0.0,forward.z)
+        if heading.length_squared()<0.0001 { heading=Math.Vec3.back() }
+        heading=heading.normalized()
+        self.yaw=Math.atan2(heading.x,heading.z)+Math.pi();self.course=self.yaw
+        self.focus=position.add(Math.Vec3(0.0,0.25,0.0)).add(heading.multiply(1.5))
+        self.following_motion=false
+    }
+
+    func update(position:Math.Vec3,velocity:Math.Vec3,delta:float) {
+        let dt=Math.clamp(delta,0.0,0.1)
+        let horizontal=Math.Vec3(velocity.x,0.0,velocity.z)
+        let speed_squared=horizontal.length_squared()
+        if speed_squared>=0.64 { self.following_motion=true }
+        else if speed_squared<=0.16 { self.following_motion=false }
+        if self.following_motion { self.course=Math.atan2(horizontal.x,horizontal.z)+Math.pi() }
+        var difference=self.course-self.yaw
+        while difference>Math.pi() { difference-=Math.two_pi() }
+        while difference< -Math.pi() { difference+=Math.two_pi() }
+        let blend=1.0-Math.exp(-dt*5.0)
+        self.yaw+=Math.clamp(difference*blend,-2.5*dt,2.5*dt)
+        let heading=Math.Vec3(Math.sin(self.yaw-Math.pi()),0.0,Math.cos(self.yaw-Math.pi()))
+        let target=position.add(Math.Vec3(0.0,0.25,0.0)).add(heading.multiply(1.5))
+        self.focus=self.focus.add(target.subtract(self.focus).multiply(blend))
+    }
+
+    func transform() Scene3D.Transform {
+        let rotation=Math.Quat.angle_axis(self.yaw,Math.Vec3.up()).multiply(
+            Math.Quat.angle_axis(-0.28,Math.Vec3.right()))
+        return Scene3D.Transform(self.focus.subtract(rotation.rotate(Math.Vec3.front()).multiply(self.distance)),rotation)
+    }
+}
+
+test "chase camera holds its course at rest and ignores vertical velocity" {
+    var camera=ChaseCamera(Math.Vec3())
+    for _ in 0...120 { camera.update(Math.Vec3(),Math.Vec3(0.1,30.0,-0.1),1.0/60.0) }
+    assert(camera.yaw==Math.pi())
+    let view=camera.transform()
+    assert(Math.abs(view.rotation.rotate(Math.Vec3.right()).y)<0.00001)
+    camera.update(Math.Vec3(),Math.Vec3(1.0,0.0,0.0),0.1)
+    let turning=camera.yaw
+    camera.update(Math.Vec3(),Math.Vec3(0.0,0.0,0.5),0.1)
+    assert(camera.yaw<turning)
+    camera.update(Math.Vec3(),Math.Vec3(0.0,0.0,0.1),0.1)
+    for _ in 0...180 { camera.update(Math.Vec3(),Math.Vec3(-0.1,0.0,0.0),1.0/60.0) }
+    assert(Math.abs(camera.yaw-Math.pi())<0.0001)
+}
+
+test "chase camera follows travel and smoothly reverses without an orientation snap" {
+    var camera=ChaseCamera(Math.Vec3())
+    for _ in 0...180 { camera.update(Math.Vec3(),Math.Vec3(5.0,40.0,0.0),1.0/60.0) }
+    assert(Math.abs(camera.yaw-Math.pi()*1.5)<0.0001)
+    let before=camera.yaw
+    camera.update(Math.Vec3(),Math.Vec3(-5.0,0.0,0.0),1.0/60.0)
+    assert(Math.abs(camera.yaw-before)<=2.5/60.0+0.00001)
+    for _ in 0...240 { camera.update(Math.Vec3(),Math.Vec3(-5.0,0.0,0.0),1.0/60.0) }
+    assert(camera.transform().forward().x< -0.95)
+    camera.distance=15.0;camera.reset(Math.Vec3(10.0,2.0,3.0))
+    assert(camera.distance==15.0 && camera.yaw==Math.pi())
+}
