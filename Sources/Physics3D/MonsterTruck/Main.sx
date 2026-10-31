@@ -1,12 +1,15 @@
 use GFX.Application
 use GFX.Components
 use GFX.Input
+use GFX.Physics
 use GFX.Plugins
 use GFX.Resources
 use GFX.Scene2D
 use Physics3D.MonsterTruck.Scene
 use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.Checks
+use Physics3D.MonsterTruck.SlopeChecks
+use Physics3D.MonsterTruck.ArenaChecks
 use Physics3D.MonsterTruck.SceneChecks
 use STD.Math
 use STD.Process
@@ -25,7 +28,8 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
         }
         Scene.perform(world,meshes,state)
     }
-    if state.profile && state.metrics.elapsed>=12.0 {
+    var duration=12.0;if state.slope_profile { duration=6.0 }
+    if state.profile && state.metrics.elapsed>=duration {
         state.metrics.report(state.truck.steps)
         print("truck x=",state.truck.chassis.position().x," y=",state.truck.chassis.position().y,
             " z=",state.truck.chassis.position().z," bead=",state.truck.maximum_bead_error())
@@ -36,8 +40,9 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
     var ticks=0
     while state.accumulator>=1.0/120.0 && ticks<8 {
         if state.profile {
-            var gas=0.0;if state.truck.steps>=240 { gas=1.0 }
-            state.truck.controls(gas,0.0)
+            var gas=0.0;if state.truck.steps>=240 { gas=0.75 }
+            if state.slope_profile { state.truck.controls(0.0,0.0,brake:true,handbrake:true) }
+            else { state.truck.controls(gas,0.0) }
         } else {
             state.truck.held(copy state.panel.forward,copy state.panel.reverse,copy state.panel.left,
                 copy state.panel.right,copy state.panel.handbrake,copy state.panel.boost,
@@ -59,23 +64,33 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
 func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.TruckScene) {
     state.metrics.frame();state.view!.update(world,meshes)
     if state.profile && state.metrics.frames>0 && state.metrics.interval_frames==0 {
-        print("profile elapsed=",state.metrics.elapsed," fps=",state.metrics.fps,
+        var slopes=0
+        if state.slope_profile { for wheel in state.truck.wheels {
+            let hit=state.truck.world.ray_cast(Physics.Ray3D(wheel.rim.position(),Math.Vec3(0.0,-3.0,0.0)),
+                filter:Physics.QueryFilter3D(mask_bits:1))
+            if let support=hit { if support.normal().y<0.995 { slopes++ } }
+        } }
+        print("profile slope_contacts=",slopes," speed=",state.truck.chassis.linear_velocity().length()," elapsed=",state.metrics.elapsed," fps=",state.metrics.fps,
             " z=",state.truck.chassis.position().z," y=",state.truck.chassis.position().y,
             " simulated_seconds=",(state.truck.steps as float)/120.0)
     }
 }
 
 func main() {
-    var workers=4;var profile=false
+    var workers=4;var profile=false;var slope=false
     for arg in Process.arguments() {
+        if arg=="--slope-check" { SlopeChecks.verify();return }
+        if arg=="--arena-check" { ArenaChecks.verify();return }
         if arg=="--check" { Checks.verify();return }
         if arg=="--scene-check" { SceneChecks.verify();return }
         if arg=="--single" { workers=1 }
+        if arg=="--profile-slope" { profile=true;slope=true }
         if arg=="--profile" { profile=true }
     }
-    var state=Scene.TruckScene(workers);state.profile=profile
+    var state=Scene.TruckScene(workers,profile,slope)
     var title="MONSTER PICKUP — ZQSD · Espace frein à main · Maj boost"
     if profile { title="MESURE AUTOMATIQUE — Monster pickup — 12 secondes" }
+    if slope { title="MESURE AUTOMATIQUE — Monster truck sur pente — 6 secondes" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
         ..add_plugin(Plugins.Input()) ..add_plugin(Plugins.Time())

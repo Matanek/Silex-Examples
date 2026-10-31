@@ -1,0 +1,48 @@
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Resources
+use GFX.Scene3D
+use Physics3D.MonsterTruck.Arena
+use STD.Math
+
+func batch(world:&Resources.World,mesh:Scene3D.MeshHandle,color:Color,placements:Scene3D.Transform[],shadows:bool=true) {
+    if placements.is_empty() { return }
+    var instances=Scene3D.Instances(placements)
+    world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
+        ..with(Components.Mesh3D(mesh,casts_shadows:shadows))
+        ..with(Components.Material3D(albedo:color,roughness:1.0)) ..with(instances))
+}
+
+package func create(world:&Resources.World,meshes:&Resources.Meshes3D) {
+    let cube=meshes.add(Scene3D.Geometry.Cube.make())
+    let cylinder=meshes.add(Scene3D.Geometry.Cylinder.make())
+    var earth:Scene3D.Transform[]=[];var yellow:Scene3D.Transform[]=[]
+    var red:Scene3D.Transform[]=[];var white:Scene3D.Transform[]=[]
+    var calibration:Scene3D.Transform[]=[];var round:Scene3D.Transform[]=[]
+    // All terrain and paint transforms are immutable; one draw batch per material.
+    for piece in Arena.layout() {
+        if piece.kind==2 {
+            round.append(Scene3D.Transform(piece.position,piece.rotation,
+                Math.Vec3(piece.size.x*2.0,piece.size.y*2.0,piece.size.x*2.0)))
+        } else if !piece.painted {
+            calibration.append(Scene3D.Transform(piece.position,piece.rotation,piece.size))
+        } else {
+            earth.append(Scene3D.Transform(piece.position,piece.rotation,piece.size))
+            let top=piece.position.add(piece.rotation.rotate(Math.Vec3(0.0,piece.size.y*0.5+0.012,0.0)))
+            let paint=Scene3D.Transform(top,piece.rotation,Math.Vec3(piece.size.x-0.24,0.012,piece.size.z))
+            if Math.abs(piece.position.x)>18.0 { red.append(paint) } else { yellow.append(paint) }
+            for side in [0,1] {
+                var x= -piece.size.x*0.5+0.06;if side==1 { x= -x }
+                white.append(Scene3D.Transform(top.add(piece.rotation.rotate(Math.Vec3(x,0.0,0.0))),
+                    piece.rotation,Math.Vec3(0.12,0.014,piece.size.z)))
+            }
+        }
+    }
+    batch(world,cube,Color.bytes(124,86,54),earth)
+    batch(world,cube,Color.bytes(241,183,24),yellow,false)
+    batch(world,cube,Color.bytes(213,48,66),red,false)
+    batch(world,cube,Color.bytes(239,234,214),white,false)
+    batch(world,cube,Color.bytes(227,126,42),calibration)
+    batch(world,cylinder,Color.bytes(66,164,185),round)
+}

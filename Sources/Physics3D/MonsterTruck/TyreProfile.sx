@@ -16,7 +16,7 @@ func vertex(ring:int,slice:int) int {
     return ((ring+24)%24)*8+(slice+8)%8
 }
 
-package func make() Physics.SoftBody3DDefinition {
+package func make(flex:float=1.0) Physics.SoftBody3DDefinition {
     // Same 24x8 layout and particle masses as the qualified bead coupling.
     // The flat tread and upright sidewalls replace the round torus section.
     // Collision-sphere centers clear the rim barrel and flange corners.
@@ -40,17 +40,17 @@ package func make() Physics.SoftBody3DDefinition {
             if slice==2 || slice==5 {
                 hoop=0.00005;radial=0.00001;shear=0.000015;bending=0.0001
             }
-            edges.append(Physics.SoftEdge3D(a,b,hoop));edges.append(Physics.SoftEdge3D(a,c,radial))
-            edges.append(Physics.SoftEdge3D(a,d,shear));edges.append(Physics.SoftEdge3D(b,c,shear))
-            bends.append(Physics.SoftBend3D(b,c,a,d,bending))
+            edges.append(Physics.SoftEdge3D(a,b,hoop*flex));edges.append(Physics.SoftEdge3D(a,c,radial*flex))
+            edges.append(Physics.SoftEdge3D(a,d,shear*flex));edges.append(Physics.SoftEdge3D(b,c,shear*flex))
+            bends.append(Physics.SoftBend3D(b,c,a,d,bending*flex))
         }
     }
     // Internal shear diagonals transfer lateral tread loads to both bead seats.
     // They preserve radial compliance without fixing particles to the rim.
     let offsets:int[]=[-1,1]
     for ring in 0...24 { for offset in offsets {
-        edges.append(Physics.SoftEdge3D(vertex(ring,2),vertex(ring+offset,5),0.0000003))
-        edges.append(Physics.SoftEdge3D(vertex(ring,6),vertex(ring+offset,3),0.0000003))
+        edges.append(Physics.SoftEdge3D(vertex(ring,2),vertex(ring+offset,5),0.0000003*flex*flex))
+        edges.append(Physics.SoftEdge3D(vertex(ring,6),vertex(ring+offset,3),0.0000003*flex*flex))
     } }
     return Physics.SoftBody3DDefinition(positions,faces,masses,edges,bends)
 }

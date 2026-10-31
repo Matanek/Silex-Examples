@@ -44,6 +44,9 @@ package func verify() {
     state.panel.handle(key_event(Input.Key.a,97 as uint32))
     state.panel.handle(key_event(Input.Key.left,0 as uint32))
     assert(state.panel.rear_left && state.panel.arrow_left)
+    state.truck.held(false,false,false,false,false,false,
+        state.panel.rear_left || state.panel.arrow_left,false)
+    assert(state.truck.rear_steering<0.0 && !state.panel.reset)
     state.panel.handle(key_event(Input.Key.e,101 as uint32))
     state.panel.handle(key_event(Input.Key.right,0 as uint32))
     assert(state.panel.rear_right && state.panel.arrow_right)
@@ -64,6 +67,10 @@ package func verify() {
         window:Window.Id(value:0 as uint32),timestamp:Input.Timestamp(nanoseconds:0 as uint))))
     assert(!state.panel.forward && !state.panel.left && !state.panel.handbrake && !state.panel.boost)
     assert(!state.panel.rear_left && !state.panel.rear_right && !state.panel.arrow_left && !state.panel.arrow_right)
+    state.panel.handle(key_event(Input.Key.right,0 as uint32))
+    for _ in 0...3 { state.truck.held(false,false,false,false,false,false,
+        false,state.panel.rear_right || state.panel.arrow_right) }
+    assert(state.truck.rear_steering>0.0 && !state.panel.reset)
     state.panel.handle(key_event(Input.Key.r,114 as uint32));Scene.perform(world,meshes,state)
     assert(tyre!=state.truck.wheels[0].tyre && !tyre.is_valid())
     assert(world.entities().count()==count && state.view!.wheels[0].rim==rim && state.view!.wheels[0].rubber==rubber)

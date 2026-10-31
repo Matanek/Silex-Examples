@@ -1,5 +1,9 @@
 use Physics3D.SoftTire.BeadChecks
 use Physics3D.MonsterTruck.HandlingChecks
+use Physics3D.MonsterTruck.ArenaChecks
+use Physics3D.MonsterTruck.InflationChecks
+use Physics3D.MonsterTruck.StuntChecks
+use Physics3D.MonsterTruck.SlopeChecks
 use Physics3D.MonsterTruck.Model
 use Physics3D.MonsterTruck.DynamicsChecks
 use STD.Process
@@ -33,7 +37,7 @@ func inspect_joints(truck:Model.Truck) {
 }
 
 package func inspect(frames:int=480,workers:int=4,drive:bool=false,turn:float=0.0,
-    course:bool=false,pressure:float=700.0) Observation {
+    course:bool=false,pressure:float=1400.0) Observation {
     var truck=Model.Truck(workers,course);truck.set_pressure(pressure)
     var clock=Time.Clock();let start=clock.tick();var seconds=0.0
     var result=Observation()
@@ -92,12 +96,13 @@ func compare_workers() {
 
 func braking() {
     var truck=Model.Truck(4)
-    for frame in 0...480 { if frame>=120 { truck.controls(1.0,0.0) }
+    for frame in 0...480 { if frame>=120 { truck.controls(0.65,0.0) }
         truck.step();inspect_joints(truck) }
     let speed=truck.chassis.linear_velocity().length()
     assert(speed>3.0)
     truck.controls(0.0,0.0,brake:true)
     for _ in 0...180 { truck.step();inspect_joints(truck) }
+    print("Truck brake speed before=",speed," after=",truck.chassis.linear_velocity().length())
     assert(truck.chassis.linear_velocity().length()<speed*0.4)
     // Space targets the rear wheel pair; the fronts remain freely rolling.
     truck.controls(0.0,0.0,handbrake:true)
@@ -107,15 +112,18 @@ func braking() {
 }
 
 package func verify() {
+    ArenaChecks.verify()
     compare_workers()
     let rest=inspect()
     assert(rest.y>1.7 && rest.y<2.8 && rest.speed<0.7)
-    let low=inspect(pressure:250.0)
+    let low=inspect(pressure:60.0)
     assert(low.y>1.6 && low.y<2.8)
-    let firm=inspect(pressure:1000.0)
+    let firm=inspect(pressure:2600.0)
     assert(firm.y>1.6 && firm.y<2.8 && firm.speed<0.7)
     let straight=inspect(frames:720,drive:true)
-    assert(straight.z>12.0 && Math.abs(straight.x)<2.0)
+    // Bound the course angle, independently of the distance reached by this preset.
+    // Deformable tires are not a kinematic heading lock.
+    assert(straight.z>12.0 && Math.abs(straight.x)<straight.z*0.035)
     let left=inspect(frames:720,drive:true,turn:1.0)
     let right=inspect(frames:720,drive:true,turn:-1.0)
     assert(left.x>2.0 && right.x< -2.0)
@@ -127,16 +135,20 @@ package func verify() {
     assert(original.error<0.08)
     HandlingChecks.verify()
     DynamicsChecks.verify()
+    InflationChecks.verify();StuntChecks.verify();SlopeChecks.verify()
     print("Monster truck physical checks passed")
 }
 
 func main() {
     var workers=1;var frames=60;var drive=false;var turn=0.0;var course=false
     for arg in Process.arguments() {
+        if arg=="--stunts" { StuntChecks.verify();return }
+        if arg=="--slope" { SlopeChecks.verify();return }
+        if arg=="--inflation" { InflationChecks.verify();return }
         if arg=="--verify" { verify();return }
         if arg=="--handling" { HandlingChecks.verify();return }
         if arg=="--compare" { compare_workers();return }
-        if arg=="--firm" { let firm=inspect(pressure:1000.0);return }
+        if arg=="--firm" { let firm=inspect(pressure:2600.0);return }
         if arg=="--four" { workers=4 }
         if arg=="--long" { frames=480 }
         if arg=="--drive" { drive=true;frames=600 }

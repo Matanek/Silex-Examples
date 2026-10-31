@@ -1,0 +1,39 @@
+use GFX.Physics
+use Physics3D.MonsterTruck.Arena
+use Physics3D.MonsterTruck.Terrain
+use STD.Math
+
+func top_edge(piece:Arena.Piece,end:bool) Math.Vec3 {
+    var z= -piece.size.z*0.5;if end { z= -z }
+    return piece.position.add(piece.rotation.rotate(Math.Vec3(0.0,piece.size.y*0.5,z)))
+}
+
+func height(world:Physics.World3D,x:float,z:float,expected:float) {
+    let hit=world.ray_cast(Physics.Ray3D(Math.Vec3(x,10.0,z),Math.Vec3(0.0,-20.0,0.0)))
+    assert(hit!=null)
+    if Math.abs(hit!.point().y-expected)>=0.0001 { print("arena height x=",x," z=",z," expected=",expected," actual=",hit!.point().y) }
+    assert(Math.abs(hit!.point().y-expected)<0.0001 && hit!.normal().y>0.8)
+}
+
+package func verify() {
+    let pieces=Arena.layout();assert(pieces.count()>=60 && pieces.count()<90)
+    for index in 0...3 { assert(top_edge(pieces[index],true).nearly_equal(top_edge(pieces[index+1],false),0.00001)) }
+    for index in 5...8 { assert(top_edge(pieces[index],true).nearly_equal(top_edge(pieces[index+1],false),0.00001)) }
+    for piece in pieces { if piece.painted {
+        assert(piece.size.x>=8.0 && piece.size.y>0.0 && piece.size.z>0.0)
+        let up=piece.rotation.rotate(Math.Vec3.up());assert(up.y>0.8)
+        let end=top_edge(piece,true);let start=top_edge(piece,false)
+        assert(start.y>= -0.00001 && end.y>= -0.00001)
+    } }
+    var world=Physics.World3D();Terrain.create(world)
+    height(world,0.0,11.5,0.075);height(world,0.0,14.5,0.375)
+    height(world,0.0,17.5,0.975);height(world,0.0,20.5,1.875)
+    height(world,0.0,25.0,2.4);height(world,0.0,29.5,1.875)
+    height(world,0.0,35.5,0.375);height(world,0.0,38.5,0.075)
+    height(world,0.0,50.25,0.546875);height(world,0.0,65.0,3.5)
+    height(world,-14.75,65.0,0.546875);height(world,14.75,65.0,0.546875)
+    height(world,-29.0,55.875,2.5);height(world,-29.0,74.75,2.96875)
+    print("Arena geometry passed: continuous facets, solid matching surfaces and multiple approaches")
+}
+
+func main() { verify() }

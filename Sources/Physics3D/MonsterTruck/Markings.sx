@@ -16,30 +16,21 @@ package func create(world:&Resources.World,meshes:&Resources.Meshes3D,cube:Scene
     // Three immutable batches; no per-frame marker entities or mesh rebuilding.
     var white:Scene3D.Transform[]=[];var dark:Scene3D.Transform[]=[]
     var arrows:Scene3D.Transform[]=[]
-    let main_sides:float[]=[-3.0,3.0]
-    for x in main_sides {
-        white.append(Scene3D.Transform(Math.Vec3(x,0.006,20.0),Math.Quat(),Math.Vec3(0.12,0.01,48.0)))
-    }
-    let side_centers:float[]=[-11.0,11.5]
-    for center in side_centers {
-        for side in 0...2 {
-            var x=center-3.0;if side==1 { x=center+3.0 }
-            var z=21.0;var length=40.0
-            if center<0.0 { z=10.0;length=18.0 }
-            white.append(Scene3D.Transform(Math.Vec3(x,0.006,z),Math.Quat(),Math.Vec3(0.1,0.01,length)))
-        }
-    }
-    let lines:float[]=[3.0,44.0]
+    let sides:float[]=[-54.0,54.0]
+    for x in sides { white.append(Scene3D.Transform(Math.Vec3(x,0.006,64.0),Math.Quat(),Math.Vec3(0.16,0.01,152.0))) }
+    let ends:float[]=[-12.0,140.0]
+    for z in ends { white.append(Scene3D.Transform(Math.Vec3(0.0,0.006,z),Math.Quat(),Math.Vec3(108.0,0.01,0.16))) }
+    let lines:float[]=[3.0,41.0]
     for z in lines { for row in 0...2 { for column in 0...8 {
-        let x= -2.625+(column as float)*0.75
-        let tile=Scene3D.Transform(Math.Vec3(x,0.007,z+(row as float)*0.4),Math.Quat(),Math.Vec3(0.75,0.012,0.4))
+        let x= -5.25+(column as float)*1.5
+        let tile=Scene3D.Transform(Math.Vec3(x,0.007,z+(row as float)*0.4),Math.Quat(),Math.Vec3(1.5,0.012,0.4))
         if (column+row)%2==0 { white.append(tile) } else { dark.append(tile) }
     } } }
-    let main_arrows:float[]=[4.5,16.0,28.0,42.0]
-    for z in main_arrows { arrows.append(Scene3D.Transform(Math.Vec3(0.0,0.015,z),Math.Quat(),Math.Vec3(1.7))) }
-    let side_arrows:Math.Vec3[]=[Math.Vec3(-11.0,0.015,3.0),Math.Vec3(-11.0,0.015,17.0),
-        Math.Vec3(11.5,0.015,3.0),Math.Vec3(11.5,0.015,29.0),Math.Vec3(13.0,0.015,42.0)]
-    for position in side_arrows { arrows.append(Scene3D.Transform(position,Math.Quat(),Math.Vec3(1.7))) }
+    let main_arrows:float[]=[6.0,42.0,90.0,128.0]
+    for z in main_arrows { arrows.append(Scene3D.Transform(Math.Vec3(0.0,0.015,z),Math.Quat(),Math.Vec3(2.2))) }
+    let side_arrows:Math.Vec3[]=[Math.Vec3(-29.0,0.015,40.0),Math.Vec3(29.0,0.015,40.0),
+        Math.Vec3(-43.0,0.015,2.0)]
+    for position in side_arrows { arrows.append(Scene3D.Transform(position,Math.Quat(),Math.Vec3(2.2))) }
     batch(world,cube,Color.bytes(239,238,221),white)
     batch(world,cube,Color.bytes(40,49,61),dark)
     batch(world,meshes.add(Primitives.arrow()),Color.bytes(255,188,61),arrows)

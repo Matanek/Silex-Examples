@@ -27,9 +27,9 @@ package class Panel {
     var metrics:UI.State<str> =UI.State<str>("")
     var settings:UI.State<str> =UI.State<str>("Pneus monster")
     func pressure() float {
-        if self.inflation==1 { return 250.0 }
-        if self.inflation==2 { return 1000.0 }
-        return 700.0
+        if self.inflation==1 { return 60.0 }
+        if self.inflation==2 { return 2600.0 }
+        return 1400.0
     }
     func held(key:@Events.KeyEvent,down:bool) bool {
         if letter(key,122 as uint32,90 as uint32,Input.Key.z) { self.forward=down;return true }
@@ -68,10 +68,20 @@ package class Panel {
     }
     func values(reads:UI.Reads) UI.View { return self.text(reads.read(self.metrics)) }
     func parameters(reads:UI.Reads) UI.View { return self.text(reads.read(self.settings)) }
+    func measurement(slope:bool) UI.View {
+        var name="PARCOURS AUTOMATIQUE";var description="Conduite à trois quarts de gaz\nFermeture après douze secondes"
+        if slope { name="TEST AUTOMATIQUE — PENTE";description="Freins maintenus sur la rampe\nFermeture après six secondes" }
+        var column=UI.Column([self.text(name),UI.Reactive(self.values),UI.Reactive(self.parameters),
+            self.text(description+"\nÉchap : quitter")])
+        column.style.padding=UI.Insets(12.0);column.style.gap=6.0
+        column.style.background=Color.slate_900().with_alpha(0.88)
+        column.style.foreground=Color.slate_100();column.style.radius=8.0
+        return column
+    }
     func describe() UI.View {
         var title=self.text("MONSTER PICKUP");title.style.font_size=18.0
         var column=UI.Column([title,UI.Reactive(self.values),UI.Reactive(self.parameters),
-            self.text("Z / S : moteur / frein AV / recul\nQ/D : AV · A/E ou ←/→ : AR\nT : coupler / séparer\nEspace : frein à main · Maj : boost\nP : gonflage · R : recommencer\nÉchap : quitter")])
+            self.text("Z / S : moteur / frein AV / recul\nQ/D : AV · A/E ou ←/→ : AR\nT : coupler · Espace : frein AR\nMaj : turbo / frein fort\nP : gonflage · R : recommencer\nÉchap : quitter")])
         column.style.padding=UI.Insets(12.0);column.style.gap=6.0
         column.style.background=Color.slate_900().with_alpha(0.88)
         column.style.foreground=Color.slate_100();column.style.radius=8.0

@@ -1,0 +1,71 @@
+use STD.Math
+
+package struct Piece {
+    let kind:int
+    let position:Math.Vec3
+    let size:Math.Vec3
+    let rotation:Math.Quat
+    let painted:bool
+    init(position:Math.Vec3,size:Math.Vec3,kind:int=0,rotation:Math.Quat=Math.Quat(),painted:bool=false) {
+        self.kind=kind;self.position=position;self.size=size;self.rotation=rotation;self.painted=painted
+    }
+}
+
+// Four planar facets make a progressive takeoff. The solid boxes extend below
+// grade, overlap only beneath the shared top edges, and match the visible mesh.
+func ramp(pieces:&Piece[],origin:Math.Vec3,width:float,length:float,height:float,yaw:float=0.0,down:bool=false) {
+    let turn=Math.Quat.angle_axis(yaw,Math.Vec3.up())
+    for index in 0...4 {
+        let first=(index as float)/4.0;let second=((index+1) as float)/4.0
+        var a=height*first*first;var b=height*second*second
+        if down { a=height*(1.0-first)*(1.0-first);b=height*(1.0-second)*(1.0-second) }
+        let run=length/4.0;let rise=b-a;let angle=Math.atan2(rise,run)
+        let slope=Math.Quat.angle_axis(-angle,Math.Vec3.right())
+        let rotation=turn.multiply(slope)
+        let depth=(Math.max(a,b)+0.4)/Math.cos(angle)
+        let top=origin.add(turn.rotate(Math.Vec3(0.0,(a+b)*0.5,(first+second)*length*0.5)))
+        let center=top.subtract(rotation.rotate(Math.Vec3.up()).multiply(depth*0.5))
+        pieces.append(Piece(center,Math.Vec3(width,depth,Math.sqrt(run*run+rise*rise)),rotation:rotation,painted:true))
+    }
+}
+
+func platform(pieces:&Piece[],center:Math.Vec3,width:float,length:float,height:float) {
+    pieces.append(Piece(center.add(Math.Vec3(0.0,height*0.5-0.1,0.0)),
+        Math.Vec3(width,height+0.2,length),painted:true))
+}
+
+package func layout() Piece[] {
+    var pieces:Piece[]=[]
+    // The first table is directly ahead, with clear run-up and landing space.
+    ramp(pieces,Math.Vec3(0.0,0.0,10.0),12.0,12.0,2.4)
+    platform(pieces,Math.Vec3(0.0,0.0,25.0),12.0,6.0,2.4)
+    ramp(pieces,Math.Vec3(0.0,0.0,28.0),12.0,12.0,2.4,down:true)
+    // Side kickers are angled toward the open centre of the arena.
+    ramp(pieces,Math.Vec3(-24.0,0.0,14.0),8.0,10.0,2.8,yaw:0.55)
+    ramp(pieces,Math.Vec3(24.0,0.0,14.0),8.0,10.0,2.8,yaw:-0.55)
+    // Four approaches share a broad central plateau.
+    platform(pieces,Math.Vec3(0.0,0.0,65.0),12.0,12.0,3.5)
+    ramp(pieces,Math.Vec3(0.0,0.0,45.0),12.0,14.0,3.5)
+    ramp(pieces,Math.Vec3(0.0,0.0,85.0),12.0,14.0,3.5,yaw:Math.pi())
+    ramp(pieces,Math.Vec3(-20.0,0.0,65.0),12.0,14.0,3.5,yaw:Math.half_pi())
+    ramp(pieces,Math.Vec3(20.0,0.0,65.0),12.0,14.0,3.5,yaw:-Math.half_pi())
+    // A gap jump and a separate two-sided bowl support bigger figures.
+    ramp(pieces,Math.Vec3(-29.0,0.0,48.0),9.0,9.0,3.2)
+    ramp(pieces,Math.Vec3(-29.0,0.0,73.0),11.0,14.0,3.8,down:true)
+    ramp(pieces,Math.Vec3(29.0,0.0,48.0),12.0,12.0,3.8,down:true)
+    ramp(pieces,Math.Vec3(29.0,0.0,68.0),12.0,12.0,3.8)
+    // Small rollers let the driver provoke pitch and one-wheel articulation.
+    for index in 0...3 {
+        let z=99.0+(index as float)*9.0
+        ramp(pieces,Math.Vec3(0.0,0.0,z),9.0,3.5,0.65)
+        ramp(pieces,Math.Vec3(0.0,0.0,z+3.5),9.0,3.5,0.65,down:true)
+    }
+    // Keep a compact calibration lane outside the freestyle lines.
+    pieces.append(Piece(Math.Vec3(-43.0,-0.12,7.0),Math.Vec3(0.42,2.8,0.0),2,
+        Math.Quat.angle_axis(Math.half_pi(),Math.Vec3.back())))
+    for index in 0...3 {
+        let height=0.3+(index as float)*0.2
+        pieces.append(Piece(Math.Vec3(-43.0,height*0.5,17.0+(index as float)*4.0),Math.Vec3(5.4,height,1.2)))
+    }
+    return pieces
+}

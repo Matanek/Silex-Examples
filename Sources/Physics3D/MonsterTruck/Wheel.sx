@@ -37,11 +37,11 @@ package class Wheel {
         let center=chassis.transform().point(anchor)
         self.rim=world.create_rigid_body(Physics.RigidBody3DSettings()
             ..shape=rim_shape()
-            ..mass_properties=rim_mass(20.0) ..transform=Physics.Transform3D(center,rotation)
+            ..mass_properties=rim_mass(20.0) ..transform=Physics.Transform3D(center,chassis.transform().rotation.multiply(rotation))
             ..friction=1.2 ..allow_sleep=false ..linear_damping=0.04 ..angular_damping=0.08
             ..collision_filter=Physics.CollisionFilter3D(category_bits:2,mask_bits:5))
         self.tyre=world.create_soft_body(definition,Physics.SoftBody3DSettings()
-            ..transform=Physics.Transform3D(center) ..pressure=700.0 ..linear_damping=0.9
+            ..transform=Physics.Transform3D(center,chassis.transform().rotation) ..pressure=1400.0 ..linear_damping=0.9
             ..friction=1.4 ..vertex_radius=0.035
             ..collision_filter=Physics.CollisionFilter3D(category_bits:4,mask_bits:3))
         self.seat=Beads.Seat(self.tyre,self.rim,stiffness:240000.0,damping:175.0)
@@ -61,15 +61,19 @@ package class Wheel {
         self.suspension.set_frames(Physics.Transform3D(self.anchor,Math.Quat.angle_axis(angle,Math.Vec3.up())),
             Physics.Transform3D(Math.Vec3(),rotation.conjugated()))
     }
-    func couple(chassis:Physics.RigidBody3D,throttle:float,brake:bool,handbrake:bool,delta:float) {
+    func couple(chassis:Physics.RigidBody3D,throttle:float,brake:bool,handbrake:bool,hard_brake:bool,delta:float) {
         let yaw=self.current_steering
         let axle=chassis.transform().vector(Math.Quat.angle_axis(yaw,Math.Vec3.up()).rotate(Math.Vec3.right()))
         let speed=self.rim.angular_velocity().subtract(chassis.angular_velocity()).dot(axle)
-        var limit=1250.0*Math.min(1.0,Math.abs(throttle));var gain=180.0;var target=throttle*30.04
+        let input=Math.abs(throttle)
+        var limit=1250.0*Math.min(1.0,input)
+        if input>1.0 { limit*=1.0+0.5*Math.min(0.5,input-1.0) }
+        var gain=180.0;var target=throttle*30.04
         let braking=brake && self.front
         let rear_lock=handbrake && !self.front
         if braking || rear_lock {
             target=0.0;limit=1000.0;gain=440.0
+            if braking && hard_brake { limit=1250.0 }
             if rear_lock { limit=2200.0 }
         }
         if Math.abs(throttle)>0.001 || braking || rear_lock {

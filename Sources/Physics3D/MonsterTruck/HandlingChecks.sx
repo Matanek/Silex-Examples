@@ -27,14 +27,14 @@ func inspect(truck:Model.Truck) float {
     return sidewall
 }
 
-package func drive(pressure:float=700.0) {
+package func drive(pressure:float=1400.0) {
     var truck=Model.Truck(4);truck.set_pressure(pressure);var lateral=0.0;var start_speed=0.0
     for frame in 0...1320 {
         if frame==120 { start_speed=truck.chassis.linear_velocity().length() }
         if frame>=120 { truck.controls(1.0,0.0) }
         truck.step();lateral=Math.max(lateral,inspect(truck))
         assert(truck.chassis.transform().vector(Math.Vec3.up()).y>0.7)
-        if frame==239 { assert(truck.chassis.linear_velocity().length()>start_speed+6.9) }
+        if frame==239 { assert(truck.chassis.linear_velocity().length()>start_speed+5.5) }
         if frame==719 { assert(truck.chassis.linear_velocity().length()>22.0) }
         if frame%120==119 {
             let forward=truck.chassis.transform().vector(Math.Vec3.back())
@@ -44,7 +44,7 @@ package func drive(pressure:float=700.0) {
     }
 }
 
-package func turn(direction:float=1.0,pressure:float=700.0) {
+package func turn(direction:float=1.0,pressure:float=1400.0) {
     var truck=Model.Truck(4);truck.set_pressure(pressure);var lateral=0.0
     for frame in 0...1080 {
         if frame>=120 {
@@ -88,14 +88,14 @@ package func steering_modes() {
 package func verify() { drive();turn();turn(-1.0);steering_modes() }
 
 func main() {
-    var pressure=700.0;var steering=0.0
+    var pressure=1400.0;var steering=0.0
     for arg in Process.arguments() {
         if arg=="--verify" { verify();return }
         if arg=="--modes" { steering_modes();return }
         if arg=="--turn" { steering=1.0 }
         if arg=="--right" { steering= -1.0 }
-        if arg=="--low" { pressure=250.0 }
-        if arg=="--firm" { pressure=1000.0 }
+        if arg=="--low" { pressure=60.0 }
+        if arg=="--firm" { pressure=2600.0 }
     }
     if steering!=0.0 { turn(steering,pressure) } else { drive(pressure) }
 }

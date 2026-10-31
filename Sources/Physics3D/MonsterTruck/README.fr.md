@@ -2,109 +2,106 @@
 
 [English](README.md)
 
-Cette démo assemble un pickup surélevé, quatre pneus déformables à bande de
-roulement plate et des suspensions physiques dans un même monde. Le parcours
-comprend des bosses, des blocs de plusieurs hauteurs, des marches et deux tremplins.
+Conduire un pickup à quatre pneus déformables dans une arène géométrique de
+freestyle : tables de saut, butte à quatre accès, grandes rampes, réception,
+cuvette et petites bosses. Le sol brun conserve une grille pour lire la vitesse.
+Les faces jaunes et rouges montrent les trajectoires, avec des bordures blanches.
 
-Utiliser Release pour l’essai interactif.
+## Lancer et conduire
 
-## Lancer la démo
-
-Depuis la racine du workspace contenant `Silex-Examples/`, avec les packages locaux
-liés à ce workspace :
+Depuis la racine du workspace contenant `Silex-Examples/`, avec ses packages locaux :
 
 ```sh
 silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release
 ```
 
-Cette commande compile puis ouvre une fenêtre interactive. Pour préparer le binaire
-sans ouvrir de fenêtre :
+Pour compiler sans ouvrir de fenêtre :
 
 ```sh
 silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o /private/tmp/silex-monster-truck-demo
 ```
 
-Après compilation, lancer `/private/tmp/silex-monster-truck-demo` sans option pour
-jouer. Ce chemin absolu permet de jouer depuis n’importe quel dossier.
+Lancer ensuite `/private/tmp/silex-monster-truck-demo` sans option, depuis
+n’importe quel dossier. Utiliser Release pour l’essai interactif.
 
 | Commande | Action |
 | --- | --- |
-| Z maintenu | Accélérer ; inverser le couple si le véhicule recule |
-| S maintenu | Freiner de l’avant et demander immédiatement le recul |
-| Q / D maintenu | Roues avant, gauche / droite depuis la caméra arrière |
-| A / E ou ← / → maintenu | Roues arrière, commande prioritaire sur le couplage |
-| T | Coupler / séparer les deux essieux directeurs |
-| Espace maintenu | Frein à main sur les roues arrière |
-| Maj + Z | Boost |
-| P | Gonflage : monster / bas / ferme, sans recommencer |
+| Z maintenu | Accélération normale progressive |
+| Maj + Z | Turbo : 25 % de couple supplémentaire, réponse plus franche |
+| S maintenu | Frein avant et demande immédiate de marche arrière |
+| Maj + S | Frein avant renforcé pour lever l’arrière |
+| Q / D | Direction avant, gauche / droite depuis la caméra arrière |
+| A / E ou ← / → | Direction arrière selon la direction voulue pour le nez |
+| T | Coupler / séparer les essieux directeurs |
+| Espace maintenu | Frein à main arrière |
+| P | Gonflage Monster / Bas / Ferme, sans recommencer |
 | R | Recommencer avec le gonflage sélectionné |
-| Molette | Régler la distance de la caméra de poursuite |
+| Molette | Distance de la caméra de poursuite |
 | Échap | Quitter |
 
-Le mode initial couple les deux essieux. Appuyer sur T pour les commander séparément
-: Q/D pour l’avant, A/E ou les flèches pour l’arrière. Les touches arrière prennent
-aussi la priorité en mode couplé. Braquer les deux essieux dans le même sens permet
-un déplacement en crabe ; en sens opposés, le virage est plus serré. Les touches
-arrière orientent les roues : lorsque seul l’arrière braque à gauche en marche
-avant, le nez part à droite.
+En marche avant, A ou ← fait partir le nez à gauche ; les roues arrière
+braquent donc à droite. Le couplage initial commande les deux essieux en sens
+opposés pour serrer le virage. Les touches arrière prennent la priorité sur ce
+couplage. En mode indépendant, Q + E ou D + A permet de rouler en crabe.
 
-Le HUD est placé à gauche et indique le secteur courant. Les flèches jaunes donnent
-le sens du parcours ; les damiers marquent le départ et la réception. Les bosses
-sont cyan, les blocs orange, les tremplins rouges et les grandes marches violettes.
+Commencer tout droit par la grande table, puis la butte centrale et ses quatre
+accès. À gauche se trouvent un tremplin et une réception séparée ; à droite,
+une cuvette à deux montées. Les petites bosses sont au fond. La piste de
+contrôle, avec une bosse et trois blocs, reste à l’extrême gauche.
 
-Pour un premier essai, partir tout droit : franchir la bosse et les deux reliefs
-décalés, puis les trois blocs de 30, 50 et 70 cm. Continuer vers le tremplin et sa
-zone de réception. Après ce passage, essayer les grandes marches et les bosses
-alternées des deux zones latérales. Comparer ensuite le franchissement d'un même
-obstacle avec les trois gonflages, sans réinitialiser le véhicule.
+Pour un cabrage, donner un bref appui sur Maj + Z puis relâcher. Pour lever
+l’arrière, prendre de la vitesse puis donner un bref appui sur Maj + S. Le couple
+et le freinage font basculer le véhicule physiquement : doser les appuis pour
+récupérer l’équilibre. Comparer ensuite un même relief avec les trois gonflages.
 
-## Montage physique et limites
+## Montage physique
 
-Chaque pneu mesure 2,20 m de diamètre pour 1,32 m de largeur, avec une jante de 1,32
-m de diamètre et des rebords de 1,56 m. Il comporte 192 sommets et 384 triangles.
-Ses flancs et 96 diagonales internes résistent au cisaillement latéral tout en
-permettant l’écrasement au contact du sol. Son profil comporte une bande plate et
-des flancs presque verticaux. Les 48 liaisons de talons issues du prototype
-`SoftTire` échangent des impulsions avec la jante ; aucun sommet n'est fixé
-artificiellement à celle-ci. Les quatre suspensions SixDOF relient leurs jantes
-dynamiques au châssis dynamique, sans support fixe ni maintien vertical. Le moteur
-applique un couple maximal de 1250 N·m par roue, avec sa réaction opposée au
-châssis. En mode couplé, le braquage arrière vaut −65 % du braquage avant ; l’angle
-diminue progressivement avec la vitesse, jusqu’à un minimum de 20°. S freine les
-roues avant à 1000 N·m par roue et engage le couple inverse sur l’arrière pendant la
-décélération ; Espace bloque la paire arrière à 2200 N·m par roue. La vitesse
-traverse physiquement zéro avant que le camion recule. Les attaches de talons sont
-dimensionnées pour le couple accru. Le centre de masse du châssis représente un
-groupe moteur/transmission bas et légèrement avancé, pour exploiter la puissance. La
-commande du moteur monte progressivement, avec un couple proportionnel à son
-amplitude. Les suspensions offrent ±80 cm de course avec des ressorts de 1800 N/m et
-un amortissement de 300 N·s/m. Les jantes possèdent un fût et deux rebords de
-collision qui protègent les talons. Le pilotage tourne à 120 Hz, avec huit couplages
-à 960 Hz et un sous-pas souple par couplage. Le profil rigide utilise huit
-itérations de vitesse.
+Chaque pneu mesure 2,20 m de diamètre et 1,32 m de largeur, avec une jante de
+1,32 m et des rebords de 1,56 m. Il comporte 192 sommets, 384 triangles et
+96 diagonales internes de cisaillement. Les 48 liaisons de talons échangent
+des impulsions avec la jante ; les sommets restent dynamiques.
 
-Les pressions 700, 250 et 1000 sont des coefficients du solveur, sans étalonnage en
-bars. L’empattement mesure 4,10 m. Le châssis pèse 150 kg ; chaque jante ajoute 20
-kg et chaque carcasse 9,6 kg. Les crampons affichés suivent les sommets déformés ;
-les contacts sont ceux des sphères de collision des sommets. L'auto-collision et les
-contacts souple/souple ne sont pas disponibles.
+Le profil Bas s’écrase davantage sous charge que Monster ; Ferme se déforme
+moins. Sous la charge de référence de ce montage, le rayon chargé est d’environ
+1,00 / 1,11 / 1,17 m. Les coefficients 60 / 1400 / 2600 ne sont pas des bars.
+Le châssis pèse 150 kg, chaque jante 20 kg et chaque carcasse 9,6 kg.
 
-## Contrôles sans fenêtre
+Le moteur fournit jusqu’à 1250 N·m par roue normalement et 1562,5 N·m avec
+Maj, avec réaction opposée sur le châssis. Le frein avant atteint 1000 N·m par
+roue, ou 1250 N·m avec Maj ; le frein à main arrière atteint 2200 N·m.
+L’inversion demande immédiatement le couple opposé, puis la vitesse traverse
+physiquement zéro avant le recul.
 
-Une fois le binaire compilé :
+Les quatre suspensions SixDOF offrent ±80 cm de course, des ressorts de
+1800 N/m et un amortissement de 300 N·s/m. Le montage garde son centre de
+masse bas. Le braquage reste disponible à haute vitesse, avec un minimum de
+0,35 rad ; le couplage arrière vaut −65 % du braquage avant.
+
+La simulation tourne à 120 Hz, avec huit couplages à 960 Hz et un sous-pas
+souple par couplage ; le solveur rigide utilise huit itérations de vitesse.
+Les facettes du terrain sont des solides dont les surfaces supérieures se
+raccordent. Physique et rendu utilisent la même liste de volumes.
+
+Les crampons suivent les sommets déformés ; les collisions utilisent les
+sphères des sommets. L’auto-collision et les contacts souple/souple ne sont
+pas disponibles.
+
+## Vérifier
+
+Ces commandes quittent avant la création de l’application graphique :
 
 ```sh
 /private/tmp/silex-monster-truck-demo --check
 /private/tmp/silex-monster-truck-demo --scene-check
+/private/tmp/silex-monster-truck-demo --arena-check
+/private/tmp/silex-monster-truck-demo --slope-check
 ```
 
-Ces deux modes quittent avant la création de l'application graphique. Le premier
-exerce repos, gonflage, conduite, direction, freinage, franchissement et comparaison
-à un/quatre workers, ainsi que le centrage des pneus sous direction arrière
-alternée, l’inversion moteur et la course sur un choc de référence. Le second
-contrôle commandes, reset, maillages, dimensions du HUD et cadrage par calcul, sans
-capturer d’image.
+Elles couvrent la physique, les gonflages, le centrage, les figures sur appuis
+courts, les commandes, le HUD, les raccords du terrain et le roulage lent sur
+les vraies facettes inclinées. Les états sont comparés à un et quatre workers.
 
-`--single` choisit un worker pour l'essai interactif. `--profile` ouvre une fenêtre
-automatique pendant douze secondes et mesure les frames ; ce n'est pas le mode de
-jeu. Les temps sans rendu ne permettent pas de conclure sur les FPS du camion.
+`--single` choisit un worker pour jouer. `--profile` ouvre un parcours automatique
+pendant douze secondes ; `--profile-slope` ouvre un test de six secondes,
+freins maintenus sur une rampe. Le titre et le HUD identifient ces mesures.
+Les temps sans rendu ne permettent pas de conclure sur les FPS graphiques.

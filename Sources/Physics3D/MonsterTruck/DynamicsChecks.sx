@@ -52,7 +52,7 @@ package func centering(verify:bool=false) {
 
 package func reversing(verify:bool=false) {
     var truck=Model.Truck(4)
-    for frame in 0...600 {
+    for frame in 0...720 {
         if frame>=120 { truck.held(true,false,false,false,false,false) }
         truck.step()
     }

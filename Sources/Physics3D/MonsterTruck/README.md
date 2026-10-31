@@ -2,102 +2,104 @@
 
 [Français](README.fr.md)
 
-This demonstration combines a raised pickup, four deformable flat-tread tires and
-physical suspension in one world. The course includes bumps, blocks of different
-heights, steps and two ramps.
+Drive a pickup with four deformable tires in a geometric freestyle arena:
+jump tables, a mound with four approaches, large ramps, a landing ramp,
+a two-sided bowl and small rollers. The brown floor retains a grid to show
+speed. Yellow and red surfaces mark the lines, with white borders.
 
-Use Release for interactive trials.
+## Launch and drive
 
-## Run the demo
-
-From the workspace root containing `Silex-Examples/`, with the local packages linked
-to that workspace:
+From the workspace root containing `Silex-Examples/`, with its local packages:
 
 ```sh
 silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release
 ```
 
-This compiles and opens an interactive window. To prepare a binary without opening a
-window:
+To compile without opening a window:
 
 ```sh
 silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o /private/tmp/silex-monster-truck-demo
 ```
 
-After compilation, run `/private/tmp/silex-monster-truck-demo` without options to
-play. This absolute path works from any directory.
+Then run `/private/tmp/silex-monster-truck-demo` without arguments from any
+directory. Use Release for interactive trials.
 
 | Control | Action |
 | --- | --- |
-| Hold Z | Accelerate; reverse torque when moving backward |
-| Hold S | Apply the front brake and immediately request reverse |
-| Hold Q / D | Front wheels, left / right from the rear camera |
-| Hold A / E or ← / → | Rear wheels, overriding coupled steering |
-| T | Couple / separate the two steering axles |
-| Hold Space | Rear-wheel handbrake |
-| Shift + Z | Boost |
-| P | Inflation: monster / low / firm, without restarting |
+| Hold Z | Progressive normal acceleration |
+| Shift + Z | Turbo: 25% more torque and a sharper response |
+| Hold S | Front brake and immediate reverse request |
+| Shift + S | Stronger front brake to lift the rear |
+| Q / D | Front steering, left / right from the rear camera |
+| A / E or ← / → | Rear steering in the desired direction of the nose |
+| T | Couple / separate the steering axles |
+| Hold Space | Rear handbrake |
+| P | Monster / Low / Firm inflation without restarting |
 | R | Restart with the selected inflation |
-| Mouse wheel | Adjust chase-camera distance |
+| Mouse wheel | Chase-camera distance |
 | Escape | Quit |
 
-Both axles are coupled initially. Press T to control them independently: Q/D for the
-front, A/E or arrow keys for the rear. Rear inputs also override the coupling while
-coupled mode is active. Steering both axles the same way enables crab motion;
-opposite steering tightens a turn. Rear inputs orient the wheels: steering only the
-rear pair left while driving forward turns the nose to the right.
+While driving forward, A or ← turns the nose left, so the rear wheels steer
+right. Initial coupled steering moves the axles in opposite directions to
+tighten turns. Rear inputs override coupling. In independent mode, Q + E or
+D + A enables crab motion.
 
-The left HUD identifies the current section. Yellow arrows indicate course
-direction; checkered markings identify the start and landing area. Bumps are cyan,
-blocks orange, ramps red and tall steps purple.
+Start straight ahead with the large table, then explore the central mound
+and its four approaches. The left side has a takeoff and separate landing;
+the right side has a bowl with two slopes. Small rollers are at the far end.
+A calibration lane with a bump and three blocks remains on the far left.
 
-For a first trial, drive straight ahead over the first bump and two staggered
-obstacles, followed by the 30, 50 and 70 cm blocks. Continue toward the ramp and
-landing area. Then try the taller steps and alternating bumps in the two side areas.
-Finally, compare the same obstacle with all three inflation settings without
-restarting the vehicle.
+For a wheelie, briefly press Shift + Z, then release. To lift the rear,
+build speed and briefly press Shift + S. Torque and braking physically pitch the
+vehicle: time the inputs to recover its balance. Then compare the same
+obstacle with all three inflation settings.
 
-## Physical assembly and limits
+## Physical assembly
 
-Each tire is 2.20 m in diameter and 1.32 m wide, with a 1.32 m rim diameter and 1.56
-m flanges. It has 192 vertices and 384 triangles. Its sidewalls and 96 internal
-shear diagonals resist lateral shear while allowing ground-contact compression. Its
-cross-section has a flat tread and nearly upright sidewalls. The 48 bead links from
-the `SoftTire` prototype exchange impulses with the rim; no vertex is artificially
-fixed to it. Four SixDOF suspensions connect dynamic rims to the dynamic chassis
-without a fixed support or vertical guide. Motors apply up to 1250 N·m per wheel
-with an opposite chassis reaction. In coupled mode, rear steering is −65% of front
-steering; the angle decreases progressively with speed to a 20° minimum. S brakes
-the front pair at 1000 N·m per wheel and engages reverse torque at the rear during
-deceleration; Space locks the rear pair at 2200 N·m per wheel. Velocity physically
-passes through zero before the truck moves backward. Bead attachments are sized for
-the increased torque. The chassis center of mass represents a low, slightly forward
-engine/transmission assembly, with a progressive torque response proportional to
-input magnitude. Suspensions provide ±80 cm of travel with 1800 N/m springs and 300
-N·s/m damping. Rims have a barrel and two collision flanges that protect the beads.
-Controls run at 120 Hz, with eight coupling steps at 960 Hz and one soft substep per
-coupling. The rigid solver profile uses eight velocity iterations.
+Each tire is 2.20 m in diameter and 1.32 m wide, with a 1.32 m rim and
+1.56 m flanges. It has 192 vertices, 384 triangles and 96 internal shear
+diagonals. The 48 bead links exchange impulses with the rim; vertices
+remain dynamic.
 
-Pressures 700, 250 and 1000 are solver coefficients, not calibrated bar values. The
-wheelbase is 4.10 m. The chassis weighs 150 kg, each rim 20 kg and each carcass 9.6
-kg. Visible tread lugs follow deformed vertices; collision uses the vertex collision
-spheres. Self-collision and soft/soft contacts are unavailable.
+Low compresses more under load than Monster; Firm deforms less. Under this
+assembly's reference load, loaded radii are approximately 1.00 / 1.11 / 1.17 m.
+Coefficients 60 / 1400 / 2600 are not calibrated bar values. The chassis weighs
+150 kg, each rim 20 kg and each carcass 9.6 kg.
 
-## Windowless checks
+Motors supply up to 1250 N·m per wheel normally and 1562.5 N·m with Shift,
+with opposite chassis reactions. Front brakes reach 1000 N·m per wheel, or 1250 N·m with Shift, and
+the rear handbrake 2200 N·m. Reversal immediately requests opposite torque;
+velocity physically passes through zero before moving backward.
 
-After compiling the binary:
+The four SixDOF suspensions provide ±80 cm of travel, 1800 N/m springs and
+300 N·s/m damping. The assembly retains its low centre of mass. Steering
+remains available at speed with a 0.35 rad minimum; coupled rear steering
+is −65% of the front angle.
+
+Simulation runs at 120 Hz, with eight coupling steps at 960 Hz and one soft
+substep per coupling; the rigid solver uses eight velocity iterations.
+Terrain facets are solids with adjoining top surfaces. Physics and rendering
+use the same list of volumes.
+
+Tread lugs follow deformed vertices; collision uses vertex spheres.
+Self-collision and soft/soft contacts are unavailable.
+
+## Verify
+
+These commands exit before creating the graphical application:
 
 ```sh
 /private/tmp/silex-monster-truck-demo --check
 /private/tmp/silex-monster-truck-demo --scene-check
+/private/tmp/silex-monster-truck-demo --arena-check
+/private/tmp/silex-monster-truck-demo --slope-check
 ```
 
-Both modes exit before creating the graphical application. The first exercises rest,
-inflation, driving, steering, braking, obstacle traversal and one/four-worker
-comparison, plus tire centering under alternating rear steering, motor reversal and
-suspension travel after a reference impact. The second checks controls, reset,
-meshes, HUD bounds and camera projection without capturing images.
+They cover physics, inflation, centering, short stunt inputs, controls, HUD,
+terrain seams and slow driving on actual approach facets. States are compared
+with one and four workers.
 
-`--single` selects one worker for interactive trials. `--profile` opens an automated
-twelve-second window and measures frames; it is separate from playing. Windowless
-timings do not establish the truck's graphical FPS.
+`--single` selects one worker for playing. `--profile` opens a twelve-second
+automated drive; `--profile-slope` opens a six-second test with brakes held
+on a ramp. The title and HUD identify these measurements. Windowless timings
+do not establish graphical FPS.
