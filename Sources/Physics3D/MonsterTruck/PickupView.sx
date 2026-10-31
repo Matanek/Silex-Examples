@@ -3,6 +3,7 @@ use GFX.Components
 use GFX.ECS
 use GFX.Resources
 use GFX.Scene3D
+use Physics3D.MonsterTruck.TyreProfile
 use Physics3D.MonsterTruck.Model
 use Physics3D.MonsterTruck.Primitives
 use Physics3D.MonsterTruck.WheelView
@@ -19,9 +20,9 @@ package class PickupView {
     init(truck:Model.Truck,world:&Resources.World,meshes:&Resources.Meshes3D) {
         self.truck=truck
         let cube=meshes.add(Scene3D.Geometry.Cube.make())
-        let assets=WheelView.Assets(cube:cube,rim:meshes.add(Scene3D.Geometry.Cylinder.make(0.58,0.5)),
-            flange:meshes.add(Scene3D.Geometry.Cylinder.make(0.64,0.035)),
-            disk:meshes.add(Scene3D.Geometry.Cylinder.make(0.55,0.045)),
+        let assets=WheelView.Assets(cube:cube,lug:meshes.add(Primitives.tread_lug()),rim:meshes.add(Scene3D.Geometry.Cylinder.make(TyreProfile.Dimensions.rim_radius,TyreProfile.Dimensions.rim_half_width*2.0)),
+            flange:meshes.add(Scene3D.Geometry.Cylinder.make(TyreProfile.Dimensions.flange_radius,0.035)),
+            disk:meshes.add(Scene3D.Geometry.Cylinder.make(0.63,0.045)),
             hub:meshes.add(Scene3D.Geometry.Cylinder.make(0.18,0.07)))
         for wheel in truck.wheels { self.wheels.append(WheelView(wheel,assets,world,meshes)) }
         let red=Color.bytes(220,39,38);let dark=Color.bytes(36,44,56);let metal=Color.bytes(122,135,150)
@@ -38,6 +39,7 @@ package class PickupView {
         self.part(world,cube,Math.Vec3(-0.97,0.83,-1.55),Math.Vec3(0.16,0.45,1.5),red)
         self.part(world,cube,Math.Vec3(0.97,0.83,-1.55),Math.Vec3(0.16,0.45,1.5),red)
         self.part(world,cube,Math.Vec3(0.0,0.83,-2.23),Math.Vec3(2.1,0.45,0.16),red)
+        self.part(world,cube,Math.Vec3(0.0,-0.65,0.15),Math.Vec3(1.05,0.65,1.5),dark)
         self.part(world,cube,Math.Vec3(0.0,-0.15,0.0),Math.Vec3(1.25,0.35,4.2),dark)
         self.part(world,cube,Math.Vec3(0.0,0.15,2.35),Math.Vec3(2.25,0.22,0.22),metal)
         self.part(world,cube,Math.Vec3(0.0,0.18,-2.4),Math.Vec3(2.2,0.2,0.2),metal)
@@ -48,7 +50,7 @@ package class PickupView {
             self.part(world,cube,Math.Vec3(side*0.86,0.79,-2.33),Math.Vec3(0.2,0.25,0.025),Color.bytes(255,110,60))
             self.part(world,cube,Math.Vec3(side*1.1,1.0,0.65),Math.Vec3(0.22,0.18,0.3),dark)
         }
-        let strut=meshes.add(Scene3D.Geometry.Cylinder.make(0.075,1.0,12))
+        let strut=meshes.add(Scene3D.Geometry.Cylinder.make(0.045,1.0,12))
         for _ in 0...4 { self.struts.append(WheelView.mesh_entity(world,strut,metal,0.65,0.35)) }
     }
     private func part(world:&Resources.World,asset:Scene3D.MeshHandle,position:Math.Vec3,size:Math.Vec3,color:Color) {

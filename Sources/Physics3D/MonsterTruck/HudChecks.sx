@@ -31,7 +31,7 @@ package func verify(session:&UI.Session) {
 func main() {
     var panel=Controls.Panel()
     panel.metrics.set("Vitesse : 120 km/h\n240 FPS")
-    panel.settings.set("Gonflage : ferme\nSecteur : Blocs progressifs")
+    panel.settings.set("Gonflage : ferme\nDirection : indépendante\nSecteur : Blocs progressifs")
     var ui=UI.Session(panel.describe());let updated=ui.update(0.0)
     verify(ui)
     print("Monster HUD text fits its left panel")

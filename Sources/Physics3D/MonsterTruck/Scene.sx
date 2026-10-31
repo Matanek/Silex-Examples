@@ -46,11 +46,12 @@ package func labels(state:&TruckScene) {
     let speed=Math.round(state.truck.chassis.linear_velocity().length()*3.6) as int
     let fps=Math.round(state.metrics.fps) as int
     state.panel.metrics.set("Vitesse : $(speed) km/h\n$(fps) FPS")
-    var name="cross"
+    var name="monster"
     if state.panel.inflation==1 { name="bas" }
     if state.panel.inflation==2 { name="ferme" }
     let section=Terrain.section_name(Terrain.section(state.truck.chassis.position()))
-    state.panel.settings.set("Gonflage : $(name)\nSecteur : $(section)")
+    var mode="indépendante";if state.panel.coupled { mode="couplée" }
+    state.panel.settings.set("Gonflage : $(name)\nDirection : $(mode)\nSecteur : $(section)")
 }
 
 package func startup(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images,state:&TruckScene) {

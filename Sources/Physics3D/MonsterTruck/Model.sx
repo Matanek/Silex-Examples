@@ -9,12 +9,14 @@ package class Truck {
     var chassis:Physics.RigidBody3D
     var wheels:Wheel[]=[]
     var steering:float=0.0
+    var rear_steering:float=0.0
     var gas:float=0.0
+    var drive:float=0.0
     var brake:bool=false
     var handbrake:bool=false
     var steps:int=0
     init(workers:int=1,obstacles:bool=false) {
-        self.world=Physics.World3D(Physics.World3DSettings() ..soft_body_substeps=2 ..velocity_iterations=8)
+        self.world=Physics.World3D(Physics.World3DSettings() ..soft_body_substeps=1 ..velocity_iterations=8)
         if workers>1 { self.world.enable_parallelism(workers) }
         self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
             ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0
@@ -22,24 +24,33 @@ package class Truck {
         self.chassis=self.world.create_rigid_body(Physics.RigidBody3DSettings()
             ..shape=Terrain.chassis_shape()
             ..transform=Physics.Transform3D(Math.Vec3(0.0,2.35,0.0))
-            ..mass_properties=Physics.MassProperties3D(150.0,Math.Vec3(269.8,319.6,60.4))
+            // Engine and transmission sit below the body shell, slightly forward.
+            ..mass_properties=Physics.MassProperties3D(150.0,Math.Vec3(269.8,319.6,60.4),Math.Vec3(0.0,-0.85,0.15))
             ..allow_sleep=false ..linear_damping=0.05 ..angular_damping=0.15
             ..collision_filter=Physics.CollisionFilter3D(category_bits:8,mask_bits:1))
         if obstacles { Terrain.create(self.world) }
         var definition=TyreProfile.make()
-        let sides:float[]=[-1.85,1.85];let axles:float[]=[-1.7,1.7]
+        let sides:float[]=[-2.05,2.05];let axles:float[]=[-2.05,2.05]
         for x in sides { for z in axles {
             self.wheels.append(Wheel(self.world,self.chassis,definition,Math.Vec3(x,-1.05,z)))
         } }
     }
-    func controls(throttle:float,turn:float,brake:bool=false,handbrake:bool=false) {
+    func controls(throttle:float,turn:float,brake:bool=false,handbrake:bool=false,rear_turn:float?=null) {
         self.gas=throttle;self.brake=brake;self.handbrake=handbrake
         let speed=self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z
-        let target=turn*0.55/(1.0+speed*speed/50.0)
+        let limit=Math.max(0.10,0.62/(1.0+speed*speed/80.0))
+        let target=turn*limit
+        var rear_target= -target*0.65
+        if let independent=rear_turn { rear_target=independent*limit }
         self.steering+=Math.clamp(target-self.steering,-0.035,0.035)
-        for wheel in self.wheels { wheel.steer(self.steering) }
+        self.rear_steering+=Math.clamp(rear_target-self.rear_steering,-0.035,0.035)
+        for wheel in self.wheels {
+            var angle=self.steering;if !wheel.front { angle=self.rear_steering }
+            wheel.steer(angle)
+        }
     }
-    func held(forward:bool,reverse:bool,left:bool,right:bool,handbrake:bool,boost:bool) {
+    func held(forward:bool,reverse:bool,left:bool,right:bool,handbrake:bool,boost:bool,
+        rear_left:bool=false,rear_right:bool=false,coupled:bool=true) {
         let speed=self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z
         var throttle=0.0;var braking=false
         if forward && !reverse {
@@ -51,15 +62,24 @@ package class Truck {
         }
         var turn=0.0;if left { turn+=1.0 }
         if right { turn-=1.0 }
-        self.controls(throttle,turn,braking,handbrake)
+        var rear:float?=null
+        if !coupled || rear_left || rear_right {
+            var input=0.0;if rear_left { input+=1.0 }
+            if rear_right { input-=1.0 }
+            rear=input
+        }
+        self.controls(throttle,turn,braking,handbrake,rear)
     }
     func set_pressure(value:float) {
         for wheel in self.wheels { wheel.tyre.set_pressure(value) }
     }
     func step() {
-        let delta=1.0/480.0
-        for _ in 0...4 {
-            for wheel in self.wheels { wheel.couple(self.chassis,self.gas,self.steering,self.brake,self.handbrake,delta) }
+        // A finite throttle response avoids an impulse-like torque jump.
+        self.drive+=Math.clamp(self.gas-self.drive,-0.05,0.05)
+        if self.brake { self.drive=0.0 }
+        let delta=1.0/960.0
+        for _ in 0...8 {
+            for wheel in self.wheels { wheel.couple(self.chassis,self.drive,self.brake,self.handbrake,delta) }
             self.world.step(delta)
         }
         self.steps++

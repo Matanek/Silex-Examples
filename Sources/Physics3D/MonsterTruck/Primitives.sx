@@ -13,6 +13,19 @@ func face(vertices:&Scene3D.Geometry.Vertex[],indices:&uint32[],
     indices.append(offset);indices.append(offset+2 as uint32);indices.append(offset+3 as uint32)
 }
 
+// Inset top edges soften the tread silhouette; one shared mesh per scene.
+package func tread_lug() Scene3D.Geometry.Mesh {
+    var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[]
+    let a=Math.Vec3(-0.5,-0.5,-0.5);let b=Math.Vec3(0.5,-0.5,-0.5)
+    let c=Math.Vec3(0.5,-0.5,0.5);let d=Math.Vec3(-0.5,-0.5,0.5)
+    let e=Math.Vec3(-0.46,0.5,-0.34);let f=Math.Vec3(0.46,0.5,-0.34)
+    let g=Math.Vec3(0.46,0.5,0.34);let h=Math.Vec3(-0.46,0.5,0.34)
+    face(vertices,indices,a,b,c,d);face(vertices,indices,e,h,g,f)
+    face(vertices,indices,a,e,f,b);face(vertices,indices,b,f,g,c)
+    face(vertices,indices,c,g,h,d);face(vertices,indices,d,h,e,a)
+    return Scene3D.Geometry.Mesh(vertices,indices)
+}
+
 package func sphere() Scene3D.Geometry.Mesh {
     var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[]
     for ring in 0...13 {

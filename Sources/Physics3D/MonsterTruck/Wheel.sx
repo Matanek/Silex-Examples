@@ -1,17 +1,24 @@
 use GFX.Physics
 use STD.Math
 use Physics3D.SoftTire.Beads
-use Physics3D.SoftTire.Model as TireModel
+use Physics3D.MonsterTruck.TyreProfile
 
 func rim_shape() Physics.Shape3D {
     // The bead seats need the same protective flanges as the visible rim.
     var parts:Physics.CompoundChild3D[]=[
-        Physics.CompoundChild3D(0,Physics.Shape3D.cylinder(Physics.Cylinder3D(0.58,0.25))),
-        Physics.CompoundChild3D(1,Physics.Shape3D.cylinder(Physics.Cylinder3D(0.64,0.0175)),
-            Physics.Transform3D(Math.Vec3(0.0,-0.28,0.0))),
-        Physics.CompoundChild3D(2,Physics.Shape3D.cylinder(Physics.Cylinder3D(0.64,0.0175)),
-            Physics.Transform3D(Math.Vec3(0.0,0.28,0.0)))]
+        Physics.CompoundChild3D(0,Physics.Shape3D.cylinder(Physics.Cylinder3D(TyreProfile.Dimensions.rim_radius,TyreProfile.Dimensions.rim_half_width))),
+        Physics.CompoundChild3D(1,Physics.Shape3D.cylinder(Physics.Cylinder3D(TyreProfile.Dimensions.flange_radius,0.0175)),
+            Physics.Transform3D(Math.Vec3(0.0,-TyreProfile.Dimensions.flange_offset,0.0))),
+        Physics.CompoundChild3D(2,Physics.Shape3D.cylinder(Physics.Cylinder3D(TyreProfile.Dimensions.flange_radius,0.0175)),
+            Physics.Transform3D(Math.Vec3(0.0,TyreProfile.Dimensions.flange_offset,0.0)))]
     return Physics.Shape3D.compound(Physics.Compound3D(parts))
+}
+
+func rim_mass(mass:float) Physics.MassProperties3D {
+    let radius=TyreProfile.Dimensions.rim_radius
+    let width=TyreProfile.Dimensions.rim_half_width*2.0
+    let side=mass*(3.0*radius*radius+width*width)/12.0
+    return Physics.MassProperties3D(mass,Math.Vec3(side,0.5*mass*radius*radius,side))
 }
 
 package class Wheel {
@@ -29,17 +36,17 @@ package class Wheel {
         let center=chassis.transform().point(anchor)
         self.rim=world.create_rigid_body(Physics.RigidBody3DSettings()
             ..shape=rim_shape()
-            ..mass_properties=TireModel.rim_mass(20.0) ..transform=Physics.Transform3D(center,rotation)
+            ..mass_properties=rim_mass(20.0) ..transform=Physics.Transform3D(center,rotation)
             ..friction=1.2 ..allow_sleep=false ..linear_damping=0.04 ..angular_damping=0.08
             ..collision_filter=Physics.CollisionFilter3D(category_bits:2,mask_bits:5))
         self.tyre=world.create_soft_body(definition,Physics.SoftBody3DSettings()
-            ..transform=Physics.Transform3D(center) ..pressure=450.0 ..linear_damping=0.9
+            ..transform=Physics.Transform3D(center) ..pressure=700.0 ..linear_damping=0.9
             ..friction=1.4 ..vertex_radius=0.035
             ..collision_filter=Physics.CollisionFilter3D(category_bits:4,mask_bits:3))
-        self.seat=Beads.Seat(self.tyre,self.rim)
+        self.seat=Beads.Seat(self.tyre,self.rim,stiffness:240000.0,damping:175.0)
         let locked=Physics.LinearAxis3DSettings() ..limit=Physics.LinearLimit3D.locked
         let spring=Physics.LinearAxis3DSettings() ..limit=Physics.LinearLimit3D.bounded(-0.5,0.5)
-            ..motor=Physics.LinearMotor3D.position(0.0,12000.0,4500.0,500.0)
+            ..motor=Physics.LinearMotor3D.position(0.0,12000.0,4500.0,850.0)
         self.suspension=world.create_six_dof_constraint(chassis,self.rim,Physics.SixDOFConstraint3DSettings()
             ..first_local_frame=Physics.Transform3D(anchor)
             ..second_local_frame=Physics.Transform3D(Math.Vec3(),rotation.conjugated())
@@ -47,19 +54,21 @@ package class Wheel {
             ..swing_limits=Physics.SwingLimits3D.cone(Math.Vec2()))
     }
     func steer(angle:float) {
-        if !self.front || Math.abs(angle-self.current_steering)<0.000001 { return }
+        if Math.abs(angle-self.current_steering)<0.000001 { return }
         self.current_steering=angle
         let rotation=Math.Quat.angle_axis(Math.pi()*0.5,Math.Vec3.back())
         self.suspension.set_frames(Physics.Transform3D(self.anchor,Math.Quat.angle_axis(angle,Math.Vec3.up())),
             Physics.Transform3D(Math.Vec3(),rotation.conjugated()))
     }
-    func couple(chassis:Physics.RigidBody3D,throttle:float,steering:float,brake:bool,handbrake:bool,delta:float) {
-        var yaw=0.0;if self.front { yaw=steering }
+    func couple(chassis:Physics.RigidBody3D,throttle:float,brake:bool,handbrake:bool,delta:float) {
+        let yaw=self.current_steering
         let axle=chassis.transform().vector(Math.Quat.angle_axis(yaw,Math.Vec3.up()).rotate(Math.Vec3.right()))
         let speed=self.rim.angular_velocity().subtract(chassis.angular_velocity()).dot(axle)
-        var limit=450.0;var gain=60.0;var target=throttle*14.0
-        if brake || (handbrake && !self.front) { target=0.0;limit=1100.0;gain=220.0 }
-        if Math.abs(throttle)>0.001 || brake || (handbrake && !self.front) {
+        var limit=1250.0;var gain=180.0;var target=throttle*30.04
+        let braking=brake && self.front
+        let rear_lock=handbrake && !self.front
+        if braking || rear_lock { target=0.0;limit=2200.0;gain=440.0 }
+        if Math.abs(throttle)>0.001 || braking || rear_lock {
             let torque=axle.multiply(Math.clamp((target-speed)*gain,-limit,limit))
             self.rim.apply_torque(torque);chassis.apply_torque(torque.negated())
         }

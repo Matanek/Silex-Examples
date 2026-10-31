@@ -13,8 +13,10 @@ package class Seat {
     private var tire:Physics.SoftBody3D
     private var rim:Physics.RigidBody3D
     private var beads:Bead[]=[]
-    init(tire:Physics.SoftBody3D,rim:Physics.RigidBody3D) {
-        self.tire=tire;self.rim=rim
+    private let stiffness:float
+    private let damping:float
+    init(tire:Physics.SoftBody3D,rim:Physics.RigidBody3D,stiffness:float=24000.0,damping:float=55.0) {
+        self.tire=tire;self.rim=rim;self.stiffness=stiffness;self.damping=damping
         let pose=rim.transform()
         var ring=0
         while ring<Topology.Profile.segments {
@@ -28,7 +30,7 @@ package class Seat {
     func solve(delta:float) {
         let pose=self.rim.transform();let center=self.rim.world_center_of_mass()
         let mass=self.rim.mass_properties()
-        let stiffness=24000.0;let damping=55.0
+        let stiffness=self.stiffness;let damping=self.damping
         let softness=1.0/(delta*(damping+delta*stiffness))
         let bias=stiffness/(damping+delta*stiffness)
         let axes:Math.Vec3[]=[Math.Vec3(1.0,0.0,0.0),Math.Vec3.up(),Math.Vec3(0.0,0.0,1.0)]

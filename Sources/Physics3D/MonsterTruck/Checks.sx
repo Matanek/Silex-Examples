@@ -1,3 +1,5 @@
+use Physics3D.SoftTire.BeadChecks
+use Physics3D.MonsterTruck.HandlingChecks
 use Physics3D.MonsterTruck.Model
 use STD.Process
 use STD.Time
@@ -30,7 +32,7 @@ func inspect_joints(truck:Model.Truck) {
 }
 
 package func inspect(frames:int=480,workers:int=4,drive:bool=false,turn:float=0.0,
-    course:bool=false,pressure:float=450.0) Observation {
+    course:bool=false,pressure:float=700.0) Observation {
     var truck=Model.Truck(workers,course);truck.set_pressure(pressure)
     var clock=Time.Clock();let start=clock.tick();var seconds=0.0
     var result=Observation()
@@ -119,6 +121,10 @@ package func verify() {
     braking()
     let arena=inspect(frames:1440,drive:true,course:true)
     assert(arena.z>38.0 && arena.highest>3.5)
+    BeadChecks.reciprocal()
+    let original=BeadChecks.inspect("Default bead preset",frames:120)
+    assert(original.error<0.08)
+    HandlingChecks.verify()
     print("Monster truck physical checks passed")
 }
 
@@ -126,6 +132,7 @@ func main() {
     var workers=1;var frames=60;var drive=false;var turn=0.0;var course=false
     for arg in Process.arguments() {
         if arg=="--verify" { verify();return }
+        if arg=="--handling" { HandlingChecks.verify();return }
         if arg=="--compare" { compare_workers();return }
         if arg=="--firm" { let firm=inspect(pressure:1000.0);return }
         if arg=="--four" { workers=4 }

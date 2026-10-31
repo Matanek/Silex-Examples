@@ -3,7 +3,7 @@ use GFX.Input
 use GFX.Input.Events
 use GFX.UI
 
-package static struct Hud { let width:int=280;let height:int=240 }
+package static struct Hud { let width:int=280;let height:int=280 }
 
 func letter(key:@Events.KeyEvent,lower:uint32,upper:uint32,physical:Input.Key) bool {
     return key.keycode==lower || key.keycode==upper || (key.keycode==0 as uint32 && key.key==physical)
@@ -14,23 +14,32 @@ package class Panel {
     var reverse:bool=false
     var left:bool=false
     var right:bool=false
+    var rear_left:bool=false
+    var rear_right:bool=false
+    var arrow_left:bool=false
+    var arrow_right:bool=false
+    var coupled:bool=true
     var handbrake:bool=false
     var boost:bool=false
     var reset:bool=false
     var changed:bool=false
     var inflation:int=0
     var metrics:UI.State<str> =UI.State<str>("")
-    var settings:UI.State<str> =UI.State<str>("Pneus cross")
+    var settings:UI.State<str> =UI.State<str>("Pneus monster")
     func pressure() float {
         if self.inflation==1 { return 250.0 }
         if self.inflation==2 { return 1000.0 }
-        return 450.0
+        return 700.0
     }
     func held(key:@Events.KeyEvent,down:bool) bool {
         if letter(key,122 as uint32,90 as uint32,Input.Key.z) { self.forward=down;return true }
         if letter(key,115 as uint32,83 as uint32,Input.Key.s) { self.reverse=down;return true }
         if letter(key,113 as uint32,81 as uint32,Input.Key.q) { self.left=down;return true }
         if letter(key,100 as uint32,68 as uint32,Input.Key.d) { self.right=down;return true }
+        if letter(key,97 as uint32,65 as uint32,Input.Key.a) { self.rear_left=down;return true }
+        if letter(key,101 as uint32,69 as uint32,Input.Key.e) { self.rear_right=down;return true }
+        if key.key==Input.Key.left { self.arrow_left=down;return true }
+        if key.key==Input.Key.right { self.arrow_right=down;return true }
         if key.key==Input.Key.space { self.handbrake=down;return true }
         if key.key==Input.Key.left_shift || key.key==Input.Key.right_shift { self.boost=down;return true }
         return false
@@ -39,6 +48,7 @@ package class Panel {
         match event {
             key_pressed(key)=>{
                 if self.held(key,true) || key.repeated { return }
+                if letter(key,116 as uint32,84 as uint32,Input.Key.t) { self.coupled= !self.coupled }
                 if letter(key,114 as uint32,82 as uint32,Input.Key.r) { self.reset=true }
                 if letter(key,112 as uint32,80 as uint32,Input.Key.p) {
                     self.inflation=(self.inflation+1)%3;self.changed=true
@@ -47,7 +57,8 @@ package class Panel {
             key_released(key)=>{ let consumed=self.held(key,false) }
             window_focus_lost(_)=>{
                 self.forward=false;self.reverse=false;self.left=false;self.right=false
-                self.handbrake=false;self.boost=false
+                self.handbrake=false;self.boost=false;self.rear_left=false;self.rear_right=false
+                self.arrow_left=false;self.arrow_right=false
             }
             else=>{}
         }
@@ -60,7 +71,7 @@ package class Panel {
     func describe() UI.View {
         var title=self.text("MONSTER PICKUP");title.style.font_size=18.0
         var column=UI.Column([title,UI.Reactive(self.values),UI.Reactive(self.parameters),
-            self.text("Z / S : moteur / frein / recul\nQ / D : direction\nEspace : frein à main · Maj : boost\nP : gonflage · R : recommencer\nÉchap : quitter")])
+            self.text("Z / S : moteur / frein AV / recul\nQ/D : AV · A/E ou ←/→ : AR\nT : coupler / séparer\nEspace : frein à main · Maj : boost\nP : gonflage · R : recommencer\nÉchap : quitter")])
         column.style.padding=UI.Insets(12.0);column.style.gap=6.0
         column.style.background=Color.slate_900().with_alpha(0.88)
         column.style.foreground=Color.slate_100();column.style.radius=8.0

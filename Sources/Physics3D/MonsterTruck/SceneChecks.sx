@@ -1,6 +1,7 @@
 use GFX.Components
 use GFX.Input
 use GFX.Input.Events
+use GFX.Physics
 use GFX.Resources
 use GFX.Scene3D
 use GFX.Window
@@ -23,6 +24,15 @@ package func verify() {
     var world=Resources.World();var meshes=Resources.Meshes3D();var images=Resources.Images()
     var state=Scene.TruckScene(1)
     Scene.startup(world,meshes,images,state);state.view!.update(world,meshes);Scene.follow(world,state,0.016)
+    // Contact-sphere thickness belongs in the initial rim/tire clearance.
+    for wheel in state.truck.wheels {
+        let rim=Physics.ShapePlacement3D(wheel.rim.shape(),wheel.rim.transform())
+        for point in wheel.tyre.positions() {
+            let vertex=Physics.ShapePlacement3D(Physics.Shape3D.sphere(Physics.Sphere3D(0.035)),
+                Physics.Transform3D(point))
+            assert(Physics.Geometry3D.distance(vertex,rim).separation>0.005)
+        }
+    }
     let count=world.entities().count()
     var tyre=state.truck.wheels[0].tyre
     let rim=state.view!.wheels[0].rim;let rubber=state.view!.wheels[0].rubber
@@ -31,6 +41,14 @@ package func verify() {
     state.panel.handle(forward);state.panel.handle(left)
     state.panel.handle(key_event(Input.Key.space,32 as uint32))
     assert(state.panel.forward && state.panel.left && state.panel.handbrake && !state.panel.reset)
+    state.panel.handle(key_event(Input.Key.a,97 as uint32))
+    state.panel.handle(key_event(Input.Key.left,0 as uint32))
+    assert(state.panel.rear_left && state.panel.arrow_left)
+    state.panel.handle(key_event(Input.Key.e,101 as uint32))
+    state.panel.handle(key_event(Input.Key.right,0 as uint32))
+    assert(state.panel.rear_right && state.panel.arrow_right)
+    state.panel.handle(key_event(Input.Key.t,116 as uint32));assert(!state.panel.coupled)
+    state.panel.handle(key_event(Input.Key.t,116 as uint32));assert(state.panel.coupled)
     state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
     assert(state.panel.inflation==1 && tyre==state.truck.wheels[0].tyre && !state.panel.reset)
     state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
@@ -45,6 +63,7 @@ package func verify() {
     state.panel.handle(Events.Event.window_focus_lost(Events.WindowEvent(
         window:Window.Id(value:0 as uint32),timestamp:Input.Timestamp(nanoseconds:0 as uint))))
     assert(!state.panel.forward && !state.panel.left && !state.panel.handbrake && !state.panel.boost)
+    assert(!state.panel.rear_left && !state.panel.rear_right && !state.panel.arrow_left && !state.panel.arrow_right)
     state.panel.handle(key_event(Input.Key.r,114 as uint32));Scene.perform(world,meshes,state)
     assert(tyre!=state.truck.wheels[0].tyre && !tyre.is_valid())
     assert(world.entities().count()==count && state.view!.wheels[0].rim==rim && state.view!.wheels[0].rubber==rubber)

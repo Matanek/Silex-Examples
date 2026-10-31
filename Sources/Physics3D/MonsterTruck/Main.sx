@@ -40,7 +40,8 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
             state.truck.controls(gas,0.0)
         } else {
             state.truck.held(copy state.panel.forward,copy state.panel.reverse,copy state.panel.left,
-                copy state.panel.right,copy state.panel.handbrake,copy state.panel.boost)
+                copy state.panel.right,copy state.panel.handbrake,copy state.panel.boost,
+                state.panel.rear_left || state.panel.arrow_left,state.panel.rear_right || state.panel.arrow_right,copy state.panel.coupled)
         }
         state.truck.step();state.accumulator-=1.0/120.0;ticks++
     }
