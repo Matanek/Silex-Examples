@@ -1,6 +1,7 @@
 use Physics3D.SoftTire.BeadChecks
 use Physics3D.MonsterTruck.HandlingChecks
 use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.DynamicsChecks
 use STD.Process
 use STD.Time
 use STD.Math
@@ -24,10 +25,10 @@ func inspect_joints(truck:Model.Truck) {
             Math.Quat.angle_axis(wheel.current_steering,Math.Vec3.up()).rotate(Math.Vec3.right()))
         let axle=wheel.rim.transform().vector(Math.Vec3.up())
         let alignment=Math.abs(axle.dot(expected))
-        if lateral>=0.025 || Math.abs(travel.y)>=0.51 || alignment<=0.995 {
+        if lateral>=0.025 || Math.abs(travel.y)>=wheel.travel+0.01 || alignment<=0.995 {
             print("Truck joint error: lateral=",lateral," travel=",travel.y," alignment=",alignment)
         }
-        assert(lateral<0.025 && Math.abs(travel.y)<0.51 && alignment>0.995)
+        assert(lateral<0.025 && Math.abs(travel.y)<wheel.travel+0.01 && alignment>0.995)
     }
 }
 
@@ -125,6 +126,7 @@ package func verify() {
     let original=BeadChecks.inspect("Default bead preset",frames:120)
     assert(original.error<0.08)
     HandlingChecks.verify()
+    DynamicsChecks.verify()
     print("Monster truck physical checks passed")
 }
 

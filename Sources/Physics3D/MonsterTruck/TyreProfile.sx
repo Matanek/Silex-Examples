@@ -45,5 +45,12 @@ package func make() Physics.SoftBody3DDefinition {
             bends.append(Physics.SoftBend3D(b,c,a,d,bending))
         }
     }
+    // Internal shear diagonals transfer lateral tread loads to both bead seats.
+    // They preserve radial compliance without fixing particles to the rim.
+    let offsets:int[]=[-1,1]
+    for ring in 0...24 { for offset in offsets {
+        edges.append(Physics.SoftEdge3D(vertex(ring,2),vertex(ring+offset,5),0.0000003))
+        edges.append(Physics.SoftEdge3D(vertex(ring,6),vertex(ring+offset,3),0.0000003))
+    } }
     return Physics.SoftBody3DDefinition(positions,faces,masses,edges,bends)
 }

@@ -1,0 +1,110 @@
+use Physics3D.MonsterTruck.Model
+use STD.Math
+use STD.Process
+
+struct WheelState {
+    var center:float=0.0
+    var tread:float=0.0
+    var alignment:float=1.0
+    init() {}
+}
+
+func wheel_state(truck:Model.Truck,index:int) WheelState {
+    var wheel=truck.wheels[index];let pose=wheel.rim.transform()
+    var result=WheelState()
+    for point in wheel.tyre.positions() { result.center+=pose.inverse_point(point).y/192.0 }
+    for ring in 0...24 { result.tread+=pose.inverse_point(wheel.tyre.position(ring*8)).y/24.0 }
+    let first=wheel.tyre.position(0).subtract(wheel.tyre.position(96))
+    let second=wheel.tyre.position(48).subtract(wheel.tyre.position(144))
+    result.alignment=Math.abs(first.cross(second).normalized().dot(pose.vector(Math.Vec3.up())))
+    return result
+}
+
+package func centering(verify:bool=false) {
+    var truck=Model.Truck(4);var center=0.0;var tread=0.0;var bead=0.0;var floor=100.0
+    for frame in 0...2400 {
+        var gas=0.0;var turn=0.0
+        if frame>=240 && frame<1920 { gas=1.0 }
+        if frame>=720 && frame<1920 {
+            turn=1.0;if ((frame-720)/240)%2==1 { turn= -1.0 }
+        }
+        truck.controls(gas,-turn*0.4,brake:frame>=1920,rear_turn:turn)
+        truck.step();bead=Math.max(bead,truck.maximum_bead_error());floor=Math.min(floor,truck.minimum_y())
+        if frame%6==0 {
+            for index in [0,2] {
+                let state=wheel_state(truck,index)
+                center=Math.max(center,Math.abs(state.center));tread=Math.max(tread,Math.abs(state.tread))
+            }
+        }
+        if frame%240==239 {
+            let a=wheel_state(truck,0);let b=wheel_state(truck,2)
+            print("centering t=",(frame+1)/120," center=",center," tread=",tread," bead=",bead,
+                " left=",a.tread," right=",b.tread," alignment=",Math.min(a.alignment,b.alignment),
+                " speed=",truck.chassis.linear_velocity().length()," floor=",floor)
+        }
+    }
+    let a=wheel_state(truck,0);let b=wheel_state(truck,2)
+    if verify {
+        assert(center<0.04 && tread<0.06 && bead<0.08 && floor>0.025)
+        assert(Math.abs(a.tread)<0.02 && Math.abs(b.tread)<0.02 && a.alignment>0.995 && b.alignment>0.995)
+    }
+}
+
+package func reversing(verify:bool=false) {
+    var truck=Model.Truck(4)
+    for frame in 0...600 {
+        if frame>=120 { truck.held(true,false,false,false,false,false) }
+        truck.step()
+    }
+    let before=truck.chassis.linear_velocity().z;var first= -1.0;var upright=1.0
+    for frame in 0...480 {
+        truck.held(false,true,false,false,false,false)
+        if frame==0 { print("reverse requested: speed=",before," gas=",truck.gas) }
+        truck.step();upright=Math.min(upright,truck.chassis.transform().vector(Math.Vec3.up()).y)
+        if verify && frame==0 { assert(truck.gas<0.0 && truck.drive<0.0) }
+        if first<0.0 && truck.chassis.linear_velocity().z< -0.5 { first=((frame+1) as float)/120.0 }
+        if frame%60==59 {
+            var wheel=truck.wheels[0]
+            let axle=truck.chassis.transform().vector(Math.Vec3.right())
+            print("reverse t=",((frame+1) as float)/120.0," speed=",truck.chassis.linear_velocity().z,
+                " rear_spin=",wheel.rim.angular_velocity().dot(axle)," gas=",truck.gas,
+                " up=",truck.chassis.transform().vector(Math.Vec3.up()).y,
+                " body_speed=",truck.chassis.transform().inverse_vector(truck.chassis.linear_velocity()).z,
+                " yaw=",truck.chassis.transform().vector(Math.Vec3.back()).x,
+                " rear_y=",wheel.rim.position().y, " front_y=",truck.wheels[1].rim.position().y)
+        }
+    }
+    print("reverse first_seconds=",first," minimum_upright=",upright)
+    if verify { assert(before>15.0 && first>0.0 && first<3.0 && upright>0.9) }
+}
+
+func mean_travel(truck:Model.Truck) float {
+    var result=0.0
+    for wheel in truck.wheels { result+=wheel.suspension.translation().y/4.0 }
+    return result
+}
+
+package func suspension(verify:bool=false) {
+    var truck=Model.Truck(4)
+    truck.controls(0.0,0.0,brake:true)
+    for _ in 0...480 { truck.step() }
+    let rest=mean_travel(truck);var excursion=0.0
+    truck.chassis.apply_impulse(Math.Vec3(0.0,-300.0,0.0))
+    for frame in 0...480 {
+        truck.step();excursion=Math.max(excursion,Math.abs(mean_travel(truck)-rest))
+        if frame%60==59 { print("suspension t=",((frame+1) as float)/120.0," travel=",mean_travel(truck),
+            " excursion=",excursion," body_y=",truck.chassis.position().y) }
+    }
+    if verify { assert(excursion>0.12 && Math.abs(mean_travel(truck)-rest)<0.08) }
+}
+
+package func verify() { centering(true);reversing(true);suspension(true) }
+
+func main() {
+    for arg in Process.arguments() {
+        if arg=="--verify" { verify();return }
+        if arg=="--reverse" { reversing();return }
+        if arg=="--suspension" { suspension();return }
+    }
+    centering()
+}

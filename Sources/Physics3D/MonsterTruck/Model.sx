@@ -38,12 +38,12 @@ package class Truck {
     func controls(throttle:float,turn:float,brake:bool=false,handbrake:bool=false,rear_turn:float?=null) {
         self.gas=throttle;self.brake=brake;self.handbrake=handbrake
         let speed=self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z
-        let limit=Math.max(0.10,0.62/(1.0+speed*speed/80.0))
+        let limit=Math.max(0.35,0.62/(1.0+speed*speed/400.0))
         let target=turn*limit
         var rear_target= -target*0.65
         if let independent=rear_turn { rear_target=independent*limit }
-        self.steering+=Math.clamp(target-self.steering,-0.035,0.035)
-        self.rear_steering+=Math.clamp(rear_target-self.rear_steering,-0.035,0.035)
+        self.steering+=Math.clamp(target-self.steering,-0.02,0.02)
+        self.rear_steering+=Math.clamp(rear_target-self.rear_steering,-0.02,0.02)
         for wheel in self.wheels {
             var angle=self.steering;if !wheel.front { angle=self.rear_steering }
             wheel.steer(angle)
@@ -54,12 +54,12 @@ package class Truck {
         let speed=self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z
         var throttle=0.0;var braking=false
         if forward && !reverse {
-            if speed< -0.5 { braking=true }
-            else { throttle=1.0;if boost { throttle=1.5 } }
+            throttle=1.0;if boost { throttle=1.5 }
         }
         if reverse {
-            if speed>0.5 { braking=true } else { throttle= -0.75 }
+            throttle= -0.75
         }
+        braking=throttle*speed< -0.5
         var turn=0.0;if left { turn+=1.0 }
         if right { turn-=1.0 }
         var rear:float?=null
@@ -75,8 +75,9 @@ package class Truck {
     }
     func step() {
         // A finite throttle response avoids an impulse-like torque jump.
-        self.drive+=Math.clamp(self.gas-self.drive,-0.05,0.05)
-        if self.brake { self.drive=0.0 }
+        if self.gas*self.drive<0.0 { self.drive=0.0 }
+        self.drive+=Math.clamp(self.gas-self.drive,-0.1,0.1)
+        if self.brake && Math.abs(self.gas)<0.001 { self.drive=0.0 }
         let delta=1.0/960.0
         for _ in 0...8 {
             for wheel in self.wheels { wheel.couple(self.chassis,self.drive,self.brake,self.handbrake,delta) }

@@ -11,10 +11,10 @@ func inspect(truck:Model.Truck) float {
         let axle=wheel.rim.transform().vector(Math.Vec3.up())
         let alignment=Math.abs(axle.dot(expected))
         let lateral=Math.sqrt(travel.x*travel.x+travel.z*travel.z)
-        if lateral>=0.025 || Math.abs(travel.y)>=0.51 || alignment<=0.995 {
+        if lateral>=0.025 || Math.abs(travel.y)>=wheel.travel+0.01 || alignment<=0.995 {
             print("Handling joint: lateral=",lateral," travel=",travel.y," alignment=",alignment)
         }
-        assert(lateral<0.025 && Math.abs(travel.y)<0.51 && alignment>0.995)
+        assert(lateral<0.025 && Math.abs(travel.y)<wheel.travel+0.01 && alignment>0.995)
         let pose=wheel.rim.transform()
         for ring in 0...24 {
             let tread=pose.inverse_point(wheel.tyre.position(ring*8))
@@ -53,6 +53,11 @@ package func turn(direction:float=1.0,pressure:float=700.0) {
         }
         truck.step();lateral=Math.max(lateral,inspect(truck))
         assert(truck.chassis.transform().vector(Math.Vec3.up()).y>0.65)
+        if frame==839 {
+            assert(truck.chassis.transform().vector(Math.Vec3.back()).x*direction>0.1)
+            assert(truck.chassis.position().x*direction>1.0)
+            assert(Math.abs(truck.steering)>=0.35)
+        }
         if frame%120==119 {
             let pose=truck.chassis.transform()
             print("turn t=",(frame-119)/120," x=",pose.position.x," z=",pose.position.z,

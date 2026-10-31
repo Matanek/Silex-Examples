@@ -58,6 +58,11 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
 
 func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.TruckScene) {
     state.metrics.frame();state.view!.update(world,meshes)
+    if state.profile && state.metrics.frames>0 && state.metrics.interval_frames==0 {
+        print("profile elapsed=",state.metrics.elapsed," fps=",state.metrics.fps,
+            " z=",state.truck.chassis.position().z," y=",state.truck.chassis.position().y,
+            " simulated_seconds=",(state.truck.steps as float)/120.0)
+    }
 }
 
 func main() {

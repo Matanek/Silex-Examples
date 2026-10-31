@@ -29,8 +29,8 @@ play. This absolute path works from any directory.
 
 | Control | Action |
 | --- | --- |
-| Hold Z | Accelerate; brake first when reversing |
-| Hold S | Apply the front brake, then reverse |
+| Hold Z | Accelerate; reverse torque when moving backward |
+| Hold S | Apply the front brake and immediately request reverse |
 | Hold Q / D | Front wheels, left / right from the rear camera |
 | Hold A / E or ← / → | Rear wheels, overriding coupled steering |
 | T | Couple / separate the two steering axles |
@@ -60,18 +60,23 @@ restarting the vehicle.
 ## Physical assembly and limits
 
 Each tire is 2.20 m in diameter and 1.32 m wide, with a 1.32 m rim diameter and 1.56
-m flanges. It has 192 vertices and 384 triangles. Its reinforced sidewalls resist
-lateral stretching while allowing ground-contact compression. Its cross-section has
-a flat tread and nearly upright sidewalls. The 48 bead links from the `SoftTire`
-prototype exchange impulses with the rim; no vertex is artificially fixed to it.
-Four SixDOF suspensions connect dynamic rims to the dynamic chassis without a fixed
-support or vertical guide. Motors apply up to 1250 N·m per wheel with an opposite
-chassis reaction. In coupled mode, rear steering is −65% of front steering; the
-angle decreases progressively with speed. S brakes the front pair, while Space locks
-the rear pair. Bead attachments are sized for the increased torque. The chassis
-center of mass represents a low, slightly forward engine/transmission assembly, with
-a progressive torque response. Rims have a barrel and two collision flanges that
-protect the beads. Controls run at 120 Hz, with eight coupling steps at 960 Hz and one soft substep per coupling. The rigid solver profile uses eight velocity iterations.
+m flanges. It has 192 vertices and 384 triangles. Its sidewalls and 96 internal
+shear diagonals resist lateral shear while allowing ground-contact compression. Its
+cross-section has a flat tread and nearly upright sidewalls. The 48 bead links from
+the `SoftTire` prototype exchange impulses with the rim; no vertex is artificially
+fixed to it. Four SixDOF suspensions connect dynamic rims to the dynamic chassis
+without a fixed support or vertical guide. Motors apply up to 1250 N·m per wheel
+with an opposite chassis reaction. In coupled mode, rear steering is −65% of front
+steering; the angle decreases progressively with speed to a 20° minimum. S brakes
+the front pair at 1000 N·m per wheel and engages reverse torque at the rear during
+deceleration; Space locks the rear pair at 2200 N·m per wheel. Velocity physically
+passes through zero before the truck moves backward. Bead attachments are sized for
+the increased torque. The chassis center of mass represents a low, slightly forward
+engine/transmission assembly, with a progressive torque response proportional to
+input magnitude. Suspensions provide ±80 cm of travel with 1800 N/m springs and 300
+N·s/m damping. Rims have a barrel and two collision flanges that protect the beads.
+Controls run at 120 Hz, with eight coupling steps at 960 Hz and one soft substep per
+coupling. The rigid solver profile uses eight velocity iterations.
 
 Pressures 700, 250 and 1000 are solver coefficients, not calibrated bar values. The
 wheelbase is 4.10 m. The chassis weighs 150 kg, each rim 20 kg and each carcass 9.6
@@ -89,8 +94,9 @@ After compiling the binary:
 
 Both modes exit before creating the graphical application. The first exercises rest,
 inflation, driving, steering, braking, obstacle traversal and one/four-worker
-comparison. The second checks controls, reset, meshes, HUD bounds and camera
-projection without capturing images.
+comparison, plus tire centering under alternating rear steering, motor reversal and
+suspension travel after a reference impact. The second checks controls, reset,
+meshes, HUD bounds and camera projection without capturing images.
 
 `--single` selects one worker for interactive trials. `--profile` opens an automated
 twelve-second window and measures frames; it is separate from playing. Windowless
