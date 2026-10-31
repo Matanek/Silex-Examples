@@ -74,8 +74,7 @@ freine les roues avant ; Espace bloque la paire arrière. Les attaches de talons
 dimensionnées pour le couple accru. Le centre de masse du châssis représente un
 groupe moteur/transmission bas et légèrement avancé, pour exploiter la puissance. La
 commande du moteur monte progressivement. Les jantes possèdent un fût et deux
-rebords de collision qui protègent les talons. Le pilotage tourne à 120 Hz, avec six
-couplages à 720 Hz et deux sous-pas souple par couplage. Le profil rigide utilise
+rebords de collision qui protègent les talons. Le pilotage tourne à 120 Hz, avec huit couplages à 960 Hz et un sous-pas souple par couplage. Le profil rigide utilise
 huit itérations de vitesse.
 
 Les pressions 700, 250 et 1000 sont des coefficients du solveur, sans étalonnage en

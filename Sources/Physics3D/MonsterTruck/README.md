@@ -71,8 +71,7 @@ angle decreases progressively with speed. S brakes the front pair, while Space l
 the rear pair. Bead attachments are sized for the increased torque. The chassis
 center of mass represents a low, slightly forward engine/transmission assembly, with
 a progressive torque response. Rims have a barrel and two collision flanges that
-protect the beads. Controls run at 120 Hz, with six coupling steps at 720 Hz and two
-soft substeps per coupling. The rigid solver profile uses eight velocity iterations.
+protect the beads. Controls run at 120 Hz, with eight coupling steps at 960 Hz and one soft substep per coupling. The rigid solver profile uses eight velocity iterations.
 
 Pressures 700, 250 and 1000 are solver coefficients, not calibrated bar values. The
 wheelbase is 4.10 m. The chassis weighs 150 kg, each rim 20 kg and each carcass 9.6
