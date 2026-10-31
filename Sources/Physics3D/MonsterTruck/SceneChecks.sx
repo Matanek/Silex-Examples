@@ -5,6 +5,7 @@ use GFX.Physics
 use GFX.Resources
 use GFX.Scene3D
 use GFX.Window
+use GFX.UI
 use Physics3D.MonsterTruck.Scene
 use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.HudChecks
@@ -82,6 +83,8 @@ package func verify() {
     }
     Scene.labels(state);let updated=state.ui.update(0.0)
     HudChecks.verify(state.ui)
+    var measurement=UI.Session(state.panel.measurement(false,true))
+    let measured=measurement.update(0.0);HudChecks.verify(measurement)
     Scene.follow(world,state,0.016)
     let camera=world.get<Components.Camera3D>(state.camera)
     let transform=world.get<Components.Transform3D>(state.camera)

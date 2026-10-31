@@ -95,6 +95,7 @@ Ces commandes quittent avant la création de l’application graphique :
 /private/tmp/silex-monster-truck-demo --scene-check
 /private/tmp/silex-monster-truck-demo --arena-check
 /private/tmp/silex-monster-truck-demo --slope-check
+/private/tmp/silex-monster-truck-demo --ramp-check
 ```
 
 Elles couvrent la physique, les gonflages, le centrage, les figures sur appuis
@@ -104,4 +105,7 @@ les vraies facettes inclinées. Les états sont comparés à un et quatre worker
 `--single` choisit un worker pour jouer. `--profile` ouvre un parcours automatique
 pendant douze secondes ; `--profile-slope` ouvre un test de six secondes,
 freins maintenus sur une rampe. Le titre et le HUD identifient ces mesures.
-Les temps sans rendu ne permettent pas de conclure sur les FPS graphiques.
+`--profile-ramp` ouvre une mesure de douze secondes : montée lente de biais,
+puis freinage sur la pente. `--ramp-check` vérifie huit approches sans fenêtre,
+avec contrôle des talons et du sol. Les temps sans rendu ne permettent pas de
+conclure sur les FPS graphiques.

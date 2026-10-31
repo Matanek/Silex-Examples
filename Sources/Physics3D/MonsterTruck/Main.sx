@@ -8,6 +8,7 @@ use GFX.Scene2D
 use Physics3D.MonsterTruck.Scene
 use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.Checks
+use Physics3D.MonsterTruck.RampChecks
 use Physics3D.MonsterTruck.SlopeChecks
 use Physics3D.MonsterTruck.ArenaChecks
 use Physics3D.MonsterTruck.SceneChecks
@@ -42,6 +43,10 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
         if state.profile {
             var gas=0.0;if state.truck.steps>=240 { gas=0.75 }
             if state.slope_profile { state.truck.controls(0.0,0.0,brake:true,handbrake:true) }
+            else if state.ramp_profile {
+                var throttle=0.0;if state.truck.steps>=120 && state.truck.steps<480 {throttle=0.25}
+                state.truck.controls(throttle,0.0,brake:state.truck.steps>=480,handbrake:state.truck.steps>=480)
+            }
             else { state.truck.controls(gas,0.0) }
         } else {
             state.truck.held(copy state.panel.forward,copy state.panel.reverse,copy state.panel.left,
@@ -65,31 +70,34 @@ func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
     state.metrics.frame();state.view!.update(world,meshes)
     if state.profile && state.metrics.frames>0 && state.metrics.interval_frames==0 {
         var slopes=0
-        if state.slope_profile { for wheel in state.truck.wheels {
+        if state.slope_profile || state.ramp_profile { for wheel in state.truck.wheels {
             let hit=state.truck.world.ray_cast(Physics.Ray3D(wheel.rim.position(),Math.Vec3(0.0,-3.0,0.0)),
                 filter:Physics.QueryFilter3D(mask_bits:1))
             if let support=hit { if support.normal().y<0.995 { slopes++ } }
         } }
         print("profile slope_contacts=",slopes," speed=",state.truck.chassis.linear_velocity().length()," elapsed=",state.metrics.elapsed," fps=",state.metrics.fps,
             " z=",state.truck.chassis.position().z," y=",state.truck.chassis.position().y,
-            " simulated_seconds=",(state.truck.steps as float)/120.0)
+            " simulated_seconds=",(state.truck.steps as float)/120.0," physics_seconds=",state.metrics.physics_seconds)
     }
 }
 
 func main() {
-    var workers=4;var profile=false;var slope=false
+    var workers=4;var profile=false;var slope=false;var ramp=false
     for arg in Process.arguments() {
+        if arg=="--ramp-check" {RampChecks.verify();return}
         if arg=="--slope-check" { SlopeChecks.verify();return }
         if arg=="--arena-check" { ArenaChecks.verify();return }
         if arg=="--check" { Checks.verify();return }
         if arg=="--scene-check" { SceneChecks.verify();return }
         if arg=="--single" { workers=1 }
+        if arg=="--profile-ramp" {profile=true;ramp=true}
         if arg=="--profile-slope" { profile=true;slope=true }
         if arg=="--profile" { profile=true }
     }
-    var state=Scene.TruckScene(workers,profile,slope)
+    var state=Scene.TruckScene(workers,profile,slope,ramp)
     var title="MONSTER PICKUP — ZQSD · Espace frein à main · Maj boost"
     if profile { title="MESURE AUTOMATIQUE — Monster pickup — 12 secondes" }
+    if ramp {title="MESURE AUTOMATIQUE — Montée de rampe — 12 secondes"}
     if slope { title="MESURE AUTOMATIQUE — Monster truck sur pente — 6 secondes" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))

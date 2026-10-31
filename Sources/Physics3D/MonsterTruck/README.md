@@ -93,6 +93,7 @@ These commands exit before creating the graphical application:
 /private/tmp/silex-monster-truck-demo --scene-check
 /private/tmp/silex-monster-truck-demo --arena-check
 /private/tmp/silex-monster-truck-demo --slope-check
+/private/tmp/silex-monster-truck-demo --ramp-check
 ```
 
 They cover physics, inflation, centering, short stunt inputs, controls, HUD,
@@ -102,4 +103,6 @@ with one and four workers.
 `--single` selects one worker for playing. `--profile` opens a twelve-second
 automated drive; `--profile-slope` opens a six-second test with brakes held
 on a ramp. The title and HUD identify these measurements. Windowless timings
-do not establish graphical FPS.
+do not establish graphical FPS. `--profile-ramp` opens a twelve-second slow,
+oblique climb followed by braking on the slope. `--ramp-check` checks eight
+approaches without a window, including bead retention and ground clearance.

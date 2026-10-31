@@ -68,9 +68,10 @@ package class Panel {
     }
     func values(reads:UI.Reads) UI.View { return self.text(reads.read(self.metrics)) }
     func parameters(reads:UI.Reads) UI.View { return self.text(reads.read(self.settings)) }
-    func measurement(slope:bool) UI.View {
+    func measurement(slope:bool,ramp:bool=false) UI.View {
         var name="PARCOURS AUTOMATIQUE";var description="Conduite à trois quarts de gaz\nFermeture après douze secondes"
         if slope { name="TEST AUTOMATIQUE — PENTE";description="Freins maintenus sur la rampe\nFermeture après six secondes" }
+        if ramp {name="TEST AUTOMATIQUE — MONTÉE";description="Montée lente puis freinage\nFermeture après douze secondes"}
         var column=UI.Column([self.text(name),UI.Reactive(self.values),UI.Reactive(self.parameters),
             self.text(description+"\nÉchap : quitter")])
         column.style.padding=UI.Insets(12.0);column.style.gap=6.0
