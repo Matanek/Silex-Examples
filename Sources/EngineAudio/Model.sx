@@ -37,7 +37,7 @@ public class Bench:Synthesis.Generator {
         self.initially_running = running; self.ignition = running
         self.engine_gain = 1.0
         // Match the preceding candidates' whole-scenario RMS for listening.
-        self.source = Synthesis.Engine.create(self.format, amplitude:0.184)
+        self.source = Synthesis.Engine.create(self.format, amplitude:0.249)
         self.room = Processing.Reverb.create(self.format, room_size:0.18,
             decay_seconds:0.22, damping:0.65, wet:1.0)
         for _ in 0...960 { self.room_buffer.append(0.0) }

@@ -32,11 +32,14 @@ Son historique continue d'avancer à zéro. Le profil est un V8 fixe.
 Ce prototype utilise `GFX.Audio.Synthesis.Engine` : pulsations de combustion,
 deux échappements, bruit modulé, résonances et saturation douce. Il n'utilise
 aucune boucle enregistrée et ne simule pas les pièces ou les gaz d'un moteur.
-Le profil associe un corps grave et une attaque dépendant de l'effort. Les
-cylindres ont de petites différences et variations lentes. Le banc ajoute une
+Le profil utilise une décharge de pression dont la durée suit le régime,
+avec un front dépendant de l'effort et une faible turbulence d'écoulement.
+L'excitation n'injecte plus de sinus amorti accordé. Les cylindres ont de petites
+différences et variations lentes. Le banc ajoute une
 régulation de ralenti amortie et perturbée, qui fait légèrement varier le régime
 affiché et fourni au générateur sous 1 800 tr/min. La texture à zéro désactive
-ces variations. Ce modèle de banc ne remplace pas la physique moteur d'un jeu.
+ces variations, tout en conservant le grain intrinsèque de l'écoulement.
+Ce modèle de banc ne remplace pas la physique moteur d'un jeu.
 La réverbe est un traitement séparé. La qualité reste à apprécier à l'écoute.
 
 ## Vérifier sans ouvrir la fenêtre
@@ -62,7 +65,8 @@ niveaux avant une comparaison perceptive. Ces témoins n'isolent pas chaque filt
 Le dernier argument `dry` garde le scénario normal avec la réverbe à zéro.
 `idle` maintient successivement 800, 1 000 et 1 500 tr/min pendant quatre secondes
 chacun ; `idle-dry` fait le même essai sans réverbe et `regular` désactive aussi
-les variations. Ces trois variantes permettent de concentrer l'écoute sur le
+les irrégularités de combustion et de régime, en gardant la turbulence.
+Ces trois variantes permettent de concentrer l'écoute sur le
 ronronnement et les changements de régime maintenu.
 
 `--measure` émet les temps de 1 000 blocs de synthèse de 480 frames après

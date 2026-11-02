@@ -29,11 +29,12 @@ advancing at zero mix. This trial has a fixed V8 profile.
 
 The prototype uses `GFX.Audio.Synthesis.Engine`: combustion pulses, two exhausts,
 modulated noise, resonances and soft saturation. It uses no recorded loop and
-does not simulate mechanical parts or gas flow. The profile combines a low body
-with an effort-dependent attack. Cylinders have small differences and slow
+does not simulate mechanical parts or gas flow. The profile uses an RPM-dependent
+pressure release, an effort-dependent front and weak flow turbulence. It no longer
+injects a tuned damped sine into the excitation. Cylinders have small differences and slow
 variations. The bench adds a disturbed, damped idle regulator that slightly
 varies the displayed and supplied RPM below 1,800 RPM. Zero texture disables
-these variations. This bench model does not replace a game's engine physics.
+these variations while retaining intrinsic flow grain. This bench model does not replace a game's engine physics.
 Reverb is a separate processor. Quality still needs listening evaluation.
 
 ## Check without opening the window
@@ -58,7 +59,7 @@ levels before perceptual comparison. These controls do not isolate every filter.
 The final argument `dry` keeps the normal scenario with zero reverb.
 `idle` holds 800, 1,000 and 1,500 RPM successively for four seconds each;
 `idle-dry` runs the same trial without reverb, while `regular` also disables
-variations. These three variants focus listening on the rumble and changes
+combustion and RPM irregularities, retaining turbulence. These three variants focus listening on the rumble and changes
 between held speeds.
 
 `--measure` emits timings for 1,000 synthesis blocks of 480 frames after warmup.
