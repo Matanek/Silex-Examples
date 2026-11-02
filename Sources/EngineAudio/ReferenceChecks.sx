@@ -1,5 +1,6 @@
 use STD.File
 use STD.Math
+use STD.Time.Stopwatch
 use Module.Model.Bench
 
 func word(bytes:&uint8[], value:int, count:int) {
@@ -61,4 +62,48 @@ public func verify(output:str? = null) {
     assert(bench.rpm() > 350.0, "reference restarts after complete stop")
     print("Reference checks passed: native 454 start, idle, noise zero, throttle, coast, silence, restart; peak ", maximum,
         "; maximum RPM ", maximum_rpm)
+}
+
+public func verify_async() {
+    var synchronous = Bench(running:false, reference:true)
+    var asynchronous = Bench(running:false, reference:true)
+    var expected:float32[] = []; var actual:float32[] = []
+    var batch:float32[] = []
+    var expected_rpm:float[] = [0.0, 0.0, 0.0, 0.0]
+    for _ in 0...960 { expected.append(0.0); actual.append(0.0) }
+    for _ in 0...3_840 { batch.append(0.0) }
+    assert(!asynchronous.render_reference_ready(&actual[0:960]) && asynchronous.produced_frames == 0,
+        "no unsolicited reference block")
+    for group in 0...300 {
+        for slot in 0...4 {
+            let block = group * 4 + slot
+            if block == 30 { synchronous.set_running(true); asynchronous.set_running(true) }
+            if block == 950 { synchronous.set_running(false); asynchronous.set_running(false) }
+            let pedal = block >= 460 && block < 650
+            synchronous.accelerating = pedal; asynchronous.accelerating = pedal
+            var texture = 1.0; if block >= 300 && block < 400 { texture = 0.0 }
+            synchronous.roughness = texture; asynchronous.roughness = texture
+            var wet = 0.0; if block >= 600 && block < 900 { wet = 0.08 }
+            synchronous.ambience = wet; asynchronous.ambience = wet
+            synchronous.render(&expected[0:960])
+            for i, sample in expected.indexed() { batch[slot * 960 + i] = sample }
+            expected_rpm[slot] = synchronous.rpm()
+            asynchronous.request_reference(slot + 1)
+            // Repeating the desired depth must not enqueue duplicate requests.
+            asynchronous.request_reference(slot + 1)
+        }
+        for slot in 0...4 {
+            let before = asynchronous.produced_frames
+            var deadline = Stopwatch(); deadline.start()
+            while !asynchronous.render_reference_ready(&actual[0:960]) {
+                assert(asynchronous.produced_frames == before, "waiting must not advance or discard PCM")
+                assert(deadline.get_elapsed_seconds() < 5.0, "asynchronous reference reply missing")
+            }
+            assert(asynchronous.produced_frames == before + 480, "one completed block per request")
+            assert(asynchronous.rpm() == expected_rpm[slot], "FIFO RPM telemetry changed")
+            for i, sample in actual.indexed() { assert(sample == batch[slot * 960 + i], "asynchronous delivery changed the accepted PCM") }
+        }
+        assert(!asynchronous.render_reference_ready(&actual[0:960]), "completed PCM must not be delivered twice")
+    }
+    print("Reference asynchronous checks passed: 576000 frames bit exact, controls/room, four FIFO slots, no duplicates")
 }

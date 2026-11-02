@@ -1,0 +1,87 @@
+use GFX.Audio
+use GFX.Color
+use GFX.Viewer
+use STD.Error.Kind
+use Module.Model.Bench
+use Module.Session.BenchSession
+
+class ReferencePlayback {
+    private var audio:Audio
+    private var bench:Bench
+    private var output:Audio.Stream
+    private var playing:Audio.PlayingSound = Audio.PlayingSound()
+    private var samples:float32[] = []
+    private var offset:int = 0
+    private var pending:bool = false
+    private var stopped:bool = false
+    private var empty_observations:int = 0
+    private var largest_feed_frames:int = 0
+
+    init(bench:Bench) {
+        self.bench = bench; self.audio = Audio()
+        // Five queued blocks and at most four FIFO requests bound advance to 98 ms.
+        self.output = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+        for _ in 0...960 { self.samples.append(0.0) }
+        for _ in 0...5 {
+            self.bench.render(&self.samples[0:960])
+            let accepted = self.audio.write(self.output, @self.samples[0:960])
+            assert(accepted == 480, "reference prefill must fit the paused stream")
+        }
+        self.bench.request_reference(4)
+    }
+
+    func pump() {
+        if !self.playing.is_valid() { self.playing = self.audio.play(self.output, Audio.Playback(fade_in_seconds:0.05)) }
+        if self.audio.stream_info(self.output).starved { self.empty_observations++ }
+        var iterations = 0; var written = 0
+        while iterations < 8 {
+            let info = self.audio.stream_info(self.output)
+            if info.queued_frames >= info.capacity_frames { break }
+            if !self.pending {
+                let ready = self.bench.render_reference_ready(&self.samples[0:960])
+                if !ready { break }
+                self.pending = true; self.offset = 0
+            }
+            match (try self.audio.write(self.output, @self.samples[self.offset * 2:960])) {
+                failure(error) => {
+                    if error.kind == Kind.would_block() { break }
+                    panic(error.detail)
+                }
+                success(count) => {
+                    self.offset += count; written += count
+                    if self.offset == 480 {
+                        self.pending = false
+                        self.bench.request_reference(4)
+                    }
+                    if count == 0 { break }
+                }
+            }
+            iterations++
+        }
+        if written > self.largest_feed_frames { self.largest_feed_frames = written }
+    }
+
+    func stop() {
+        if self.stopped { return }
+        self.stopped = true
+        if self.playing.is_valid() { self.audio.stop(self.playing, fade_out_seconds:0.0) }
+        self.audio.release(self.output)
+        print("Reference bench closed; empty stream observations: ", self.empty_observations,
+            "; generated frames: ", self.bench.produced_frames, "; largest feed frames: ", self.largest_feed_frames)
+    }
+
+    drop { self.stop() }
+}
+
+public func show_reference(smoke:bool, profile:bool) {
+    var bench = Bench(running:false, reference:true)
+    var playback = ReferencePlayback(bench)
+    var session = BenchSession(bench, playback.pump, automated:smoke, profile:profile)
+    var title = "Référence engine-sim — Chevrolet 454 V8 · M : contact · Espace : gaz"
+    if smoke { title = "Référence engine-sim — Scénario automatique 454" }
+    let settings = Viewer.CanvasSettings(width:1_080, height:820, title:title, background:Color.bytes(8, 13, 20))
+    if smoke { Viewer.show_until(session, func() bool { return session.elapsed >= 9.0 }, settings) }
+    else { Viewer.show(session, settings) }
+    session.report_frames()
+    playback.stop()
+}

@@ -5,6 +5,8 @@ use GFX.Window
 use GFX.UI
 use Module.Model.Bench
 use Module.Dashboard.dashboard
+use Module.FrameProbe.FrameProbe
+use STD.Time.Stopwatch
 
 func no_audio_update() {}
 
@@ -13,18 +15,28 @@ public class BenchSession:Canvas.Session {
     private var ui:UI.Session
     private var feed:func()
     let automated:bool
+    private var probe:FrameProbe
     var elapsed:float = 0.0
 
-    init(bench:Bench, feed:func() = no_audio_update, automated:bool = false) {
+    init(bench:Bench, feed:func() = no_audio_update, automated:bool = false, profile:bool = false) {
+        self.probe = FrameProbe(profile)
         self.bench = bench; self.feed = feed; self.automated = automated
         self.ui = UI.Session(dashboard(bench, automated))
     }
 
-    func drawing(width:int, height:int) Canvas { return self.ui.drawing(width, height) }
+    func drawing(width:int, height:int) Canvas {
+        var watch = Stopwatch(); if self.probe.enabled { watch.start() }
+        var canvas = self.ui.drawing(width, height)
+        if self.probe.enabled { self.probe.drawing(watch.get_elapsed_milliseconds()) }
+        return canvas
+    }
+
+    func report_frames() { self.probe.report() }
 
     func update(delta:float) bool {
         let previous = self.elapsed
         self.elapsed += delta
+        self.probe.begin(self.elapsed)
         if self.automated {
             if previous < 0.2 && self.elapsed >= 0.2 { self.bench.set_running(true) }
             if self.bench.reference_mode {
@@ -35,7 +47,9 @@ public class BenchSession:Canvas.Session {
                 self.bench.accelerating = self.bench.is_running() && self.elapsed >= 0.8 && self.elapsed < 2.0
             }
         }
+        var watch = Stopwatch(); if self.probe.enabled { watch.start() }
         self.feed()
+        if self.probe.enabled { self.probe.feed(watch.get_elapsed_milliseconds()) }
         return self.ui.update(delta)
     }
 
@@ -47,7 +61,9 @@ public class BenchSession:Canvas.Session {
             }
             window_focus_gained(value) => { self.bench.focused = true }
             key_pressed(value) => {
-                if value.key == Keyboard.Key.m {
+                let logical_m = value.keycode == 109 as uint32 || value.keycode == 77 as uint32 ||
+                    (value.keycode == 0 as uint32 && value.key == Keyboard.Key.m)
+                if logical_m && !value.modifiers.control && !value.modifiers.system && !value.modifiers.alt {
                     if !value.repeated && self.bench.focused && !self.ui.accepts_text_input() {
                         self.bench.toggle_running()
                     }

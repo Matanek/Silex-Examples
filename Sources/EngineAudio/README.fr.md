@@ -48,6 +48,34 @@ dure neuf secondes. Le test d'écoute et d'interaction native reste nécessaire.
 Les réglages exacts de chaque passage de la vidéo ne sont pas établis ; ce mode
 est un rendu du profil original, pas une reproduction certifiée de son montage.
 
+## Raccourci et fluidité du témoin
+
+La touche **M** suit son symbole logique sur AZERTY, QWERTY et les autres
+positions de clavier ; les majuscules fonctionnent, l'auto-répétition ne bascule
+pas le contact. Les combinaisons système/Contrôle/Alt sont laissées disponibles.
+L'aiguille a un amortissement visuel de 25 ms, indépendant du régime et du son.
+La valeur numérique conserve le régime mesuré.
+
+En mode référence interactif, la fenêtre consomme les blocs prêts sans attendre
+le helper. Cinq blocs de 480 frames tiennent dans le flux audio ; jusqu'à quatre
+requêtes FIFO restent en vol, pour que le moteur continue entre deux trames.
+Les écritures partielles gardent leur bloc et leur position. Cette réserve
+représente au plus environ 98 ms de PCM écrit/préparé/commandé, auxquels
+s'ajoutent le quantum du helper et le périphérique. Le rendu hors ligne garde
+son chemin synchrone pour la comparaison déterministe.
+
+```sh
+Build/EngineAudio-Reference --reference-async-check
+Build/EngineAudio-Reference --reference --smoke --frame-profile
+```
+
+Le premier contrôle compare 576 000 frames à commandes identiques, y compris
+changements de contact, texture et réverbe, avec quatre requêtes en file. PCM
+et télémétrie doivent rester identiques, sans bloc dupliqué. Le second affiche
+les intervalles d'updates et les temps d'alimentation/construction du dessin,
+après 0,5 seconde de chauffe. Ces mesures ne sont pas actives dans l'essai normal.
+Elles ne constituent pas une mesure directe des présentations de l'écran.
+
 ## Prototype procédural précédent
 
 Le lancement sans `--reference` garde le prototype décrit ci-dessous, pour

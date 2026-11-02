@@ -86,8 +86,9 @@ convolution, régime de banc, charge. Il répond par quatre uint32 little-endian
 Le client Silex fournit sa copie stéréo au flux GFX.Audio.
 
 Le runtime utilise la simulation à 10 kHz, huit sous-étapes de gaz et la synthèse
-à 44,1 kHz. Le chemin synchrone et le coût complet sont assumés pour ce témoin
-unique. Les allocations, la latence et le coût de plusieurs véhicules en jeu ne
+à 44,1 kHz. Le calcul complet reste assumé pour ce témoin unique. Le client interactif
+utilise une file bornée et du polling sans attente ; le rendu hors ligne reste
+synchrone. Les allocations, la latence et le coût de plusieurs véhicules en jeu ne
 sont pas qualifiés par ce banc. Aucune portabilité Linux/Windows n'est annoncée
 pour cet outil de développement macOS.
 

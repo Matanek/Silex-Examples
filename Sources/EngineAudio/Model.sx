@@ -125,6 +125,49 @@ public class Bench:Synthesis.Generator {
         self.source.set_character(self.exhaust as float32, self.roughness as float32, ramp_frames:480)
     }
 
+    private func process_output(samples:&float32[..]) {
+        for i in 0...samples.count() { self.room_buffer[i] = samples[i] }
+        self.room.process(&self.room_buffer[0:samples.count()])
+        var frame = 0
+        while frame < samples.count() {
+            self.gain += 0.002 * (self.volume as float32 - self.gain)
+            self.ambience_gain += 0.002 * (self.ambience as float32 - self.ambience_gain)
+            for channel in 0...2 {
+                let index = frame + channel
+                samples[index] = self.gain * ((1.0 - self.ambience_gain) * samples[index] +
+                    self.ambience_gain * self.room_buffer[index])
+            }
+            frame += 2
+        }
+    }
+
+    func request_reference(depth:int = 1) Result<void, Error> {
+        if depth < 1 || depth > 4 { panic("reference request depth must be 1 to 4") }
+        if var reference = self.reference {
+            while reference.in_flight() < depth {
+                try reference.request(480, self.ignition, self.accelerating && self.focused,
+                    self.roughness, self.exhaust, self.base_rpm, self.load) else error {
+                    return Result<void, Error>.failure(error)
+                }
+            }
+            return Result<void, Error>.success()
+        }
+        return Result<void, Error>.failure(Error(kind:Kind.invalid_input(), operation:"engine-bench.request-reference",
+            subject:null, detail:"reference mode required"))
+    }
+
+    func render_reference_ready(samples:&float32[..]) Result<bool, Error> {
+        if samples.count() != 960 { panic("reference live blocks require 480 stereo frames") }
+        if var reference = self.reference {
+            let ready = try reference.render_ready(&samples[0:samples.count()]) else error { return Result<bool, Error>.failure(error) }
+            if !ready { return Result<bool, Error>.success(false) }
+            self.process_output(&samples[0:samples.count()])
+            self.produced_frames += 480
+            return Result<bool, Error>.success(true)
+        }
+        return Result<bool, Error>.success(false)
+    }
+
     func render(samples:&float32[..]) Result<void, Error> {
         if samples.count() % 2 != 0 {
             return Result<void, Error>.failure(Error(kind:Kind.invalid_input(), operation:"engine-bench.render", subject:null, detail:"stereo frames required"))
@@ -147,20 +190,7 @@ public class Bench:Synthesis.Generator {
                     return Result<void, Error>.failure(error)
                 }
             }
-            // Reuse the prepared room independently of render block boundaries.
-            for i in 0...frames * 2 { self.room_buffer[i] = samples[offset + i] }
-            self.room.process(&self.room_buffer[0:frames * 2])
-            var frame = offset
-            while frame < offset + frames * 2 {
-                self.gain += 0.002 * (self.volume as float32 - self.gain)
-                self.ambience_gain += 0.002 * (self.ambience as float32 - self.ambience_gain)
-                for channel in 0...2 {
-                    let index = frame + channel
-                    samples[index] = self.gain * ((1.0 - self.ambience_gain) * samples[index] +
-                        self.ambience_gain * self.room_buffer[index - offset])
-                }
-                frame += 2
-            }
+            self.process_output(&samples[offset:offset + frames * 2])
             self.remaining -= frames; self.produced_frames += frames; offset += frames * 2
         }
         return Result<void, Error>.success()

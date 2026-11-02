@@ -45,6 +45,31 @@ Native listening and interaction testing are still required. The exact settings
 of every video segment remain unidentified; this is a render of the original
 profile rather than a certified reproduction of the video's edit.
 
+## Keyboard and reference UI cadence
+
+**M** follows its logical symbol on AZERTY, QWERTY and other keyboard layouts.
+Uppercase works; key repeat does not toggle ignition. System/Control/Alt chords
+remain available. The needle has independent 25 ms visual damping. The numeric
+readout retains the measured RPM, and audio calculations remain unchanged.
+
+The live reference window consumes ready PCM without waiting for the helper.
+The audio stream holds five 480-frame blocks; up to four FIFO requests let the
+worker continue between UI frames. Partial writes retain their block and offset.
+This bounds written/prepared/requested PCM to approximately 98 ms, plus the
+helper quantum and device. Offline rendering retains the synchronous path for
+deterministic comparisons.
+
+```sh
+Build/EngineAudio-Reference --reference-async-check
+Build/EngineAudio-Reference --reference --smoke --frame-profile
+```
+
+The first check compares 576,000 frames under identical ignition, texture and
+reverb changes, with four queued requests. PCM and telemetry must stay identical,
+without duplicated blocks. The second reports update intervals, feed time and
+Canvas construction time after 0.5 seconds of warm-up. Profiling stays disabled
+in normal use. These intervals do not directly measure screen presentation.
+
 ## Previous procedural prototype
 
 Running without `--reference` retains the prototype below for comparison and

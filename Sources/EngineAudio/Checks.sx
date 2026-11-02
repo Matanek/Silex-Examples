@@ -29,6 +29,28 @@ func ignition_key(repeated:bool = false) Events.Event {
     return Events.Event.key_pressed(value)
 }
 
+func layout_ignition_key(physical:Keyboard.Key, code:uint32, repeated:bool = false, modifiers:Keyboard.Modifiers = Keyboard.Modifiers()) Events.Event {
+    return Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:1 as uint32),
+        keyboard:Keyboard.KeyboardId(value:0 as uint32), key:physical, keycode:code,
+        raw:51 as uint16, repeated:repeated, modifiers:modifiers, timestamp:Events.Timestamp(nanoseconds:0 as uint)))
+}
+
+func verify_ignition_layout() {
+    var bench = Bench(running:false); var session = BenchSession(bench)
+    session.handle(layout_ignition_key(Keyboard.Key.semicolon, 109 as uint32))
+    assert(bench.is_running(), "logical M on AZERTY must toggle ignition")
+    session.handle(layout_ignition_key(Keyboard.Key.semicolon, 109 as uint32, repeated:true))
+    assert(bench.is_running(), "logical M repeat must not toggle ignition")
+    session.handle(layout_ignition_key(Keyboard.Key.semicolon, 77 as uint32))
+    assert(!bench.is_running(), "uppercase logical M must toggle ignition")
+    session.handle(layout_ignition_key(Keyboard.Key.m, 44 as uint32))
+    assert(!bench.is_running(), "physical M carrying another symbol must not toggle ignition")
+    session.handle(layout_ignition_key(Keyboard.Key.m, 0 as uint32))
+    assert(bench.is_running(), "synthetic event without keycode retains its key")
+    session.handle(layout_ignition_key(Keyboard.Key.m, 109 as uint32, modifiers:Keyboard.Modifiers(system:true)))
+    assert(bench.is_running(), "system M must retain the system shortcut")
+}
+
 func verify_ignition() {
     var bench = Bench(running:false); var session = BenchSession(bench)
     var samples = zeros(960)
@@ -96,6 +118,7 @@ func verify_ignition() {
 }
 
 public func verify() {
+    verify_ignition_layout()
     verify_ignition()
     var bench = Bench(); var session = BenchSession(bench)
     assert(session.handle(key(true, repeated:true)) && !bench.accelerating)

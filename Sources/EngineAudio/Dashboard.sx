@@ -15,13 +15,14 @@ func percent(value:float) str { return "$(Math.round(value * 100.0) as int) %" }
 
 class Tachometer:UI.Content {
     private var bench:Bench
+    private var needle_rpm:float = 0.0
     private var font:Canvas.Font
     private var tick_inner:Math.Vec2[] = []
     private var tick_outer:Math.Vec2[] = []
     private var number_positions:Math.Vec2[] = []
 
     init(bench:Bench) {
-        self.bench = bench; self.font = Canvas.Font.default()
+        self.bench = bench; self.needle_rpm = bench.rpm(); self.font = Canvas.Font.default()
         for tick in 0...57 {
             let angle = Math.pi() * (0.75 + 1.5 * tick as float / 56.0)
             var inner = 0.85; if tick % 8 == 0 { inner = 0.78 }
@@ -57,7 +58,7 @@ class Tachometer:UI.Content {
         }
         painter.text("V8  /  QUATRE TEMPS", center.add(Math.Vec2(0.0, -radius * 0.35)),
             Canvas.TextStyle(size:11.0, color:Color.slate_400(), alignment:Canvas.TextAlignment.center, font:self.font))
-        let angle = Math.pi() * (0.75 + 1.5 * Math.clamp(self.bench.rpm() / 7_000.0, 0.0, 1.0))
+        let angle = Math.pi() * (0.75 + 1.5 * Math.clamp(self.needle_rpm / 7_000.0, 0.0, 1.0))
         let direction = Math.Vec2(Math.cos(angle), Math.sin(angle))
         painter.stroke(Canvas.Line(center.subtract(direction.multiply(radius * 0.14)), center.add(direction.multiply(radius * 0.74))),
             Canvas.Stroke(Color.amber_400(), 5.0))
@@ -84,7 +85,12 @@ class Tachometer:UI.Content {
     func focusable() bool { return false }
     func accepts_text_input() bool { return false }
     func focus_changed(focused:bool) bool { return false }
-    func update(delta:float) bool { return true }
+    func update(delta:float) bool {
+        if delta > 0.0 {
+            self.needle_rpm += (self.bench.rpm() - self.needle_rpm) * (1.0 - Math.exp(-delta / 0.025))
+        }
+        return true
+    }
     func pointer_scrolled(delta:Math.Vec2) bool { return false }
     func insert_text(value:str) bool { return false }
     func key_pressed(key:Keyboard.Key, modifiers:Keyboard.Modifiers) bool { return false }

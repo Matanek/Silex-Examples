@@ -82,7 +82,8 @@ bench RPM and load. Replies contain four little-endian uint32 values (magic
 Silex client copies this into a stereo GFX.Audio stream.
 
 The runtime uses a 10 kHz simulation, eight gas substeps and 44.1 kHz synthesis.
-The synchronous path and full cost are intentional for this single witness.
+The full calculation remains intentional for this single witness. The live client
+uses a bounded FIFO with nonblocking polling; offline rendering stays synchronous.
 Allocation behavior, latency and multiple game vehicles remain unqualified.
 This development tool is tested on macOS ARM64 only.
 
