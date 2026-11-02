@@ -1,0 +1,81 @@
+use GFX.Audio.Synthesis
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.Window
+use STD.Math
+use STD.Time
+use STD.Time.Stopwatch
+use Module.Model.Bench
+use Module.Session.BenchSession
+
+func zeros(count:int) float32[] {
+    var values:float32[] = []
+    for _ in 0...count { values.append(0.0) }
+    return values
+}
+
+func key(down:bool, repeated:bool = false) Events.Event {
+    let value = Events.KeyEvent(window:Window.Id(value:1 as uint32), keyboard:Keyboard.KeyboardId(value:0 as uint32),
+        key:Keyboard.Key.space, keycode:32 as uint32, raw:44 as uint16,
+        repeated:repeated, modifiers:Keyboard.Modifiers(), timestamp:Events.Timestamp(nanoseconds:0 as uint))
+    if down { return Events.Event.key_pressed(value) }
+    return Events.Event.key_released(value)
+}
+
+public func verify() {
+    var bench = Bench(); var session = BenchSession(bench)
+    assert(session.handle(key(true, repeated:true)) && !bench.accelerating)
+    assert(session.handle(key(true)) && bench.accelerating)
+    var samples = zeros(960)
+    for _ in 0...100 { bench.render(&samples[0:samples.count()]) }
+    assert(bench.rpm() > 3_000.0 && bench.rpm() < 4_000.0)
+    session.handle(key(false)); assert(!bench.accelerating)
+    for _ in 0...300 { bench.render(&samples[0:samples.count()]) }
+    assert(bench.rpm() == 800.0)
+    session.handle(key(true))
+    let window = Events.WindowEvent(window:Window.Id(value:1 as uint32), timestamp:Events.Timestamp(nanoseconds:0 as uint))
+    session.handle(Events.Event.window_focus_lost(window))
+    assert(!bench.accelerating && !bench.focused)
+    session.handle(key(true)); assert(!bench.accelerating)
+    session.handle(Events.Event.window_focus_gained(window))
+    session.handle(key(true, repeated:true)); assert(!bench.accelerating)
+    session.handle(key(true)); assert(bench.accelerating)
+    session.handle(key(false))
+    var drawing = session.drawing(1_080, 720)
+    assert(drawing.command_count() > 10)
+    bench.load = 1.0; bench.exhaust = 0.0; bench.roughness = 1.0
+    bench.reset_controls(); assert(bench.load == 0.3 && bench.exhaust == 0.65)
+
+    // The bench's 10 ms control clock, too, is independent of render block size.
+    bench.reset(); bench.accelerating = true
+    var expected = zeros(9_600); bench.render(&expected[0:expected.count()])
+    bench.reset(); bench.accelerating = true
+    var actual = zeros(9_600)
+    bench.render(&actual[0:514]); bench.render(&actual[514:4_018]); bench.render(&actual[4_018:9_600])
+    var maximum:float32 = 0.0
+    for i, sample in actual.indexed() {
+        assert(sample == expected[i] && Math.is_finite(sample))
+        maximum = Math.max(maximum, Math.abs(sample)) as float32
+    }
+    assert(maximum > 0.01 && maximum <= 0.4)
+    print("Engine bench checks passed: input, focus, RPM response, drawing and block continuity")
+}
+
+public func measure() {
+    var source = Synthesis.Engine.create()
+    var samples = zeros(960)
+    for _ in 0...100 { source.render(&samples[0:samples.count()]) }
+    // Output raw observations; report percentiles outside the timed section.
+    var elapsed:int[] = []
+    var timer = Stopwatch()
+    for block in 0...1_000 {
+        source.set_state(800.0 + (block % 500) as float32 * 11.0, throttle:0.8, load:0.6)
+        timer.restart()
+        source.render(&samples[0:samples.count()])
+        timer.stop()
+        let duration = Math.round(timer.get_elapsed_seconds() * 1_000_000.0) as int
+        elapsed.append(duration)
+    }
+    for duration in elapsed { print("render_us ", duration) }
+    assert(Math.is_finite(samples[479]))
+}

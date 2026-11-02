@@ -1,0 +1,58 @@
+use GFX.Canvas
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.Window
+use GFX.UI
+use Module.Model.Bench
+use Module.Dashboard.dashboard
+
+func no_audio_update() {}
+
+public class BenchSession:Canvas.Session {
+    var bench:Bench
+    private var ui:UI.Session
+    private var feed:func()
+    let automated:bool
+    var elapsed:float = 0.0
+
+    init(bench:Bench, feed:func() = no_audio_update, automated:bool = false) {
+        self.bench = bench; self.feed = feed; self.automated = automated
+        self.ui = UI.Session(dashboard(bench, automated))
+    }
+
+    func drawing(width:int, height:int) Canvas { return self.ui.drawing(width, height) }
+
+    func update(delta:float) bool {
+        self.elapsed += delta
+        if self.automated { self.bench.accelerating = self.elapsed >= 0.5 && self.elapsed < 2.5 }
+        self.feed()
+        return self.ui.update(delta)
+    }
+
+    func handle(event:@Events.Event) bool {
+        if self.automated { return self.ui.handle(event) }
+        match event {
+            window_focus_lost(value) => {
+                self.bench.accelerating = false; self.bench.focused = false
+            }
+            window_focus_gained(value) => { self.bench.focused = true }
+            key_pressed(value) => {
+                if value.key == Keyboard.Key.space {
+                    if !value.repeated && self.bench.focused && !self.ui.accepts_text_input() {
+                        self.bench.accelerating = true
+                    }
+                    return true
+                }
+            }
+            key_released(value) => {
+                if value.key == Keyboard.Key.space { self.bench.accelerating = false; return true }
+            }
+            else => {}
+        }
+        return self.ui.handle(event)
+    }
+
+    func accepts_text_input() bool { return self.ui.accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.ui.text_input_target() }
+    func pointer_cursor() Window.Cursor { return self.ui.pointer_cursor() }
+}
