@@ -31,7 +31,7 @@ public func verify() {
     assert(bench.rpm() > 3_000.0 && bench.rpm() < 4_000.0)
     session.handle(key(false)); assert(!bench.accelerating)
     for _ in 0...300 { bench.render(&samples[0:samples.count()]) }
-    assert(bench.rpm() == 800.0)
+    assert(Math.abs(bench.rpm() - 800.0) < 35.0)
     session.handle(key(true))
     let window = Events.WindowEvent(window:Window.Id(value:1 as uint32), timestamp:Events.Timestamp(nanoseconds:0 as uint))
     session.handle(Events.Event.window_focus_lost(window))
@@ -41,24 +41,52 @@ public func verify() {
     session.handle(key(true, repeated:true)); assert(!bench.accelerating)
     session.handle(key(true)); assert(bench.accelerating)
     session.handle(key(false))
-    var drawing = session.drawing(1_080, 720)
+    var drawing = session.drawing(1_080, 820)
     assert(drawing.command_count() > 10)
-    bench.load = 1.0; bench.exhaust = 0.0; bench.roughness = 1.0
+    bench.load = 1.0; bench.exhaust = 0.0; bench.roughness = 1.0; bench.ambience = 0.2
+    bench.base_rpm = 1_500.0
     bench.reset_controls(); assert(bench.load == 0.3 && bench.exhaust == 0.65)
+    assert(bench.ambience == 0.06 && bench.base_rpm == 800.0)
 
     // The bench's 10 ms control clock, too, is independent of render block size.
     bench.reset(); bench.accelerating = true
-    var expected = zeros(9_600); bench.render(&expected[0:expected.count()])
+    var expected = zeros(192_000); bench.render(&expected[0:expected.count()])
     bench.reset(); bench.accelerating = true
-    var actual = zeros(9_600)
-    bench.render(&actual[0:514]); bench.render(&actual[514:4_018]); bench.render(&actual[4_018:9_600])
+    var actual = zeros(192_000)
+    bench.render(&actual[0:514]); bench.render(&actual[514:4_018]); bench.render(&actual[4_018:actual.count()])
     var maximum:float32 = 0.0
     for i, sample in actual.indexed() {
         assert(sample == expected[i] && Math.is_finite(sample))
         maximum = Math.max(maximum, Math.abs(sample)) as float32
     }
     assert(maximum > 0.01 && maximum <= 0.4)
-    print("Engine bench checks passed: input, focus, RPM response, drawing and block continuity")
+    var idle = Bench()
+    var minimum = 800.0; var maximum_rpm = 800.0
+    for _ in 0...1_200 {
+        idle.render(&samples[0:samples.count()])
+        minimum = Math.min(minimum, idle.rpm()); maximum_rpm = Math.max(maximum_rpm, idle.rpm())
+    }
+    assert(minimum > 765.0 && maximum_rpm < 835.0 && maximum_rpm - minimum > 10.0,
+        "idle variation must be present and bounded")
+    idle.roughness = 0.0
+    for _ in 0...10 { idle.render(&samples[0:samples.count()]) }
+    assert(idle.rpm() == 800.0)
+    idle.base_rpm = 1_500.0
+    for _ in 0...100 { idle.render(&samples[0:samples.count()]) }
+    assert(idle.rpm() == 1_500.0)
+
+    var dry = Bench(); dry.ambience = 0.0; dry.reset()
+    var wet = Bench(); wet.ambience = 0.2; wet.reset()
+    var a = zeros(48_000); var b = zeros(48_000)
+    dry.render(&a[0:a.count()]); wet.render(&b[0:b.count()])
+    var difference:float64 = 0.0
+    for i, sample in a.indexed() {
+        assert(Math.is_finite(b[i]) && Math.abs(b[i]) < 1.0)
+        difference += Math.abs(sample as float64 - b[i] as float64)
+    }
+    assert(difference > 0.1, "room mix did not change the rendered signal")
+    print("Engine bench checks passed: input, focus, held RPM, bounded idle variation, room mix, drawing and block continuity")
+    print("Idle RPM range: ", minimum, " .. ", maximum_rpm)
 }
 
 public func measure() {

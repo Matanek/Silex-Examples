@@ -14,22 +14,34 @@ public class Bench:Synthesis.Generator {
     var roughness:float = 0.4
     var load:float = 0.3
     var volume:float = 0.7
+    var ambience:float = 0.06
+    var base_rpm:float = 800.0
     private var target_rpm:float = 800.0
     private var throttle:float = 0.0
     private var remaining:int = 0
     private var gain:float32 = 0.7
+    private var ambience_gain:float32 = 0.06
+    private var room:Processing.Reverb
+    private var room_buffer:float32[] = []
+    private var idle_offset:float = 0.0
+    private var idle_speed:float = 0.0
+    private var random:int = 73
     var produced_frames:int = 0
 
     init() {
         self.format = Processing.Format(sample_rate:48_000, channels:2)
-        // Match the preceding listening candidate's whole-scenario RMS.
-        self.source = Synthesis.Engine.create(self.format, amplitude:0.162)
+        // Match the preceding candidates' whole-scenario RMS for listening.
+        self.source = Synthesis.Engine.create(self.format, amplitude:0.184)
+        self.room = Processing.Reverb.create(self.format, room_size:0.18,
+            decay_seconds:0.22, damping:0.65, wet:1.0)
+        for _ in 0...960 { self.room_buffer.append(0.0) }
     }
 
     func rpm() float { return self.source.current_rpm() as float }
 
     func reset_controls() {
         self.exhaust = 0.65; self.roughness = 0.4; self.load = 0.3; self.volume = 0.7
+        self.ambience = 0.06; self.base_rpm = 800.0
     }
 
     private func advance() {
@@ -38,16 +50,28 @@ public class Bench:Synthesis.Generator {
         if pedal > 0.0 {
             self.target_rpm += (1_700.0 + 1_600.0 * (1.0 - self.load)) * 0.01
         } else {
-            self.target_rpm -= (1_000.0 + 600.0 * self.load) * 0.01
+            let difference = self.base_rpm - self.target_rpm
+            self.target_rpm += Math.clamp(difference, -(1_000.0 + 600.0 * self.load) * 0.01, 28.0)
         }
-        self.target_rpm = Math.clamp(self.target_rpm, 800.0, 6_600.0)
+        self.target_rpm = Math.clamp(self.target_rpm, 700.0, 6_600.0)
+        // A damped idle governor responds to small torque disturbances at 100 Hz.
+        // The game-facing generator continues to use the RPM supplied by its caller.
+        self.random = (self.random * 48_271) % 2_147_483_647
+        let disturbance = 2.0 * ((self.random % 16_777_216) as float / 16_777_216.0) - 1.0
+        self.idle_speed += (-36.0 * self.idle_offset - 8.0 * self.idle_speed + 5_000.0 * disturbance) * 0.01
+        self.idle_speed = Math.clamp(self.idle_speed, -120.0, 120.0)
+        self.idle_offset = Math.clamp(self.idle_offset + self.idle_speed * 0.01, -35.0, 35.0)
+        let idle_weight = Math.clamp((1_800.0 - self.target_rpm) / 1_000.0, 0.0, 1.0)
+        let audible_rpm = self.target_rpm + idle_weight * self.roughness * self.idle_offset
         var engine_brake = 0.0
-        if pedal == 0.0 { engine_brake = Math.clamp((self.target_rpm - 1_000.0) / 3_000.0, 0.0, 1.0) }
+        if pedal == 0.0 && self.target_rpm > self.base_rpm + 50.0 {
+            engine_brake = Math.clamp((self.target_rpm - 1_000.0) / 3_000.0, 0.0, 1.0)
+        }
         // A mild ignition cut gives the limiter a distinct texture at full throttle.
         var firing_throttle = self.throttle
         if self.target_rpm >= 6_590.0 && (self.produced_frames / 2_400) % 3 == 0 { firing_throttle *= 0.25 }
-        self.source.set_state(self.target_rpm as float32, throttle:firing_throttle as float32,
-            load:(self.load * self.throttle) as float32, engine_brake:engine_brake as float32, ramp_frames:480)
+        self.source.set_state(audible_rpm as float32, throttle:firing_throttle as float32,
+            load:self.load as float32, engine_brake:engine_brake as float32, ramp_frames:480)
         self.source.set_character(self.exhaust as float32, self.roughness as float32, ramp_frames:480)
     }
 
@@ -63,10 +87,18 @@ public class Bench:Synthesis.Generator {
             try self.source.render(&samples[offset:offset + frames * 2]) else error {
                 return Result<void, Error>.failure(error)
             }
+            // Reuse the prepared room independently of render block boundaries.
+            for i in 0...frames * 2 { self.room_buffer[i] = samples[offset + i] }
+            self.room.process(&self.room_buffer[0:frames * 2])
             var frame = offset
             while frame < offset + frames * 2 {
                 self.gain += 0.002 * (self.volume as float32 - self.gain)
-                samples[frame] *= self.gain; samples[frame + 1] *= self.gain
+                self.ambience_gain += 0.002 * (self.ambience as float32 - self.ambience_gain)
+                for channel in 0...2 {
+                    let index = frame + channel
+                    samples[index] = self.gain * ((1.0 - self.ambience_gain) * samples[index] +
+                        self.ambience_gain * self.room_buffer[index - offset])
+                }
                 frame += 2
             }
             self.remaining -= frames; self.produced_frames += frames; offset += frames * 2
@@ -78,5 +110,7 @@ public class Bench:Synthesis.Generator {
         self.source.reset(); self.target_rpm = 800.0; self.throttle = 0.0
         self.remaining = 0; self.produced_frames = 0; self.accelerating = false
         self.gain = self.volume as float32
+        self.ambience_gain = self.ambience as float32; self.room.reset()
+        self.idle_offset = 0.0; self.idle_speed = 0.0; self.random = 73
     }
 }

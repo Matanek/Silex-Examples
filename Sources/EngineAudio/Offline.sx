@@ -12,6 +12,10 @@ func word(bytes:&uint8[], value:int, count:int) {
 public func render_wav(path:str, variant:str = "full") {
     var bench = Bench()
     if variant == "smooth" { bench.exhaust = 0.0; bench.roughness = 0.0 }
+    if variant == "dry" || variant == "idle-dry" || variant == "regular" { bench.ambience = 0.0 }
+    if variant == "regular" { bench.roughness = 0.0 }
+    // Start comparisons at their requested mix, without an initial wet transition.
+    bench.reset()
     var sine = Synthesis.Oscillator.create(Processing.Format(sample_rate:48_000, channels:2), frequency_hz:53.3333, amplitude:0.1)
     let frames = 48_000 * 12
     var bytes:uint8[] = [82 as uint8, 73 as uint8, 70 as uint8, 70 as uint8]
@@ -24,6 +28,12 @@ public func render_wav(path:str, variant:str = "full") {
     var samples:float32[] = []; for _ in 0...960 { samples.append(0.0) }
     for block in 0...1_200 {
         bench.accelerating = block >= 100 && block < 500
+        if variant == "idle" || variant == "idle-dry" || variant == "regular" {
+            bench.accelerating = false
+            bench.base_rpm = 800.0
+            if block >= 400 { bench.base_rpm = 1_000.0 }
+            if block >= 800 { bench.base_rpm = 1_500.0 }
+        }
         bench.render(&samples[0:samples.count()])
         if variant == "sine" {
             sine.set_frequency((bench.rpm() * 8.0 / 120.0) as float32)

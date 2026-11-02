@@ -20,13 +20,16 @@ func main() {
             index++; if index >= arguments.count() { panic("--render requires a WAV path") }
             let path = arguments[index]; var variant = "full"
             if index + 1 < arguments.count() { variant = arguments[index + 1] }
-            if variant != "full" && variant != "smooth" && variant != "sine" { panic("Choose full, smooth or sine") }
+            if variant != "full" && variant != "smooth" && variant != "sine" &&
+                variant != "dry" && variant != "idle" && variant != "idle-dry" && variant != "regular" {
+                panic("Choose full, smooth, sine, dry, idle, idle-dry or regular")
+            }
             Offline.render_wav(path, variant); return
         }
         elif argument == "--smoke" { smoke = true }
         elif argument == "--help" {
-            print("Engine audio bench: hold SPACE to accelerate; release to return to idle.")
-            print("--check | --measure | --render output.wav [full|smooth|sine] | --smoke")
+            print("Engine audio bench: hold SPACE to accelerate; release to return to the selected RPM.")
+            print("--check | --measure | --render output.wav [full|smooth|sine|dry|idle|idle-dry|regular] | --smoke")
             return
         } else { panic("Unknown option; use --help") }
         index++
@@ -53,7 +56,7 @@ func main() {
     }, automated:smoke)
     var title = "GFX.Audio — Banc moteur V8 · Espace pour accélérer"
     if smoke { title = "GFX.Audio — Scénario automatique moteur V8" }
-    let settings = Viewer.CanvasSettings(width:1_080, height:720, title:title,
+    let settings = Viewer.CanvasSettings(width:1_080, height:820, title:title,
         background:Color.bytes(8, 13, 20))
     if smoke {
         Viewer.show_until(session, func() bool { return session.elapsed >= 5.0 }, settings)

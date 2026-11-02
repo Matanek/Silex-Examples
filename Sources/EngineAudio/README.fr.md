@@ -3,7 +3,7 @@
 [English](README.md)
 
 Maintenir **Espace** fait monter le régime de 800 à 6 600 tr/min ; relâcher
-ramène progressivement au ralenti avec une variation de frein moteur.
+ramène progressivement au régime choisi avec une variation de frein moteur.
 Le compte-tours et le son suivent le même modèle. La perte de focus relâche
 les gaz ; un nouvel appui est nécessaire au retour.
 
@@ -13,18 +13,25 @@ Depuis `SilexProject/`, ou la racine du groupe de travail d'une Spec :
 silex run Silex-Examples/Sources/EngineAudio/Main.sx --release
 ```
 
-La fenêtre contient quatre réglages : échappement feutré/ouvert, texture
-régulière/rugueuse, charge et volume. La charge augmente l'effort audible et
-ralentit la montée en régime du banc. Le bouton « Réglages initiaux » restaure
+La fenêtre contient cinq réglages : échappement feutré/ouvert, texture
+régulière/rugueuse, charge, réverbe courte et volume. La charge modifie l'effort
+audible, y compris aux régimes maintenus, et ralentit la montée en régime du banc.
+Les boutons 800, 1 000 et 1 500 choisissent le régime à retrouver au relâchement
+d'Espace, puis à maintenir pour comparer les timbres. Le bouton « Réglages initiaux » restaure
 les valeurs de départ. Le volume est lissé dans les échantillons ; il ne
-relance pas la lecture. Le profil est un V8 fixe pour ce premier essai.
+relance pas la lecture. La réverbe descend jusqu'au son sec ; son mélange est
+lissé, initialement à 6 %, avec une décroissance nominale de 0,22 seconde.
+Son historique continue d'avancer à zéro. Le profil est un V8 fixe.
 
 Ce prototype utilise `GFX.Audio.Synthesis.Engine` : pulsations de combustion,
 deux échappements, bruit modulé, résonances et saturation douce. Il n'utilise
 aucune boucle enregistrée et ne simule pas les pièces ou les gaz d'un moteur.
-Le profil privilégie un corps de combustion prolongé dans le grave, en gardant
-la fréquence des combustions liée au régime. Le niveau initial du banc est
-ajusté pour comparer les timbres. La qualité reste à apprécier à l'écoute.
+Le profil associe un corps grave et une attaque dépendant de l'effort. Les
+cylindres ont de petites différences et variations lentes. Le banc ajoute une
+régulation de ralenti amortie et perturbée, qui fait légèrement varier le régime
+affiché et fourni au générateur sous 1 800 tr/min. La texture à zéro désactive
+ces variations. Ce modèle de banc ne remplace pas la physique moteur d'un jeu.
+La réverbe est un traitement séparé. La qualité reste à apprécier à l'écoute.
 
 ## Vérifier sans ouvrir la fenêtre
 
@@ -45,6 +52,12 @@ ralenti, montée, maintien puis décélération. Un dernier argument `smooth`
 supprime la rugosité et ferme l'échappement ; `sine` fournit un témoin sinusoïdal
 à fréquence de combustion équivalente. Leurs niveaux diffèrent ; égaliser les
 niveaux avant une comparaison perceptive. Ces témoins n'isolent pas chaque filtre.
+
+Le dernier argument `dry` garde le scénario normal avec la réverbe à zéro.
+`idle` maintient successivement 800, 1 000 et 1 500 tr/min pendant quatre secondes
+chacun ; `idle-dry` fait le même essai sans réverbe et `regular` désactive aussi
+les variations. Ces trois variantes permettent de concentrer l'écoute sur le
+ronronnement et les changements de régime maintenu.
 
 `--measure` émet les temps de 1 000 blocs de synthèse de 480 frames après
 échauffement. Il exclut transfert PCM, interface et périphérique ; ce n'est pas
