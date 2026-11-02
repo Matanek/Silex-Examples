@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -23,12 +24,36 @@ class CapturingSimulator : public PistonEngineSimulator {
 
     public: std::vector<float> trace;
     public: bool recording { false };
+    public: bool captureIntake { false };
+    public: std::vector<float> intake;
+    private: double previousIntakeFlow { 0 };
 
     // -------------------------------------------------------------------------
     // INTERNALS
 
     protected: void writeToSynthesizer() override {
+        auto& audio = synthesizer();
+        const int base = captureIntake ? audio.m_inputChannels[0].data.writeIndex() : 0;
+        const double previousOffset = captureIntake ? audio.m_lastInputSampleOffset : 0;
         PistonEngineSimulator::writeToSynthesizer();
+        if (captureIntake) {
+            double flow = 0;
+            for (int i = 0; i < m_engine->getCylinderCount(); ++i) {
+                flow += std::max(0.0, m_engine->getChamber(i)->getLastTimestepIntakeFlow());
+            }
+            // Moles per mechanical step -> m3/s referred to ambient air.
+            flow *= constants::R * units::celcius(25) / units::atm / getTimestep();
+            // Suppress static gas-equilibration jitter as pumping comes to rest.
+            // Contact is deliberately absent: a coasting engine still aspirates.
+            flow *= std::clamp(m_engine->getRpm() / 60.0, 0.0, 1.0);
+            const double distance = audio.inputDistance(audio.m_inputWriteOffset, previousOffset);
+            // Follow exactly the exhaust resampling clock, including its boundary phase.
+            for (double t = audio.inputDistance(base, previousOffset); t <= distance; t += 1) {
+                const double fraction = t / distance;
+                intake.push_back(static_cast<float>(previousIntakeFlow * (1 - fraction) + flow * fraction));
+            }
+            previousIntakeFlow = flow;
+        }
         if (!recording) return;
         trace.push_back(static_cast<float>(m_engine->getRpm()));
         trace.push_back(static_cast<float>(m_engine->getOutputCrankshaft()->getCycleAngle()));
@@ -79,7 +104,9 @@ static std::vector<int16_t> readImpulse(const std::string& path) {
 
 // -----------------------------------------------------------------------------
 
-static void renderQuantum(CapturingSimulator& simulator, Engine& engine, std::vector<int16_t>& samples) {
+static void renderQuantum(CapturingSimulator& simulator, Engine& engine, std::vector<int16_t>& samples,
+    std::vector<uint16_t>* intake = nullptr) {
+    simulator.intake.clear();
     Synthesizer& synthesizer = simulator.synthesizer();
     simulator.startFrame(0.01);
     while (simulator.simulateStep()) {}
@@ -89,13 +116,26 @@ static void renderQuantum(CapturingSimulator& simulator, Engine& engine, std::ve
         synthesizer.m_inputChannels[channel].data.read(available, synthesizer.m_inputChannels[channel].transferBuffer);
         synthesizer.m_filters[channel].jitterFilter.setJitterScale(parameters.inputSampleNoise);
     }
-    for (int index = 0; index < available; ++index) samples.push_back(synthesizer.renderAudio(index));
+    if (intake && simulator.intake.size() != static_cast<size_t>(available)) {
+        throw std::runtime_error("Intake/exhaust resampling clocks diverged");
+    }
+    for (int index = 0; index < available; ++index) {
+        samples.push_back(synthesizer.renderAudio(index));
+        if (intake) {
+            const double flow = std::clamp(static_cast<double>(simulator.intake[index]), 0.0, 0.25);
+            intake->push_back(static_cast<uint16_t>(std::round(flow * 65535 / 0.25)));
+        }
+    }
     for (int channel = 0; channel < engine.getExhaustSystemCount(); ++channel) {
         synthesizer.m_inputChannels[channel].data.removeBeginning(available);
     }
 }
 
-static void serve(CapturingSimulator& simulator, Engine& engine, const DriveSettings& settings, int profile) {
+static void serve(CapturingSimulator& simulator, Engine& engine, const DriveSettings& settings, int profile, bool withIntake = false) {
+    simulator.captureIntake = withIntake;
+    simulator.intake.reserve(1024);
+    std::vector<uint16_t> intake;
+    intake.reserve(2048);
     std::vector<int16_t> pending;
     pending.reserve(2048);
     int frames = 0;
@@ -138,22 +178,30 @@ static void serve(CapturingSimulator& simulator, Engine& engine, const DriveSett
             simulator.m_dyno.m_rotationSpeed = units::rpm(baseRpm);
             const double loadTorque = profile == 0 ? 250 : std::max(25.0, engine.getDisplacement() * 100000);
             simulator.m_dyno.m_maxTorque = heldSpeed ? 10000 : load * loadTorque;
-            renderQuantum(simulator, engine, pending);
+            renderQuantum(simulator, engine, pending, withIntake ? &intake : nullptr);
             if (ignition) contactTime += 0.01;
         }
-        writeInteger(std::cout, 0x34563845, 4);
+        writeInteger(std::cout, withIntake ? 0x38563845 : 0x34563845, 4);
         writeInteger(std::cout, frames, 4);
         writeInteger(std::cout, static_cast<uint32_t>(std::round(engine.getRpm() * 1000)), 4);
         writeInteger(std::cout, ignition && (contactTime < 1.2 || engine.getRpm() < 650), 4);
-        for (int index = 0; index < frames; ++index) writeInteger(std::cout, static_cast<uint16_t>(pending[index]), 2);
+        for (int index = 0; index < frames; ++index) {
+            writeInteger(std::cout, static_cast<uint16_t>(pending[index]), 2);
+            if (withIntake) writeInteger(std::cout, intake[index], 2);
+        }
         std::cout.flush();
         if (!std::cout) throw std::runtime_error("Reference output pipe closed");
         pending.erase(pending.begin(), pending.begin() + frames);
+        if (withIntake) intake.erase(intake.begin(), intake.begin() + frames);
     }
     if (!std::cin.eof()) throw std::runtime_error("Malformed reference-render request");
 }
 
-static void serveDrive(CapturingSimulator& simulator, Engine& engine, RoadVehicle& vehicle, Transmission& transmission, const DriveSettings& settings) {
+static void serveDrive(CapturingSimulator& simulator, Engine& engine, RoadVehicle& vehicle, Transmission& transmission, const DriveSettings& settings, bool withIntake = false) {
+    simulator.captureIntake = withIntake;
+    simulator.intake.reserve(1024);
+    std::vector<uint16_t> intake;
+    intake.reserve(2048);
     DriveController drive(settings, engine, transmission, vehicle);
     vehicle.attachBrake(simulator.getSystem());
     std::vector<int16_t> pending;
@@ -187,10 +235,10 @@ static void serveDrive(CapturingSimulator& simulator, Engine& engine, RoadVehicl
             throttle += 0.16 * (target - throttle);
             engine.setSpeedControl(throttle);
             simulator.m_dyno.m_enabled = false;
-            renderQuantum(simulator, engine, pending);
+            renderQuantum(simulator, engine, pending, withIntake ? &intake : nullptr);
             if (ignition) contactTime += 0.01;
         }
-        writeInteger(std::cout, 0x36563845, 4);
+        writeInteger(std::cout, withIntake ? 0x39563845 : 0x36563845, 4);
         writeInteger(std::cout, frames, 4);
         writeInteger(std::cout, static_cast<uint32_t>(std::round(engine.getRpm() * 1000)), 4);
         writeInteger(std::cout, ignition && (contactTime < 1.2 || engine.getRpm() < 650), 4);
@@ -198,10 +246,14 @@ static void serveDrive(CapturingSimulator& simulator, Engine& engine, RoadVehicl
         writeInteger(std::cout, static_cast<uint32_t>(std::round(vehicle.getSpeed() * 3600)), 4);
         writeInteger(std::cout, drive.flags(), 4);
         writeInteger(std::cout, drive.shiftCount(), 4);
-        for (int index = 0; index < frames; ++index) writeInteger(std::cout, static_cast<uint16_t>(pending[index]), 2);
+        for (int index = 0; index < frames; ++index) {
+            writeInteger(std::cout, static_cast<uint16_t>(pending[index]), 2);
+            if (withIntake) writeInteger(std::cout, intake[index], 2);
+        }
         std::cout.flush();
         if (!std::cout) throw std::runtime_error("Drivetrain output pipe closed");
         pending.erase(pending.begin(), pending.begin() + frames);
+        if (withIntake) intake.erase(intake.begin(), intake.begin() + frames);
     }
     if (!std::cin.eof()) throw std::runtime_error("Malformed drivetrain request");
 }
@@ -241,11 +293,13 @@ static void renderOffline(CapturingSimulator& simulator, Engine& engine, const s
 int main(int count, char** arguments) {
     try {
         if (count != 5 && count != 6) {
-            std::fprintf(stderr, "Usage: RenderReference profile.mr impulse.pcm output-prefix full|base|serve|drive [profile-index]\n");
+            std::fprintf(stderr, "Usage: RenderReference profile.mr impulse.pcm output-prefix full|base|serve|drive|serve-intake|drive-intake [profile-index]\n");
             return 2;
         }
         const std::string mode = arguments[4];
-        if (mode != "full" && mode != "base" && mode != "serve" && mode != "drive") throw std::runtime_error("Unknown rendering mode");
+        const bool withIntake = mode == "serve-intake" || mode == "drive-intake";
+        const bool driving = mode == "drive" || mode == "drive-intake";
+        if (mode != "full" && mode != "base" && mode != "serve" && !driving && mode != "serve-intake") throw std::runtime_error("Unknown rendering mode");
         const int profile = count == 6 ? std::stoi(arguments[5]) : 0;
         const auto settings = profileSettings(profile);
         const auto impulse = readImpulse(arguments[2]);
@@ -275,7 +329,7 @@ int main(int count, char** arguments) {
         vehicleParameters.dragCoefficient = 0.25;
         vehicleParameters.crossSectionArea = 36 * units::foot * units::foot;
         vehicleParameters.rollingResistance = 2000;
-        if (mode == "drive") {
+        if (driving) {
             vehicleParameters.mass = settings.mass;
             vehicleParameters.diffRatio = settings.diff;
             vehicleParameters.tireRadius = settings.wheel;
@@ -290,7 +344,7 @@ int main(int count, char** arguments) {
         transmissionParameters.GearCount = 6;
         transmissionParameters.GearRatios = ratios;
         transmissionParameters.MaxClutchTorque = 1000 * units::ft_lb;
-        if (mode == "drive") {
+        if (driving) {
             transmissionParameters.GearCount = settings.ratios.size();
             transmissionParameters.GearRatios = settings.ratios.data();
             if (settings.strokes == 2) transmissionParameters.MaxClutchTorque = 40;
@@ -321,8 +375,8 @@ int main(int count, char** arguments) {
             const double volume = engine.getExhaustSystem(index)->getImpulseResponse()->getVolume();
             synthesizer.initializeImpulseResponse(impulse.data(), impulse.size(), volume, index);
         }
-        if (mode == "drive") serveDrive(simulator, engine, vehicle, transmission, settings);
-        else if (mode == "serve") serve(simulator, engine, settings, profile);
+        if (driving) serveDrive(simulator, engine, vehicle, transmission, settings, withIntake);
+        else if (mode == "serve" || mode == "serve-intake") serve(simulator, engine, settings, profile, withIntake);
         else renderOffline(simulator, engine, arguments[3]);
         synthesizer.destroy();
         simulator.destroy();

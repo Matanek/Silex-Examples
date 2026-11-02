@@ -71,7 +71,7 @@ class Controls {
             label("En route : S maintenu pour freiner", 12.0, Color.amber_200()),
             control("Échappement · brut → filtré", self.exhaust, self.change_exhaust),
             control("Texture · pression → écoulement", self.roughness, self.change_roughness),
-            control("Souffle · admission / échappement", self.breath, self.change_breath),
+            control("Aspiration · filtre à air", self.breath, self.change_breath),
             control("Charge supplémentaire · banc uniquement", self.load, self.change_load),
             control("Réverbe courte", self.ambience, self.change_ambience, maximum:0.2),
             control("Volume", self.volume, self.change_volume),

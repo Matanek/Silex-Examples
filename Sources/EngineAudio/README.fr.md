@@ -116,21 +116,26 @@ avec des constantes de 24 et 14 ms, tout en conservant la queue grave. Cela
 vise un impact plus rond et mat, suivant le repère d’un kick de batterie donné
 à l’écoute. Le régime et le calcul mécanique restent ceux du moteur simulé.
 Le rendu `dry` ci-dessous retire le souffle pour juger le corps seul ; le
-curseur Souffle permet ensuite d’écouter les deux couches ensemble.
+curseur Aspiration permet ensuite d’écouter les deux couches ensemble.
 
-## Souffle du cross quatre temps
+## Aspiration du cross quatre temps
 
-Le profil cross 450 4T active un fond d’admission/échappement à 60 %. Le curseur
-**Souffle** dose cette couche indépendamment de Texture et de Réverbe. À zéro,
-on retrouve le signal de pression précédent. Le souffle augmente sous
-accélération, suit le régime et finit en silence à l’arrêt, avec un lissage de
-90 ms. Les autres profils le démarrent à zéro ; Réglages initiaux et changement
-de profil restaurent la valeur du catalogue.
+Le profil cross 450 4T active l’aspiration à 60 %. Le curseur **Aspiration ·
+filtre à air** la dose indépendamment de Texture et de Réverbe. À zéro, on
+retrouve le signal de pression seul. Les autres profils démarrent à zéro ;
+Réglages initiaux et changement de profil restaurent la valeur du catalogue.
 
-Cette couche utilise un bruit reproductible coloré par GFX.Audio, mélangé
-avant le volume et la réverbe, avec une marge pour les crêtes de combustion.
-Elle complète le timbre du banc ; l’origine exacte du fond de l’enregistrement
-(admission, échappement, ambiance ou micro) reste à apprécier à l’écoute.
+Le simulateur mesure le débit positif aux soupapes d’admission et l’aligne
+sur l’horloge audio de l’échappement. Ce débit module un bruit reproductible
+coloré par GFX.Audio : les aspirations suivent les cycles réels et les gaz.
+Après coupure du contact, elles continuent tant que le moteur entraîne de
+l’air. Aucun bruit continu n’est ajouté en l’absence de débit. Une enveloppe
+attaque/relâchement de 1,5/4 ms représente le lissage acoustique de l’admission ;
+le curseur est lissé sur 90 ms. Le mélange conserve une marge pour la combustion.
+
+Le débit simulé pilote la temporalité et l’intensité ; la coloration du filtre
+et du conduit reste un modèle acoustique simplifié, à qualifier à l’écoute.
+Ce n’est pas une simulation détaillée de la boîte à air ou du microphone.
 
 ```sh
 Build/EngineAudio-Reference --airflow-check
@@ -139,7 +144,7 @@ Build/EngineAudio-Reference --airflow-render Build/EngineReference/Cross4-Dry.wa
 ```
 
 Les rendus conservent sept secondes de ralenti après le démarrage. Le contrôle
-vérifie continuité entre blocs, bypass, bornes, niveau sous accélération,
+vérifie continuité entre blocs, bypass, bornes, réponse au débit mesuré,
 silence à l’arrêt et lecture asynchrone 4T identique au rendu synchrone.
 
 ## Raccourci et fluidité du témoin

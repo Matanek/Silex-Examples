@@ -109,6 +109,17 @@ démarrage, rapport, km/h × 1 000, flags (bit 0 passage, bit 1 refus surrégime
 compteur de passages. Le PCM16 mono suit cet en-tête de 32 octets. L’argument
 optionnel final du helper est l’index du catalogue, par défaut 0 pour le 454.
 
+Les modes privés `serve-intake` et `drive-intake` conservent les commandes et
+les en-têtes de `serve` et `drive`, avec les magic `0x38563845` et `0x39563845`.
+Chaque frame entrelace la pression int16 et le débit positif uint16, rapporté à
+l’air ambiant (0..65535 représente 0..0,25 m³/s). Le débit est la somme des
+aspirations aux soupapes, convertie depuis les moles par pas mécanique à 25 °C
+et 1 atm, puis rééchantillonnée sur l’horloge exacte du synthétiseur original.
+Sous 60 tr/min, une pondération progressive retire les fluctuations numériques
+d’équilibrage des gaz à l’arrêt ; elle ne dépend pas du contact.
+La capture est en lecture seule : pression et télémétrie restent bit à bit
+identiques aux modes historiques. Seul le client 4T demande ce protocole.
+
 `Drive.cpp` commande la transmission et le véhicule du simulateur, avec un
 frein sur le corps représentant l’énergie de translation, une pression
 d’embrayage progressive et une protection fondée sur le régime couplé prévu.
@@ -158,6 +169,14 @@ comparer aussi l’attaque et sa queue, isolées du souffle, puis en contexte.
 
 ```sh
 python3 Silex-Examples/Tools/EngineReference/ImpulseChecks.py
+```
+
+
+```sh
+python3 Silex-Examples/Tools/EngineReference/IntakeChecks.py \
+  --binary Build/EngineReference/RenderReference \
+  --runtime Build/EngineReference/Runtime \
+  --report Build/EngineReference/Intake-Checks.json
 ```
 
 ## Provenance

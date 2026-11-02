@@ -93,20 +93,25 @@ The 4T profile damps mid/high ringing in its exhaust response with 24/14 ms
 time constants while retaining the low-frequency tail. This targets a rounder,
 more muted impact, following the kick-drum comparison from listening feedback.
 RPM and the mechanical simulation are unchanged. The `dry` render below removes
-airflow to audition the body alone; Souffle then restores the two layers together.
+airflow to audition the body alone; Aspiration then restores the two layers together.
 
-## Four-stroke motocross airflow
+## Four-stroke motocross aspiration
 
-The cross 450 4T profile starts an intake/exhaust background layer at 60%.
-**Souffle** controls it independently of Texture and Reverb. Zero restores the
-previous pressure signal. Airflow follows RPM, grows under throttle and settles
-to silence at rest, with 90 ms smoothing. Other profiles start at zero. Profile
-selection and reset-to-defaults restore the catalogue value.
+The cross 450 4T profile starts aspiration at 60%. **Aspiration · filtre à air**
+controls it independently of Texture and Reverb. Zero restores pressure alone.
+Other profiles start at zero; profile selection and reset restore the catalogue
+value.
 
-This uses reproducible noise coloured through GFX.Audio, mixed before volume
-and reverb while leaving headroom for combustion peaks. It complements the
-bench timbre; the recording’s exact background origin (intake, exhaust,
-environment or microphone) still requires listening feedback.
+The simulator measures positive flow at the intake valves and aligns it with
+the exhaust audio clock. This drives reproducible noise coloured by GFX.Audio,
+so aspiration follows actual cycles and throttle. It continues after ignition
+cut while the engine still draws air. No continuous noise is added without flow.
+A 1.5/4 ms attack/release envelope approximates intake acoustic smoothing; the
+control uses a 90 ms ramp. The mix retains headroom for combustion peaks.
+
+Simulated flow drives timing and intensity. Filter and duct colour remain a
+simplified acoustic model requiring listening feedback, rather than a detailed
+airbox or microphone simulation.
 
 ```sh
 Build/EngineAudio-Reference --airflow-check
@@ -115,7 +120,7 @@ Build/EngineAudio-Reference --airflow-render Build/EngineReference/Cross4-Dry.wa
 ```
 
 The renders keep seven idle seconds after startup. Checks cover split-block
-continuity, transparent bypass, bounds, throttle response, stopped silence and
+continuity, transparent bypass, bounds, measured-flow response, stopped silence and
 bit-exact synchronous/asynchronous 4T PCM.
 
 ## Keyboard and audio scheduling

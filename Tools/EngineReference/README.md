@@ -104,6 +104,15 @@ magic `0x36563845`, frames, RPM × 1,000, starting, gear, km/h × 1,000, flags
 32-byte header. The helper’s optional final argument selects a catalogue index,
 defaulting to 0 for the accepted 454.
 
+Private `serve-intake` and `drive-intake` retain the `serve`/`drive` commands and
+headers, with magic `0x38563845`/`0x39563845`. Each frame interleaves int16
+pressure and uint16 positive intake flow (0..65535 represents 0..0.25 m³/s of
+ambient air). Flow sums positive intake-valve aspiration, converts moles per
+mechanical step at 25 °C and 1 atm, and resamples on the original synthesizer’s
+exact clock. Below 60 RPM, a progressive weight removes numerical gas
+equilibration jitter at rest; this is independent of ignition. Capture is
+read-only: pressure and telemetry remain bit-exact with the historical modes. Only the 4T client requests this protocol.
+
 Drive.cpp controls engine-sim’s vehicle/transmission with a wheel-brake constraint,
 progressive clutch pressure and predicted coupled-RPM downshift protection. Ratio
 changes preserve vehicle kinetic energy and speed. Profile or Banc/Route changes
@@ -148,6 +157,14 @@ of airflow, then in the complete sound.
 
 ```sh
 python3 Silex-Examples/Tools/EngineReference/ImpulseChecks.py
+```
+
+
+```sh
+python3 Silex-Examples/Tools/EngineReference/IntakeChecks.py \
+  --binary Build/EngineReference/RenderReference \
+  --runtime Build/EngineReference/Runtime \
+  --report Build/EngineReference/Intake-Checks.json
 ```
 
 ## Attribution

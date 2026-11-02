@@ -14,47 +14,58 @@ func zeros() float32[] {
 func verify_layer() {
     let format = Processing.Format(sample_rate:44_100, channels:2)
     var whole = Airflow(format); var split = Airflow(format)
-    var a = zeros(); var b = zeros()
+    var a = zeros(); var b = zeros(); var flow:float32[] = []
+    for i in 0...480 {
+        var value:float32 = 0.0; if i % 160 < 55 { value = 0.008 }
+        flow.append(value)
+    }
     for i in 0...960 { a[i] = 0.8; b[i] = a[i] }
-    whole.mix(&a[0:960], 0.0, 2_000.0, false, true)
-    for i in 0...960 { assert(a[i] == b[i], "zero airflow preserves the pressure signal bit exactly") }
+    whole.mix(&a[0:960], @flow[0:480], 0.0)
+    for i in 0...960 { assert(a[i] == b[i], "zero aspiration preserves pressure bit exactly") }
     for _ in 0...25 {
         for i in 0...960 { a[i] = 0.0; b[i] = 0.0 }
-        whole.mix(&a[0:960], 0.6, 2_000.0, false, true)
-        split.mix(&b[0:226], 0.6, 2_000.0, false, true)
-        split.mix(&b[226:960], 0.6, 2_000.0, false, true)
-        for i in 0...960 { assert(a[i] == b[i], "airflow keeps its sequence, filter and ramp across block boundaries") }
+        whole.mix(&a[0:960], @flow[0:480], 0.6)
+        split.mix(&b[0:226], @flow[0:113], 0.6)
+        split.mix(&b[226:960], @flow[113:480], 0.6)
+        for i in 0...960 { assert(a[i] == b[i], "intake timing and filter state survive arbitrary block boundaries") }
     }
-    var idle = 0.0; for x in a { idle += x as float * x as float }
-    assert(idle > 0.001, "airflow remains present between pressure pulses")
     whole.reset(); split.reset()
     for _ in 0...25 {
         for i in 0...960 { a[i] = 0.0; b[i] = 0.0 }
-        whole.mix(&a[0:960], 0.6, 2_000.0, false, true)
-        split.mix(&b[0:960], 0.6, 6_000.0, true, true)
+        for i in 0...480 { flow[i] = 0.002 }
+        whole.mix(&a[0:960], @flow[0:480], 0.6)
+        for i in 0...480 { flow[i] = 0.008 }
+        split.mix(&b[0:960], @flow[0:480], 0.6)
     }
-    var throttle = 0.0; for x in b { throttle += x as float * x as float }
-    assert(throttle > idle * 1.5, "airflow grows under acceleration")
-    for _ in 0...150 {
+    var low = 0.0; var high = 0.0
+    for i in 0...960 { low += a[i] as float * a[i] as float; high += b[i] as float * b[i] as float }
+    assert(low > 0.001 && high > low * 3.5, "aspiration energy follows measured intake flow")
+    for _ in 0...15 {
         for i in 0...960 { b[i] = 0.0 }
-        split.mix(&b[0:960], 0.6, 0.0, false, false)
+        for i in 0...480 { flow[i] = 0.0 }
+        split.mix(&b[0:960], @flow[0:480], 0.6)
     }
-    for x in b { assert(x == 0.0, "stopped engine settles to exact silence") }
+    for x in b { assert(x == 0.0, "no intake flow settles to exact silence, without an ignition gate") }
+    split.reset()
+    split.mix(&b[0:960], @flow[0:480], 1.0)
+    for x in b { assert(x == 0.0, "nonzero aspiration control cannot create a background noise floor") }
     // At the maximum control value, the pressure signal owns its original peak.
+    for i in 0...480 { flow[i] = 0.1 }
     for _ in 0...80 {
         for i in 0...960 {
             a[i] = 0.95
             if i % 4 < 2 { a[i] = -0.95 }
         }
-        whole.mix(&a[0:960], 1.0, 12_000.0, true, true)
+        whole.mix(&a[0:960], @flow[0:480], 1.0)
         for x in a { assert(Math.is_finite(x as float) && Math.abs(x as float) < 0.981) }
     }
-    print("Airflow layer passed: bypass, deterministic split blocks, headroom, acceleration and stopped silence")
+    print("Aspiration layer passed: bypass, split blocks, flow response, headroom and no-flow silence")
 }
 
-func verify_fifo() {
+func verify_fifo(road:bool) {
     var sync = Bench(running:false, reference:true); sync.select_profile(6)
     var async = Bench(running:false, reference:true); async.select_profile(6)
+    if road { sync.toggle_road(); sync.toggle_auto(); async.toggle_road(); async.toggle_auto() }
     assert(sync.profile().key == "cross4" && sync.breath == 0.6)
     var a = zeros(); var b = zeros(); var expected:float32[] = []
     for _ in 0...3_840 { expected.append(0.0) }
@@ -81,10 +92,10 @@ func verify_fifo() {
     sync.breath = 0.0; sync.reset_controls(); assert(sync.breath == 0.6)
     assert(sync.select_profile(0) && sync.breath == 0.0, "454 retains its accepted rendering by default")
     assert(sync.select_profile(7) && sync.breath == 0.0, "2T remains unchanged by default")
-    print("4T airflow FIFO passed: 576000 frames, controls, start/stop and profile defaults; peak ", peak)
+    print("4T intake FIFO passed: 576000 frames, controls, start/stop and defaults; road=", road, "; peak ", peak)
 }
 
-public func verify() { verify_layer(); verify_fifo() }
+public func verify() { verify_layer(); verify_fifo(false); verify_fifo(true) }
 
 public func render(path:str, dry:bool) {
     var bench = Bench(running:false, reference:true); bench.select_profile(6)

@@ -23,6 +23,7 @@ public class Bench:Synthesis.Generator {
     var ambience:float = 0.06
     var breath:float = 0.0
     private var airflow:Airflow
+    private var intake:float32[] = []
     var base_rpm:float = 800.0
     private var target_rpm:float = 800.0
     private var throttle:float = 0.0
@@ -55,6 +56,7 @@ public class Bench:Synthesis.Generator {
         var sample_rate = 48_000; if reference { sample_rate = 44_100 }
         self.format = Processing.Format(sample_rate:sample_rate, channels:2)
         self.airflow = Airflow(self.format)
+        for _ in 0...480 { self.intake.append(0.0) }
         self.initially_running = running; self.ignition = running
         // Match the preceding candidates' whole-scenario RMS for listening.
         self.source = Synthesis.Engine.create(self.format, amplitude:0.249)
@@ -215,8 +217,7 @@ public class Bench:Synthesis.Generator {
 
     private func process_output(samples:&float32[..]) {
         if self.reference_mode {
-            self.airflow.mix(&samples[0:samples.count()], self.breath, self.rpm(),
-                self.accelerating && self.focused, self.ignition)
+            self.airflow.mix(&samples[0:samples.count()], @self.intake[0:samples.count() / 2], self.breath)
         }
         for i in 0...samples.count() { self.room_buffer[i] = samples[i] }
         self.room.process(&self.room_buffer[0:samples.count()])
@@ -252,7 +253,7 @@ public class Bench:Synthesis.Generator {
     func render_reference_ready(samples:&float32[..]) Result<bool, Error> {
         if samples.count() != 960 { panic("reference live blocks require 480 stereo frames") }
         if var reference = self.reference {
-            let ready = try reference.render_ready(&samples[0:samples.count()]) else error { return Result<bool, Error>.failure(error) }
+            let ready = try reference.render_ready(&samples[0:samples.count()], &self.intake[0:480]) else error { return Result<bool, Error>.failure(error) }
             if !ready { return Result<bool, Error>.success(false) }
             self.accept_telemetry()
             self.process_output(&samples[0:samples.count()])
@@ -275,7 +276,7 @@ public class Bench:Synthesis.Generator {
             var frames = (samples.count() - offset) / 2
             if frames > self.remaining { frames = self.remaining }
             if var reference = self.reference {
-                try reference.render(&samples[offset:offset + frames * 2], self.ignition,
+                try reference.render(&samples[offset:offset + frames * 2], &self.intake[0:frames], self.ignition,
                     self.accelerating && self.focused, self.roughness, self.exhaust, self.base_rpm, self.load,
                     self.drive_mode(), self.requested_gear, self.braking && self.focused) else error {
                     return Result<void, Error>.failure(error)

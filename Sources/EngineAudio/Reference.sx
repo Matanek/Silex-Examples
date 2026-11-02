@@ -11,6 +11,8 @@ public class ReferenceClient {
     private var starting:bool = false
     private let driving:bool
     private let header_size:int
+    private let intake_mode:bool
+    private let sample_bytes:int
     private var gear:int = 0
     private var speed:float = 0.0
     private var flags:int = 0
@@ -21,7 +23,9 @@ public class ReferenceClient {
     private var reply:uint8[] = []
 
     init(profile:int = 0, key:str = "454", driving:bool = false) {
-        self.driving = driving
+        self.driving = driving; self.intake_mode = key == "cross4"
+        var bytes = 2; if self.intake_mode { bytes = 4 }
+        self.sample_bytes = bytes
         var size = 16; if driving { size = 32 }
         self.header_size = size
         let root = Process.current_directory() + "/Build/EngineReference"
@@ -29,6 +33,7 @@ public class ReferenceClient {
         var impulse = root + "/Runtime/Impulse-$(key).pcm"
         if profile == 0 { script = root + "/Runtime/Profile454.mr"; impulse = root + "/Runtime/Impulse.pcm" }
         var mode = "serve"; if driving { mode = "drive" }
+        if self.intake_mode { mode += "-intake" }
         self.child = Subprocess.spawn(Subprocess.SpawnCommand(
             executable:root + "/RenderReference",
             arguments:[script, impulse, "unused", mode, "$(profile)"],
@@ -79,7 +84,7 @@ public class ReferenceClient {
 
     private func collect(timeout:int) Result<bool, Error> {
         if !self.has_request() { return Result<bool, Error>.success(false) }
-        let expected = self.header_size + self.request_frames[self.request_head] * 2
+        let expected = self.header_size + self.request_frames[self.request_head] * self.sample_bytes
         var events = 0
         while self.reply.count() < expected && events < 8 {
             let next = try self.child.next_event(timeout) else error { return Result<bool, Error>.failure(error) }
@@ -99,14 +104,15 @@ public class ReferenceClient {
             } else { break }
             events++
         }
-        if self.reply.count() > 4 * (self.header_size + 960 * 2) { panic("engine reference packet queue is too large") }
+        if self.reply.count() > 4 * (self.header_size + 960 * self.sample_bytes) { panic("engine reference packet queue is too large") }
         return Result<bool, Error>.success(self.reply.count() >= expected)
     }
 
-    private func consume(samples:&float32[..]) {
+    private func consume(samples:&float32[..], intake:&float32[..]) {
         let frames = self.request_frames[self.request_head]
         var magic = 878_065_733; if self.driving { magic = 911_620_165 }
-        if samples.count() != frames * 2 || self.reply.count() < self.header_size + frames * 2 ||
+        if self.intake_mode { magic = 945_174_597; if self.driving { magic = 961_951_813 } }
+        if samples.count() != frames * 2 || intake.count() != frames || self.reply.count() < self.header_size + frames * self.sample_bytes ||
             self.integer(@self.reply[0:self.reply.count()], 0) != magic ||
             self.integer(@self.reply[0:self.reply.count()], 4) != frames {
             panic("engine reference packet missing or invalid; rebuild Tools/EngineReference")
@@ -120,14 +126,19 @@ public class ReferenceClient {
             self.shifts = self.integer(@self.reply[0:self.reply.count()], 28)
         }
         for frame in 0...frames {
-            let offset = self.header_size + frame * 2
+            let offset = self.header_size + frame * self.sample_bytes
             var value = self.reply[offset] as int + self.reply[offset + 1] as int * 256
             if value >= 32_768 { value -= 65_536 }
             let sample = value as float32 / 32_768.0
             samples[frame * 2] = sample; samples[frame * 2 + 1] = sample
+            intake[frame] = 0.0
+            if self.intake_mode {
+                let flow = self.reply[offset + 2] as int + self.reply[offset + 3] as int * 256
+                intake[frame] = flow as float32 * (0.25 / 65_535.0)
+            }
         }
         var remaining:uint8[] = []
-        let consumed = self.header_size + frames * 2
+        let consumed = self.header_size + frames * self.sample_bytes
         var index = consumed
         while index < self.reply.count() { remaining.append(self.reply[index]); index++ }
         self.reply = remaining
@@ -135,14 +146,14 @@ public class ReferenceClient {
         self.request_count--
     }
 
-    func render_ready(samples:&float32[..]) Result<bool, Error> {
+    func render_ready(samples:&float32[..], intake:&float32[..]) Result<bool, Error> {
         let ready = try self.collect(0) else error { return Result<bool, Error>.failure(error) }
         if !ready { return Result<bool, Error>.success(false) }
-        self.consume(&samples[0:samples.count()])
+        self.consume(&samples[0:samples.count()], &intake[0:intake.count()])
         return Result<bool, Error>.success(true)
     }
 
-    func render(samples:&float32[..], running:bool, pedal:bool, texture:float,
+    func render(samples:&float32[..], intake:&float32[..], running:bool, pedal:bool, texture:float,
         convolution:float, base_rpm:float, load:float, mode:int = 1, gear:int = 0, braking:bool = false) Result<void, Error> {
         if samples.count() % 2 != 0 || self.has_request() {
             return Result<void, Error>.failure(Error(kind:Kind.invalid_input(), operation:"engine-reference.render",
@@ -154,7 +165,7 @@ public class ReferenceClient {
         var attempts = 0
         while attempts < 100 {
             let ready = try self.collect(50) else error { return Result<void, Error>.failure(error) }
-            if ready { self.consume(&samples[0:samples.count()]); return Result<void, Error>.success() }
+            if ready { self.consume(&samples[0:samples.count()], &intake[0:intake.count()]); return Result<void, Error>.success() }
             attempts++
         }
         panic("engine reference packet timed out")
