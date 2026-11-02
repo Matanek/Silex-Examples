@@ -19,8 +19,10 @@ without restarting playback. This first trial has a fixed V8 profile.
 
 The prototype uses `GFX.Audio.Synthesis.Engine`: combustion pulses, two exhausts,
 modulated noise, resonances and soft saturation. It uses no recorded loop and
-does not simulate mechanical parts or gas flow. Timbre quality needs listening
-evaluation.
+does not simulate mechanical parts or gas flow. The profile emphasizes an
+extended low combustion body while keeping combustion frequency tied to RPM.
+The bench's initial level is adjusted for timbre comparisons. Quality still
+needs listening evaluation.
 
 ## Check without opening the window
 

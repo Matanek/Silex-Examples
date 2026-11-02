@@ -22,7 +22,8 @@ public class Bench:Synthesis.Generator {
 
     init() {
         self.format = Processing.Format(sample_rate:48_000, channels:2)
-        self.source = Synthesis.Engine.create(self.format, amplitude:0.25)
+        // Match the preceding listening candidate's whole-scenario RMS.
+        self.source = Synthesis.Engine.create(self.format, amplitude:0.162)
     }
 
     func rpm() float { return self.source.current_rpm() as float }

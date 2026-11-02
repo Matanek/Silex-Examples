@@ -22,7 +22,9 @@ relance pas la lecture. Le profil est un V8 fixe pour ce premier essai.
 Ce prototype utilise `GFX.Audio.Synthesis.Engine` : pulsations de combustion,
 deux échappements, bruit modulé, résonances et saturation douce. Il n'utilise
 aucune boucle enregistrée et ne simule pas les pièces ou les gaz d'un moteur.
-La qualité du timbre reste à apprécier à l'écoute.
+Le profil privilégie un corps de combustion prolongé dans le grave, en gardant
+la fréquence des combustions liée au régime. Le niveau initial du banc est
+ajusté pour comparer les timbres. La qualité reste à apprécier à l'écoute.
 
 ## Vérifier sans ouvrir la fenêtre
 
