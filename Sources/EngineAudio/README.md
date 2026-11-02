@@ -87,6 +87,14 @@ restart. Its WAV contains 576,000 stereo frames at 44.1 kHz. The automatic smoke
 lasts nine seconds on Banc, 35 seconds in Route with launch, shifts and braking.
 Native visual and listening feedback is still needed.
 
+## Four-stroke combustion body
+
+The 4T profile damps mid/high ringing in its exhaust response with 24/14 ms
+time constants while retaining the low-frequency tail. This targets a rounder,
+more muted impact, following the kick-drum comparison from listening feedback.
+RPM and the mechanical simulation are unchanged. The `dry` render below removes
+airflow to audition the body alone; Souffle then restores the two layers together.
+
 ## Four-stroke motocross airflow
 
 The cross 450 4T profile starts an intake/exhaust background layer at 60%.

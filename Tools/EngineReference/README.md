@@ -138,6 +138,18 @@ immediately without an attenuation floor before PCM16 conversion. These broad
 settings are guided by supplied recordings and still require listening feedback.
 User recordings are not copied into package sources.
 
+The 4T IR also applies frequency-dependent absorption. `mid_decay_ms=24` and
+`high_decay_ms=14` are tau constants in exp(−t/tau), not total tail durations.
+A two-pole split at 350/1,800 Hz retains the low body while mid/high ringing
+decays faster. Zero values preserve existing recipes exactly. Preparation is
+offline and changes neither RPM nor helper code. Broad spectral balance and
+RMS alone do not qualify an impact: compare its attack and tail independently
+of airflow, then in the complete sound.
+
+```sh
+python3 Silex-Examples/Tools/EngineReference/ImpulseChecks.py
+```
+
 ## Attribution
 
 [engine-sim](https://github.com/ange-yaghi/engine-sim/tree/85f7c3b959a908ed5232ede4f1a4ac7eafe6b630),

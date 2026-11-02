@@ -118,7 +118,8 @@ def main():
         with wave.open(str(snapshot / 'assets/sound-library' / profile['impulse']), 'rb') as stream:
             assert (stream.getnchannels(), stream.getsampwidth(), stream.getframerate()) == (1, 2, 44100)
             pcm = stream.readframes(stream.getnframes())
-            pcm = Impulse.prepare(pcm, profile.get('treble_db', 0), profile.get('tail_ms', 0), profile.get('bass_db', 0))
+            pcm = Impulse.prepare(pcm, profile.get('treble_db', 0), profile.get('tail_ms', 0), profile.get('bass_db', 0),
+                profile.get('mid_decay_ms', 0), profile.get('high_decay_ms', 0))
             (runtime / ('Impulse-' + profile['key'] + '.pcm')).write_bytes(pcm)
     metadata = {'repository': 'https://github.com/ange-yaghi/engine-sim', 'revision': REVISION,
         'dependencies': DEPENDENCIES, 'profiles': profiles,

@@ -147,6 +147,19 @@ pour préserver les transitoires avant conversion PCM16. Ces choix sont calibré
 sur les caractéristiques larges des prises fournies et demandent une écoute ;
 les enregistrements utilisateur ne sont pas copiés dans les sources du package.
 
+Le 4T ajoute une absorption dépendante de la fréquence à son IR :
+`mid_decay_ms=24`, `high_decay_ms=14` sont les constantes tau de exp(−t/tau),
+pas des durées totales de queue. La séparation à deux pôles à 350/1 800 Hz
+laisse le corps grave durer tandis que les résonances médium/aigu s’amortissent.
+Les valeurs nulles conservent exactement le chemin des autres recettes. Cette
+préparation est hors ligne et ne change ni le régime, ni le code du helper.
+L’équilibre spectral et le RMS ne suffisent pas à qualifier le claquement :
+comparer aussi l’attaque et sa queue, isolées du souffle, puis en contexte.
+
+```sh
+python3 Silex-Examples/Tools/EngineReference/ImpulseChecks.py
+```
+
 ## Provenance
 
 [engine-sim](https://github.com/ange-yaghi/engine-sim/tree/85f7c3b959a908ed5232ede4f1a4ac7eafe6b630),

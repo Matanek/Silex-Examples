@@ -4,8 +4,8 @@ import math
 import sys
 
 
-def prepare(pcm, treble_db=0, tail_ms=0, bass_db=0):
-    if treble_db == 0 and tail_ms == 0 and bass_db == 0:
+def prepare(pcm, treble_db=0, tail_ms=0, bass_db=0, mid_decay_ms=0, high_decay_ms=0):
+    if treble_db == 0 and tail_ms == 0 and bass_db == 0 and mid_decay_ms == 0 and high_decay_ms == 0:
         return pcm
     values = array.array('h')
     values.frombytes(pcm)
@@ -41,6 +41,23 @@ def prepare(pcm, treble_db=0, tail_ms=0, bass_db=0):
             output.append(y)
         return output
     filtered = shelf(shelf(values, bass_db, 250, False), treble_db, 2000, True)
+    if mid_decay_ms or high_decay_ms:
+        # Frequency-dependent absorption: keep the low body, shorten ringing
+        # mids/highs. Two-pole split avoids keeping a long bright tail in the body.
+        low_alpha = 1 - math.exp(-2 * math.pi * 350 / 44100)
+        upper_alpha = 1 - math.exp(-2 * math.pi * 1800 / 44100)
+        low1 = low2 = upper1 = upper2 = 0.0
+        damped = []
+        for i, x in enumerate(filtered):
+            low1 += low_alpha * (x - low1)
+            low2 += low_alpha * (low1 - low2)
+            upper1 += upper_alpha * (x - upper1)
+            upper2 += upper_alpha * (upper1 - upper2)
+            t_ms = i / 44.1
+            mid = math.exp(-t_ms / mid_decay_ms) if mid_decay_ms else 1.0
+            high = math.exp(-t_ms / high_decay_ms) if high_decay_ms else 1.0
+            damped.append(low2 + mid * (upper2 - low2) + high * (x - upper2))
+        filtered = damped
     result = []
     count = len(values) if tail_ms == 0 else min(len(values), round(tail_ms * 44.1))
     for i, y in enumerate(filtered[:count]):

@@ -195,7 +195,9 @@
       "treble_db": 10,
       "tail_ms": 60,
       "bass_db": 7,
-      "breath_percent": 60
+      "breath_percent": 60,
+      "mid_decay_ms": 24,
+      "high_decay_ms": 14
     },
     {
       "key": "cross2",

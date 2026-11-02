@@ -109,6 +109,15 @@ Clés : `454`, `berline`, `sport`, `cruiser`, `moto`, `truck`, `cross4`, `cross2
 la boîte, le point mort et le freinage, puis compare le PCM et la télémétrie
 Route synchrones et asynchrones avec quatre requêtes en vol.
 
+## Corps de l’explosion du cross 4T
+
+Le profil 4T amortit les résonances médium et aigu de la réponse d’échappement,
+avec des constantes de 24 et 14 ms, tout en conservant la queue grave. Cela
+vise un impact plus rond et mat, suivant le repère d’un kick de batterie donné
+à l’écoute. Le régime et le calcul mécanique restent ceux du moteur simulé.
+Le rendu `dry` ci-dessous retire le souffle pour juger le corps seul ; le
+curseur Souffle permet ensuite d’écouter les deux couches ensemble.
+
 ## Souffle du cross quatre temps
 
 Le profil cross 450 4T active un fond d’admission/échappement à 60 %. Le curseur
