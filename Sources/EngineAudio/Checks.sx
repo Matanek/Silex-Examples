@@ -22,7 +22,66 @@ func key(down:bool, repeated:bool = false) Events.Event {
     return Events.Event.key_released(value)
 }
 
+func ignition_key(repeated:bool = false) Events.Event {
+    let value = Events.KeyEvent(window:Window.Id(value:1 as uint32), keyboard:Keyboard.KeyboardId(value:0 as uint32),
+        key:Keyboard.Key.m, keycode:109 as uint32, raw:16 as uint16,
+        repeated:repeated, modifiers:Keyboard.Modifiers(), timestamp:Events.Timestamp(nanoseconds:0 as uint))
+    return Events.Event.key_pressed(value)
+}
+
+func verify_ignition() {
+    var bench = Bench(running:false); var session = BenchSession(bench)
+    var samples = zeros(960)
+    session.handle(key(true)); assert(!bench.accelerating && !bench.is_running())
+    for _ in 0...20 {
+        bench.render(&samples[0:samples.count()])
+        for sample in samples { assert(sample == 0.0) }
+    }
+    assert(bench.rpm() == 0.0)
+    session.handle(ignition_key(repeated:true)); assert(!bench.is_running())
+    session.handle(ignition_key()); assert(bench.is_running() && bench.is_starting() && !bench.accelerating)
+    session.handle(ignition_key(repeated:true)); assert(bench.is_running())
+    var energy:float64 = 0.0
+    for _ in 0...100 {
+        bench.render(&samples[0:samples.count()])
+        for sample in samples { energy += sample as float64 * sample as float64 }
+    }
+    assert(energy > 0.1 && !bench.is_starting() && Math.abs(bench.rpm() - 800.0) < 35.0)
+    session.handle(key(true))
+    for _ in 0...100 { bench.render(&samples[0:samples.count()]) }
+    assert(bench.rpm() > 3_000.0)
+    session.handle(ignition_key()); assert(!bench.is_running() && !bench.accelerating)
+    bench.render(&samples[0:samples.count()])
+    var tail:float64 = 0.0
+    for sample in samples { tail += Math.abs(sample as float64) }
+    assert(tail > 0.01, "ignition cut discarded the acoustic tail")
+    for _ in 0...300 { bench.render(&samples[0:samples.count()]) }
+    assert(bench.rpm() == 0.0)
+    for sample in samples { assert(Math.abs(sample) < 0.000001, "engine failed to become silent") }
+    bench.reset_controls(); assert(!bench.is_running())
+    session.handle(key(true, repeated:true)); assert(!bench.accelerating)
+    session.handle(ignition_key()); assert(bench.is_running() && !bench.accelerating)
+    session.handle(key(true, repeated:true)); assert(!bench.accelerating)
+    for _ in 0...100 { bench.render(&samples[0:samples.count()]) }
+    session.handle(key(true)); assert(bench.accelerating)
+
+    // Ignition ramps and the room retain identical PCM across arbitrary splits.
+    var whole = Bench(running:false); var split = Bench(running:false)
+    whole.toggle_running(); split.toggle_running()
+    var a = zeros(96_000); var b = zeros(96_000)
+    whole.render(&a[0:a.count()])
+    split.render(&b[0:514]); split.render(&b[514:4_018]); split.render(&b[4_018:b.count()])
+    for i, sample in a.indexed() { assert(sample == b[i]) }
+    whole.toggle_running(); split.toggle_running()
+    whole.render(&a[0:a.count()])
+    split.render(&b[0:1_002]); split.render(&b[1_002:b.count()])
+    for i, sample in a.indexed() { assert(sample == b[i]) }
+    bench.reset(); assert(!bench.is_running() && bench.rpm() == 0.0)
+    print("Ignition checks passed: silence, M/repeat, startup, stop tail, restart and block continuity")
+}
+
 public func verify() {
+    verify_ignition()
     var bench = Bench(); var session = BenchSession(bench)
     assert(session.handle(key(true, repeated:true)) && !bench.accelerating)
     assert(session.handle(key(true)) && bench.accelerating)

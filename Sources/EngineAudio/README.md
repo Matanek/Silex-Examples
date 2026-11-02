@@ -2,6 +2,12 @@
 
 [Français](README.fr.md)
 
+The window opens with the engine off. The **Démarrer / Arrêter** button or **M**
+toggles ignition. The tachometer indicates startup and shutdown; sound fades in
+and the room tail rings out after stopping. Space is ignored while off.
+Press Space again to accelerate after an ignition change. Resetting settings
+does not change ignition.
+
 Hold **Space** to rev from 800 to 6,600 RPM; release it to return gradually to
 the selected speed with changing engine braking. The tachometer and sound follow the same
 model. Losing window focus releases the throttle; press again after returning.
@@ -60,8 +66,8 @@ It excludes PCM transfer, UI and device output; it is neither a latency measure
 nor overall game qualification.
 
 `--smoke` opens a clearly labelled five-second automatic scenario, then closes.
-It checks native execution and feeding without replacing actual Space and
-slider interaction.
+It checks native execution and feeding through startup, acceleration and stopping,
+without replacing actual ignition, Space and slider interaction.
 
 ## Clocks and limits
 

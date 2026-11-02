@@ -23,8 +23,13 @@ public class BenchSession:Canvas.Session {
     func drawing(width:int, height:int) Canvas { return self.ui.drawing(width, height) }
 
     func update(delta:float) bool {
+        let previous = self.elapsed
         self.elapsed += delta
-        if self.automated { self.bench.accelerating = self.elapsed >= 0.5 && self.elapsed < 2.5 }
+        if self.automated {
+            if previous < 0.2 && self.elapsed >= 0.2 { self.bench.set_running(true) }
+            if previous < 2.8 && self.elapsed >= 2.8 { self.bench.set_running(false) }
+            self.bench.accelerating = self.bench.is_running() && self.elapsed >= 0.8 && self.elapsed < 2.0
+        }
         self.feed()
         return self.ui.update(delta)
     }
@@ -37,8 +42,14 @@ public class BenchSession:Canvas.Session {
             }
             window_focus_gained(value) => { self.bench.focused = true }
             key_pressed(value) => {
-                if value.key == Keyboard.Key.space {
+                if value.key == Keyboard.Key.m {
                     if !value.repeated && self.bench.focused && !self.ui.accepts_text_input() {
+                        self.bench.toggle_running()
+                    }
+                    return true
+                }
+                if value.key == Keyboard.Key.space {
+                    if !value.repeated && self.bench.focused && self.bench.is_running() && !self.ui.accepts_text_input() {
                         self.bench.accelerating = true
                     }
                     return true

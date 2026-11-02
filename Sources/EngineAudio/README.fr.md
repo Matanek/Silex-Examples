@@ -2,6 +2,12 @@
 
 [English](README.md)
 
+La fenêtre s'ouvre moteur éteint. Le bouton **Démarrer / Arrêter** ou la touche
+**M** bascule le contact. Le compte-tours indique le démarrage et l'extinction ;
+le son entre progressivement et la réverbe finit de résonner à l'arrêt.
+Espace est ignoré moteur éteint. Un nouvel appui est nécessaire pour accélérer
+après un changement de contact. Les réglages initiaux ne changent pas le contact.
+
 Maintenir **Espace** fait monter le régime de 800 à 6 600 tr/min ; relâcher
 ramène progressivement au régime choisi avec une variation de frein moteur.
 Le compte-tours et le son suivent le même modèle. La perte de focus relâche
@@ -65,7 +71,8 @@ une mesure de latence ni une qualification globale pour le jeu.
 
 `--smoke` ouvre un scénario automatique de cinq secondes, clairement indiqué
 dans la fenêtre, puis ferme. Il vérifie l'exécution native et l'alimentation,
-sans remplacer un essai réel d'Espace et des curseurs.
+avec démarrage, accélération et arrêt, sans remplacer un essai réel du contact,
+d'Espace et des curseurs.
 
 ## Horloges et limites
 

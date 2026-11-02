@@ -72,7 +72,11 @@ class Tachometer:UI.Content {
         if self.bench.accelerating { status = "ACCÉLÉRATION" }
         elif self.bench.rpm() > self.bench.base_rpm + 70.0 { status = "DÉCÉLÉRATION / FREIN MOTEUR" }
         elif self.bench.base_rpm > 800.0 { status = "RÉGIME MAINTENU" }
-        if !self.bench.focused { status = "GAZ RELÂCHÉS — FENÊTRE INACTIVE" }
+        if !self.bench.is_running() {
+            status = "MOTEUR ÉTEINT"
+            if self.bench.rpm() > 0.0 { status = "EXTINCTION" }
+        } elif self.bench.is_starting() { status = "DÉMARRAGE" }
+        elif !self.bench.focused { status = "GAZ RELÂCHÉS — FENÊTRE INACTIVE" }
         painter.text(status, frame.position.add(Math.Vec2(frame.size.x * 0.5, frame.size.y - 22.0)),
             Canvas.TextStyle(size:12.0, color:Color.amber_300(), alignment:Canvas.TextAlignment.center, font:self.font))
     }
@@ -122,6 +126,7 @@ class Controls {
     func idle() { self.bench.base_rpm = 800.0 }
     func low() { self.bench.base_rpm = 1_000.0 }
     func high() { self.bench.base_rpm = 1_500.0 }
+    func toggle_engine() { self.bench.toggle_running() }
     func restore() {
         self.bench.reset_controls()
         self.exhaust.set(self.bench.exhaust); self.roughness.set(self.bench.roughness)
@@ -139,8 +144,11 @@ class Controls {
             button.style.height = 34.0; button.style.grow = 1.0
             button.style.background = Color.slate_700(); button.style.foreground = Color.slate_100()
         }
-        let presets:UI.View[] = [idle, low, high]
+        let presets:UI.View[] = [buttons[0], buttons[1], buttons[2]]
         var speeds = UI.Row(presets); speeds.style.gap = 8.0
+        var power = UI.Button("Démarrer / Arrêter · M", self.toggle_engine)
+        power.style.height = 38.0; power.style.radius = 8.0
+        power.style.background = Color.amber_700(); power.style.foreground = Color.slate_100()
         var reset = UI.Button("Réglages initiaux", self.restore)
         reset.style.height = 40.0; reset.style.radius = 8.0
         reset.style.background = Color.slate_700(); reset.style.foreground = Color.slate_100()
@@ -148,21 +156,21 @@ class Controls {
         var title = label("Moteur V8", 30.0, Color.slate_100())
         title.style.font_weight = UI.FontWeight.bold
         let controls:UI.View[] = [badge, title,
-            label("Deux échappements. Aucune boucle audio.", 12.0, Color.slate_400()),
+            label("Deux échappements. Aucune boucle audio.", 12.0, Color.slate_400()), power,
             control("Échappement · feutré → ouvert", self.exhaust, self.change_exhaust),
             control("Texture · régulier → rugueux", self.roughness, self.change_roughness),
             control("Charge du moteur", self.load, self.change_load),
             control("Réverbe courte · sec → ambiance", self.ambience, self.change_ambience, maximum:0.2),
             control("Volume", self.volume, self.change_volume), reset,
             label("Régime au relâchement · tr/min", 11.0, Color.slate_400()), speeds]
-        var panel = UI.Column(controls); panel.style.width = 330.0; panel.style.gap = 14.0
+        var panel = UI.Column(controls); panel.style.width = 330.0; panel.style.gap = 10.0
         panel.style.padding = UI.Insets(22.0); panel.style.background = Color.bytes(20, 28, 38)
         panel.style.radius = 18.0
         var dial = UI.CustomView(Tachometer(bench)); dial.style.grow = 1.0
         let body:UI.View[] = [dial, panel]
         var row = UI.Row(body, alignment:UI.Alignment.center); row.style.gap = 24.0
-        var instruction = "Maintenir ESPACE pour accélérer · Relâcher pour décélérer"
-        if automated { instruction = "SCÉNARIO AUTOMATIQUE — ralenti, accélération, décélération" }
+        var instruction = "M : démarrer / arrêter · ESPACE : accélérer · Relâcher : décélérer"
+        if automated { instruction = "SCÉNARIO AUTOMATIQUE — démarrage, accélération, arrêt" }
         var hint = label(instruction, 14.0, Color.amber_200())
         hint.style.padding = UI.Insets(vertical:12.0, horizontal:18.0)
         hint.style.background = Color.bytes(36, 33, 27); hint.style.radius = 10.0

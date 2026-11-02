@@ -28,14 +28,14 @@ func main() {
         }
         elif argument == "--smoke" { smoke = true }
         elif argument == "--help" {
-            print("Engine audio bench: hold SPACE to accelerate; release to return to the selected RPM.")
+            print("Engine audio bench: M toggles ignition; hold SPACE to accelerate; release to return to the selected RPM.")
             print("--check | --measure | --render output.wav [full|smooth|sine|dry|idle|idle-dry|regular] | --smoke")
             return
         } else { panic("Unknown option; use --help") }
         index++
     }
 
-    var bench = Bench()
+    var bench = Bench(running:false)
     var audio = Audio()
     var producer = Synthesis.StreamProducer.create(audio, bench, 9_223_372_036_854_775_807,
         block_frames:480, capacity_frames:2_880)
@@ -54,7 +54,7 @@ func main() {
             producer.pump(); iteration++
         }
     }, automated:smoke)
-    var title = "GFX.Audio — Banc moteur V8 · Espace pour accélérer"
+    var title = "GFX.Audio — Banc moteur V8 · M : contact · Espace : gaz"
     if smoke { title = "GFX.Audio — Scénario automatique moteur V8" }
     let settings = Viewer.CanvasSettings(width:1_080, height:820, title:title,
         background:Color.bytes(8, 13, 20))
