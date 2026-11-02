@@ -47,7 +47,8 @@ a longitudinal vehicle and transmission. Choose this mode before starting.
 The dial shows AUTO or MANUEL, gear (N for neutral) and km/h. Masses and ratios
 are demonstration settings.
 
-- **M** or the button toggles ignition. Cranking and coast-down take time.
+- **M** or the button toggles ignition, including while the vehicle is moving.
+  Cranking and coast-down take time.
 - Hold **Space** for throttle; release for overrun.
 - **A** toggles automatic/manual gear selection.
 - **↑ / ↓** or + / − selects a gear and enters manual mode.
@@ -58,6 +59,8 @@ Clutch pressure falls, throttle is briefly cut and drive progressively returns
 during a shift. Clutch operation is automatic even with manual gear selection.
 The two-stroke launches above idle with clutch slip. Unsafe downshifts are
 refused and displayed; a rejected request is not deferred until a lower speed.
+After N, + / ↑ advances through requested gears even when the first ones are
+unsafe at the current speed: continue to a compatible ratio.
 Automatic thresholds and a cooldown prevent hunting. Losing focus releases
 throttle and brake. Reverse is not implemented.
 
@@ -73,6 +76,7 @@ backgrounds and contrasting selection colours.
 ```sh
 Build/EngineAudio-Reference --preset cross2 --road
 Build/EngineAudio-Reference --preset moto --manual
+Build/EngineAudio-Reference --control-check
 Build/EngineAudio-Reference --fleet-check
 Build/EngineAudio-Reference --reference-check
 Build/EngineAudio-Reference --reference-async-check

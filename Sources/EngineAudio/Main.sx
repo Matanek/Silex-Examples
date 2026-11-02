@@ -11,6 +11,7 @@ use Module.ReferenceChecks
 use Module.Live
 use Module.FleetChecks
 use Module.AirflowChecks
+use Module.ControlChecks
 
 func main() {
     let arguments = Process.arguments()
@@ -23,7 +24,8 @@ func main() {
     var index = 1
     while index < arguments.count() {
         let argument = arguments[index]
-        if argument == "--airflow-check" { AirflowChecks.verify(); return }
+        if argument == "--control-check" { ControlChecks.verify(); return }
+        elif argument == "--airflow-check" { AirflowChecks.verify(); return }
         elif argument == "--airflow-render" {
             index++; if index >= arguments.count() { panic("--airflow-render requires a WAV path") }
             let path = arguments[index]; var dry = false
@@ -65,7 +67,7 @@ func main() {
             print("Engine audio bench: M toggles ignition; hold SPACE to accelerate; release to return to the selected RPM.")
             print("--preset 454|berline|sport|cruiser|moto|truck|cross4|cross2 | --road | --manual")
             print("--airflow-check | --airflow-render output.wav [dry]")
-            print("--fleet-check | --reference | --reference-check | --reference-render output.wav | --frame-profile")
+            print("--control-check | --fleet-check | --reference | --reference-check | --reference-render output.wav | --frame-profile")
             print("--check | --measure | --render output.wav [full|smooth|sine|dry|idle|idle-dry|regular|ignition] | --smoke")
             return
         } else { panic("Unknown option; use --help") }

@@ -34,6 +34,7 @@ double DriveController::update(bool running, double pedal, int mode, int request
     rejection = std::max(0.0, rejection - dt);
     vehicle.setBrake(braking);
     const double rpm = engine.getRpm();
+    if (mode == 1 || requestedGear != rejectedGear) rejectedGear = -1;
     int target = gear;
     if (mode == 1) {
         if (running && pedal > 0 && gear == 0 && rpm > settings.idle * 0.8) target = 1;
@@ -41,11 +42,15 @@ double DriveController::update(bool running, double pedal, int mode, int request
             if (rpm > units::toRpm(engine.getRedline()) * 0.84 && pedal > 0 && gear < static_cast<int>(settings.ratios.size())) target = gear + 1;
             else if (rpm < std::max(settings.idle * 1.5, units::toRpm(engine.getRedline()) * 0.32) && gear > 1) target = gear - 1;
         }
-    } else target = requestedGear;
+    } else if (requestedGear != rejectedGear) target = requestedGear;
+    else rejection = 0.6;
     if (target != gear && shiftRemaining == 0) {
         double coupledRpm = 0;
         if (target > 0) coupledRpm = units::toRpm(vehicle.getSpeed() / settings.wheel * settings.diff * settings.ratios[target - 1]);
-        if (target > 0 && coupledRpm > units::toRpm(engine.getRedline()) * 1.02) rejection = 0.6;
+        if (target > 0 && coupledRpm > units::toRpm(engine.getRedline()) * 1.02) {
+            rejection = 0.6;
+            if (mode != 1) rejectedGear = target;
+        }
         else {
             transmission.setClutchPressure(0);
             transmission.changeGear(target - 1);

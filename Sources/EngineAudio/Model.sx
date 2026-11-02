@@ -169,7 +169,6 @@ public class Bench:Synthesis.Generator {
     }
     private func accept_telemetry() {
         self.reference_ready = true
-        if self.driving && self.shift_flags() >= 2 { self.requested_gear = self.gear() }
     }
 
     private func advance() {

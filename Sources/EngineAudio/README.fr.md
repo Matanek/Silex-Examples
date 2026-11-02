@@ -23,7 +23,8 @@ Build/EngineAudio-Reference --reference
 **M** ou le bouton démarre et coupe l'allumage. Attendre que le démarreur entraîne
 le moteur, puis maintenir **Espace** pour accélérer ; relâcher pour décélérer.
 La fenêtre commence moteur éteint et relâche les gaz lorsqu'elle perd le focus.
-La coupure laisse finir les combustions et ralentir la mécanique.
+La coupure laisse finir les combustions et ralentir la mécanique, même si le
+véhicule roule encore.
 
 Choisir le profil avec la liste déroulante. Couper le contact et attendre
 l’arrêt du moteur et du véhicule avant un changement. Le chargement est indiqué
@@ -68,7 +69,9 @@ La boîte débraye, coupe brièvement les gaz et reprend progressivement l’eff
 Le départ utilise un embrayage automatique, y compris en commande manuelle des
 rapports. Le deux temps démarre dans sa plage de puissance avec du patinage.
 Un rétrogradage qui dépasserait le régime limite est refusé et signalé ; une
-commande refusée n’est pas différée jusqu’à une vitesse plus basse. Les seuils
+commande refusée n’est pas différée jusqu’à une vitesse plus basse. Après N,
+les appuis sur + / ↑ parcourent les rapports demandés, même si les premiers
+sont refusés à cette vitesse : continuer jusqu’à un rapport compatible. Les seuils
 auto et leur temporisation évitent les passages répétés autour d’un même régime.
 La perte de focus relâche gaz et frein. Il n’y a pas de marche arrière.
 
@@ -84,6 +87,7 @@ Le panneau de réglages défile si nécessaire. Texte et fond du sélecteur et d
 sa liste ouverte ont des couleurs explicites pour conserver le contraste.
 
 ```sh
+Build/EngineAudio-Reference --control-check
 Build/EngineAudio-Reference --fleet-check
 Build/EngineAudio-Reference --reference-check
 Build/EngineAudio-Reference --reference-render Build/EngineReference/Bridge.wav

@@ -65,6 +65,7 @@ class DriveController {
     private: RoadVehicle& vehicle;
     private: int gear { 0 };
     private: int shifts { 0 };
+    private: int rejectedGear { -1 };
     private: double shiftRemaining { 0 };
     private: double cooldown { 0 };
     private: double rejection { 0 };
