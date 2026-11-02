@@ -3,8 +3,10 @@
 [Français](README.fr.md)
 
 The window opens with the engine off. The **Démarrer / Arrêter** button or **M**
-toggles ignition. The tachometer indicates startup and shutdown; sound fades in
-and the room tail rings out after stopping. Space is ignored while off.
+toggles ignition. The tachometer indicates startup and shutdown; fuel rises
+gradually during startup and falls over about 350 ms during shutdown. Engaged
+combustions finish while RPM keeps falling through inertia, then pressure and
+the room tail ring out. Space is ignored while off.
 Press Space again to accelerate after an ignition change. Resetting settings
 does not change ignition.
 
@@ -61,6 +63,9 @@ The final argument `dry` keeps the normal scenario with zero reverb.
 `idle-dry` runs the same trial without reverb, while `regular` also disables
 combustion and RPM irregularities, retaining turbulence. These three variants focus listening on the rumble and changes
 between held speeds.
+
+The `ignition` variant renders twelve seconds starting off, with two starts and
+two stops. It lets you hear the final combustions and silence between trials.
 
 `--measure` emits timings for 1,000 synthesis blocks of 480 frames after warmup.
 It excludes PCM transfer, UI and device output; it is neither a latency measure

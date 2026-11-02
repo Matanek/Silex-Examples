@@ -29,21 +29,20 @@ public class Bench:Synthesis.Generator {
     private let initially_running:bool
     private var ignition:bool
     private var starting:bool = false
-    private var engine_gain:float32
+    private var fuel:float = 1.0
     var produced_frames:int = 0
 
     init(running:bool = true) {
         self.format = Processing.Format(sample_rate:48_000, channels:2)
         self.initially_running = running; self.ignition = running
-        self.engine_gain = 1.0
         // Match the preceding candidates' whole-scenario RMS for listening.
         self.source = Synthesis.Engine.create(self.format, amplitude:0.249)
         self.room = Processing.Reverb.create(self.format, room_size:0.18,
             decay_seconds:0.22, damping:0.65, wet:1.0)
         for _ in 0...960 { self.room_buffer.append(0.0) }
         if !running {
-            self.target_rpm = 0.0; self.engine_gain = 0.0
-            self.source.set_state(0.0, ramp_frames:0)
+            self.target_rpm = 0.0; self.fuel = 0.0
+            self.source.set_state(0.0, ramp_frames:0, fuel:0.0)
         }
     }
 
@@ -70,8 +69,11 @@ public class Bench:Synthesis.Generator {
         var pedal = 0.0
         if self.ignition && self.accelerating && self.focused && !self.is_starting() { pedal = 1.0 }
         self.throttle += (pedal - self.throttle) * 0.16
+        // Fuel controls future pressure events; already injected events ring out.
+        var fuel_target = 0.0; if self.ignition { fuel_target = 1.0 }
+        self.fuel += Math.clamp(fuel_target - self.fuel, -0.01 / 0.35, 0.01 / 0.6)
         if !self.ignition {
-            self.target_rpm = Math.max(0.0, self.target_rpm - 5_000.0 * 0.01)
+            self.target_rpm = Math.max(0.0, self.target_rpm - (1_200.0 + 0.35 * self.target_rpm) * 0.01)
         } elif self.is_starting() {
             self.target_rpm = Math.min(self.base_rpm, self.target_rpm + 1_400.0 * 0.01)
             if self.target_rpm == self.base_rpm { self.starting = false }
@@ -102,7 +104,7 @@ public class Bench:Synthesis.Generator {
         var firing_throttle = self.throttle
         if self.target_rpm >= 6_590.0 && (self.produced_frames / 2_400) % 3 == 0 { firing_throttle *= 0.25 }
         self.source.set_state(audible_rpm as float32, throttle:firing_throttle as float32,
-            load:self.load as float32, engine_brake:engine_brake as float32, ramp_frames:480)
+            load:self.load as float32, engine_brake:engine_brake as float32, ramp_frames:480, fuel:self.fuel as float32)
         self.source.set_character(self.exhaust as float32, self.roughness as float32, ramp_frames:480)
     }
 
@@ -117,17 +119,6 @@ public class Bench:Synthesis.Generator {
             if frames > self.remaining { frames = self.remaining }
             try self.source.render(&samples[offset:offset + frames * 2]) else error {
                 return Result<void, Error>.failure(error)
-            }
-            // Fade the direct engine before the room so the latter can ring out.
-            var engine_target:float32 = 0.0
-            if self.ignition { engine_target = Math.clamp(self.target_rpm / 600.0, 0.0, 1.0) as float32 }
-            var engine_frame = offset
-            while engine_frame < offset + frames * 2 {
-                self.engine_gain += 0.0005 * (engine_target - self.engine_gain)
-                if !self.ignition && self.target_rpm == 0.0 && self.engine_gain < 0.00001 { self.engine_gain = 0.0 }
-                samples[engine_frame] *= self.engine_gain
-                samples[engine_frame + 1] *= self.engine_gain
-                engine_frame += 2
             }
             // Reuse the prepared room independently of render block boundaries.
             for i in 0...frames * 2 { self.room_buffer[i] = samples[offset + i] }
@@ -154,10 +145,10 @@ public class Bench:Synthesis.Generator {
         self.gain = self.volume as float32
         self.ambience_gain = self.ambience as float32; self.room.reset()
         self.idle_offset = 0.0; self.idle_speed = 0.0; self.random = 73
-        self.ignition = self.initially_running; self.starting = false; self.engine_gain = 1.0
+        self.ignition = self.initially_running; self.starting = false; self.fuel = 1.0
         if !self.initially_running {
-            self.target_rpm = 0.0; self.engine_gain = 0.0
-            self.source.set_state(0.0, ramp_frames:0)
+            self.target_rpm = 0.0; self.fuel = 0.0
+            self.source.set_state(0.0, ramp_frames:0, fuel:0.0)
         }
     }
 }

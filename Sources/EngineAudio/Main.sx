@@ -21,15 +21,15 @@ func main() {
             let path = arguments[index]; var variant = "full"
             if index + 1 < arguments.count() { variant = arguments[index + 1] }
             if variant != "full" && variant != "smooth" && variant != "sine" &&
-                variant != "dry" && variant != "idle" && variant != "idle-dry" && variant != "regular" {
-                panic("Choose full, smooth, sine, dry, idle, idle-dry or regular")
+                variant != "dry" && variant != "idle" && variant != "idle-dry" && variant != "regular" && variant != "ignition" {
+                panic("Choose full, smooth, sine, dry, idle, idle-dry, regular or ignition")
             }
             Offline.render_wav(path, variant); return
         }
         elif argument == "--smoke" { smoke = true }
         elif argument == "--help" {
             print("Engine audio bench: M toggles ignition; hold SPACE to accelerate; release to return to the selected RPM.")
-            print("--check | --measure | --render output.wav [full|smooth|sine|dry|idle|idle-dry|regular] | --smoke")
+            print("--check | --measure | --render output.wav [full|smooth|sine|dry|idle|idle-dry|regular|ignition] | --smoke")
             return
         } else { panic("Unknown option; use --help") }
         index++

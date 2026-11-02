@@ -4,7 +4,9 @@
 
 La fenêtre s'ouvre moteur éteint. Le bouton **Démarrer / Arrêter** ou la touche
 **M** bascule le contact. Le compte-tours indique le démarrage et l'extinction ;
-le son entre progressivement et la réverbe finit de résonner à l'arrêt.
+l'alimentation monte progressivement au démarrage. À l'arrêt, elle décroît sur
+environ 350 ms ; les combustions engagées finissent et le régime continue de
+retomber par inertie. La pression et la réverbe finissent ensuite de résonner.
 Espace est ignoré moteur éteint. Un nouvel appui est nécessaire pour accélérer
 après un changement de contact. Les réglages initiaux ne changent pas le contact.
 
@@ -68,6 +70,10 @@ chacun ; `idle-dry` fait le même essai sans réverbe et `regular` désactive au
 les irrégularités de combustion et de régime, en gardant la turbulence.
 Ces trois variantes permettent de concentrer l'écoute sur le
 ronronnement et les changements de régime maintenu.
+
+La variante `ignition` rend douze secondes avec départ éteint, deux démarrages
+et deux arrêts. Elle permet d'écouter les dernières combustions et le silence
+entre les essais.
 
 `--measure` émet les temps de 1 000 blocs de synthèse de 480 frames après
 échauffement. Il exclut transfert PCM, interface et périphérique ; ce n'est pas
