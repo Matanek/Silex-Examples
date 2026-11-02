@@ -62,7 +62,9 @@ Automatic thresholds and a cooldown prevent hunting. Losing focus releases
 throttle and brake. Reverse is not implemented.
 
 Texture controls air-flow noise and timing jitter; physical combustion remains
-variable at zero. Exhaust mixes raw output with the chosen impulse response.
+variable at zero. Exhaust mixes pressure without pre-emphasis with the chosen
+impulse response. The branches have balanced levels and the control is smoothed
+over 10 ms; at 100%, the original filtered rendering is preserved.
 Volume and short room reverb are separate Silex treatments. Additional load and
 held RPM apply only to Banc; in Route the vehicle provides load. The settings
 panel scrolls. The select field and open list use explicit light text, dark

@@ -47,6 +47,30 @@ Le seuil de comparaison est un écart maximal de 32 unités PCM16 et un RMS
 d'écart inférieur à 0,0001 de pleine échelle, avec régime identique. Ce seuil
 contrôle l'adaptation numérique ; il ne prouve pas le réalisme perceptif.
 
+## Mélange d’échappement
+
+À 100 %, le PCM de convolution reste identique au témoin accepté. En dessous,
+la branche brute utilise la pression après retrait de sa composante continue,
+sans la préaccentuation par dérivée destinée à la convolution. Les puissances
+moyennes des deux branches sont suivies sur 120 ms pour équilibrer leurs niveaux
+(gain maximal 16) ; le curseur est lissé sur 10 ms. Le calcul reste local à
+chaque canal, sans allocation par échantillon. Cela corrige le saut de texture
+électrique du mélange antérieur ; la couleur finale demande une écoute.
+
+```sh
+ctest --test-dir Build/EngineReference/CMake --output-on-failure
+python3 Silex-Examples/Tools/EngineReference/ExhaustChecks.py \
+  --binary Build/EngineReference/RenderReference \
+  --baseline Build/EngineReference/RenderReference-Before-Controls \
+  --runtime Build/EngineReference/Runtime \
+  --report Build/EngineReference/Exhaust-Checks.json
+```
+
+Le contrôle compare les huit profils à 100 % avec le helper antérieur préservé,
+puis teste 99,9, 99, 90, 50 et 0 % sur le Chevrolet. Il vérifie les transitions,
+l’absence d’écrêtage dans le scénario et la télémétrie identique. Le contrôle
+synthétique C++ exerce aussi des branches de niveaux très différents.
+
 ## Exécuter et vérifier
 
 La [démo](../../Sources/EngineAudio/README.fr.md) utilise `--reference`.

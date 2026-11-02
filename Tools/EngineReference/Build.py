@@ -11,6 +11,7 @@ import tarfile
 import wave
 import TwoStroke
 import Impulse
+import ExhaustBlend
 
 REVISION = '85f7c3b959a908ed5232ede4f1a4ac7eafe6b630'
 DEPENDENCIES = {
@@ -80,6 +81,7 @@ def main():
         archive(root / 'dependencies/submodules' / name, revision, snapshot / 'dependencies/submodules' / name, paths)
     prepare(snapshot)
     TwoStroke.prepare(snapshot, replace)
+    ExhaustBlend.prepare(snapshot, replace)
     profiles = json.loads((tools / 'Profiles.json').read_text())['profiles']
     generated = '#pragma once\n#include <Drive.hpp>\ninline DriveSettings profileSettings(int index) {\n    switch (index) {\n'
     for index, profile in enumerate(profiles):
@@ -96,7 +98,7 @@ def main():
         '-DENGINE_REFERENCE_GENERATED=' + str(output), '-DENGINE_REFERENCE_SOURCE=' + str(snapshot), '-DENGINE_REFERENCE_FLEX_INCLUDE=' + str(flex_include),
         '-DBISON_EXECUTABLE=' + str(Path(shutil.which(args.bison) or args.bison).resolve()),
         '-DENGINE_REFERENCE_VECTOR_FIR=' + ('OFF' if args.scalar_fir else 'ON')], check=True)
-    subprocess.run(['cmake', '--build', str(output / 'CMake'), '-j', '4'], check=True)
+    subprocess.run(['cmake', '--build', str(output / 'CMake'), '--parallel', '1'], check=True)
     # Replacing the inode avoids stale macOS code-signature pages on rebuild.
     staged_binary = output / 'RenderReference.staged'
     shutil.copy2(output / 'CMake/RenderReference', staged_binary)

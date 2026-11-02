@@ -45,6 +45,29 @@ The comparison requires a maximum difference of 32 PCM16 units and an error
 RMS below 0.0001 full scale, with identical RPM. This checks numerical
 adaptation rather than perceptual realism.
 
+## Exhaust blend
+
+At 100%, convolution PCM remains identical to the accepted witness. Below it,
+the raw branch uses DC-removed pressure without the derivative pre-emphasis
+intended for convolution. Mean powers are tracked over 120 ms to balance the
+branches (maximum gain 16); the control is smoothed over 10 ms. Processing is
+local to each channel without per-sample allocation. This removes the previous
+blend’s electrical texture jump; the final colour still needs listening.
+
+```sh
+ctest --test-dir Build/EngineReference/CMake --output-on-failure
+python3 Silex-Examples/Tools/EngineReference/ExhaustChecks.py \
+  --binary Build/EngineReference/RenderReference \
+  --baseline Build/EngineReference/RenderReference-Before-Controls \
+  --runtime Build/EngineReference/Runtime \
+  --report Build/EngineReference/Exhaust-Checks.json
+```
+
+The check compares all eight profiles at 100% against the preserved previous
+helper, then tests 99.9, 99, 90, 50 and 0% on the Chevrolet. It checks transitions,
+no clipping in the scenario and identical telemetry. The synthetic C++ check
+also exercises branches with very different signal levels.
+
 ## Run and verify
 
 The [demo](../../Sources/EngineAudio/README.md) provides `--reference`.

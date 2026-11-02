@@ -75,7 +75,9 @@ La perte de focus relâche gaz et frein. Il n’y a pas de marche arrière.
 Les réglages initiaux conservent la texture et le filtrage du profil original,
 sans réverbe ajoutée. « Texture » règle son bruit d’écoulement et sa variation
 temporelle ; à zéro, les irrégularités physiques des combustions restent présentes.
-« Échappement » mélange le signal brut et la réponse impulsionnelle choisie.
+« Échappement » mélange la pression sans préaccentuation et la réponse
+impulsionnelle choisie. Les niveaux des deux branches sont équilibrés et le
+réglage est lissé sur 10 ms ; à 100 %, le rendu filtré initial est conservé.
 Volume et réverbe courte sont séparés. La charge supplémentaire et les régimes
 maintenus s’appliquent au Banc ; en Route, le véhicule produit la charge.
 Le panneau de réglages défile si nécessaire. Texte et fond du sélecteur et de

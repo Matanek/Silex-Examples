@@ -19,6 +19,7 @@ string(REGEX MATCH "add_library\\(engine-sim STATIC([^)]*)\\)" CORE_LIST "${ORIG
 string(REGEX MATCHALL "src/[a-z_]+\\.cpp" CORE_SOURCES "${CORE_LIST}")
 list(TRANSFORM CORE_SOURCES PREPEND "${ROOT}/")
 add_library(reference STATIC ${CORE_SOURCES} ${SCS_SOURCES} ${PIR_SOURCES} ${SCRIPT_SOURCES} ${BISON_parser_OUTPUTS} ${FLEX_lexer_OUTPUTS})
+target_include_directories(reference PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(reference PUBLIC ${ROOT}/dependencies/submodules ${ROOT}/include ${ROOT}/scripting/include ${PIR}/include ${ENGINE_REFERENCE_FLEX_INCLUDE} ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_options(reference PUBLIC -fms-extensions -D__forceinline=inline -include ${CMAKE_CURRENT_SOURCE_DIR}/Portability.hpp -Wno-deprecated-declarations -Wno-switch -Wno-unused-value -Wno-delete-non-abstract-non-virtual-dtor)
 add_executable(RenderReference Main.cpp Drive.cpp)
@@ -27,6 +28,7 @@ target_include_directories(RenderReference PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} $
 
 add_executable(CycleCheck CycleCheck.cpp)
 target_link_libraries(CycleCheck reference)
+target_include_directories(CycleCheck PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 enable_testing()
 add_test(NAME ignition-cycle COMMAND CycleCheck)
 
@@ -34,3 +36,7 @@ option(ENGINE_REFERENCE_VECTOR_FIR "Autoriser la réassociation dans la somme FI
 if(ENGINE_REFERENCE_VECTOR_FIR)
     set_source_files_properties(${ROOT}/src/convolution_filter.cpp PROPERTIES COMPILE_OPTIONS "-ffast-math")
 endif()
+
+add_executable(ExhaustBlendCheck ExhaustBlendCheck.cpp)
+target_include_directories(ExhaustBlendCheck PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME exhaust-blend COMMAND ExhaustBlendCheck)
