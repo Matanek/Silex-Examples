@@ -2,6 +2,58 @@
 
 [English](README.md)
 
+## Mode de référence Chevrolet 454
+
+Le mode `--reference` pilote le noyau du projet
+[engine-sim](https://github.com/ange-yaghi/engine-sim) d'Ange Yaghi, avec son profil
+Chevrolet 454 V8 destiné au premier épisode. Démarreur, combustion, écoulements,
+inertie et synthèse sont calculés par cette référence. Le compte-tours lit son
+régime réel. Ce banc de qualification macOS ARM64 fonctionne dans un processus
+séparé ; il ne remplace pas encore le générateur réutilisable de GFX.Audio et
+n'établit pas sa qualification en jeu.
+
+Préparer d'abord le [témoin natif](../../Tools/EngineReference/README.fr.md), puis
+compiler depuis la racine du workspace ou du groupe de Spec :
+
+```sh
+silex compile Silex-Examples/Sources/EngineAudio/Main.sx --release -o Build/EngineAudio-Reference
+Build/EngineAudio-Reference --reference
+```
+
+**M** ou le bouton démarre et coupe l'allumage. Attendre que le démarreur entraîne
+le moteur, puis maintenir **Espace** pour accélérer ; relâcher pour décélérer.
+La fenêtre commence moteur éteint et relâche les gaz lorsqu'elle perd le focus.
+La coupure laisse finir les combustions et ralentir la mécanique.
+
+Les réglages initiaux conservent la texture et le filtrage du profil original,
+avec une charge de banc de 20 %, sans réverbe ajoutée. « Texture » règle son bruit
+d'écoulement et sa variation temporelle ; à zéro, les irrégularités physiques
+des combustions restent présentes. « Échappement » va du signal brut à la réponse
+impulsionnelle originale. « Charge » freine la montée sur le banc lorsque les
+gaz sont ouverts. Le bouton 800 laisse le ralenti libre, généralement vers
+850–900 tr/min ; 1 000 et 1 500 imposent un régime au banc après le démarrage.
+Volume et réverbe courte restent des traitements séparés dans Silex.
+
+```sh
+Build/EngineAudio-Reference --reference-check
+Build/EngineAudio-Reference --reference-render Build/EngineReference/Bridge.wav
+Build/EngineAudio-Reference --reference --smoke
+```
+
+Le contrôle sans fenêtre vérifie départ silencieux, démarreur progressif,
+ralenti, texture à zéro, accélération, inertie d'arrêt, silence final et
+redémarrage. Le rendu WAV conserve la texture initiale et écrit le scénario
+principal, 576 000 frames stéréo à 44,1 kHz (environ 13,06 s). Le smoke de référence
+dure neuf secondes. Le test d'écoute et d'interaction native reste nécessaire.
+Les réglages exacts de chaque passage de la vidéo ne sont pas établis ; ce mode
+est un rendu du profil original, pas une reproduction certifiée de son montage.
+
+## Prototype procédural précédent
+
+Le lancement sans `--reference` garde le prototype décrit ci-dessous, pour
+comparaison et pour ses contrôles de non-régression. Son caractère sonore n'a
+pas été accepté.
+
 La fenêtre s'ouvre moteur éteint. Le bouton **Démarrer / Arrêter** ou la touche
 **M** bascule le contact. Le compte-tours indique le démarrage et l'extinction ;
 l'alimentation monte progressivement au démarrage. À l'arrêt, elle décroît sur

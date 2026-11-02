@@ -1,0 +1,86 @@
+use STD.Error
+use STD.Error.Kind
+use STD.Process
+use STD.Subprocess
+use STD.Text.UTF8
+
+// Development witness: original engine-sim runs outside the reusable audio package.
+public class ReferenceClient {
+    private var child:Subprocess.Child
+    private var rpm:float = 0.0
+    private var starting:bool = false
+
+    init() {
+        let directory = Process.current_directory()
+        let root = directory + "/Build/EngineReference"
+        self.child = Subprocess.spawn(Subprocess.SpawnCommand(
+            executable:root + "/RenderReference",
+            arguments:[root + "/Runtime/Profile454.mr", root + "/Runtime/Impulse.pcm", "unused", "serve"],
+            current_directory:root + "/Runtime", inherit_environment:true, environment:[]))
+    }
+
+    func current_rpm() float { return self.rpm }
+    func is_starting() bool { return self.starting }
+
+    private func integer(bytes:@uint8[..], offset:int) int {
+        return bytes[offset] as int + bytes[offset + 1] as int * 256 +
+            bytes[offset + 2] as int * 65_536 + bytes[offset + 3] as int * 16_777_216
+    }
+
+    func render(samples:&float32[..], running:bool, pedal:bool, texture:float,
+        convolution:float, base_rpm:float, load:float) Result<void, Error> {
+        let frames = samples.count() / 2
+        if frames <= 0 || frames > 960 || samples.count() % 2 != 0 {
+            return Result<void, Error>.failure(Error(kind:Kind.invalid_input(), operation:"engine-reference.render",
+                subject:null, detail:"1 to 960 stereo frames required"))
+        }
+        var contact = 0; if running { contact = 1 }
+        var acceleration = 0; if running && pedal { acceleration = 1 }
+        let command = UTF8.bytes("$(frames) $(contact) $(acceleration) $(texture) $(convolution) $(base_rpm) $(load)\n")
+        var sent = 0
+        while sent < command.count() {
+            let written = try self.child.write_standard_input(@command[sent:command.count()]) else error {
+                return Result<void, Error>.failure(error)
+            }
+            if written <= 0 { panic("engine reference input stopped") }
+            sent += written
+        }
+        let expected = 16 + frames * 2
+        var bytes:uint8[] = []
+        var attempts = 0
+        while bytes.count() < expected && attempts < 100 {
+            let next = try self.child.next_event(50) else error { return Result<void, Error>.failure(error) }
+            if event = next {
+                match event {
+                    output(stream, data) => {
+                        match stream {
+                            standard_output => { for byte in data { bytes.append(byte) } }
+                            standard_error => {
+                                let message = try UTF8.decode(@data[0:data.count()]) else error { panic("engine reference diagnostic is invalid UTF-8") }
+                                print(message)
+                            }
+                        }
+                    }
+                    exited(status) => { panic("engine reference process exited before delivering audio") }
+                }
+            }
+            attempts++
+        }
+        if bytes.count() != expected || self.integer(@bytes[0:bytes.count()], 0) != 878_065_733 ||
+            self.integer(@bytes[0:bytes.count()], 4) != frames {
+            panic("engine reference packet missing or invalid; rebuild Tools/EngineReference")
+        }
+        self.rpm = self.integer(@bytes[0:bytes.count()], 8) as float / 1_000.0
+        self.starting = self.integer(@bytes[0:bytes.count()], 12) != 0
+        for frame in 0...frames {
+            let offset = 16 + frame * 2
+            var value = bytes[offset] as int + bytes[offset + 1] as int * 256
+            if value >= 32_768 { value -= 65_536 }
+            let sample = value as float32 / 32_768.0
+            samples[frame * 2] = sample; samples[frame * 2 + 1] = sample
+        }
+        return Result<void, Error>.success()
+    }
+
+    drop { self.child.close_standard_input() }
+}

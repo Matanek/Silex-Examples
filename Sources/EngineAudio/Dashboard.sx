@@ -153,16 +153,29 @@ class Controls {
         reset.style.height = 40.0; reset.style.radius = 8.0
         reset.style.background = Color.slate_700(); reset.style.foreground = Color.slate_100()
         var badge = label("BANC D'ÉCOUTE  /  PROTOTYPE", 11.0, Color.amber_300())
-        var title = label("Moteur V8", 30.0, Color.slate_100())
+        var title_text = "Moteur V8"
+        var subtitle = "Deux échappements. Aucune boucle audio."
+        var exhaust_caption = "Échappement · feutré → ouvert"
+        var texture_caption = "Texture · régulier → rugueux"
+        if bench.reference_mode {
+            title_text = "Chevrolet 454"
+            subtitle = "Simulation originale engine-sim · V8 7,4 L"
+            exhaust_caption = "Échappement · brut → filtré"
+            texture_caption = "Texture · pression → écoulement"
+            badge = label("RÉFÉRENCE  /  ENGINE-SIM", 11.0, Color.amber_300())
+        }
+        var title = label(title_text, 30.0, Color.slate_100())
         title.style.font_weight = UI.FontWeight.bold
+        var rpm_caption = "Régime au relâchement · tr/min"
+        if bench.reference_mode { rpm_caption = "Ralenti libre / banc à 1 000 ou 1 500" }
         let controls:UI.View[] = [badge, title,
-            label("Deux échappements. Aucune boucle audio.", 12.0, Color.slate_400()), power,
-            control("Échappement · feutré → ouvert", self.exhaust, self.change_exhaust),
-            control("Texture · régulier → rugueux", self.roughness, self.change_roughness),
+            label(subtitle, 12.0, Color.slate_400()), power,
+            control(exhaust_caption, self.exhaust, self.change_exhaust),
+            control(texture_caption, self.roughness, self.change_roughness),
             control("Charge du moteur", self.load, self.change_load),
             control("Réverbe courte · sec → ambiance", self.ambience, self.change_ambience, maximum:0.2),
             control("Volume", self.volume, self.change_volume), reset,
-            label("Régime au relâchement · tr/min", 11.0, Color.slate_400()), speeds]
+            label(rpm_caption, 11.0, Color.slate_400()), speeds]
         var panel = UI.Column(controls); panel.style.width = 330.0; panel.style.gap = 10.0
         panel.style.padding = UI.Insets(22.0); panel.style.background = Color.bytes(20, 28, 38)
         panel.style.radius = 18.0

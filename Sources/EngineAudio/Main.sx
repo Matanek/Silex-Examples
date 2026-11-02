@@ -7,15 +7,22 @@ use Module.Model.Bench
 use Module.Session.BenchSession
 use Module.Checks
 use Module.Offline
+use Module.ReferenceChecks
 
 func main() {
     let arguments = Process.arguments()
     var smoke = false
+    var reference = false
     var index = 1
     while index < arguments.count() {
         let argument = arguments[index]
         if argument == "--check" { Checks.verify(); return }
         elif argument == "--measure" { Checks.measure(); return }
+        elif argument == "--reference-check" { ReferenceChecks.verify(); return }
+        elif argument == "--reference-render" {
+            index++; if index >= arguments.count() { panic("--reference-render requires a WAV path") }
+            ReferenceChecks.verify(arguments[index]); return
+        }
         elif argument == "--render" {
             index++; if index >= arguments.count() { panic("--render requires a WAV path") }
             let path = arguments[index]; var variant = "full"
@@ -27,15 +34,17 @@ func main() {
             Offline.render_wav(path, variant); return
         }
         elif argument == "--smoke" { smoke = true }
+        elif argument == "--reference" { reference = true }
         elif argument == "--help" {
             print("Engine audio bench: M toggles ignition; hold SPACE to accelerate; release to return to the selected RPM.")
+            print("--reference | --reference-check | --reference-render output.wav")
             print("--check | --measure | --render output.wav [full|smooth|sine|dry|idle|idle-dry|regular|ignition] | --smoke")
             return
         } else { panic("Unknown option; use --help") }
         index++
     }
 
-    var bench = Bench(running:false)
+    var bench = Bench(running:false, reference:reference)
     var audio = Audio()
     var producer = Synthesis.StreamProducer.create(audio, bench, 9_223_372_036_854_775_807,
         block_frames:480, capacity_frames:2_880)
@@ -56,10 +65,15 @@ func main() {
     }, automated:smoke)
     var title = "GFX.Audio — Banc moteur V8 · M : contact · Espace : gaz"
     if smoke { title = "GFX.Audio — Scénario automatique moteur V8" }
+    if reference {
+        title = "Référence engine-sim — Chevrolet 454 V8 · M : contact · Espace : gaz"
+        if smoke { title = "Référence engine-sim — Scénario automatique 454" }
+    }
     let settings = Viewer.CanvasSettings(width:1_080, height:820, title:title,
         background:Color.bytes(8, 13, 20))
     if smoke {
-        Viewer.show_until(session, func() bool { return session.elapsed >= 5.0 }, settings)
+        var duration = 5.0; if reference { duration = 9.0 }
+        Viewer.show_until(session, func() bool { return session.elapsed >= duration }, settings)
     } else { Viewer.show(session, settings) }
     if playing.is_valid() { audio.stop(playing, fade_out_seconds:0.0) }
     audio.release(producer.stream())

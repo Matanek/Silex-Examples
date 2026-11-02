@@ -2,6 +2,55 @@
 
 [Français](README.fr.md)
 
+## Chevrolet 454 reference mode
+
+`--reference` drives [Ange Yaghi's engine-sim](https://github.com/ange-yaghi/engine-sim)
+core with its Chevrolet 454 V8 profile for the first episode. The original
+simulation computes the starter, combustion, flows, inertia and synthesis; the
+tachometer reads its actual RPM. This macOS ARM64 qualification bench uses a
+separate process. The reusable GFX.Audio generator and game qualification remain
+unfinished.
+
+Build the [native witness](../../Tools/EngineReference/README.md) first, then
+compile from the workspace or Spec group root:
+
+```sh
+silex compile Silex-Examples/Sources/EngineAudio/Main.sx --release -o Build/EngineAudio-Reference
+Build/EngineAudio-Reference --reference
+```
+
+**M** or the button starts and cuts ignition. Allow the starter to turn the engine,
+then hold **Space** to accelerate and release to decelerate. The window starts
+with the engine off. Losing focus releases the throttle. Cutting ignition lets
+active combustion finish while the mechanical rotation decays.
+
+Defaults keep the original profile's texture and filtering, with 20% bench load
+and no added reverb. Texture controls air noise and temporal jitter; physical
+combustion irregularity remains at zero. Exhaust blends the raw signal with the
+original impulse response. Load brakes acceleration under throttle. The 800 button
+leaves the idle free, typically around 850–900 RPM; 1,000 and 1,500 impose bench
+speed after startup. Volume and short reverb remain separate Silex effects.
+
+```sh
+Build/EngineAudio-Reference --reference-check
+Build/EngineAudio-Reference --reference-render Build/EngineReference/Bridge.wav
+Build/EngineAudio-Reference --reference --smoke
+```
+
+The headless check covers initial silence, progressive cranking, idle, texture
+zero, acceleration, coast-down, stopped silence and restart. WAV rendering keeps
+the initial texture and records the main scenario: 576,000 stereo frames at
+44.1 kHz, approximately 13.06 seconds. The reference smoke lasts nine seconds.
+Native listening and interaction testing are still required. The exact settings
+of every video segment remain unidentified; this is a render of the original
+profile rather than a certified reproduction of the video's edit.
+
+## Previous procedural prototype
+
+Running without `--reference` retains the prototype below for comparison and
+regression checks. Its sound character has not been accepted.
+
+
 The window opens with the engine off. The **Démarrer / Arrêter** button or **M**
 toggles ignition. The tachometer indicates startup and shutdown; fuel rises
 gradually during startup and falls over about 350 ms during shutdown. Engaged

@@ -27,8 +27,13 @@ public class BenchSession:Canvas.Session {
         self.elapsed += delta
         if self.automated {
             if previous < 0.2 && self.elapsed >= 0.2 { self.bench.set_running(true) }
-            if previous < 2.8 && self.elapsed >= 2.8 { self.bench.set_running(false) }
-            self.bench.accelerating = self.bench.is_running() && self.elapsed >= 0.8 && self.elapsed < 2.0
+            if self.bench.reference_mode {
+                if previous < 6.8 && self.elapsed >= 6.8 { self.bench.set_running(false) }
+                self.bench.accelerating = self.bench.is_running() && self.elapsed >= 3.5 && self.elapsed < 5.0
+            } else {
+                if previous < 2.8 && self.elapsed >= 2.8 { self.bench.set_running(false) }
+                self.bench.accelerating = self.bench.is_running() && self.elapsed >= 0.8 && self.elapsed < 2.0
+            }
         }
         self.feed()
         return self.ui.update(delta)

@@ -31,7 +31,10 @@ verify its PCM and stream without a device using `--check`.
 
 The [V8 engine audio bench](Sources/EngineAudio/README.md) has a tachometer,
 hold-Space acceleration and live exhaust, texture, load and volume controls.
-It uses a procedural four-stroke source rather than recorded loops.
+The procedural source is accompanied by an optional `--reference` mode running
+the original engine-sim Chevrolet 454, with cranking and coast-down. The reference
+helper has its own local build instructions; sound acceptance and game integration
+remain under evaluation.
 
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.
