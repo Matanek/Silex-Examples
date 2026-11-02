@@ -25,7 +25,8 @@
       "impulse": "smooth/smooth_39.wav",
       "starter": 1.2,
       "strokes": 4,
-      "audio_cutoff": 1900
+      "audio_cutoff": 1900,
+      "breath_percent": 0
     },
     {
       "key": "berline",
@@ -52,7 +53,8 @@
       "impulse": "smooth/smooth_39.wav",
       "starter": 2.5,
       "strokes": 4,
-      "audio_cutoff": 1900
+      "audio_cutoff": 1900,
+      "breath_percent": 0
     },
     {
       "key": "sport",
@@ -79,7 +81,8 @@
       "impulse": "archive/test_engine_14_eq_adjusted_16.wav",
       "starter": 2.5,
       "strokes": 4,
-      "audio_cutoff": 1900
+      "audio_cutoff": 1900,
+      "breath_percent": 0
     },
     {
       "key": "cruiser",
@@ -105,7 +108,8 @@
       "impulse": "archive/test_engine_14_eq_adjusted_16.wav",
       "starter": 2.5,
       "strokes": 4,
-      "audio_cutoff": 1900
+      "audio_cutoff": 1900,
+      "breath_percent": 0
     },
     {
       "key": "moto",
@@ -132,7 +136,8 @@
       "impulse": "archive/test_engine_15_eq_adjusted_16.wav",
       "starter": 2.5,
       "strokes": 4,
-      "audio_cutoff": 1900
+      "audio_cutoff": 1900,
+      "breath_percent": 0
     },
     {
       "key": "truck",
@@ -159,7 +164,8 @@
       "impulse": "smooth/smooth_39.wav",
       "starter": 2.5,
       "strokes": 4,
-      "audio_cutoff": 1900
+      "audio_cutoff": 1900,
+      "breath_percent": 0
     },
     {
       "key": "cross4",
@@ -188,7 +194,8 @@
       "audio_cutoff": 6000,
       "treble_db": 10,
       "tail_ms": 60,
-      "bass_db": 7
+      "bass_db": 7,
+      "breath_percent": 60
     },
     {
       "key": "cross2",
@@ -216,7 +223,8 @@
       "impulse": "archive/test_engine_14_eq_adjusted_16.wav",
       "audio_cutoff": 6000,
       "treble_db": 7,
-      "tail_ms": 45
+      "tail_ms": 45,
+      "breath_percent": 0
     }
   ]
 }

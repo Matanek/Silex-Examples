@@ -87,6 +87,29 @@ restart. Its WAV contains 576,000 stereo frames at 44.1 kHz. The automatic smoke
 lasts nine seconds on Banc, 35 seconds in Route with launch, shifts and braking.
 Native visual and listening feedback is still needed.
 
+## Four-stroke motocross airflow
+
+The cross 450 4T profile starts an intake/exhaust background layer at 60%.
+**Souffle** controls it independently of Texture and Reverb. Zero restores the
+previous pressure signal. Airflow follows RPM, grows under throttle and settles
+to silence at rest, with 90 ms smoothing. Other profiles start at zero. Profile
+selection and reset-to-defaults restore the catalogue value.
+
+This uses reproducible noise coloured through GFX.Audio, mixed before volume
+and reverb while leaving headroom for combustion peaks. It complements the
+bench timbre; the recording’s exact background origin (intake, exhaust,
+environment or microphone) still requires listening feedback.
+
+```sh
+Build/EngineAudio-Reference --airflow-check
+Build/EngineAudio-Reference --airflow-render Build/EngineReference/Cross4-Breath.wav
+Build/EngineAudio-Reference --airflow-render Build/EngineReference/Cross4-Dry.wav dry
+```
+
+The renders keep seven idle seconds after startup. Checks cover split-block
+continuity, transparent bypass, bounds, throttle response, stopped silence and
+bit-exact synchronous/asynchronous 4T PCM.
+
 ## Keyboard and audio scheduling
 
 M follows the logical symbol on AZERTY/QWERTY, including uppercase; repeats do

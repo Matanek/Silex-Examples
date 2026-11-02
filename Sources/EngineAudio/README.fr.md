@@ -109,6 +109,30 @@ Clés : `454`, `berline`, `sport`, `cruiser`, `moto`, `truck`, `cross4`, `cross2
 la boîte, le point mort et le freinage, puis compare le PCM et la télémétrie
 Route synchrones et asynchrones avec quatre requêtes en vol.
 
+## Souffle du cross quatre temps
+
+Le profil cross 450 4T active un fond d’admission/échappement à 60 %. Le curseur
+**Souffle** dose cette couche indépendamment de Texture et de Réverbe. À zéro,
+on retrouve le signal de pression précédent. Le souffle augmente sous
+accélération, suit le régime et finit en silence à l’arrêt, avec un lissage de
+90 ms. Les autres profils le démarrent à zéro ; Réglages initiaux et changement
+de profil restaurent la valeur du catalogue.
+
+Cette couche utilise un bruit reproductible coloré par GFX.Audio, mélangé
+avant le volume et la réverbe, avec une marge pour les crêtes de combustion.
+Elle complète le timbre du banc ; l’origine exacte du fond de l’enregistrement
+(admission, échappement, ambiance ou micro) reste à apprécier à l’écoute.
+
+```sh
+Build/EngineAudio-Reference --airflow-check
+Build/EngineAudio-Reference --airflow-render Build/EngineReference/Cross4-Breath.wav
+Build/EngineAudio-Reference --airflow-render Build/EngineReference/Cross4-Dry.wav dry
+```
+
+Les rendus conservent sept secondes de ralenti après le démarrage. Le contrôle
+vérifie continuité entre blocs, bypass, bornes, niveau sous accélération,
+silence à l’arrêt et lecture asynchrone 4T identique au rendu synchrone.
+
 ## Raccourci et fluidité du témoin
 
 La touche **M** suit son symbole logique sur AZERTY, QWERTY et les autres

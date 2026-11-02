@@ -8,6 +8,7 @@ public struct Profile {
     let idle:float
     let gears:int
     let strokes:int
+    let breath:float
 }
 
 // The native builder and this projection consume the same catalogue.
@@ -21,7 +22,8 @@ public class Catalog {
             var ratios = row.require_array("ratios")
             self.profiles.append(Profile(key:row.require_string("key"), label:row.require_string("label"),
                 redline:row.require_integer("redline") as float, ceiling:row.require_integer("ceiling") as float,
-                idle:row.require_integer("idle") as float, gears:ratios.count(), strokes:row.require_integer("strokes")))
+                idle:row.require_integer("idle") as float, gears:ratios.count(), strokes:row.require_integer("strokes"),
+                breath:row.require_integer("breath_percent") as float / 100.0))
         }
     }
     func count() int { return self.profiles.count() }

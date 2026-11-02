@@ -13,23 +13,28 @@ class Controls {
     private var load:UI.State<float>
     private var volume:UI.State<float>
     private var ambience:UI.State<float>
+    private var breath:UI.State<float>
 
     init(bench:Bench) {
         self.bench = bench; self.selection = UI.State<int?>(bench.profile_index())
         self.exhaust = UI.State<float>(bench.exhaust); self.roughness = UI.State<float>(bench.roughness)
         self.load = UI.State<float>(bench.load); self.volume = UI.State<float>(bench.volume)
-        self.ambience = UI.State<float>(bench.ambience)
+        self.ambience = UI.State<float>(bench.ambience); self.breath = UI.State<float>(bench.breath)
     }
-    func select(value:int) { self.bench.select_profile(value); self.selection.set(self.bench.profile_index()) }
+    func select(value:int) {
+        self.bench.select_profile(value); self.selection.set(self.bench.profile_index())
+        self.breath.set(self.bench.breath)
+    }
     func change_exhaust(value:float) { self.bench.exhaust = value }
     func change_roughness(value:float) { self.bench.roughness = value }
     func change_load(value:float) { self.bench.load = value }
     func change_volume(value:float) { self.bench.volume = value }
+    func change_breath(value:float) { self.bench.breath = value }
     func change_ambience(value:float) { self.bench.ambience = value }
     func restore() {
         self.bench.reset_controls()
         self.exhaust.set(self.bench.exhaust); self.roughness.set(self.bench.roughness)
-        self.load.set(self.bench.load); self.volume.set(self.bench.volume); self.ambience.set(self.bench.ambience)
+        self.load.set(self.bench.load); self.volume.set(self.bench.volume); self.ambience.set(self.bench.ambience); self.breath.set(self.bench.breath)
     }
     func idle() { self.bench.base_rpm = 800.0 }
     func low() { self.bench.base_rpm = 1_000.0 }
@@ -66,6 +71,7 @@ class Controls {
             label("En route : S maintenu pour freiner", 12.0, Color.amber_200()),
             control("Échappement · brut → filtré", self.exhaust, self.change_exhaust),
             control("Texture · pression → écoulement", self.roughness, self.change_roughness),
+            control("Souffle · admission / échappement", self.breath, self.change_breath),
             control("Charge supplémentaire · banc uniquement", self.load, self.change_load),
             control("Réverbe courte", self.ambience, self.change_ambience, maximum:0.2),
             control("Volume", self.volume, self.change_volume),

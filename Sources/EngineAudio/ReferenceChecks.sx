@@ -3,7 +3,7 @@ use STD.Math
 use STD.Time.Stopwatch
 use Module.Model.Bench
 
-func word(bytes:&uint8[], value:int, count:int) {
+public func word(bytes:&uint8[], value:int, count:int) {
     var remaining = value
     for _ in 0...count { bytes.append((remaining % 256) as uint8); remaining /= 256 }
 }

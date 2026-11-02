@@ -10,6 +10,7 @@ use Module.Offline
 use Module.ReferenceChecks
 use Module.Live
 use Module.FleetChecks
+use Module.AirflowChecks
 
 func main() {
     let arguments = Process.arguments()
@@ -22,7 +23,17 @@ func main() {
     var index = 1
     while index < arguments.count() {
         let argument = arguments[index]
-        if argument == "--fleet-check" { FleetChecks.verify(); return }
+        if argument == "--airflow-check" { AirflowChecks.verify(); return }
+        elif argument == "--airflow-render" {
+            index++; if index >= arguments.count() { panic("--airflow-render requires a WAV path") }
+            let path = arguments[index]; var dry = false
+            if index + 1 < arguments.count() {
+                if arguments[index + 1] != "dry" { panic("--airflow-render accepts optional dry") }
+                dry = true
+            }
+            AirflowChecks.render(path, dry); return
+        }
+        elif argument == "--fleet-check" { FleetChecks.verify(); return }
         elif argument == "--check" { Checks.verify(); return }
         elif argument == "--measure" { Checks.measure(); return }
         elif argument == "--reference-async-check" { ReferenceChecks.verify_async(); return }
@@ -53,6 +64,7 @@ func main() {
         elif argument == "--help" {
             print("Engine audio bench: M toggles ignition; hold SPACE to accelerate; release to return to the selected RPM.")
             print("--preset 454|berline|sport|cruiser|moto|truck|cross4|cross2 | --road | --manual")
+            print("--airflow-check | --airflow-render output.wav [dry]")
             print("--fleet-check | --reference | --reference-check | --reference-render output.wav | --frame-profile")
             print("--check | --measure | --render output.wav [full|smooth|sine|dry|idle|idle-dry|regular|ignition] | --smoke")
             return

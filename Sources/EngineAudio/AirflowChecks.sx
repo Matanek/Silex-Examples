@@ -1,0 +1,114 @@
+use GFX.Audio.Processing
+use STD.File
+use STD.Math
+use STD.Time.Stopwatch
+use Module.Airflow.Airflow
+use Module.Model.Bench
+use Module.ReferenceChecks.word
+
+func zeros() float32[] {
+    var result:float32[] = []; for _ in 0...960 { result.append(0.0) }
+    return result
+}
+
+func verify_layer() {
+    let format = Processing.Format(sample_rate:44_100, channels:2)
+    var whole = Airflow(format); var split = Airflow(format)
+    var a = zeros(); var b = zeros()
+    for i in 0...960 { a[i] = 0.8; b[i] = a[i] }
+    whole.mix(&a[0:960], 0.0, 2_000.0, false, true)
+    for i in 0...960 { assert(a[i] == b[i], "zero airflow preserves the pressure signal bit exactly") }
+    for _ in 0...25 {
+        for i in 0...960 { a[i] = 0.0; b[i] = 0.0 }
+        whole.mix(&a[0:960], 0.6, 2_000.0, false, true)
+        split.mix(&b[0:226], 0.6, 2_000.0, false, true)
+        split.mix(&b[226:960], 0.6, 2_000.0, false, true)
+        for i in 0...960 { assert(a[i] == b[i], "airflow keeps its sequence, filter and ramp across block boundaries") }
+    }
+    var idle = 0.0; for x in a { idle += x as float * x as float }
+    assert(idle > 0.001, "airflow remains present between pressure pulses")
+    whole.reset(); split.reset()
+    for _ in 0...25 {
+        for i in 0...960 { a[i] = 0.0; b[i] = 0.0 }
+        whole.mix(&a[0:960], 0.6, 2_000.0, false, true)
+        split.mix(&b[0:960], 0.6, 6_000.0, true, true)
+    }
+    var throttle = 0.0; for x in b { throttle += x as float * x as float }
+    assert(throttle > idle * 1.5, "airflow grows under acceleration")
+    for _ in 0...150 {
+        for i in 0...960 { b[i] = 0.0 }
+        split.mix(&b[0:960], 0.6, 0.0, false, false)
+    }
+    for x in b { assert(x == 0.0, "stopped engine settles to exact silence") }
+    // At the maximum control value, the pressure signal owns its original peak.
+    for _ in 0...80 {
+        for i in 0...960 {
+            a[i] = 0.95
+            if i % 4 < 2 { a[i] = -0.95 }
+        }
+        whole.mix(&a[0:960], 1.0, 12_000.0, true, true)
+        for x in a { assert(Math.is_finite(x as float) && Math.abs(x as float) < 0.981) }
+    }
+    print("Airflow layer passed: bypass, deterministic split blocks, headroom, acceleration and stopped silence")
+}
+
+func verify_fifo() {
+    var sync = Bench(running:false, reference:true); sync.select_profile(6)
+    var async = Bench(running:false, reference:true); async.select_profile(6)
+    assert(sync.profile().key == "cross4" && sync.breath == 0.6)
+    var a = zeros(); var b = zeros(); var expected:float32[] = []
+    for _ in 0...3_840 { expected.append(0.0) }
+    sync.set_running(true); async.set_running(true)
+    var peak = 0.0
+    for batch in 0...300 {
+        if batch == 90 { sync.accelerating = true; async.accelerating = true }
+        if batch == 140 { sync.accelerating = false; async.accelerating = false }
+        if batch == 190 { sync.breath = 1.0; async.breath = 1.0 }
+        if batch == 220 { sync.set_running(false); async.set_running(false) }
+        for slot in 0...4 {
+            sync.render(&a[0:960])
+            for i in 0...960 { expected[slot * 960 + i] = a[i]; peak = Math.max(peak, Math.abs(a[i] as float)) }
+            async.request_reference(slot + 1)
+        }
+        for slot in 0...4 {
+            var watch = Stopwatch(); watch.start()
+            while !async.render_reference_ready(&b[0:960]) { assert(watch.get_elapsed_seconds() < 5.0) }
+            for i in 0...960 { assert(b[i] == expected[slot * 960 + i], "4T airflow PCM stays identical through four FIFO requests") }
+        }
+    }
+    assert(peak < 0.7 && sync.rpm() < 5.0, "mixed 4T retains headroom and stops")
+    for x in a { assert(Math.abs(x as float) < 0.00001, "no noise floor with stopped engine") }
+    sync.breath = 0.0; sync.reset_controls(); assert(sync.breath == 0.6)
+    assert(sync.select_profile(0) && sync.breath == 0.0, "454 retains its accepted rendering by default")
+    assert(sync.select_profile(7) && sync.breath == 0.0, "2T remains unchanged by default")
+    print("4T airflow FIFO passed: 576000 frames, controls, start/stop and profile defaults; peak ", peak)
+}
+
+public func verify() { verify_layer(); verify_fifo() }
+
+public func render(path:str, dry:bool) {
+    var bench = Bench(running:false, reference:true); bench.select_profile(6)
+    if dry { bench.breath = 0.0 }
+    bench.set_running(true)
+    var samples = zeros()
+    for _ in 0...280 { bench.render(&samples[0:960]) }
+    let blocks = 644; let frames = blocks * 480
+    var bytes:uint8[] = [82 as uint8, 73 as uint8, 70 as uint8, 70 as uint8]
+    word(bytes, 36 + frames * 4, 4)
+    for value in [87, 65, 86, 69, 102, 109, 116, 32] { bytes.append(value as uint8) }
+    word(bytes, 16, 4); word(bytes, 1, 2); word(bytes, 2, 2)
+    word(bytes, 44_100, 4); word(bytes, 44_100 * 4, 4); word(bytes, 4, 2); word(bytes, 16, 2)
+    for value in [100, 97, 116, 97] { bytes.append(value as uint8) }
+    word(bytes, frames * 4, 4)
+    for _ in 0...blocks {
+        bench.render(&samples[0:960])
+        for sample in samples {
+            assert(Math.abs(sample as float) < 1.0 && Math.is_finite(sample as float))
+            var value = Math.round(sample as float * 32_767.0) as int
+            if value < 0 { value += 65_536 }
+            word(bytes, value, 2)
+        }
+    }
+    File.write_all(path, @bytes[0:bytes.count()])
+    print("4T airflow listening render: ", path, "; dry=", dry)
+}

@@ -6,6 +6,7 @@ use STD.Math
 use Module.Reference.ReferenceClient
 use Module.Profiles.Catalog
 use Module.Profiles.Profile
+use Module.Airflow.Airflow
 
 // The bench owns its RPM response. A game can instead supply RPM to Engine.
 public class Bench:Synthesis.Generator {
@@ -20,6 +21,8 @@ public class Bench:Synthesis.Generator {
     var load:float = 0.3
     var volume:float = 0.7
     var ambience:float = 0.06
+    var breath:float = 0.0
+    private var airflow:Airflow
     var base_rpm:float = 800.0
     private var target_rpm:float = 800.0
     private var throttle:float = 0.0
@@ -51,6 +54,7 @@ public class Bench:Synthesis.Generator {
         self.reference_mode = reference
         var sample_rate = 48_000; if reference { sample_rate = 44_100 }
         self.format = Processing.Format(sample_rate:sample_rate, channels:2)
+        self.airflow = Airflow(self.format)
         self.initially_running = running; self.ignition = running
         // Match the preceding candidates' whole-scenario RMS for listening.
         self.source = Synthesis.Engine.create(self.format, amplitude:0.249)
@@ -91,6 +95,7 @@ public class Bench:Synthesis.Generator {
     func reset_controls() {
         self.exhaust = 0.65; self.roughness = 0.4; self.load = 0.3; self.volume = 0.7
         self.ambience = 0.06; self.base_rpm = 800.0
+        self.breath = self.profile().breath
         if self.reference_mode { self.exhaust = 1.0; self.roughness = 1.0; self.load = 0.2; self.ambience = 0.0 }
     }
 
@@ -120,14 +125,14 @@ public class Bench:Synthesis.Generator {
         self.reference = ReferenceClient(self.profile_id, self.profile().key, self.driving)
         self.profile_generation++; self.reference_ready = false
         self.accelerating = false; self.braking = false; self.requested_gear = 0
-        self.remaining = 0; self.produced_frames = 0; self.room.reset()
+        self.remaining = 0; self.produced_frames = 0; self.room.reset(); self.airflow.reset()
         self.notice = ""
     }
     func select_profile(index:int) bool {
         if index < 0 || index >= self.catalog.count() { return false }
         if index == self.profile_id { return true }
         if !self.can_change_vehicle() { self.notice = "Couper le moteur et immobiliser le véhicule."; return false }
-        self.profile_id = index; self.base_rpm = 800.0
+        self.profile_id = index; self.base_rpm = 800.0; self.breath = self.profile().breath
         self.replace_reference(); return true
     }
     func toggle_road() {
@@ -209,6 +214,10 @@ public class Bench:Synthesis.Generator {
     }
 
     private func process_output(samples:&float32[..]) {
+        if self.reference_mode {
+            self.airflow.mix(&samples[0:samples.count()], self.breath, self.rpm(),
+                self.accelerating && self.focused, self.ignition)
+        }
         for i in 0...samples.count() { self.room_buffer[i] = samples[i] }
         self.room.process(&self.room_buffer[0:samples.count()])
         var frame = 0
@@ -288,7 +297,7 @@ public class Bench:Synthesis.Generator {
         self.source.reset(); self.target_rpm = 800.0; self.throttle = 0.0
         self.remaining = 0; self.produced_frames = 0; self.accelerating = false
         self.gain = self.volume as float32
-        self.ambience_gain = self.ambience as float32; self.room.reset()
+        self.ambience_gain = self.ambience as float32; self.room.reset(); self.airflow.reset()
         self.idle_offset = 0.0; self.idle_speed = 0.0; self.random = 73
         self.ignition = self.initially_running; self.starting = false; self.fuel = 1.0
         if !self.initially_running {
