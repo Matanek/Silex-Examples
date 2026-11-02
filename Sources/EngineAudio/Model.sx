@@ -22,7 +22,7 @@ public class Bench:Synthesis.Generator {
 
     init() {
         self.format = Processing.Format(sample_rate:48_000, channels:2)
-        self.source = Synthesis.Engine.create(self.format)
+        self.source = Synthesis.Engine.create(self.format, amplitude:0.25)
     }
 
     func rpm() float { return self.source.current_rpm() as float }

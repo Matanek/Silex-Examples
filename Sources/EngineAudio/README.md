@@ -53,7 +53,8 @@ slider interaction.
 
 The bench advances RPM in 10 ms audio quanta, independently of graphics frames.
 Playback retains at most 2,880 queued frames plus a 480-frame block: 70 ms of
-production lead at 48 kHz. Mixer/device output adds to this lead; the meter does
+production lead at 48 kHz. Mixer/device output and the exhaust profile's acoustic
+propagation add to this lead; the meter does
 not measure the exact audible frame. Playback starts at the first window update,
 after window setup.
 

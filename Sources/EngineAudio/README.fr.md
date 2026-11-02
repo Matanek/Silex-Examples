@@ -57,7 +57,8 @@ sans remplacer un essai réel d'Espace et des curseurs.
 Le banc fait évoluer son régime par quanta audio de 10 ms, indépendamment des
 frames graphiques. La lecture retient au plus 2 880 frames de file et un bloc
 de 480 frames, soit 70 ms d'avance de production à 48 kHz. La sortie du mixer
-et du périphérique s'ajoute à cette avance ; le compteur n'est pas une mesure
+et du périphérique s'ajoute à cette avance, ainsi que la propagation acoustique
+du profil d'échappement ; le compteur n'est pas une mesure
 de la frame exacte entendue. La lecture commence lors de la première mise à
 jour de la fenêtre, après sa préparation.
 
