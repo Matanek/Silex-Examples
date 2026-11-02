@@ -29,12 +29,12 @@ beeps, impacts, a laser, an explosion, a changing engine, an 8-bit sound and
 melodies composed directly or through MIDI. Select a recipe with `--case` or
 verify its PCM and stream without a device using `--check`.
 
-The [V8 engine audio bench](Sources/EngineAudio/README.md) has a tachometer,
-hold-Space acceleration and live exhaust, texture, load and volume controls.
-The procedural source is accompanied by an optional `--reference` mode running
-the original engine-sim Chevrolet 454, with cranking and coast-down. The reference
-helper has its own local build instructions; sound acceptance and game integration
-remain under evaluation.
+The [vehicle engine audio bench](Sources/EngineAudio/README.md) offers sedan,
+sports car, truck, road/sports motorcycles and motocross profiles, including a
+two-stroke prototype. Its optional `--reference` helper runs engine-sim with
+cranking, coast-down and auto/manual gears in Route mode. It has separate local
+build instructions. The accepted 454 remains the default; listening feedback
+for new profiles and qualification for game integration are still needed.
 
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.

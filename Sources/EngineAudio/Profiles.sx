@@ -1,0 +1,29 @@
+use JSON
+
+public struct Profile {
+    let key:str
+    let label:str
+    let redline:float
+    let ceiling:float
+    let idle:float
+    let gears:int
+    let strokes:int
+}
+
+// The native builder and this projection consume the same catalogue.
+public class Catalog {
+    private var profiles:Profile[] = []
+    init() {
+        var root = JSON.parse(embed_text("../../Tools/EngineReference/Profiles.json"))
+        var rows = root.require_array("profiles")
+        for i in 0...rows.count() {
+            var row = rows.at(i)
+            var ratios = row.require_array("ratios")
+            self.profiles.append(Profile(key:row.require_string("key"), label:row.require_string("label"),
+                redline:row.require_integer("redline") as float, ceiling:row.require_integer("ceiling") as float,
+                idle:row.require_integer("idle") as float, gears:ratios.count(), strokes:row.require_integer("strokes")))
+        }
+    }
+    func count() int { return self.profiles.count() }
+    func get(index:int) Profile { return self.profiles[index] }
+}

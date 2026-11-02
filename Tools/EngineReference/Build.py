@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import tarfile
 import wave
+import TwoStroke
+import Impulse
 
 REVISION = '85f7c3b959a908ed5232ede4f1a4ac7eafe6b630'
 DEPENDENCIES = {
@@ -70,27 +72,40 @@ def main():
     tools = Path(__file__).resolve().parent
     snapshot = output / 'Source'
     archive(root, REVISION, snapshot, ['CMakeLists.txt', 'LICENSE', 'src', 'include', 'scripting', 'es',
-        'assets/engines/chevrolet/engine_03_for_e1.mr', 'assets/sound-library/smooth/smooth_39.wav'])
+        'assets/engines', 'assets/sound-library'])
     for name, revision in DEPENDENCIES.items():
         paths = ['include', 'src']
         if name == 'piranha':
             paths += ['flex-bison']
         archive(root / 'dependencies/submodules' / name, revision, snapshot / 'dependencies/submodules' / name, paths)
     prepare(snapshot)
+    TwoStroke.prepare(snapshot, replace)
+    profiles = json.loads((tools / 'Profiles.json').read_text())['profiles']
+    generated = '#pragma once\n#include <Drive.hpp>\ninline DriveSettings profileSettings(int index) {\n    switch (index) {\n'
+    for index, profile in enumerate(profiles):
+        values = ', '.join(str(profile[key]) for key in ['idle','mass','area','drag','diff','wheel','shift','starter','strokes','audio_cutoff'])
+        ratios = ', '.join(str(value) for value in profile['ratios'])
+        generated += f'        case {index}: return {{{values}, {{{ratios}}}}};\n'
+    generated += '        default: throw std::runtime_error("Unknown profile");\n    }\n}\n'
+    (output / 'GeneratedProfiles.hpp').write_text(generated)
     compiler = Path(subprocess.check_output(['xcrun', '--find', 'clang++'], text=True).strip())
     flex_include = compiler.parent.parent / 'include'
     if not (flex_include / 'FlexLexer.h').is_file():
         raise RuntimeError('Header Flex du toolchain Xcode introuvable')
     subprocess.run(['cmake', '-S', str(tools), '-B', str(output / 'CMake'), '-DCMAKE_BUILD_TYPE=Release',
-        '-DENGINE_REFERENCE_SOURCE=' + str(snapshot), '-DENGINE_REFERENCE_FLEX_INCLUDE=' + str(flex_include),
+        '-DENGINE_REFERENCE_GENERATED=' + str(output), '-DENGINE_REFERENCE_SOURCE=' + str(snapshot), '-DENGINE_REFERENCE_FLEX_INCLUDE=' + str(flex_include),
         '-DBISON_EXECUTABLE=' + str(Path(shutil.which(args.bison) or args.bison).resolve()),
         '-DENGINE_REFERENCE_VECTOR_FIR=' + ('OFF' if args.scalar_fir else 'ON')], check=True)
     subprocess.run(['cmake', '--build', str(output / 'CMake'), '-j', '4'], check=True)
-    shutil.copy2(output / 'CMake/RenderReference', output / 'RenderReference')
+    # Replacing the inode avoids stale macOS code-signature pages on rebuild.
+    staged_binary = output / 'RenderReference.staged'
+    shutil.copy2(output / 'CMake/RenderReference', staged_binary)
+    staged_binary.replace(output / 'RenderReference')
     runtime = output / 'Runtime'
     (runtime / 'engines/chevrolet').mkdir(parents=True, exist_ok=True)
     shutil.copytree(snapshot / 'es', runtime / 'es', dirs_exist_ok=True)
-    shutil.copy2(snapshot / 'assets/engines/chevrolet/engine_03_for_e1.mr', runtime / 'engines/chevrolet')
+    shutil.copytree(snapshot / 'assets/engines', runtime / 'engines', dirs_exist_ok=True)
+    shutil.copytree(tools / 'Profiles', runtime / 'engines/local', dirs_exist_ok=True)
     shutil.copy2(snapshot / 'LICENSE', runtime / 'LICENSE.engine-sim')
     (runtime / 'Profile454.mr').write_text('import "engine_sim.mr"\nimport "engines/chevrolet/engine_03_for_e1.mr"\nset_engine(engine_03_for_e1())\n')
     impulse = snapshot / 'assets/sound-library/smooth/smooth_39.wav'
@@ -98,8 +113,17 @@ def main():
         if (stream.getnchannels(), stream.getsampwidth(), stream.getframerate()) != (1, 2, 44100):
             raise RuntimeError('Format IR inattendu')
         (runtime / 'Impulse.pcm').write_bytes(stream.readframes(stream.getnframes()))
+    for profile in profiles:
+        (runtime / ('Profile-' + profile['key'] + '.mr')).write_text('import "engine_sim.mr"\nimport "engines/' + profile['path'] + '"\nset_engine(' + profile['node'] + '())\n')
+        with wave.open(str(snapshot / 'assets/sound-library' / profile['impulse']), 'rb') as stream:
+            assert (stream.getnchannels(), stream.getsampwidth(), stream.getframerate()) == (1, 2, 44100)
+            pcm = stream.readframes(stream.getnframes())
+            pcm = Impulse.prepare(pcm, profile.get('treble_db', 0), profile.get('tail_ms', 0), profile.get('bass_db', 0))
+            (runtime / ('Impulse-' + profile['key'] + '.pcm')).write_bytes(pcm)
     metadata = {'repository': 'https://github.com/ange-yaghi/engine-sim', 'revision': REVISION,
-        'dependencies': DEPENDENCIES, 'profile': 'assets/engines/chevrolet/engine_03_for_e1.mr',
+        'dependencies': DEPENDENCIES, 'profiles': profiles,
+        'local_profiles_sha256': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((tools / 'Profiles').glob('*.mr'))},
+        'catalog_sha256': hashlib.sha256((tools / 'Profiles.json').read_bytes()).hexdigest(), 'profile': 'assets/engines/chevrolet/engine_03_for_e1.mr',
         'sample_rate': 44100, 'vector_fir': not args.scalar_fir,
         'binary_sha256': hashlib.sha256((output / 'RenderReference').read_bytes()).hexdigest(),
         'impulse_sha256': hashlib.sha256(impulse.read_bytes()).hexdigest()}

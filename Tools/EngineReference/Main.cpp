@@ -11,6 +11,8 @@
 #include <compiler.h>
 #include <impulse_response.h>
 #include <piston_engine_simulator.h>
+#include <Drive.hpp>
+#include <GeneratedProfiles.hpp>
 
 // -----------------------------------------------------------------------------
 
@@ -93,7 +95,7 @@ static void renderQuantum(CapturingSimulator& simulator, Engine& engine, std::ve
     }
 }
 
-static void serve(CapturingSimulator& simulator, Engine& engine) {
+static void serve(CapturingSimulator& simulator, Engine& engine, const DriveSettings& settings, int profile) {
     std::vector<int16_t> pending;
     pending.reserve(2048);
     int frames = 0;
@@ -111,7 +113,7 @@ static void serve(CapturingSimulator& simulator, Engine& engine) {
             !std::isfinite(pedal) || pedal < 0 || pedal > 1 ||
             !std::isfinite(texture) || texture < 0 || texture > 1 ||
             !std::isfinite(convolution) || convolution < 0 || convolution > 1 ||
-            !std::isfinite(baseRpm) || baseRpm < 700 || baseRpm > 2000 ||
+            !std::isfinite(baseRpm) || baseRpm < 700 || baseRpm > 4000 ||
             !std::isfinite(load) || load < 0 || load > 1) {
             throw std::runtime_error("Invalid reference-render request");
         }
@@ -124,17 +126,18 @@ static void serve(CapturingSimulator& simulator, Engine& engine) {
         parameters.volume = 0.5;
         simulator.synthesizer().setAudioParameters(parameters);
         while (pending.size() < static_cast<size_t>(frames)) {
-            const bool starter = ignition && contactTime < 1.2 && engine.getRpm() < 650;
+            const bool starter = ignition && contactTime < settings.starter && engine.getRpm() < (profile == 0 ? 650 : std::max(650.0, settings.idle * 0.65));
             simulator.m_starterMotor.m_enabled = starter;
             engine.getIgnitionModule()->m_enabled = ignition;
-            const double requestedThrottle = ignition && !starter ? 0.35 * pedal : 0;
+            const double requestedThrottle = ignition && !starter ? (profile == 0 ? 0.35 : 1.0) * pedal : 0;
             throttle += 0.16 * (requestedThrottle - throttle);
             engine.setSpeedControl(throttle);
             const bool heldSpeed = ignition && pedal == 0 && baseRpm > 800 && engine.getRpm() > 600;
             simulator.m_dyno.m_hold = heldSpeed;
             simulator.m_dyno.m_enabled = heldSpeed || (ignition && pedal > 0 && load > 0 && engine.getRpm() > 900);
             simulator.m_dyno.m_rotationSpeed = units::rpm(baseRpm);
-            simulator.m_dyno.m_maxTorque = heldSpeed ? 10000 : load * 250;
+            const double loadTorque = profile == 0 ? 250 : std::max(25.0, engine.getDisplacement() * 100000);
+            simulator.m_dyno.m_maxTorque = heldSpeed ? 10000 : load * loadTorque;
             renderQuantum(simulator, engine, pending);
             if (ignition) contactTime += 0.01;
         }
@@ -148,6 +151,59 @@ static void serve(CapturingSimulator& simulator, Engine& engine) {
         pending.erase(pending.begin(), pending.begin() + frames);
     }
     if (!std::cin.eof()) throw std::runtime_error("Malformed reference-render request");
+}
+
+static void serveDrive(CapturingSimulator& simulator, Engine& engine, RoadVehicle& vehicle, Transmission& transmission, const DriveSettings& settings) {
+    DriveController drive(settings, engine, transmission, vehicle);
+    vehicle.attachBrake(simulator.getSystem());
+    std::vector<int16_t> pending;
+    pending.reserve(2048);
+    int frames = 0, ignition = 0, mode = 1, requestedGear = 0;
+    double pedal = 0, texture = 1, convolution = 1, baseRpm = 800, load = 0, brake = 0;
+    double contactTime = 0, throttle = 0;
+    bool previousContact = false;
+    while (std::cin >> frames >> ignition >> pedal >> texture >> convolution >> baseRpm >> load >> mode >> requestedGear >> brake) {
+        if (frames < 1 || frames > 960 || ignition < 0 || ignition > 1 || mode < 1 || mode > 2 ||
+            requestedGear < 0 || requestedGear > static_cast<int>(settings.ratios.size()) ||
+            !std::isfinite(pedal) || pedal < 0 || pedal > 1 || !std::isfinite(texture) || texture < 0 || texture > 1 ||
+            !std::isfinite(convolution) || convolution < 0 || convolution > 1 || !std::isfinite(brake) || brake < 0 || brake > 1 ||
+            !std::isfinite(baseRpm) || baseRpm < 700 || baseRpm > 4000 || !std::isfinite(load) || load < 0 || load > 1) {
+            throw std::runtime_error("Invalid drivetrain request");
+        }
+        if (ignition && !previousContact) contactTime = 0;
+        previousContact = ignition;
+        auto parameters = simulator.synthesizer().getAudioParameters();
+        parameters.airNoise = texture * engine.getInitialNoise();
+        parameters.inputSampleNoise = texture * engine.getInitialJitter();
+        parameters.convolution = convolution;
+        parameters.volume = 0.5;
+        simulator.synthesizer().setAudioParameters(parameters);
+        while (pending.size() < static_cast<size_t>(frames)) {
+            const bool starter = ignition && contactTime < settings.starter && engine.getRpm() < std::max(650.0, settings.idle * 0.65);
+            simulator.m_starterMotor.m_enabled = starter;
+            engine.getIgnitionModule()->m_enabled = ignition;
+            const double requested = drive.update(ignition, pedal, mode, requestedGear, brake, 0.01);
+            const double target = ignition && !starter ? requested : 0;
+            throttle += 0.16 * (target - throttle);
+            engine.setSpeedControl(throttle);
+            simulator.m_dyno.m_enabled = false;
+            renderQuantum(simulator, engine, pending);
+            if (ignition) contactTime += 0.01;
+        }
+        writeInteger(std::cout, 0x36563845, 4);
+        writeInteger(std::cout, frames, 4);
+        writeInteger(std::cout, static_cast<uint32_t>(std::round(engine.getRpm() * 1000)), 4);
+        writeInteger(std::cout, ignition && (contactTime < 1.2 || engine.getRpm() < 650), 4);
+        writeInteger(std::cout, drive.currentGear(), 4);
+        writeInteger(std::cout, static_cast<uint32_t>(std::round(vehicle.getSpeed() * 3600)), 4);
+        writeInteger(std::cout, drive.flags(), 4);
+        writeInteger(std::cout, drive.shiftCount(), 4);
+        for (int index = 0; index < frames; ++index) writeInteger(std::cout, static_cast<uint16_t>(pending[index]), 2);
+        std::cout.flush();
+        if (!std::cout) throw std::runtime_error("Drivetrain output pipe closed");
+        pending.erase(pending.begin(), pending.begin() + frames);
+    }
+    if (!std::cin.eof()) throw std::runtime_error("Malformed drivetrain request");
 }
 
 // -----------------------------------------------------------------------------
@@ -184,12 +240,14 @@ static void renderOffline(CapturingSimulator& simulator, Engine& engine, const s
 
 int main(int count, char** arguments) {
     try {
-        if (count != 5) {
-            std::fprintf(stderr, "Usage: RenderReference profile.mr impulse.pcm output-prefix full|base|serve\n");
+        if (count != 5 && count != 6) {
+            std::fprintf(stderr, "Usage: RenderReference profile.mr impulse.pcm output-prefix full|base|serve|drive [profile-index]\n");
             return 2;
         }
         const std::string mode = arguments[4];
-        if (mode != "full" && mode != "base" && mode != "serve") throw std::runtime_error("Unknown rendering mode");
+        if (mode != "full" && mode != "base" && mode != "serve" && mode != "drive") throw std::runtime_error("Unknown rendering mode");
+        const int profile = count == 6 ? std::stoi(arguments[5]) : 0;
+        const auto settings = profileSettings(profile);
         const auto impulse = readImpulse(arguments[2]);
         std::srand(42);
         es_script::Compiler compiler;
@@ -204,7 +262,12 @@ int main(int count, char** arguments) {
         Engine& engine = *output.engine;
         std::fprintf(stderr, "Engine: %s, mode: %s\n", engine.getName().c_str(), mode.c_str());
         std::fflush(stderr);
-        Vehicle vehicle;
+        if (settings.strokes == 2) {
+            if (engine.getCylinderCount() != 1) throw std::runtime_error("Two-stroke profile must be a single cylinder");
+            engine.getOutputCrankshaft()->cycleRadians = 2 * constants::pi;
+            engine.getChamber(0)->twoStroke = true;
+        }
+        RoadVehicle vehicle;
         Vehicle::Parameters vehicleParameters;
         vehicleParameters.mass = 1597;
         vehicleParameters.diffRatio = 3.42;
@@ -212,6 +275,14 @@ int main(int count, char** arguments) {
         vehicleParameters.dragCoefficient = 0.25;
         vehicleParameters.crossSectionArea = 36 * units::foot * units::foot;
         vehicleParameters.rollingResistance = 2000;
+        if (mode == "drive") {
+            vehicleParameters.mass = settings.mass;
+            vehicleParameters.diffRatio = settings.diff;
+            vehicleParameters.tireRadius = settings.wheel;
+            vehicleParameters.dragCoefficient = settings.drag;
+            vehicleParameters.crossSectionArea = settings.area;
+            vehicleParameters.rollingResistance = settings.mass * 9.81 * 0.012;
+        }
         vehicle.initialize(vehicleParameters);
         Transmission transmission;
         const double ratios[] = {2.97, 2.07, 1.43, 1.0, 0.84, 0.56};
@@ -219,6 +290,11 @@ int main(int count, char** arguments) {
         transmissionParameters.GearCount = 6;
         transmissionParameters.GearRatios = ratios;
         transmissionParameters.MaxClutchTorque = 1000 * units::ft_lb;
+        if (mode == "drive") {
+            transmissionParameters.GearCount = settings.ratios.size();
+            transmissionParameters.GearRatios = settings.ratios.data();
+            if (settings.strokes == 2) transmissionParameters.MaxClutchTorque = 40;
+        }
         transmission.initialize(transmissionParameters);
         CapturingSimulator simulator;
         Simulator::Parameters simulatorParameters;
@@ -228,6 +304,10 @@ int main(int count, char** arguments) {
         simulator.setFluidSimulationSteps(8);
         simulator.setTargetSynthesizerLatency(0);
         Synthesizer& synthesizer = simulator.synthesizer();
+        if (settings.strokes == 2) {
+            synthesizer.m_levelingFilter.immediateAttack = true;
+            synthesizer.m_levelingFilter.p_minLevel = 0;
+        }
         synthesizer.m_latency = 0;
         auto parameters = synthesizer.getAudioParameters();
         parameters.inputSampleNoise = mode == "base" ? 0 : engine.getInitialJitter();
@@ -237,10 +317,12 @@ int main(int count, char** arguments) {
         parameters.volume = 0.7;
         synthesizer.setAudioParameters(parameters);
         for (int index = 0; index < engine.getExhaustSystemCount(); ++index) {
+            synthesizer.m_filters[index].antialiasing.setCutoffFrequency(settings.audioCutoff, 44100);
             const double volume = engine.getExhaustSystem(index)->getImpulseResponse()->getVolume();
             synthesizer.initializeImpulseResponse(impulse.data(), impulse.size(), volume, index);
         }
-        if (mode == "serve") serve(simulator, engine);
+        if (mode == "drive") serveDrive(simulator, engine, vehicle, transmission, settings);
+        else if (mode == "serve") serve(simulator, engine, settings, profile);
         else renderOffline(simulator, engine, arguments[3]);
         synthesizer.destroy();
         simulator.destroy();

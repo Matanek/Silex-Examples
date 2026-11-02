@@ -4,110 +4,10 @@ use GFX.Input.Keyboard
 use GFX.UI
 use STD.Math
 use Module.Model.Bench
-
-func label(value:str, size:float, color:Color) UI.Text {
-    var text = UI.Text(value)
-    text.style.font_size = size; text.style.foreground = color
-    return text
-}
-
-func percent(value:float) str { return "$(Math.round(value * 100.0) as int) %" }
-
-class Tachometer:UI.Content {
-    private var bench:Bench
-    private var needle_rpm:float = 0.0
-    private var font:Canvas.Font
-    private var tick_inner:Math.Vec2[] = []
-    private var tick_outer:Math.Vec2[] = []
-    private var number_positions:Math.Vec2[] = []
-
-    init(bench:Bench) {
-        self.bench = bench; self.needle_rpm = bench.rpm(); self.font = Canvas.Font.default()
-        for tick in 0...57 {
-            let angle = Math.pi() * (0.75 + 1.5 * tick as float / 56.0)
-            var inner = 0.85; if tick % 8 == 0 { inner = 0.78 }
-            let direction = Math.Vec2(Math.cos(angle), Math.sin(angle))
-            self.tick_inner.append(direction.multiply(inner)); self.tick_outer.append(direction)
-        }
-        for number in 0...8 {
-            let angle = Math.pi() * (0.75 + 1.5 * number as float / 7.0)
-            self.number_positions.append(Math.Vec2(Math.cos(angle) * 0.64, Math.sin(angle) * 0.64))
-        }
-    }
-
-    func measure(maximum:Math.Vec2) Math.Vec2 {
-        return Math.Vec2(Math.min(560.0, maximum.x), Math.min(530.0, maximum.y))
-    }
-
-    func paint(painter:&Canvas.Painter, frame:Canvas.Rect, opacity:float) {
-        let radius = Math.min(frame.size.x * 0.43, frame.size.y * 0.43)
-        let center = frame.position.add(Math.Vec2(frame.size.x * 0.5, frame.size.y * 0.49))
-        painter.fill(Canvas.Circle(center, radius + 10.0), Canvas.Fill.solid(Color.bytes(27, 36, 47).with_alpha(opacity)))
-        painter.fill(Canvas.Circle(center, radius), Canvas.Fill.solid(Color.bytes(12, 18, 26).with_alpha(opacity)))
-        painter.stroke(Canvas.Circle(center, radius), Canvas.Stroke(Color.bytes(64, 76, 88), 1.5))
-        painter.stroke(Canvas.Arc(center, radius * 0.93, Math.pi() * (0.75 + 1.5 * 6.0 / 7.0), Math.pi() * 1.5 / 7.0), Canvas.Stroke(Color.rose_500(), 8.0))
-        for i, point in self.tick_inner.indexed() {
-            var color = Color.slate_500(); var width = 1.0
-            if i % 8 == 0 { color = Color.slate_100(); width = 3.0 }
-            if i >= 48 { color = Color.rose_400() }
-            painter.stroke(Canvas.Line(center.add(point.multiply(radius)), center.add(self.tick_outer[i].multiply(radius))), Canvas.Stroke(color, width))
-        }
-        for number, point in self.number_positions.indexed() {
-            painter.text("$(number)", center.add(point.multiply(radius)).subtract(Math.Vec2(0.0, 10.0)),
-                Canvas.TextStyle(size:20.0, color:Color.slate_200(), alignment:Canvas.TextAlignment.center, font:self.font))
-        }
-        painter.text("V8  /  QUATRE TEMPS", center.add(Math.Vec2(0.0, -radius * 0.35)),
-            Canvas.TextStyle(size:11.0, color:Color.slate_400(), alignment:Canvas.TextAlignment.center, font:self.font))
-        let angle = Math.pi() * (0.75 + 1.5 * Math.clamp(self.needle_rpm / 7_000.0, 0.0, 1.0))
-        let direction = Math.Vec2(Math.cos(angle), Math.sin(angle))
-        painter.stroke(Canvas.Line(center.subtract(direction.multiply(radius * 0.14)), center.add(direction.multiply(radius * 0.74))),
-            Canvas.Stroke(Color.amber_400(), 5.0))
-        painter.fill(Canvas.Circle(center, 12.0), Canvas.Fill.solid(Color.slate_700()))
-        painter.fill(Canvas.Circle(center, 5.0), Canvas.Fill.solid(Color.amber_300()))
-        let value = (Math.round(self.bench.rpm() / 10.0) * 10.0) as int
-        painter.text("$(value)", center.add(Math.Vec2(0.0, radius * 0.36)),
-            Canvas.TextStyle(size:40.0, color:Color.slate_100(), alignment:Canvas.TextAlignment.center, weight:Canvas.TextWeight.bold, font:self.font))
-        painter.text("TR / MIN", center.add(Math.Vec2(0.0, radius * 0.58)),
-            Canvas.TextStyle(size:10.0, color:Color.slate_400(), alignment:Canvas.TextAlignment.center, font:self.font))
-        var status = "RALENTI"
-        if self.bench.accelerating { status = "ACCÉLÉRATION" }
-        elif self.bench.rpm() > self.bench.base_rpm + 70.0 { status = "DÉCÉLÉRATION / FREIN MOTEUR" }
-        elif self.bench.base_rpm > 800.0 { status = "RÉGIME MAINTENU" }
-        if !self.bench.is_running() {
-            status = "MOTEUR ÉTEINT"
-            if self.bench.rpm() > 0.0 { status = "EXTINCTION" }
-        } elif self.bench.is_starting() { status = "DÉMARRAGE" }
-        elif !self.bench.focused { status = "GAZ RELÂCHÉS — FENÊTRE INACTIVE" }
-        painter.text(status, frame.position.add(Math.Vec2(frame.size.x * 0.5, frame.size.y - 22.0)),
-            Canvas.TextStyle(size:12.0, color:Color.amber_300(), alignment:Canvas.TextAlignment.center, font:self.font))
-    }
-
-    func focusable() bool { return false }
-    func accepts_text_input() bool { return false }
-    func focus_changed(focused:bool) bool { return false }
-    func update(delta:float) bool {
-        if delta > 0.0 {
-            self.needle_rpm += (self.bench.rpm() - self.needle_rpm) * (1.0 - Math.exp(-delta / 0.025))
-        }
-        return true
-    }
-    func pointer_scrolled(delta:Math.Vec2) bool { return false }
-    func insert_text(value:str) bool { return false }
-    func key_pressed(key:Keyboard.Key, modifiers:Keyboard.Modifiers) bool { return false }
-}
-
-func control(caption:str, value:UI.State<float>, action:func(float), maximum:float = 1.0) UI.Column {
-    var current = UI.Text(value, format:percent)
-    current.style.foreground = Color.slate_400(); current.style.font_size = 12.0
-    var name = label(caption, 13.0, Color.slate_200()); name.style.grow = 1.0
-    let heading:UI.View[] = [name, current]
-    var slider = UI.Slider(value, 0.0, maximum, action)
-    slider.style.height = 26.0; slider.style.accent = Color.amber_400()
-    slider.style.background = Color.slate_700()
-    let children:UI.View[] = [UI.Row(heading), slider]
-    var result = UI.Column(children); result.style.gap = 8.0
-    return result
-}
+use Module.Tachometer.Tachometer
+use Module.FleetDashboard
+use Module.Widgets.label
+use Module.Widgets.control
 
 class Controls {
     private var bench:Bench
@@ -201,6 +101,7 @@ class Controls {
 }
 
 public func dashboard(bench:Bench, automated:bool = false) UI.View {
+    if bench.reference_mode { return FleetDashboard.dashboard(bench, automated) }
     var controls = Controls(bench)
     return controls.view(automated)
 }

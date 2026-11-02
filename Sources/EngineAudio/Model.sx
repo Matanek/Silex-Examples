@@ -4,6 +4,8 @@ use STD.Error
 use STD.Error.Kind
 use STD.Math
 use Module.Reference.ReferenceClient
+use Module.Profiles.Catalog
+use Module.Profiles.Profile
 
 // The bench owns its RPM response. A game can instead supply RPM to Engine.
 public class Bench:Synthesis.Generator {
@@ -34,8 +36,18 @@ public class Bench:Synthesis.Generator {
     private var starting:bool = false
     private var fuel:float = 1.0
     var produced_frames:int = 0
+    var catalog:Catalog
+    private var profile_id:int = 0
+    var profile_generation:int = 0
+    private var driving:bool = false
+    private var automatic:bool = true
+    private var requested_gear:int = 0
+    var braking:bool = false
+    var reference_ready:bool = false
+    var notice:str = ""
 
     init(running:bool = true, reference:bool = false) {
+        self.catalog = Catalog()
         self.reference_mode = reference
         var sample_rate = 48_000; if reference { sample_rate = 44_100 }
         self.format = Processing.Format(sample_rate:sample_rate, channels:2)
@@ -80,6 +92,77 @@ public class Bench:Synthesis.Generator {
         self.exhaust = 0.65; self.roughness = 0.4; self.load = 0.3; self.volume = 0.7
         self.ambience = 0.06; self.base_rpm = 800.0
         if self.reference_mode { self.exhaust = 1.0; self.roughness = 1.0; self.load = 0.2; self.ambience = 0.0 }
+    }
+
+    func profile_index() int { return self.profile_id }
+    func profile() Profile { return self.catalog.get(self.profile_id) }
+    func road_mode() bool { return self.driving }
+    func auto_mode() bool { return self.automatic }
+    func gear() int {
+        if let reference = self.reference { return reference.current_gear() }
+        return 0
+    }
+    func speed() float {
+        if let reference = self.reference { return reference.speed_kmh() }
+        return 0.0
+    }
+    func shift_flags() int {
+        if let reference = self.reference { return reference.drive_flags() }
+        return 0
+    }
+    func shift_count() int {
+        if let reference = self.reference { return reference.shift_count() }
+        return 0
+    }
+    func can_change_vehicle() bool { return !self.ignition && self.rpm() < 5.0 && self.speed() < 0.5 }
+
+    private func replace_reference() {
+        self.reference = ReferenceClient(self.profile_id, self.profile().key, self.driving)
+        self.profile_generation++; self.reference_ready = false
+        self.accelerating = false; self.braking = false; self.requested_gear = 0
+        self.remaining = 0; self.produced_frames = 0; self.room.reset()
+        self.notice = ""
+    }
+    func select_profile(index:int) bool {
+        if index < 0 || index >= self.catalog.count() { return false }
+        if index == self.profile_id { return true }
+        if !self.can_change_vehicle() { self.notice = "Couper le moteur et immobiliser le véhicule."; return false }
+        self.profile_id = index; self.base_rpm = 800.0
+        self.replace_reference(); return true
+    }
+    func toggle_road() {
+        if !self.reference_mode { return }
+        if !self.can_change_vehicle() { self.notice = "Couper le moteur et immobiliser le véhicule."; return }
+        self.driving = !self.driving; self.replace_reference()
+    }
+    func toggle_auto() {
+        if !self.driving { self.notice = "Choisir Route pour utiliser la boîte."; return }
+        self.automatic = !self.automatic; self.requested_gear = self.gear(); self.notice = ""
+    }
+    func shift_up() {
+        if !self.driving { self.notice = "Choisir Route pour utiliser la boîte."; return }
+        if self.automatic { self.requested_gear = self.gear() }
+        self.automatic = false
+        if self.requested_gear < self.profile().gears { self.requested_gear++ }
+        self.notice = ""
+    }
+    func shift_down() {
+        if !self.driving { self.notice = "Choisir Route pour utiliser la boîte."; return }
+        if self.automatic { self.requested_gear = self.gear() }
+        self.automatic = false
+        if self.requested_gear > 0 { self.requested_gear-- }
+        self.notice = ""
+    }
+    func neutral() {
+        if self.driving { self.automatic = false; self.requested_gear = 0; self.notice = "" }
+    }
+    private func drive_mode() int {
+        if self.automatic { return 1 }
+        return 2
+    }
+    private func accept_telemetry() {
+        self.reference_ready = true
+        if self.driving && self.shift_flags() >= 2 { self.requested_gear = self.gear() }
     }
 
     private func advance() {
@@ -146,7 +229,8 @@ public class Bench:Synthesis.Generator {
         if var reference = self.reference {
             while reference.in_flight() < depth {
                 try reference.request(480, self.ignition, self.accelerating && self.focused,
-                    self.roughness, self.exhaust, self.base_rpm, self.load) else error {
+                    self.roughness, self.exhaust, self.base_rpm, self.load,
+                    self.drive_mode(), self.requested_gear, self.braking && self.focused) else error {
                     return Result<void, Error>.failure(error)
                 }
             }
@@ -161,6 +245,7 @@ public class Bench:Synthesis.Generator {
         if var reference = self.reference {
             let ready = try reference.render_ready(&samples[0:samples.count()]) else error { return Result<bool, Error>.failure(error) }
             if !ready { return Result<bool, Error>.success(false) }
+            self.accept_telemetry()
             self.process_output(&samples[0:samples.count()])
             self.produced_frames += 480
             return Result<bool, Error>.success(true)
@@ -182,7 +267,8 @@ public class Bench:Synthesis.Generator {
             if frames > self.remaining { frames = self.remaining }
             if var reference = self.reference {
                 try reference.render(&samples[offset:offset + frames * 2], self.ignition,
-                    self.accelerating && self.focused, self.roughness, self.exhaust, self.base_rpm, self.load) else error {
+                    self.accelerating && self.focused, self.roughness, self.exhaust, self.base_rpm, self.load,
+                    self.drive_mode(), self.requested_gear, self.braking && self.focused) else error {
                     return Result<void, Error>.failure(error)
                 }
             } else {
@@ -190,6 +276,7 @@ public class Bench:Synthesis.Generator {
                     return Result<void, Error>.failure(error)
                 }
             }
+            if self.reference_mode { self.accept_telemetry() }
             self.process_output(&samples[offset:offset + frames * 2])
             self.remaining -= frames; self.produced_frames += frames; offset += frames * 2
         }
@@ -197,7 +284,7 @@ public class Bench:Synthesis.Generator {
     }
 
     func reset() {
-        if self.reference_mode { self.reference = ReferenceClient() }
+        if self.reference_mode { self.replace_reference() }
         self.source.reset(); self.target_rpm = 800.0; self.throttle = 0.0
         self.remaining = 0; self.produced_frames = 0; self.accelerating = false
         self.gain = self.volume as float32

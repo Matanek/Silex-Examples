@@ -2,7 +2,7 @@
 
 [Français](README.fr.md)
 
-This development tool runs the original Chevrolet 454 without its Windows UI.
+This development tool runs multiple engine-sim profiles without the Windows UI.
 It provides a witness for the Silex listening bench. The full thermal simulation
 runs outside GFX.Audio. A reduced game implementation must be compared against
 this witness before claiming the same sound character.
@@ -36,7 +36,7 @@ Portability adaptations preserve the original values and equations: portable
 includes, inline constants, explicit default gas mixture, a renamed template
 parameter, a complete type include, a name correction in `RingBuffer::overwrite`,
 Piranha paths through `std::filesystem`, and removal of an unused graphics
-include. Gas and constraint calculations remain engine-sim's. Delta Studio,
+include. Original profiles retain engine-sim’s gas and constraint calculations. Delta Studio,
 Discord and the Windows application are excluded from this build.
 
 The FIR sum supports vectorization through reassociated additions in
@@ -81,11 +81,62 @@ bench RPM and load. Replies contain four little-endian uint32 values (magic
 `0x34563845`, frames, RPM × 1,000, starting state), followed by mono PCM16. The
 Silex client copies this into a stereo GFX.Audio stream.
 
-The runtime uses a 10 kHz simulation, eight gas substeps and 44.1 kHz synthesis.
+The runtime uses each profile’s 10–40 kHz simulation, eight gas substeps and 44.1 kHz synthesis.
 The full calculation remains intentional for this single witness. The live client
 uses a bounded FIFO with nonblocking polling; offline rendering stays synchronous.
 Allocation behavior, latency and multiple game vehicles remain unqualified.
 This development tool is tested on macOS ARM64 only.
+
+## Profiles, transmission and two-stroke model
+
+`Profiles.json` is the shared catalogue. Silex embeds it through JSON; Build.py
+generates native vehicle settings, scripts and PCM impulses. Provenance.json
+records the catalogue, local-profile hashes and pinned dependencies. Local files
+in `Profiles/` adapt the MIT-licensed TRX520 single into generic motocross engines.
+Some upstream `new/` IR references are absent at the pin: available smooth_39 and
+archive/test_engine_14/15 responses are selected. These choices do not reproduce
+the video’s exact settings.
+
+Private `drive` requests extend `serve` with mode (1 auto, 2 manual), requested
+gear (0=N, then 1..n) and brake (0..1). Replies contain eight little-endian uint32s:
+magic `0x36563845`, frames, RPM × 1,000, starting, gear, km/h × 1,000, flags
+(bit 0 shifting, bit 1 unsafe downshift), shift count. Mono PCM16 follows this
+32-byte header. The helper’s optional final argument selects a catalogue index,
+defaulting to 0 for the accepted 454.
+
+Drive.cpp controls engine-sim’s vehicle/transmission with a wheel-brake constraint,
+progressive clutch pressure and predicted coupled-RPM downshift protection. Ratio
+changes preserve vehicle kinetic energy and speed. Profile or Banc/Route changes
+require ignition off and a stationary vehicle. Audio stays bounded to four
+outstanding requests and five queued blocks.
+
+TwoStroke.py changes only the generated snapshot: configurable ignition period
+and a single-cylinder gas branch with exhaust/transfer ports near BDC, followed
+by compression and combustion every revolution. A prescribed-pressure transfer
+reservoir simplifies crankcase pumping. This is a sound prototype rather than
+validated two-stroke thermodynamics. Defaults retain the four-stroke path,
+checked against the accepted 454 binary. CycleCheck executes the adapted ignition
+module, counting 20 versus 10 sparks over 20 crank revolutions.
+
+```sh
+ctest --test-dir Build/EngineReference/CMake --output-on-failure
+python3 Silex-Examples/Tools/EngineReference/FleetVerify.py \
+  --binary Build/EngineReference/RenderReference \
+  --runtime Build/EngineReference/Runtime \
+  --report Build/EngineReference/Fleet-Native.json
+```
+
+This checks all profiles’ starts, automatic shifts, braking and stops, then safe
+manual shifts, unsafe-downshift rejection, neutral, continuous speed and relaunch.
+Listening and game qualification remain necessary. Build.py atomically renames
+a fresh executable inode to avoid stale signed code pages on macOS rebuilds.
+
+Motocross impulses are prepared offline: a presence shelf at 2 kHz, 4T body
+at 250 Hz and a tapered 60/45 ms tail. These two profiles use a 6 kHz input
+filter; original profiles retain 1,900 Hz. The 2T leveler captures peaks
+immediately without an attenuation floor before PCM16 conversion. These broad
+settings are guided by supplied recordings and still require listening feedback.
+User recordings are not copied into package sources.
 
 ## Attribution
 

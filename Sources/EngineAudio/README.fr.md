@@ -1,8 +1,8 @@
-# Essayer le moteur V8
+# Essayer les moteurs et les boîtes
 
 [English](README.md)
 
-## Mode de référence Chevrolet 454
+## Banc multi-profils engine-sim
 
 Le mode `--reference` pilote le noyau du projet
 [engine-sim](https://github.com/ange-yaghi/engine-sim) d'Ange Yaghi, avec son profil
@@ -25,16 +25,64 @@ le moteur, puis maintenir **Espace** pour accélérer ; relâcher pour décélé
 La fenêtre commence moteur éteint et relâche les gaz lorsqu'elle perd le focus.
 La coupure laisse finir les combustions et ralentir la mécanique.
 
+Choisir le profil avec la liste déroulante. Couper le contact et attendre
+l’arrêt du moteur et du véhicule avant un changement. Le chargement est indiqué
+au compte-tours ; la fenêtre continue de traiter les événements et la lecture
+commence après une réserve audio. Le flux précédent est libéré à chaque changement.
+
+| Profil | Caractère / cycle |
+|---|---|
+| Monster / Chevrolet 454 | V8 7,4 L accepté, quatre temps |
+| Berline / BMW M52B28 | Six cylindres en ligne, quatre temps |
+| Sportive / Ferrari F136 | V8, quatre temps |
+| Moto routière / Harley | V2 de cruiser, quatre temps |
+| Moto sportive / Hayabusa | Quatre cylindres en ligne, quatre temps |
+| Camion essence / 454 stock | V8, quatre temps ; pas un diesel |
+| Moto cross 450 | Mono générique, quatre temps |
+| Moto cross 250 | Mono générique, deux temps ; prototype à lumières |
+
+Les six premiers moteurs reprennent les configurations mécaniques du dépôt
+original. Les deux cross sont des adaptations locales du mono Honda TRX520,
+avec géométrie, inertie, distribution et régime propres. Les réponses
+d’échappement sont choisies parmi celles disponibles au commit verrouillé ;
+ces profils ne certifient pas le son ou les performances d’un véhicule commercial.
+Le deux temps allume à chaque tour et utilise des lumières de transfert et
+d’échappement. Le balayage vient d’un réservoir à pression prescrite qui
+simplifie le carter-pompe : sa qualité reste à apprécier à l’écoute.
+
+**Banc libre** conserve l’écoute au point mort et sa charge réglable. Les
+boutons Libre, 1 000 et 1 500 permettent les comparaisons de régime. La charge
+des nouveaux profils suit leur cylindrée ; le 454 initial conserve son rendu.
+**Route** ajoute un véhicule longitudinal et sa transmission. Choisir ce mode
+avant de démarrer. L’accélération change le régime, l’effort moteur et la vitesse.
+Le compte-tours affiche AUTO ou MANUEL, le rapport (N au point mort) et les km/h.
+Les rapports et masses sont des réglages de démonstration.
+
+- **A** : alterner boîte automatique et manuelle.
+- **↑ / ↓** ou les boutons + / − : passer un rapport et entrer en manuel.
+- **N** : point mort, en manuel.
+- **S maintenu** : frein de roue ; relâcher Espace produit aussi du frein moteur.
+- **M** : contact ; le moteur garde son inertie à la coupure.
+
+La boîte débraye, coupe brièvement les gaz et reprend progressivement l’effort.
+Le départ utilise un embrayage automatique, y compris en commande manuelle des
+rapports. Le deux temps démarre dans sa plage de puissance avec du patinage.
+Un rétrogradage qui dépasserait le régime limite est refusé et signalé ; une
+commande refusée n’est pas différée jusqu’à une vitesse plus basse. Les seuils
+auto et leur temporisation évitent les passages répétés autour d’un même régime.
+La perte de focus relâche gaz et frein. Il n’y a pas de marche arrière.
+
 Les réglages initiaux conservent la texture et le filtrage du profil original,
-avec une charge de banc de 20 %, sans réverbe ajoutée. « Texture » règle son bruit
-d'écoulement et sa variation temporelle ; à zéro, les irrégularités physiques
-des combustions restent présentes. « Échappement » va du signal brut à la réponse
-impulsionnelle originale. « Charge » freine la montée sur le banc lorsque les
-gaz sont ouverts. Le bouton 800 laisse le ralenti libre, généralement vers
-850–900 tr/min ; 1 000 et 1 500 imposent un régime au banc après le démarrage.
-Volume et réverbe courte restent des traitements séparés dans Silex.
+sans réverbe ajoutée. « Texture » règle son bruit d’écoulement et sa variation
+temporelle ; à zéro, les irrégularités physiques des combustions restent présentes.
+« Échappement » mélange le signal brut et la réponse impulsionnelle choisie.
+Volume et réverbe courte sont séparés. La charge supplémentaire et les régimes
+maintenus s’appliquent au Banc ; en Route, le véhicule produit la charge.
+Le panneau de réglages défile si nécessaire. Texte et fond du sélecteur et de
+sa liste ouverte ont des couleurs explicites pour conserver le contraste.
 
 ```sh
+Build/EngineAudio-Reference --fleet-check
 Build/EngineAudio-Reference --reference-check
 Build/EngineAudio-Reference --reference-render Build/EngineReference/Bridge.wav
 Build/EngineAudio-Reference --reference --smoke
@@ -43,10 +91,23 @@ Build/EngineAudio-Reference --reference --smoke
 Le contrôle sans fenêtre vérifie départ silencieux, démarreur progressif,
 ralenti, texture à zéro, accélération, inertie d'arrêt, silence final et
 redémarrage. Le rendu WAV conserve la texture initiale et écrit le scénario
-principal, 576 000 frames stéréo à 44,1 kHz (environ 13,06 s). Le smoke de référence
-dure neuf secondes. Le test d'écoute et d'interaction native reste nécessaire.
+principal, 576 000 frames stéréo à 44,1 kHz (environ 13,06 s). Le smoke au Banc
+dure neuf secondes ; en Route, 35 secondes avec départ, rapports et freinage. Le test d'écoute et d'interaction native reste nécessaire.
 Les réglages exacts de chaque passage de la vidéo ne sont pas établis ; ce mode
 est un rendu du profil original, pas une reproduction certifiée de son montage.
+
+On peut sélectionner un profil et un mode au lancement :
+
+```sh
+Build/EngineAudio-Reference --preset cross2 --road
+Build/EngineAudio-Reference --preset moto --manual
+Build/EngineAudio-Reference --preset cross4 --road --smoke
+```
+
+Clés : `454`, `berline`, `sport`, `cruiser`, `moto`, `truck`, `cross4`, `cross2`.
+`--fleet-check` vérifie les huit démarrages/arrêts, les transitions de profil,
+la boîte, le point mort et le freinage, puis compare le PCM et la télémétrie
+Route synchrones et asynchrones avec quatre requêtes en vol.
 
 ## Raccourci et fluidité du témoin
 

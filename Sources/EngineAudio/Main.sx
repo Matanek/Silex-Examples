@@ -9,16 +9,21 @@ use Module.Checks
 use Module.Offline
 use Module.ReferenceChecks
 use Module.Live
+use Module.FleetChecks
 
 func main() {
     let arguments = Process.arguments()
     var smoke = false
     var reference = false
     var profile = false
+    var preset = "454"
+    var road = false
+    var manual = false
     var index = 1
     while index < arguments.count() {
         let argument = arguments[index]
-        if argument == "--check" { Checks.verify(); return }
+        if argument == "--fleet-check" { FleetChecks.verify(); return }
+        elif argument == "--check" { Checks.verify(); return }
         elif argument == "--measure" { Checks.measure(); return }
         elif argument == "--reference-async-check" { ReferenceChecks.verify_async(); return }
         elif argument == "--reference-check" { ReferenceChecks.verify(); return }
@@ -37,18 +42,25 @@ func main() {
             Offline.render_wav(path, variant); return
         }
         elif argument == "--smoke" { smoke = true }
+        elif argument == "--road" { road = true; reference = true }
+        elif argument == "--manual" { manual = true; road = true; reference = true }
+        elif argument == "--preset" {
+            index++; if index >= arguments.count() { panic("--preset requires a profile key") }
+            preset = arguments[index]; reference = true
+        }
         elif argument == "--reference" { reference = true }
         elif argument == "--frame-profile" { profile = true }
         elif argument == "--help" {
             print("Engine audio bench: M toggles ignition; hold SPACE to accelerate; release to return to the selected RPM.")
-            print("--reference | --reference-check | --reference-render output.wav | --frame-profile")
+            print("--preset 454|berline|sport|cruiser|moto|truck|cross4|cross2 | --road | --manual")
+            print("--fleet-check | --reference | --reference-check | --reference-render output.wav | --frame-profile")
             print("--check | --measure | --render output.wav [full|smooth|sine|dry|idle|idle-dry|regular|ignition] | --smoke")
             return
         } else { panic("Unknown option; use --help") }
         index++
     }
 
-    if reference { Live.show_reference(smoke, profile); return }
+    if reference { Live.show_reference(smoke, profile, preset, road, manual); return }
 
     var bench = Bench(running:false)
     var audio = Audio()

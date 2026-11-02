@@ -39,7 +39,16 @@ public class BenchSession:Canvas.Session {
         self.probe.begin(self.elapsed)
         if self.automated {
             if previous < 0.2 && self.elapsed >= 0.2 { self.bench.set_running(true) }
-            if self.bench.reference_mode {
+            if self.bench.road_mode() {
+                if previous < 31.0 && self.elapsed >= 31.0 { self.bench.set_running(false) }
+                self.bench.accelerating = self.bench.is_running() && self.elapsed >= 3.5 && self.elapsed < 20.0
+                self.bench.braking = self.elapsed >= 20.0 && self.elapsed < 31.0
+                if !self.bench.auto_mode() {
+                    for time in [3.5, 7.0, 10.0, 13.0, 16.0] {
+                        if previous < time && self.elapsed >= time { self.bench.shift_up() }
+                    }
+                }
+            } elif self.bench.reference_mode {
                 if previous < 6.8 && self.elapsed >= 6.8 { self.bench.set_running(false) }
                 self.bench.accelerating = self.bench.is_running() && self.elapsed >= 3.5 && self.elapsed < 5.0
             } else {
@@ -57,7 +66,7 @@ public class BenchSession:Canvas.Session {
         if self.automated { return self.ui.handle(event) }
         match event {
             window_focus_lost(value) => {
-                self.bench.accelerating = false; self.bench.focused = false
+                self.bench.accelerating = false; self.bench.braking = false; self.bench.focused = false
             }
             window_focus_gained(value) => { self.bench.focused = true }
             key_pressed(value) => {
@@ -69,6 +78,30 @@ public class BenchSession:Canvas.Session {
                     }
                     return true
                 }
+                if self.bench.reference_mode && !value.modifiers.control && !value.modifiers.system && !value.modifiers.alt &&
+                    self.bench.focused && !self.ui.accepts_text_input() {
+                    let a = value.keycode == 97 as uint32 || value.keycode == 65 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.a)
+                    let n = value.keycode == 110 as uint32 || value.keycode == 78 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.n)
+                    let s = value.keycode == 115 as uint32 || value.keycode == 83 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.s)
+                    if a {
+                        if !value.repeated { self.bench.toggle_auto() }
+                        return true
+                    }
+                    if n {
+                        if !value.repeated { self.bench.neutral() }
+                        return true
+                    }
+                    if s { self.bench.braking = true; return true }
+                    if value.key == Keyboard.Key.up || value.key == Keyboard.Key.down {
+                        // Let an open select or focused slider consume its navigation first.
+                        if self.ui.handle(event) { return true }
+                        if !value.repeated {
+                            if value.key == Keyboard.Key.up { self.bench.shift_up() }
+                            else { self.bench.shift_down() }
+                        }
+                        return true
+                    }
+                }
                 if value.key == Keyboard.Key.space {
                     if !value.repeated && self.bench.focused && self.bench.is_running() && !self.ui.accepts_text_input() {
                         self.bench.accelerating = true
@@ -77,6 +110,9 @@ public class BenchSession:Canvas.Session {
                 }
             }
             key_released(value) => {
+                if value.keycode == 115 as uint32 || value.keycode == 83 as uint32 || value.key == Keyboard.Key.s {
+                    self.bench.braking = false
+                }
                 if value.key == Keyboard.Key.space { self.bench.accelerating = false; return true }
             }
             else => {}

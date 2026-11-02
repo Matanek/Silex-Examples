@@ -1,74 +1,113 @@
-# Try the V8 engine
+# Try the engines and gearboxes
 
 [Français](README.fr.md)
 
-## Chevrolet 454 reference mode
+## Multi-profile engine-sim bench
 
-`--reference` drives [Ange Yaghi's engine-sim](https://github.com/ange-yaghi/engine-sim)
-core with its Chevrolet 454 V8 profile for the first episode. The original
-simulation computes the starter, combustion, flows, inertia and synthesis; the
-tachometer reads its actual RPM. This macOS ARM64 qualification bench uses a
-separate process. The reusable GFX.Audio generator and game qualification remain
-unfinished.
+`--reference` runs Ange Yaghi’s original engine-sim core in a separate process,
+feeding its PCM into GFX.Audio. The accepted Chevrolet 454 remains the default.
+This macOS ARM64 qualification bench is separate from the reusable simplified
+GFX.Audio generator; game integration is still being evaluated.
 
-Build the [native witness](../../Tools/EngineReference/README.md) first, then
-compile from the workspace or Spec group root:
+Prepare the [native helper](../../Tools/EngineReference/README.md), then compile
+from the workspace or Spec group root:
 
 ```sh
 silex compile Silex-Examples/Sources/EngineAudio/Main.sx --release -o Build/EngineAudio-Reference
 Build/EngineAudio-Reference --reference
 ```
 
-**M** or the button starts and cuts ignition. Allow the starter to turn the engine,
-then hold **Space** to accelerate and release to decelerate. The window starts
-with the engine off. Losing focus releases the throttle. Cutting ignition lets
-active combustion finish while the mechanical rotation decays.
+Choose a profile in the drop-down with the engine switched off and the vehicle
+stationary. Loading is shown on the dial; event processing continues and audio
+starts after a reserve is available. The previous stream is released on replacement.
 
-Defaults keep the original profile's texture and filtering, with 20% bench load
-and no added reverb. Texture controls air noise and temporal jitter; physical
-combustion irregularity remains at zero. Exhaust blends the raw signal with the
-original impulse response. Load brakes acceleration under throttle. The 800 button
-leaves the idle free, typically around 850–900 RPM; 1,000 and 1,500 impose bench
-speed after startup. Volume and short reverb remain separate Silex effects.
+| Profile | Character / cycle |
+|---|---|
+| Monster / Chevrolet 454 | Accepted 7.4 L V8, four-stroke |
+| Sedan / BMW M52B28 | Inline six, four-stroke |
+| Sports car / Ferrari F136 | V8, four-stroke |
+| Road motorcycle / Harley | Cruiser V-twin, four-stroke |
+| Sports motorcycle / Hayabusa | Inline four, four-stroke |
+| Gasoline truck / stock 454 | V8, four-stroke; not a diesel |
+| Motocross 450 | Generic single, four-stroke |
+| Motocross 250 | Generic single, two-stroke port prototype |
+
+The first six retain upstream mechanical configurations. The motocross profiles
+are local adaptations of the Honda TRX520 single, with their own geometry,
+inertia, timing and RPM range. Exhaust responses are selected from those
+available at the pinned commit. These profiles do not certify a commercial
+vehicle’s exact sound or performance. The two-stroke fires every revolution and
+uses transfer and exhaust ports. A prescribed-pressure transfer reservoir
+simplifies crankcase pumping; its sound still requires listening feedback.
+
+**Banc libre** is the neutral listening bench with adjustable load. Libre,
+1,000 and 1,500 select free idle or held speeds. New profiles scale bench load
+to displacement; the initial 454 keeps its accepted rendering. **Route** adds
+a longitudinal vehicle and transmission. Choose this mode before starting.
+The dial shows AUTO or MANUEL, gear (N for neutral) and km/h. Masses and ratios
+are demonstration settings.
+
+- **M** or the button toggles ignition. Cranking and coast-down take time.
+- Hold **Space** for throttle; release for overrun.
+- **A** toggles automatic/manual gear selection.
+- **↑ / ↓** or + / − selects a gear and enters manual mode.
+- **N** selects manual neutral.
+- Hold **S** for the wheel brake.
+
+Clutch pressure falls, throttle is briefly cut and drive progressively returns
+during a shift. Clutch operation is automatic even with manual gear selection.
+The two-stroke launches above idle with clutch slip. Unsafe downshifts are
+refused and displayed; a rejected request is not deferred until a lower speed.
+Automatic thresholds and a cooldown prevent hunting. Losing focus releases
+throttle and brake. Reverse is not implemented.
+
+Texture controls air-flow noise and timing jitter; physical combustion remains
+variable at zero. Exhaust mixes raw output with the chosen impulse response.
+Volume and short room reverb are separate Silex treatments. Additional load and
+held RPM apply only to Banc; in Route the vehicle provides load. The settings
+panel scrolls. The select field and open list use explicit light text, dark
+backgrounds and contrasting selection colours.
 
 ```sh
+Build/EngineAudio-Reference --preset cross2 --road
+Build/EngineAudio-Reference --preset moto --manual
+Build/EngineAudio-Reference --fleet-check
 Build/EngineAudio-Reference --reference-check
+Build/EngineAudio-Reference --reference-async-check
 Build/EngineAudio-Reference --reference-render Build/EngineReference/Bridge.wav
-Build/EngineAudio-Reference --reference --smoke
+Build/EngineAudio-Reference --preset cross4 --road --smoke
 ```
 
-The headless check covers initial silence, progressive cranking, idle, texture
-zero, acceleration, coast-down, stopped silence and restart. WAV rendering keeps
-the initial texture and records the main scenario: 576,000 stereo frames at
-44.1 kHz, approximately 13.06 seconds. The reference smoke lasts nine seconds.
-Native listening and interaction testing are still required. The exact settings
-of every video segment remain unidentified; this is a render of the original
-profile rather than a certified reproduction of the video's edit.
+Profile keys: `454`, `berline`, `sport`, `cruiser`, `moto`, `truck`, `cross4`,
+`cross2`. The fleet check tests all eight profile lifecycles, selection guards,
+auto/manual shifts, neutral and braking, then compares synchronous/asynchronous
+road PCM, RPM, speed and gear with four outstanding FIFO requests. The 454 checks
+cover silent start, cranking, idle, zero texture, throttle, stopping inertia and
+restart. Its WAV contains 576,000 stereo frames at 44.1 kHz. The automatic smoke
+lasts nine seconds on Banc, 35 seconds in Route with launch, shifts and braking.
+Native visual and listening feedback is still needed.
 
-## Keyboard and reference UI cadence
+## Keyboard and audio scheduling
 
-**M** follows its logical symbol on AZERTY, QWERTY and other keyboard layouts.
-Uppercase works; key repeat does not toggle ignition. System/Control/Alt chords
-remain available. The needle has independent 25 ms visual damping. The numeric
-readout retains the measured RPM, and audio calculations remain unchanged.
+M follows the logical symbol on AZERTY/QWERTY, including uppercase; repeats do
+not toggle ignition. A/N/S also follow their logical symbols. Control/System/Alt
+shortcuts remain available. The needle has 25 ms visual damping; numeric RPM is
+unfiltered measured state. Dial scale and red zone follow the selected profile,
+with geometry rebuilt only on profile changes.
 
-The live reference window consumes ready PCM without waiting for the helper.
-The audio stream holds five 480-frame blocks; up to four FIFO requests let the
-worker continue between UI frames. Partial writes retain their block and offset.
-This bounds written/prepared/requested PCM to approximately 98 ms, plus the
-helper quantum and device. Offline rendering retains the synchronous path for
-deterministic comparisons.
+The interactive client consumes ready PCM without waiting for the helper. Five
+480-frame blocks fit the stream and up to four FIFO requests remain outstanding.
+Partial writes retain their block and offset. This bounds prepared/queued/requested
+PCM to about 98 ms plus the helper quantum and device. Offline rendering remains
+synchronous for deterministic comparison.
 
 ```sh
-Build/EngineAudio-Reference --reference-async-check
 Build/EngineAudio-Reference --reference --smoke --frame-profile
 ```
 
-The first check compares 576,000 frames under identical ignition, texture and
-reverb changes, with four queued requests. PCM and telemetry must stay identical,
-without duplicated blocks. The second reports update intervals, feed time and
-Canvas construction time after 0.5 seconds of warm-up. Profiling stays disabled
-in normal use. These intervals do not directly measure screen presentation.
+Optional instrumentation reports update intervals, feed and drawing times after
+0.5 s warm-up. It does not measure actual display presentation or qualify the
+cost/latency of multiple game vehicles.
 
 ## Previous procedural prototype
 
