@@ -1,0 +1,29 @@
+use GFX.Audio.Synthesis
+use GFX.Audio.Synthesis.EngineParts
+use STD.Math
+use STD.Time.Stopwatch
+
+func main() {
+    for count in [1, 8] {
+        var sources:Synthesis.Engine[] = []
+        for _ in 0...count {
+            var parts = EngineParts.v8(); parts.turbo = EngineParts.Turbo()
+            var source = Synthesis.Engine.assemble(parts)
+            source.set_state(6_000.0, throttle:0.9, load:0.8, boost:0.8, ramp_frames:0)
+            sources.append(source)
+        }
+        var samples:float32[] = []; for _ in 0...960 { samples.append(0.0) }
+        for var source in sources { for _ in 0...100 { source.render(&samples[0:960]) } }
+        for repeat in 0...5 {
+            var watch = Stopwatch(); watch.start()
+            var checksum:float64 = 0.0
+            for _ in 0...1_000 {
+                for var source in sources { source.render(&samples[0:960]); checksum += samples[200] as float64 }
+            }
+            let elapsed = watch.get_elapsed_milliseconds()
+            assert(Math.is_finite(checksum))
+            print("checksum ", checksum)
+            print(count, " V8+turbo at 6000rpm, 480000 frames each, repetition ", repeat, ": ", elapsed, " ms")
+        }
+    }
+}
