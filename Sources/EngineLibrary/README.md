@@ -16,8 +16,10 @@ Build/EngineLibrary-Demo /absolute/path/to/EngineLibrary
 
 **M** toggles ignition; hold **Space** to accelerate. Release or focus loss closes
 the throttle. Space retains priority after clicking a button; Enter activates
-the focused control. Ignition can be cut while rotating. Engine selection requires
-ignition off and rotation stopped. Controls retain the first bench's meaning:
+the focused control. Ignition can be cut while rotating. Switching free/road mode
+requires only ignition off, without waiting for deceleration; it resets the bench.
+Engine-profile selection still requires ignition off and rotation and vehicle
+stopped. Controls retain the first bench's meaning:
 holding speed, load, exhaust, texture, ambience and volume. Intake is shown only
 for the 450 four-stroke, which supplies measured aspiration flow.
 
@@ -49,15 +51,16 @@ that guard with the current compiler and remains to be qualified.
 
 ## Optional transmission
 
-Enable **Mode Route · boîte de vitesses** with engine and vehicle stopped.
+Enable **Mode Route · boîte de vitesses** after switching ignition off.
 The gearbox starts in automatic mode. **A** switches automatic/manual;
 **↑ / ↓** or +/− request gears, **N** selects neutral and holding **S** brakes.
 The instrument shows mode, gear, speed and overspeed rejection. Ignition can
 be cut while moving. Rejected requests do not engage later without a new command;
 after N while moving, successive + commands can reach a safe gear.
 
-Disable road mode after stopping to return to the free bench. Holding RPM and
-load controls appear only in free mode, where they apply. Transmission and
+Disable road mode once ignition is off to return to the free bench, even while
+the engine or vehicle is still slowing down; the new context starts at rest.
+Holding RPM and load controls appear only in free mode, where they apply. Transmission and
 telemetry are supplied by `GFX.Audio.Engines`, not private demo calculations.
 
 Buttons describe their next action: **Démarrer** or **Arrêter**, **Passer en

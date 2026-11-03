@@ -62,7 +62,7 @@ public class Bench {
     }
     private func can_change() bool { return !self.running && self.rpm() < 5.0 && self.speed() < 0.5 }
     func road_changed(value:bool) {
-        if !self.can_change() { self.road.set(self.driving); self.notice = "Coupez le moteur et immobilisez le véhicule."; return }
+        if self.running { self.road.set(self.driving); self.notice = "Coupez le contact pour changer de mode."; return }
         self.driving = value; self.road.set(value)
         self.replace(self.profile().key)
     }

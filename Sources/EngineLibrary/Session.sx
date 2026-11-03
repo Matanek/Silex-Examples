@@ -147,6 +147,7 @@ class Session:Canvas.Session {
         self.handle(Events.Event.window_focus_lost(Events.WindowEvent(window:mouse.window, timestamp:mouse.timestamp)))
         assert(!self.bench.source.controls().braking)
         self.verify_gearing()
+        self.verify_ignition_at_speed()
         print("Road key routing passed: A/repeat, arrows, N, S/release and focus loss")
         print("Real session input passed: mouse focus, Space press/repeat/release, Enter, M and focus loss")
     }
@@ -172,6 +173,39 @@ class Session:Canvas.Session {
         assert(self.bench.source.gearing.ratios[0] == 2.97)
         print("Gearing editor passed: staged slider, ignition guard, Apply and original ratios")
     }
+    private func verify_ignition_at_speed() {
+        assert(self.bench.source.pending_blocks() == 0)
+        self.bench.focused = true; self.bench.toggle_running(); self.bench.shift_up()
+        self.bench.accelerating = true; self.bench.sync()
+        var count = 0
+        while count < 800 && (self.bench.rpm() < 2_000.0 || self.bench.speed() < 10.0) {
+            self.bench.source.render(&self.samples[0:960]); count++
+        }
+        let rpm = self.bench.rpm(); let speed = self.bench.speed()
+        assert(rpm > 1_500.0 && speed > 5.0, "test must cut a rotating engine in a moving vehicle")
+        let generation = self.bench.profile_generation
+        self.bench.road_changed(false)
+        assert(self.bench.road_mode() && self.bench.profile_generation == generation, "context switch requires contact off")
+        self.drawing(1_100, 900)
+        var source = self.ui.accessibility()
+        let stop = find_named(source, source.root()!, "Arrêter · M")!
+        assert(source.perform(stop, Accessibility.Request(Accessibility.Action.activate)))
+        assert(!self.bench.is_running() && !self.bench.source.controls().running && !self.bench.source.controls().accelerating)
+        assert(self.bench.rpm() == rpm && self.bench.speed() == speed && self.bench.profile_generation == generation,
+            "contact cut must not wait for or force the mechanical stop")
+        let route = find_named(source, source.root()!, "Mode Route · boîte de vitesses", Accessibility.Role.checkbox)!
+        assert(source.perform(route, Accessibility.Request(Accessibility.Action.activate)))
+        assert(!self.bench.road_mode() && self.bench.source.drive_state() == null && self.bench.rpm() == 0.0)
+        assert(!self.bench.source.controls().running && self.bench.profile_generation == generation + 1)
+        self.bench.toggle_running(); self.bench.accelerating = true; self.bench.sync(); count = 0
+        while count < 800 && self.bench.rpm() < 2_000.0 { self.bench.source.render(&self.samples[0:960]); count++ }
+        assert(self.bench.rpm() > 1_500.0)
+        self.handle(key_event(Keyboard.Key.m, code:109 as uint32))
+        assert(!self.bench.is_running() && !self.bench.source.controls().running && self.bench.rpm() > 1_500.0)
+        self.bench.road_changed(true)
+        assert(self.bench.road_mode() && self.bench.source.drive_state() != null && self.bench.rpm() == 0.0)
+        print("Immediate contact cut and context switch passed: road rpm=", rpm, " speed=", speed, "; button and M, Road/free both directions")
+    }
     func accepts_text_input() bool { return self.ui.accepts_text_input() }
     func text_input_target() Canvas.TextInputTarget? { return self.ui.text_input_target() }
     func pointer_cursor() Window.Cursor { return self.ui.pointer_cursor() }
@@ -188,11 +222,11 @@ public func show(directory:str) {
 func find_power(source:Accessibility.Source, id:str) str? {
     return find_named(source, id, "Démarrer · M")
 }
-func find_named(source:Accessibility.Source, id:str, name:str) str? {
+func find_named(source:Accessibility.Source, id:str, name:str, role:Accessibility.Role = Accessibility.Role.button) str? {
     let element = source.read(id)!
-    if element.role == Accessibility.Role.button && element.name == name { return id }
+    if element.role == role && element.name == name { return id }
     for i in 0...element.child_count {
-        if child = source.child(id, i) { if found = find_named(source, child, name) { return found } }
+        if child = source.child(id, i) { if found = find_named(source, child, name, role) { return found } }
     }
     return null
 }

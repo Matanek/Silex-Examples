@@ -16,7 +16,9 @@ Build/EngineLibrary-Demo /chemin/absolu/vers/EngineLibrary
 **M** démarre ou coupe le moteur ; **Espace** maintenu donne des gaz. Le relâchement
 et la perte de focus les ferment. Espace reste réservé aux gaz après un clic
 sur un bouton ; Entrée active le contrôle focalisé. Couper le contact n’attend pas l’arrêt moteur.
-Changer de moteur ou de contexte exige le contact coupé et le véhicule arrêté. Les réglages
+Le passage Libre/Route est possible dès le contact coupé, sans attendre le
+ralentissement ; il réinitialise le banc. Changer de profil moteur exige encore
+la rotation et le véhicule arrêtés. Les réglages
 sont ceux du premier banc : maintien, charge, échappement, texture, ambiance et
 volume. L’admission n’apparaît que pour le 450 4T qui fournit le débit d’aspiration.
 
@@ -48,15 +50,16 @@ de la fenêtre dépasse cette garde sur le compilateur courant et reste à quali
 
 ## Boîte de vitesses optionnelle
 
-Cocher **Mode Route · boîte de vitesses** moteur et véhicule arrêtés. La boîte
+Cocher **Mode Route · boîte de vitesses** après avoir coupé le contact. La boîte
 commence en automatique. **A** bascule auto/manuelle ; **↑ / ↓** ou les boutons
 +/− demandent un rapport, **N** le point mort, **S** maintenu freine. Le cadran
 montre mode, rapport et vitesse, ainsi que les refus de rétrogradage pour surrégime.
 Le contact peut être coupé en roulant. Une demande refusée ne s’engage pas plus tard
 sans commande nouvelle ; après N en roulant, + permet d’atteindre un rapport sûr.
 
-Décocher Route revient au banc libre après arrêt. Le régime de maintien et la
-charge ne sont affichés qu’en mode libre, où ils ont un effet. La transmission
+Décocher Route revient au banc libre dès le contact coupé, même si le moteur ou
+le véhicule ralentissent encore ; le nouveau contexte repart à l’arrêt. Le régime
+de maintien et la charge ne sont affichés qu’en mode libre, où ils ont un effet. La transmission
 et sa télémétrie viennent de `GFX.Audio.Engines`, pas d’un calcul privé de la démo.
 
 Les boutons indiquent l’action suivante : **Démarrer** ou **Arrêter**, **Passer
