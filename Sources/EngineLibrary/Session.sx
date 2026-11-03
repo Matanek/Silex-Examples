@@ -1,4 +1,7 @@
 use GFX.Audio
+use GFX.Accessibility
+use GFX.Input.Pointer
+use STD.Math
 use GFX.UI
 use GFX.Viewer
 use GFX.Canvas
@@ -20,8 +23,9 @@ class Session:Canvas.Session {
     private var offset:int = 0
     private var generation:int = 0
     private var empty:int = 0
-    init(directory:str) {
-        self.bench = Bench(directory); self.ui = UI.Session(self.bench.view()); self.audio = Audio()
+    init(directory:str, offline:bool = false) {
+        self.bench = Bench(directory); self.ui = UI.Session(self.bench.view())
+        if offline { self.audio = Audio.offline(sample_rate:44_100, channels:2) } else { self.audio = Audio() }
         self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
         for _ in 0...960 { self.samples.append(0.0) }
         self.bench.source.enqueue()
@@ -62,7 +66,7 @@ class Session:Canvas.Session {
     func drawing(width:int, height:int) Canvas { return self.ui.drawing(width, height) }
     func handle(event:@Events.Event) bool {
         match event {
-            window_focus_lost(value) => { self.bench.focused = false; self.bench.accelerating = false; self.bench.sync() }
+            window_focus_lost(value) => { self.bench.focused = false; self.bench.accelerating = false; self.bench.braking = false; self.bench.sync() }
             window_focus_gained(value) => { self.bench.focused = true }
             key_pressed(value) => {
                 if !self.ui.accepts_text_input() && !value.modifiers.control && !value.modifiers.alt && !value.modifiers.system {
@@ -70,15 +74,73 @@ class Session:Canvas.Session {
                     if m { if !value.repeated { self.bench.toggle_running() }
                         return true }
                     if value.key == Keyboard.Key.space {
-                        if self.ui.handle(event) { return true }
                         self.bench.accelerating = true; self.bench.sync(); return true
+                    }
+                    if self.bench.road_mode() {
+                        let a = value.keycode == 97 as uint32 || value.keycode == 65 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.a)
+                        let n = value.keycode == 110 as uint32 || value.keycode == 78 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.n)
+                        let brake = value.keycode == 115 as uint32 || value.keycode == 83 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.s)
+                        if a { if !value.repeated { self.bench.toggle_auto() } return true }
+                        if n { self.bench.neutral(); return true }
+                        if brake { self.bench.braking = true; self.bench.sync(); return true }
+                        if value.key == Keyboard.Key.up { if !value.repeated { self.bench.shift_up() } return true }
+                        if value.key == Keyboard.Key.down { if !value.repeated { self.bench.shift_down() } return true }
                     }
                 }
             }
-            key_released(value) => { if value.key == Keyboard.Key.space { self.bench.accelerating = false; self.bench.sync() } }
+            key_released(value) => {
+                if value.key == Keyboard.Key.space { self.bench.accelerating = false; self.bench.sync(); return true }
+                if value.keycode == 115 as uint32 || value.keycode == 83 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.s) {
+                    self.bench.braking = false; self.bench.sync(); if self.bench.road_mode() { return true }
+                }
+            }
             else => {}
         }
         return self.ui.handle(event)
+    }
+    func verify_input() {
+        self.drawing(1_100, 900)
+        var source = self.ui.accessibility()
+        let power = find_power(source, source.root()!)!
+        let bounds = source.read(power)!.bounds
+        let position = Math.Vec2(bounds.x + bounds.width * 0.5, bounds.y + bounds.height * 0.5)
+        let mouse = Events.MouseButtonEvent(window:Window.Id(value:1 as uint32), mouse:Pointer.MouseId(value:0 as uint32),
+            button:Pointer.MouseButton.left, down:true, clicks:1 as uint8, position:position, timestamp:Events.Timestamp(nanoseconds:0 as uint))
+        self.handle(Events.Event.mouse_button_pressed(mouse))
+        let released = Events.MouseButtonEvent(window:mouse.window, mouse:mouse.mouse, button:mouse.button,
+            down:false, clicks:mouse.clicks, position:position, timestamp:mouse.timestamp)
+        self.handle(Events.Event.mouse_button_released(released))
+        assert(self.bench.is_running() && source.focused() == power, "mouse click must start and focus the ignition button")
+        self.handle(key_event(Keyboard.Key.space))
+        assert(self.bench.is_running() && self.bench.source.controls().accelerating,
+            "Space after the ignition click must accelerate without toggling power")
+        self.handle(key_event(Keyboard.Key.space, repeated:true))
+        assert(self.bench.is_running())
+        self.handle(key_event(Keyboard.Key.space, down:false))
+        assert(self.bench.is_running() && !self.bench.source.controls().accelerating)
+        self.handle(key_event(Keyboard.Key.enter))
+        assert(!self.bench.is_running(), "Enter must retain focused button activation")
+        self.handle(key_event(Keyboard.Key.m, code:109 as uint32))
+        self.handle(key_event(Keyboard.Key.space))
+        self.handle(Events.Event.window_focus_lost(Events.WindowEvent(window:mouse.window, timestamp:mouse.timestamp)))
+        assert(self.bench.is_running() && !self.bench.source.controls().accelerating && !self.bench.source.controls().braking)
+        self.bench.toggle_running(); self.bench.road_changed(true)
+        self.handle(Events.Event.window_focus_gained(Events.WindowEvent(window:mouse.window, timestamp:mouse.timestamp)))
+        self.update(0.0); self.drawing(1_100, 900)
+        self.handle(key_event(Keyboard.Key.a, code:97 as uint32))
+        assert(!self.bench.auto_mode())
+        self.handle(key_event(Keyboard.Key.a, repeated:true, code:97 as uint32))
+        assert(!self.bench.auto_mode(), "held A must not toggle repeatedly")
+        self.handle(key_event(Keyboard.Key.up)); assert(self.bench.source.controls().gear == 1)
+        self.handle(key_event(Keyboard.Key.n, code:110 as uint32)); assert(self.bench.source.controls().gear == 0)
+        self.handle(key_event(Keyboard.Key.up)); assert(self.bench.source.controls().gear == 1)
+        self.handle(key_event(Keyboard.Key.s, code:115 as uint32)); assert(self.bench.source.controls().braking)
+        self.handle(key_event(Keyboard.Key.s, down:false, code:115 as uint32)); assert(!self.bench.source.controls().braking)
+        self.handle(key_event(Keyboard.Key.s, code:115 as uint32))
+        self.handle(Events.Event.window_focus_lost(Events.WindowEvent(window:mouse.window, timestamp:mouse.timestamp)))
+        assert(!self.bench.source.controls().braking)
+        print("Road key routing passed: A/repeat, arrows, N, S/release and focus loss")
+        print("Real session input passed: mouse focus, Space press/repeat/release, Enter, M and focus loss")
     }
     func accepts_text_input() bool { return self.ui.accepts_text_input() }
     func text_input_target() Canvas.TextInputTarget? { return self.ui.text_input_target() }
@@ -91,4 +153,22 @@ class Session:Canvas.Session {
 public func show(directory:str) {
     var session = Session(directory)
     Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:800, title:"Silex — Moteurs GFX.Audio", background:Color.bytes(8, 13, 20)))
+}
+
+func find_power(source:Accessibility.Source, id:str) str? {
+    let element = source.read(id)!
+    if element.role == Accessibility.Role.button && element.name == "Démarrer / arrêter · M" { return id }
+    for i in 0...element.child_count {
+        if child = source.child(id, i) { if found = find_power(source, child) { return found } }
+    }
+    return null
+}
+func key_event(key:Keyboard.Key, down:bool = true, repeated:bool = false, code:uint32 = 0 as uint32) Events.Event {
+    let value = Events.KeyEvent(window:Window.Id(value:1 as uint32), keyboard:Keyboard.KeyboardId(value:0 as uint32),
+        key:key, keycode:code, raw:0 as uint16, repeated:repeated, modifiers:Keyboard.Modifiers(), timestamp:Events.Timestamp(nanoseconds:0 as uint))
+    if down { return Events.Event.key_pressed(value) }
+    return Events.Event.key_released(value)
+}
+public func verify_input(directory:str) {
+    var session = Session(directory, offline:true); session.verify_input()
 }

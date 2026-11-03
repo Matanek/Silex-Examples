@@ -84,8 +84,18 @@ public class Tachometer:UI.Content {
         } elif self.bench.is_starting() { status = "DÉMARRAGE" }
         elif !self.bench.focused { status = "GAZ RELÂCHÉS — FENÊTRE INACTIVE" }
         if self.bench.reference_mode && !self.bench.reference_ready { status = "CHARGEMENT DU MOTEUR…" }
+        if self.bench.road_mode() {
+            var gear = "N"; if self.bench.gear() > 0 { gear = "$(self.bench.gear())" }
+            var mode = "MANUEL"; if self.bench.auto_mode() { mode = "AUTO" }
+            let speed = Math.round(self.bench.speed()) as int
+            painter.text("$(mode)  ·  $(gear)  ·  $(speed) km/h", center.add(Math.Vec2(0.0, radius * 0.79)),
+                Canvas.TextStyle(size:18.0, color:Color.amber_200(), alignment:Canvas.TextAlignment.center, font:self.font))
+            if self.bench.braking { status = "FREINAGE" }
+            if self.bench.shift_flags() % 2 == 1 { status = "PASSAGE DE RAPPORT" }
+            if self.bench.shift_flags() >= 2 { status = "RÉTROGRADAGE REFUSÉ · SURRÉGIME" }
+        }
         if self.bench.notice != "" { status = self.bench.notice }
-        if self.bench.reference_mode {
+        if !self.bench.road_mode() && self.bench.reference_mode {
             painter.text("BANC LIBRE", center.add(Math.Vec2(0.0, radius * 0.79)),
                 Canvas.TextStyle(size:16.0, color:Color.amber_200(), alignment:Canvas.TextAlignment.center, font:self.font))
         }

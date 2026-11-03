@@ -12,6 +12,11 @@ public class Bench {
     var reference_ready:bool = false
     var profile_generation:int = 0
     var accelerating:bool = false
+    var braking:bool = false
+    private var driving:bool = false
+    private var automatic:bool = true
+    private var requested_gear:int = 0
+    private var road:UI.State<bool> = UI.State<bool>(false)
     var focused:bool = true
     var base_rpm:float = 800.0
     var notice:str = ""
@@ -33,26 +38,72 @@ public class Bench {
     func rpm() float { return self.source.current_rpm() }
     func is_starting() bool { return self.source.is_starting() }
     func is_running() bool { return self.running }
+    func road_mode() bool { return self.driving }
+    func auto_mode() bool { return self.automatic }
+    func gear() int { if let state = self.source.drive_state() { return state.gear } return 0 }
+    func speed() float { if let state = self.source.drive_state() { return state.speed_kmh } return 0.0 }
+    func shift_flags() int {
+        if let state = self.source.drive_state() {
+            var flags = 0; if state.shifting { flags += 1 } if state.shift_refused { flags += 2 } return flags
+        }
+        return 0
+    }
+    private func transmission() Engines.Transmission? {
+        if !self.driving { return null }
+        if self.automatic { return Engines.Transmission.automatic }
+        return Engines.Transmission.manual
+    }
+    private func can_change() bool { return !self.running && self.rpm() < 5.0 && self.speed() < 0.5 }
+    func road_changed(value:bool) {
+        if !self.can_change() { self.road.set(self.driving); self.notice = "Coupez le moteur et immobilisez le véhicule."; return }
+        self.driving = value; self.road.set(value)
+        self.replace(self.profile().key)
+    }
+    private func replace(key:str) {
+        self.source = self.library.engine(key, transmission:self.transmission())
+        self.requested_gear = 0; self.accelerating = false; self.braking = false
+        self.profile_generation++; self.reference_ready = false; self.notice = ""; self.sync()
+    }
+    func toggle_auto() {
+        if !self.driving { return }
+        self.automatic = !self.automatic; self.requested_gear = self.gear(); self.notice = ""; self.sync()
+    }
+    func shift_up() {
+        if !self.driving { return }
+        if self.automatic { self.requested_gear = self.gear() }
+        self.automatic = false
+        if self.requested_gear < self.profile().gears { self.requested_gear++ }
+        self.notice = ""; self.sync()
+    }
+    func shift_down() {
+        if !self.driving { return }
+        if self.automatic { self.requested_gear = self.gear() }
+        self.automatic = false
+        if self.requested_gear > 0 { self.requested_gear-- }
+        self.notice = ""; self.sync()
+    }
+    func neutral() { if self.driving { self.automatic = false; self.requested_gear = 0; self.notice = ""; self.sync() } }
     func toggle_running() { self.running = !self.running; self.accelerating = false; self.sync() }
     func changed(value:float) { self.sync() }
     func sync() {
         self.base_rpm = self.idle.value()
         self.source.set_controls(Engines.Controls(running:self.running, accelerating:self.accelerating && self.focused,
             idle_rpm:self.base_rpm, exhaust:self.exhaust.value(), texture:self.texture.value(), load:self.load.value(),
-            intake:self.intake.value(), ambience:self.ambience.value(), volume:self.volume.value()))
+            intake:self.intake.value(), ambience:self.ambience.value(), volume:self.volume.value(),
+            transmission:self.transmission(), gear:self.requested_gear, braking:self.braking && self.focused))
     }
     func restore() {
         self.idle.set(800.0); self.exhaust.set(1.0); self.texture.set(1.0); self.load.set(0.2)
         self.intake.set(self.profile().intake); self.ambience.set(0.0); self.volume.set(0.7); self.sync()
     }
     func choose(index:int) {
-        if self.running || self.rpm() >= 5.0 {
-            self.selection.set(self.selected); self.notice = "Coupez le moteur et attendez son arrêt pour changer."; return
+        if !self.can_change() {
+            self.selection.set(self.selected); self.notice = "Coupez le moteur et immobilisez le véhicule pour changer."; return
         }
         let profiles = self.library.profiles()
         if index < 0 || index >= profiles.count() { return }
-        self.source = self.library.engine(profiles[index].key)
-        self.selected = index; self.selection.set(index); self.profile_generation++
+        self.replace(profiles[index].key)
+        self.selected = index; self.selection.set(index)
         self.reference_ready = false; self.notice = ""; self.restore()
     }
     func view() UI.View {
@@ -65,8 +116,14 @@ public class Bench {
         tools.style.gap = 12.0
         var dial = UI.CustomView(Tachometer(self)); dial.style.width = 520.0; dial.style.height = 500.0
         dial.style.minimum_width = 280.0; dial.style.grow = 1.0
-        var controls:UI.View[] = [self.idle.view(self.changed), self.load.view(self.changed), self.exhaust.view(self.changed),
-            self.texture.view(self.changed)]
+        var controls:UI.View[] = [UI.Checkbox("Mode Route · boîte de vitesses", self.road, on_change:self.road_changed)]
+        if self.driving {
+            var gears = UI.Row([Widgets.button("− · ↓", self.shift_down), Widgets.button("N", self.neutral), Widgets.button("+ · ↑", self.shift_up)])
+            gears.style.gap = 8.0
+            controls.append(Widgets.button("Automatique ⇄ manuelle · A", self.toggle_auto)); controls.append(gears)
+            controls.append(Widgets.text("S maintenu : freiner", 13.0, Color.amber_200()))
+        } else { controls.append(self.idle.view(self.changed)); controls.append(self.load.view(self.changed)) }
+        controls.append(self.exhaust.view(self.changed)); controls.append(self.texture.view(self.changed))
         if self.profile().key == "cross4" { controls.append(self.intake.view(self.changed)) }
         controls.append(self.ambience.view(self.changed)); controls.append(self.volume.view(self.changed))
         var panel = Widgets.card("Réglages du banc validé", "Espace maintenu : accélérer · relâcher : décélérer", controls)
