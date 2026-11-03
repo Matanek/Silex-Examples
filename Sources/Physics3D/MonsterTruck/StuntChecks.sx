@@ -17,7 +17,7 @@ package func pulse(frames:int,braking:bool=false,verify:bool=false) {
     }
     var lift=0.0;var minimum=1.0
     for frame in 0...480 {
-        if frame<frames { truck.held(!braking,braking,false,false,false,true) }
+        if frame<frames { truck.held(!braking,braking,false,false,false,!braking,service_brake:braking) }
         else { truck.controls(0.0,0.0) }
         truck.step()
         let front=clearance(truck,true);let rear=clearance(truck,false)

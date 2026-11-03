@@ -1,0 +1,124 @@
+use GFX.Input
+use GFX.Input.Events
+use GFX.Physics
+use GFX.Window
+use Physics3D.MonsterTruck.Controls
+use Physics3D.MonsterTruck.Model
+use STD.Math
+
+func key_event(key:Input.Key,code:uint32=0 as uint32) Events.KeyEvent {
+    let modifiers=Input.Modifiers(shift:false,control:false,alt:false,system:false,
+        left_shift:false,right_shift:false,level5:false,left_control:false,right_control:false,
+        left_alt:false,right_alt:false,left_system:false,right_system:false,mode:false,
+        caps_lock:false,num_lock:false,scroll_lock:false)
+    return Events.KeyEvent(window:Window.Id(value:0 as uint32),keyboard:Input.KeyboardId(value:0 as uint32),
+        key:key,keycode:code,raw:0 as uint16,repeated:false,modifiers:modifiers,
+        timestamp:Input.Timestamp(nanoseconds:0 as uint))
+}
+func press(panel:Controls.Panel,key:Input.Key,code:uint32=0 as uint32) {
+    assert(panel.handle(Events.Event.key_pressed(key_event(key,code))))
+}
+func release(panel:Controls.Panel,key:Input.Key,code:uint32=0 as uint32) {
+    assert(panel.handle(Events.Event.key_released(key_event(key,code))))
+}
+
+func input() {
+    var panel=Controls.Panel();var truck=Model.Truck()
+    press(panel,Input.Key.space,32 as uint32);panel.drive(truck)
+    assert(panel.brake && !panel.front_brake && !panel.handbrake && truck.brake && truck.hard_brake && !truck.handbrake)
+    release(panel,Input.Key.space,32 as uint32);panel.drive(truck);assert(!truck.brake && !truck.handbrake)
+    press(panel,Input.Key.up);panel.drive(truck)
+    assert(!panel.brake && panel.front_brake && !panel.handbrake && truck.brake && !truck.hard_brake && !truck.handbrake)
+    release(panel,Input.Key.up);panel.drive(truck);assert(!truck.brake)
+    press(panel,Input.Key.down);panel.drive(truck)
+    assert(!panel.brake && !panel.front_brake && panel.handbrake && !truck.brake && truck.handbrake)
+    // An opposing motor command must not silently add the front brake to Down.
+    for wheel in truck.wheels { wheel.rim.set_angular_velocity(Math.Vec3(20.0,0.0,0.0)) }
+    truck.chassis.set_linear_velocity(Math.Vec3(0.0,0.0,12.0))
+    press(panel,Input.Key.s,115 as uint32);panel.drive(truck)
+    assert(truck.gas<0.0 && !truck.brake && truck.handbrake)
+    release(panel,Input.Key.down);release(panel,Input.Key.s,115 as uint32)
+    press(panel,Input.Key.up);press(panel,Input.Key.down);panel.drive(truck)
+    assert(truck.brake && truck.handbrake && !truck.hard_brake)
+    press(panel,Input.Key.space,32 as uint32)
+    panel.handle(Events.Event.window_focus_lost(Events.WindowEvent(window:Window.Id(value:0 as uint32),timestamp:Input.Timestamp(nanoseconds:0 as uint))))
+    panel.drive(truck);assert(!panel.brake && !panel.front_brake && !panel.handbrake && !truck.brake && !truck.handbrake)
+    // Steering commands remain independent of the brake keys.
+    press(panel,Input.Key.q,113 as uint32);panel.drive(truck)
+    assert(truck.steering>0.0 && truck.rear_steering<0.0 && panel.coupled)
+    release(panel,Input.Key.q,113 as uint32)
+    press(panel,Input.Key.left);panel.drive(truck);assert(panel.arrow_left && truck.rear_steering<0.0)
+    release(panel,Input.Key.left);press(panel,Input.Key.right)
+    for _ in 0...3 { panel.drive(truck) }
+    assert(panel.arrow_right && truck.rear_steering>0.0)
+    release(panel,Input.Key.right)
+    press(panel,Input.Key.d,100 as uint32)
+    for _ in 0...3 { panel.drive(truck) }
+    assert(truck.steering<0.0 && truck.rear_steering>0.0)
+    release(panel,Input.Key.d,100 as uint32)
+    print("BRAKES input passed: press/release, combinations, focus loss and retained steering")
+}
+
+func spinning() Model.Truck {
+    var truck=Model.Truck(spawn:Physics.Transform3D(Math.Vec3(0.0,100.0,0.0)))
+    let spin=Math.Vec3(20.0,0.0,0.0)
+    for wheel in truck.wheels {
+        wheel.rim.set_angular_velocity(spin);let hub=wheel.rim.world_center_of_mass()
+        for vertex in 0...wheel.tyre.vertex_count() {
+            let velocity=spin.cross(wheel.tyre.position(vertex).subtract(hub))
+            wheel.tyre.apply_impulse(vertex,velocity.multiply(0.05))
+        }
+    }
+    return truck
+}
+func spin(truck:Model.Truck,front:bool) float {
+    var result=0.0
+    for wheel in truck.wheels { if wheel.front==front { result+=wheel.rim.angular_velocity().x/2.0 } }
+    return result
+}
+func axle_brakes() {
+    var baseline=spinning()
+    for _ in 0...12 { baseline.controls(0.0,0.0);baseline.step() }
+    let front=spin(baseline,true);let rear=spin(baseline,false)
+    let keys:Input.Key[]=[Input.Key.space,Input.Key.up,Input.Key.down]
+    for key in keys {
+        var truck=spinning();var panel=Controls.Panel();press(panel,key)
+        press(panel,Input.Key.z,122 as uint32)
+        for _ in 0...12 {
+            panel.drive(truck);truck.step()
+            assert(truck.motor.state().engine_torque==0.0,"explicit braking must retain priority over held throttle")
+            for i in 0...4 { assert(truck.motor.wheel_torque(i)==0.0) }
+            assert(truck.maximum_bead_error()<0.08)
+        }
+        let a=front-spin(truck,true);let b=rear-spin(truck,false)
+        var label="Space";if key==Input.Key.up { label="Up" } else if key==Input.Key.down { label="Down" }
+        print("BRAKES key=",label," front_retardation=",a," rear_retardation=",b)
+        if key==Input.Key.space { assert(a>1.0 && b>1.0,"Space must brake both axles") }
+        if key==Input.Key.up { assert(a>1.0 && Math.abs(b)<a*0.2+0.1,"Up must brake the front wheels independently") }
+        if key==Input.Key.down { assert(b>1.0 && Math.abs(a)<b*0.2+0.1,"Down must brake the rear wheels independently") }
+    }
+}
+func stopping() {
+    var truck=Model.Truck();var panel=Controls.Panel()
+    for _ in 0...240 { truck.step() }
+    press(panel,Input.Key.z,122 as uint32)
+    for _ in 0...960 {
+        panel.drive(truck);truck.step()
+        if truck.chassis.linear_velocity().z>=12.0 { break }
+    }
+    let before=truck.chassis.linear_velocity().length();assert(before>=12.0)
+    press(panel,Input.Key.space,32 as uint32);var up=1.0
+    for _ in 0...360 {
+        panel.drive(truck);truck.step();up=Math.min(up,truck.chassis.transform().vector(Math.Vec3.up()).y)
+        assert(truck.maximum_bead_error()<0.08 && truck.minimum_y()>0.025)
+    }
+    print("BRAKES stop speed_before=",before," speed_after=",truck.chassis.linear_velocity().length()," minimum_up=",up)
+    assert(truck.chassis.linear_velocity().length()<0.5 && up>0.9,"four-wheel service braking must stop upright with the throttle held")
+    release(panel,Input.Key.space,32 as uint32)
+    for _ in 0...240 { panel.drive(truck);truck.step() }
+    assert(!truck.brake && !truck.handbrake && truck.chassis.linear_velocity().z>3.0,"releasing Space must restore held forward drive")
+    release(panel,Input.Key.z,122 as uint32);press(panel,Input.Key.s,115 as uint32);press(panel,Input.Key.left_shift)
+    panel.drive(truck);assert(truck.gas<0.0 && !truck.brake && !truck.handbrake,"Shift must not turn S into a hidden brake")
+    print("BRAKES stop/release and independent reverse command passed")
+}
+func main() { input();axle_brakes();stopping();print("Separate brake controls passed") }

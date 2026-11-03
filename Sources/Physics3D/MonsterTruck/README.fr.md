@@ -29,11 +29,12 @@ le régime du moteur physique et le rapport engagé. L’interface et le rendu g
 | Z maintenu | Accélération normale progressive |
 | Maj + Z | Turbo : 25 % de couple supplémentaire, réponse plus franche |
 | S maintenu | Marche arrière ; inversion progressive si le camion avance |
-| Maj + S | Freinage renforcé sur quatre roues pour lever l’arrière |
-| Q / D | Direction avant, gauche / droite depuis la caméra arrière |
+| ↑ maintenu | Frein avant indépendant |
+| ↓ maintenu | Frein arrière indépendant |
+| Q / D | Direction couplée des quatre roues par défaut, gauche / droite depuis la caméra arrière |
 | A / E ou ← / → | Direction arrière selon la direction voulue pour le nez |
 | T | Coupler / séparer les essieux directeurs |
-| Espace maintenu | Frein à main arrière |
+| Espace maintenu | Frein principal sur les quatre roues |
 | P | Gonflage Monster / Bas / Ferme, sans recommencer |
 | Plus court / Plus long | Modifier le rapport de pont à l’arrêt, gaz relâchés |
 | R | Recommencer avec le gonflage et la démultiplication sélectionnés |
@@ -56,7 +57,7 @@ une cuvette à deux montées. Les petites bosses sont au fond. La piste de
 contrôle, avec une bosse et trois blocs, reste à l’extrême gauche.
 
 Pour un cabrage, donner un bref appui sur Maj + Z puis relâcher. Pour lever
-l’arrière, prendre de la vitesse puis donner un bref appui sur Maj + S. Le couple
+l’arrière, prendre de la vitesse puis donner un bref appui sur Espace. Le couple
 et le freinage font basculer le véhicule physiquement : doser les appuis pour
 récupérer l’équilibre. Comparer ensuite un même relief avec les trois gonflages.
 
@@ -104,9 +105,10 @@ Le HUD indique « Turbo : actif » pendant la commande Maj + Z. Une impulsion
 permet de cabrer ; maintenir le boost peut retourner le camion.
 
 Le couple de chaque roue produit
-une réaction opposée sur le châssis. Le frein avant atteint 1000 N·m par roue. Avec Maj, le freinage
-agit sur les quatre roues : 1250 N·m à l’avant et 937,5 N·m à l’arrière. Le
-frein à main arrière atteint 2200 N·m. Au sol, Z et S transmettent le nouveau
+une réaction opposée sur le châssis. La flèche Haut freine seulement l’avant, jusqu’à
+1000 N·m par roue. Espace actionne le frein principal sur les quatre roues :
+1250 N·m à l’avant et 937,5 N·m à l’arrière. La flèche Bas freine seulement
+l’arrière, jusqu’à 2200 N·m par roue. Au sol, Z et S transmettent le nouveau
 sens dès le premier pas, même lorsque le camion roule encore dans l’autre
 sens. L’embrayage patine sous pression limitée pendant cette transition ; le
 couple opposé ralentit puis relance le véhicule. Le régime de combustion est
@@ -116,10 +118,13 @@ pression transitoire pour éviter un freinage brutal aux roues. La pleine
 prise revient progressivement en 0,2 s. La masse et l’adhérence déterminent
 toujours le temps nécessaire pour inverser le déplacement.
 
-Maj avec la pédale opposée conserve le freinage renforcé suivant le déplacement
-du châssis. En vol, la décision de freinage suit le sens de rotation des roues :
+Les trois commandes de frein sont indépendantes de Z/S et prioritaires sur
+la motricité. Leur relâchement rétablit la commande moteur maintenue ; la perte
+de focus les libère toutes. Maj reste le turbo et ne transforme pas S en frein.
+En vol, le freinage automatique de la pédale opposée suit le sens de rotation des roues :
 les pédales gardent leur sens pendant un salto. La pédale opposée freine les roues avant de les entraîner dans l’autre
-sens ; Espace conserve le frein arrière pour agir sur la rotation en l’air.
+sens. Haut et Bas permettent aussi de freiner séparément les essieux en l’air,
+et Espace freine les quatre roues.
 
 Les quatre suspensions SixDOF offrent ±80 cm de course, des ressorts de
 1800 N/m et un amortissement de 300 N·s/m. Le montage garde son centre de
@@ -205,3 +210,7 @@ stabilité pendant la reprise d’embrayage :
 silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/ReversalChecks.sx --release -o Build/MonsterTruck-Reversal-Checks
 Build/MonsterTruck-Reversal-Checks
 ```
+
+`BrakeChecks.sx` vérifie le routage Espace/Haut/Bas, le relâchement et la perte
+de focus, le freinage physique de chaque essieu, l’arrêt quatre roues avec
+l’accélérateur maintenu puis la reprise à la libération du frein.

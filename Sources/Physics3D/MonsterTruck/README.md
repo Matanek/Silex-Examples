@@ -29,11 +29,12 @@ The interface and renderer retain their usual controls.
 | Hold Z | Progressive normal acceleration |
 | Shift + Z | Turbo: 25% more torque and a sharper response |
 | Hold S | Reverse drive; progressive reversal while moving forward |
-| Shift + S | Stronger four-wheel service braking to lift the rear |
-| Q / D | Front steering, left / right from the rear camera |
+| Hold ↑ | Independent front brake |
+| Hold ↓ | Independent rear brake |
+| Q / D | Coupled four-wheel steering by default, left / right from the rear camera |
 | A / E or ← / → | Rear steering in the desired direction of the nose |
 | T | Couple / separate the steering axles |
-| Hold Space | Rear handbrake |
+| Hold Space | Four-wheel service brake |
 | P | Monster / Low / Firm inflation without restarting |
 | Plus court / Plus long | Adjust final drive at rest with the throttle released |
 | R | Restart with the selected inflation and final drive |
@@ -55,7 +56,7 @@ the right side has a bowl with two slopes. Small rollers are at the far end.
 A calibration lane with a bump and three blocks remains on the far left.
 
 For a wheelie, briefly press Shift + Z, then release. To lift the rear,
-build speed and briefly press Shift + S. Torque and braking physically pitch the
+build speed and briefly press Space. Torque and braking physically pitch the
 vehicle: time the inputs to recover its balance. Then compare the same
 obstacle with all three inflation settings.
 
@@ -100,9 +101,10 @@ Shift + Z is requested. A short boost can produce a wheelie; holding it can
 flip the truck.
 
 Every wheel torque produces an
-opposite chassis reaction. Front braking reaches 1000 N·m per wheel. With Shift, service braking
-acts on all four wheels: 1250 N·m at the front and 937.5 N·m at the rear. The
-rear handbrake reaches 2200 N·m. On the ground, Z and S request the new
+opposite chassis reaction. Up brakes only the front wheels, up to
+1000 N·m per wheel. Space applies the four-wheel service brake: 1250 N·m
+at the front and 937.5 N·m at the rear. Down brakes only the rear wheels,
+up to 2200 N·m per wheel. On the ground, Z and S request the new
 direction on the first step, even while the truck is still travelling the
 other way. Limited clutch pressure permits slip during this transition;
 opposing torque slows the vehicle and drives it back. Combustion RPM is
@@ -112,11 +114,13 @@ abrupt wheel braking. Full coupling
 returns progressively over 0.2 s. Mass and grip still determine how long it
 takes to reverse actual travel.
 
-Shift with the opposite pedal retains stronger braking based on chassis travel.
-In flight, braking follows wheel
+The three brake commands are independent of Z/S and take priority over drive.
+Releasing them restores the held motor command; focus loss releases all brakes.
+Shift remains the boost modifier and does not turn S into a brake.
+In flight, automatic opposite-pedal braking follows wheel
 rotation direction so the pedals retain their meaning throughout a flip. The
 opposite pedal brakes the wheels before driving them the other way; Space
-retains rear braking to control rotation in the air.
+brakes all four wheels. Up and Down also allow independent axle braking in flight.
 
 The four SixDOF suspensions provide ±80 cm of travel, 1800 N/m springs and
 300 N·s/m damping. The assembly retains its low centre of mass. Steering
@@ -198,3 +202,7 @@ stability through clutch recovery:
 silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/ReversalChecks.sx --release -o Build/MonsterTruck-Reversal-Checks
 Build/MonsterTruck-Reversal-Checks
 ```
+
+`BrakeChecks.sx` verifies Space/Up/Down routing, release and focus loss, physical
+braking of each axle, a four-wheel stop with held throttle and resumed drive
+after brake release.
