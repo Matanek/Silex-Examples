@@ -61,23 +61,28 @@ package class Wheel {
         self.suspension.set_frames(Physics.Transform3D(self.anchor,Math.Quat.angle_axis(angle,Math.Vec3.up())),
             Physics.Transform3D(Math.Vec3(),rotation.conjugated()))
     }
-    func couple(chassis:Physics.RigidBody3D,throttle:float,brake:bool,handbrake:bool,hard_brake:bool,delta:float) {
+    func spin(chassis:@Physics.RigidBody3D) float {
         let yaw=self.current_steering
         let axle=chassis.transform().vector(Math.Quat.angle_axis(yaw,Math.Vec3.up()).rotate(Math.Vec3.right()))
-        let speed=self.rim.angular_velocity().subtract(chassis.angular_velocity()).dot(axle)
-        let input=Math.abs(throttle)
-        var limit=1250.0*Math.min(1.0,input)
-        if input>1.0 { limit*=1.0+0.5*Math.min(0.5,input-1.0) }
-        var gain=180.0;var target=throttle*30.04
-        let braking=brake && self.front
+        return self.rim.angular_velocity().subtract(chassis.angular_velocity()).dot(axle)
+    }
+    func couple(chassis:Physics.RigidBody3D,drive_torque:float,brake:bool,handbrake:bool,hard_brake:bool,delta:float) {
+        let axle=chassis.transform().vector(Math.Quat.angle_axis(self.current_steering,Math.Vec3.up()).rotate(Math.Vec3.right()))
+        let speed=self.spin(chassis)
+        var applied=drive_torque
+        // Strong service braking retains the rear retardation formerly supplied by reverse drive.
+        let braking=brake && (self.front || hard_brake)
         let rear_lock=handbrake && !self.front
         if braking || rear_lock {
-            target=0.0;limit=1000.0;gain=440.0
-            if braking && hard_brake { limit=1250.0 }
+            var limit=1000.0
+            if braking && hard_brake {
+                limit=937.5;if self.front { limit=1250.0 }
+            }
             if rear_lock { limit=2200.0 }
+            applied+=Math.clamp(-speed*440.0,-limit,limit)
         }
-        if Math.abs(throttle)>0.001 || braking || rear_lock {
-            let torque=axle.multiply(Math.clamp((target-speed)*gain,-limit,limit))
+        if applied!=0.0 {
+            let torque=axle.multiply(applied)
             self.rim.apply_torque(torque);chassis.apply_torque(torque.negated())
         }
         self.seat.solve(delta)

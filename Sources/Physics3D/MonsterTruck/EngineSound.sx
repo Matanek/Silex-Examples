@@ -3,26 +3,12 @@ use GFX.Audio.Engines
 use STD.Error.Kind
 use STD.Math
 use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.Transmission
 
-// The truck has wheel motors, not a crankshaft or gearbox. This read-only
-// adapter derives an acoustic crank speed and effort from those wheel motors.
-package func operating(truck:@Model.Truck, idle:float, ceiling:float, ratio:float) Engines.OperatingState {
-    let pose = truck.chassis.transform()
-    let chassis_spin = truck.chassis.angular_velocity()
-    var spin = 0.0; var effort = 0.0
-    let pedal = Math.clamp(Math.abs(truck.drive), 0.0, 1.0)
-    for wheel in truck.wheels {
-        let axle = pose.vector(Math.Quat.angle_axis(wheel.current_steering, Math.Vec3.up()).rotate(Math.Vec3.right()))
-        let velocity = wheel.rim.angular_velocity().subtract(chassis_spin).dot(axle)
-        spin += Math.abs(velocity)
-        effort += Math.min(1.0, Math.abs((truck.drive * 30.04 - velocity) * 180.0) / 1250.0)
-    }
-    spin /= truck.wheels.count() as float; effort /= truck.wheels.count() as float
-    var load = Math.max(pedal * 0.15, pedal * effort)
-    if truck.brake || truck.handbrake { load = 0.0 }
-    let coupled = spin * ratio * 60.0 / (2.0 * Math.pi())
-    let launch = idle + 1_200.0 * pedal
-    return Engines.OperatingState(rpm:Math.clamp(Math.max(coupled, launch), idle, ceiling), load:load)
+// Sound follows the physical engine. Other games can supply any OperatingState.
+package func operating(truck:@Model.Truck) Engines.OperatingState {
+    let state=truck.motor.state()
+    return Engines.OperatingState(rpm:state.engine_rpm,load:Math.clamp(state.engine_torque/Transmission.Settings.torque,0.0,1.0))
 }
 
 package class EngineSound {
@@ -33,30 +19,24 @@ package class EngineSound {
     private var samples:float32[] = []
     private var pending:bool = false
     private var offset:int = 0
-    private var rpm:float = 850.0
-    private let ratio:float
     init(directory:str, offline:bool = false) {
         var library = Engines.Library.open(directory); self.source = library.driven_engine("454")
-        let gearing = self.source.profile.gearing
-        self.ratio = round_float<float>(gearing.final_drive * gearing.ratios[0])
         if offline { self.audio = Audio.offline(sample_rate:44_100, channels:2) } else { self.audio = Audio() }
         self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
         for _ in 0...960 { self.samples.append(0.0) }
-        self.source.set_state(Engines.OperatingState(rpm:self.rpm)); self.source.enqueue()
+        self.source.set_state(Engines.OperatingState(rpm:850.0)); self.source.enqueue()
     }
     func current_rpm() float { return self.source.current_rpm() }
     func update(truck:@Model.Truck, delta:float) {
-        var state = operating(truck, self.source.profile.idle, self.source.profile.ceiling, self.ratio)
-        self.rpm += (state.rpm - self.rpm) * Math.clamp(delta * 12.0, 0.0, 1.0)
-        state.rpm = self.rpm; self.source.set_state(state)
+        self.source.set_state(operating(truck))
         self.feed()
     }
     func reset() {
         if self.playing.is_valid() { self.audio.stop(self.playing) }
         self.audio.release(self.stream); self.source.reset()
         self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
-        self.playing = Audio.PlayingSound(); self.pending = false; self.offset = 0; self.rpm = self.source.profile.idle
-        self.source.set_state(Engines.OperatingState(rpm:self.rpm)); self.source.enqueue()
+        self.playing = Audio.PlayingSound(); self.pending = false; self.offset = 0
+        self.source.set_state(Engines.OperatingState(rpm:850.0)); self.source.enqueue()
     }
     private func feed() {
         var count = 0

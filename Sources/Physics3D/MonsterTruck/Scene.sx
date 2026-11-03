@@ -1,6 +1,7 @@
 use GFX.Components
 use GFX.Physics
 use GFX.ECS
+use GFX.Input.Events
 use GFX.Resources
 use GFX.Scene2D
 use GFX.UI
@@ -44,7 +45,7 @@ package class TruckScene {
         self.view=PickupView(self.truck,world,meshes)
     }
     func reset(world:&Resources.World,meshes:&Resources.Meshes3D) {
-        var next=Model.Truck(self.workers,obstacles:true)
+        var next=Model.Truck(self.workers,obstacles:true,final_drive:self.truck.final_drive)
         next.set_pressure(self.panel.pressure())
         self.view!.rebind(next,world,meshes);self.truck=next
         self.accumulator=0.0;self.chase.reset(self.truck.chassis.position())
@@ -56,15 +57,15 @@ package class TruckScene {
 package func labels(state:&TruckScene) {
     let speed=Math.round(state.truck.chassis.linear_velocity().length()*3.6) as int
     let fps=Math.round(state.metrics.fps) as int
-    var audio=""
-    if var sound=state.sound { audio="\n454 : $(Math.round(sound.current_rpm()) as int) tr/min" }
-    state.panel.metrics.set("Vitesse : $(speed) km/h$(audio)\n$(fps) FPS")
+    let engine=state.truck.motor.state();var gear="N"
+    if engine.gear>0 { gear="$(engine.gear)" }else if engine.gear<0 { gear="R" }
+    state.panel.metrics.set("Vitesse : $(speed) km/h\nBoîte : $(gear) · $(Math.round(engine.engine_rpm) as int) tr/min\n$(fps) FPS")
     var name="monster"
     if state.panel.inflation==1 { name="bas" }
     if state.panel.inflation==2 { name="ferme" }
     let section=Terrain.section_name(Terrain.section(state.truck.chassis.position()))
     var mode="indépendante";if state.panel.coupled { mode="couplée" }
-    state.panel.settings.set("Gonflage : $(name)\nDirection : $(mode)\nSecteur : $(section)")
+    state.panel.settings.set("Gonflage : $(name)\nDirection : $(mode)\nSecteur : $(section)\nRapport de pont : $(state.truck.final_drive)")
 }
 
 package func startup(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images,state:&TruckScene) {
@@ -72,14 +73,25 @@ package func startup(world:&Resources.World,meshes:&Resources.Meshes3D,images:&R
     state.camera=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
         ..with(Components.Camera3D(vertical_fov:Math.radians(62.0),far_plane:450.0)))
     labels(state)
-    state.hud=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform(position:Math.Vec2(12.0,12.0)))
+    state.hud=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform())
         ..with(Scene2D.Canvas(state.ui.drawing(Controls.Hud.width,Controls.Hud.height),Controls.Hud.width,Controls.Hud.height)
             ..anchor=Math.Vec2() ..pivot=Math.Vec2() ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+}
+
+package func handle(state:&TruckScene,event:@Events.Event) bool {
+    if state.panel.handle(event) { return true }
+    return state.ui.handle(event)
 }
 
 package func perform(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TruckScene) {
     if state.panel.reset { state.reset(world,meshes) }
     if state.panel.changed { state.truck.set_pressure(state.panel.pressure());state.panel.changed=false }
+    if state.panel.gearing_requested {
+        state.panel.gearing_requested=false
+        if !state.panel.forward && !state.panel.reverse && state.truck.configure_gearing(state.panel.final_drive) { state.panel.feedback.set("Démultiplication appliquée") }
+        else { state.panel.final_drive=state.truck.final_drive;state.panel.feedback.set("Arrêtez-vous, gaz relâchés") }
+        labels(state)
+    }
 }
 
 package func follow(world:&Resources.World,state:&TruckScene,delta:float) {

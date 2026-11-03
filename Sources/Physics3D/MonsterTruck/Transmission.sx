@@ -1,0 +1,20 @@
+use GFX.Physics
+
+package static struct Settings {
+    let idle:float=850.0
+    let redline:float=5_500.0
+    let torque:float=240.0
+    let final_drive:float=14.0
+}
+
+package func create(final_drive:float=Settings.final_drive) Physics.WheelDrive3D {
+    return Physics.WheelDrive3D(
+        Physics.VehicleEngine3DSettings(maximum_torque:Settings.torque,minimum_rpm:Settings.idle,
+            maximum_rpm:Settings.redline,inertia:0.08),
+        Physics.VehicleTransmission3DSettings(gear_ratios:[3.2,2.3,1.6],reverse_gear_ratios:[-3.2],
+            clutch_strength:10.0,switch_time:0.14,clutch_release_time:0.18,switch_latency:0.55,
+            shift_up_rpm:4_200.0,shift_down_rpm:1_700.0),
+        wheel_inertias:[16.0,16.0,16.0,16.0],differentials:[
+            Physics.VehicleDifferential3DSettings(0,2,ratio:final_drive,engine_torque_ratio:0.5),
+            Physics.VehicleDifferential3DSettings(1,3,ratio:final_drive,engine_torque_ratio:0.5)])
+}

@@ -22,7 +22,7 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
     if input.is_pressed(Input.Key.escape) { controller.stop();return }
     if !state.profile {
         for event in input.events() {
-            state.panel.handle(event)
+            Scene.handle(state,event)
             match event {
                 mouse_wheel(wheel)=>{ state.chase.distance=Math.clamp(state.chase.distance-wheel.delta.y*0.75,7.0,18.0) }
                 else=>{}

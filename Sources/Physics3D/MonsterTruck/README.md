@@ -14,14 +14,14 @@ with the tools in `Packages/GFX.Audio/Native/EngineSimulator`, then compile
 without opening a window:
 
 ```sh
-silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o Build/MonsterTruck-Chevrolet
-Build/MonsterTruck-Chevrolet --engine-library /absolute/path/to/EngineLibrary
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o Build/MonsterTruck-Short-Gears
+Build/MonsterTruck-Short-Gears --engine-library /absolute/path/to/EngineLibrary
 ```
 
 Chevrolet 454 sound is enabled by default. Without an option, the bank path is
 `Build/EngineLibrary-Monster-Package`, relative to the current directory. An
 explicit absolute path works from any directory. `--silent` retains driving
-without opening an audio engine or device. The HUD displays acoustic RPM.
+without opening an audio engine or device. The HUD displays physical engine RPM and selected gear.
 The interface and renderer retain their usual controls.
 
 | Control | Action |
@@ -29,13 +29,14 @@ The interface and renderer retain their usual controls.
 | Hold Z | Progressive normal acceleration |
 | Shift + Z | Turbo: 25% more torque and a sharper response |
 | Hold S | Front brake and immediate reverse request |
-| Shift + S | Stronger front brake to lift the rear |
+| Shift + S | Stronger four-wheel service braking to lift the rear |
 | Q / D | Front steering, left / right from the rear camera |
 | A / E or ← / → | Rear steering in the desired direction of the nose |
 | T | Couple / separate the steering axles |
 | Hold Space | Rear handbrake |
 | P | Monster / Low / Firm inflation without restarting |
-| R | Restart with the selected inflation |
+| Plus court / Plus long | Adjust final drive at rest with the throttle released |
+| R | Restart with the selected inflation and final drive |
 | Mouse wheel | Chase-camera distance |
 | Escape | Quit |
 
@@ -70,10 +71,27 @@ assembly's reference load, loaded radii are approximately 1.00 / 1.11 / 1.17 m.
 Coefficients 60 / 1400 / 2600 are not calibrated bar values. The chassis weighs
 150 kg, each rim 20 kg and each carcass 9.6 kg.
 
-Motors supply up to 1250 N·m per wheel normally and 1562.5 N·m with Shift,
-with opposite chassis reactions. Front brakes reach 1000 N·m per wheel, or 1250 N·m with Shift, and
-the rear handbrake 2200 N·m. Reversal immediately requests opposite torque;
-velocity physically passes through zero before moving backward.
+The engine, clutch and differentials in `GFX.Physics.WheelDrive3D` actually
+drive the rims. The engine produces up to 240 N·m between 850 and 5500 RPM,
+calibrated for this demonstration’s masses. Its automatic transmission uses
+three close ratios, 3.2 / 2.3 / 1.6, and reverse −3.2. Upshifts occur at
+4200 RPM and downshifts at 1700 RPM; transitions open then reengage the clutch.
+An unsupported driven wheel prevents upshifts. Launch modulates clutch pressure.
+
+Final drive starts at 14 and is adjustable from 8 to 20 using the buttons.
+A higher value shortens gearing: slower wheels at equal engine RPM, higher
+engine RPM at equal wheel speed. Torque multiplication changes too. Traction,
+load and gear shifts still limit actual acceleration. Adjustment is rejected
+while the vehicle or wheels are moving, or while the throttle remains applied.
+R retains the setting. `Transmission.sx` and `Model.sx` own this demo’s
+configuration and driving policy.
+
+Shift multiplies combustion torque by 1.25. Every wheel torque produces an
+opposite chassis reaction. Front braking reaches 1000 N·m per wheel. With Shift, service braking
+acts on all four wheels: 1250 N·m at the front and 937.5 N·m at the rear. The
+rear handbrake reaches 2200 N·m. An opposite-direction
+request first brakes with the clutch open, then engages reverse after slowing
+down. The physical engine keeps running while braking.
 
 The four SixDOF suspensions provide ±80 cm of travel, 1800 N/m springs and
 300 N·s/m damping. The assembly retains its low centre of mass. Steering
@@ -93,11 +111,11 @@ Self-collision and soft/soft contacts are unavailable.
 These commands exit before creating the graphical application:
 
 ```sh
-Build/MonsterTruck-Chevrolet --check
-Build/MonsterTruck-Chevrolet --scene-check
-Build/MonsterTruck-Chevrolet --arena-check
-Build/MonsterTruck-Chevrolet --slope-check
-Build/MonsterTruck-Chevrolet --ramp-check
+Build/MonsterTruck-Short-Gears --check
+Build/MonsterTruck-Short-Gears --scene-check
+Build/MonsterTruck-Short-Gears --arena-check
+Build/MonsterTruck-Short-Gears --slope-check
+Build/MonsterTruck-Short-Gears --ramp-check
 ```
 
 They cover physics, inflation, centering, short stunt inputs, controls, HUD,
@@ -119,23 +137,23 @@ and consumes ready blocks without waiting in the physics loop. Playback holds
 at most five queued blocks and four native requests, about 98 ms excluding the
 device. R also resets sound.
 
-The driving model acts directly on rims; it has no crankshaft or gearbox.
-The acoustic adapter therefore uses rim rotation relative to the chassis,
-the 454 profile’s first gearing, and a simplified idle/launch slip model.
-Effort comes from the difference between commanded and actual wheel speed.
-This retains RPM in the air and in reverse, with less effort when wheels spin
-freely. Brakes and the handbrake release acoustic effort. RPM is smoothed and
-bounded by the profile scale. This sound connection changes no driving forces
-and does not claim to add a physical transmission.
+Sound receives `engine_rpm` and normalized combustion torque from the physical
+engine. It follows shifts, clutch engagement and airborne wheels without a
+second gearbox simulation. GFX.Audio remains independent of GFX.Physics:
+`Library.engine` provides standalone operation with an optional transmission;
+`Library.driven_engine` accepts RPM, load and ignition supplied by any game or
+simulation. The truck’s configuration is not imposed on these other uses.
 
 Offline integration check without a window or audio device:
 
 ```sh
-silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/EngineSoundChecks.sx --debug -o Build/MonsterTruck-Audio-Checks
-Build/MonsterTruck-Audio-Checks /absolute/path/to/EngineLibrary
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/TransmissionChecks.sx --release -o Build/MonsterTruck-Transmission-Checks
+Build/MonsterTruck-Transmission-Checks /absolute/path/to/EngineLibrary
 ```
 
-It covers RPM derivation, reverse, effort, brakes, airborne wheels, PCM and
-reset, plus identical physics trajectories with and without reading audio
-inputs. Interactive listening and graphical performance still require checks
-on the machine used.
+It checks all three gears, braking then reverse, adjustment restrictions, tire
+stability, RPM/load correlation, PCM production and reset, plus identical
+physics trajectories with and without reading audio inputs. `--scene-check`
+also checks mouse buttons, Space after focus, and retaining gearing after R.
+Interactive listening and graphical performance still require checks on the
+machine used.

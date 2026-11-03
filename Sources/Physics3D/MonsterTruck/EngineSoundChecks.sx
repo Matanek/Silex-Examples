@@ -4,29 +4,23 @@ use STD.Process
 use STD.Time.Stopwatch
 use Physics3D.MonsterTruck.Model
 use Physics3D.MonsterTruck.EngineSound
+use Physics3D.MonsterTruck.Transmission
 
 func mapping() {
     var truck = Model.Truck()
-    let ratio:float = 2.97 * 3.73
-    assert(EngineSound.operating(truck, 850.0, 7_000.0, ratio).rpm == 850.0)
+    assert(EngineSound.operating(truck).rpm == 850.0)
     truck.chassis.set_linear_velocity(Math.Vec3(0.0, 0.0, 30.0))
-    assert(EngineSound.operating(truck, 850.0, 7_000.0, ratio).rpm == 850.0, "chassis speed must not substitute for wheel rotation")
+    assert(EngineSound.operating(truck).rpm == 850.0, "chassis speed must not substitute for the physical engine state")
     truck.chassis.set_linear_velocity(Math.Vec3())
-    for wheel in truck.wheels { wheel.rim.set_angular_velocity(Math.Vec3(25.0, 0.0, 0.0)) }
-    truck.drive = 1.0
-    let loaded = EngineSound.operating(truck, 850.0, 7_000.0, ratio)
-    assert(Math.abs(loaded.rpm - 25.0 * ratio * 60.0 / (2.0 * Math.pi())) < 0.1 && loaded.load > 0.7)
-    for wheel in truck.wheels { wheel.rim.set_angular_velocity(Math.Vec3(30.04, 0.0, 0.0)) }
-    let free = EngineSound.operating(truck, 850.0, 7_000.0, ratio)
-    assert(free.rpm > loaded.rpm && free.load < loaded.load, "unloaded spinning wheels must rev with less effort")
-    truck.drive = -0.75
-    for wheel in truck.wheels { wheel.rim.set_angular_velocity(Math.Vec3(-25.0, 0.0, 0.0)) }
-    assert(Math.abs(EngineSound.operating(truck, 850.0, 7_000.0, ratio).rpm - loaded.rpm) < 0.1)
-    truck.brake = true; assert(EngineSound.operating(truck, 850.0, 7_000.0, ratio).load == 0.0)
-    truck.brake = false; truck.handbrake = true; assert(EngineSound.operating(truck, 850.0, 7_000.0, ratio).load == 0.0)
-    print("Acoustic mapping passed: idle, wheel coupling, airborne spin, effort, reverse and brakes")
+    for frame in 0...120 {
+        truck.controls(0.75,0.0);truck.step()
+        let state=truck.motor.state();let sound=EngineSound.operating(truck)
+        assert(sound.rpm==state.engine_rpm)
+        assert(Math.abs(sound.load-Math.clamp(state.engine_torque/Transmission.Settings.torque,0.0,1.0))<0.000001)
+    }
+    print("Acoustic mapping passed: physical RPM and torque drive sound without a second transmission")
 }
-func verify(directory:str) {
+package func verify(directory:str) {
     mapping()
     var expected = Model.Truck(); var actual = Model.Truck()
     var sound = EngineSound(directory, offline:true)

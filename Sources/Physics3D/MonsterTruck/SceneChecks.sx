@@ -1,3 +1,4 @@
+use GFX.Accessibility
 use GFX.Components
 use GFX.Input
 use GFX.Input.Events
@@ -21,6 +22,25 @@ func key_event(key:Input.Key,code:uint32) Events.Event {
         repeated:false,modifiers:modifiers,timestamp:Input.Timestamp(nanoseconds:0 as uint)))
 }
 
+func named(source:Accessibility.Source,id:str,name:str) Accessibility.Element? {
+    let element=source.read(id)!
+    if element.role==Accessibility.Role.button && element.name==name { return element }
+    for i in 0...element.child_count {
+        if let child=source.child(id,i) { if let found=named(source,child,name) { return found } }
+    }
+    return null
+}
+func click(state:&Scene.TruckScene,name:str) {
+    var source=state.ui.accessibility();let button=named(source,source.root()!,name)!
+    let point=Math.Vec2(button.bounds.x+button.bounds.width*0.5,button.bounds.y+button.bounds.height*0.5)
+    let down=Events.MouseButtonEvent(window:Window.Id(value:0 as uint32),mouse:Input.MouseId(value:0 as uint32),
+        button:Input.MouseButton.left,down:true,clicks:1 as uint8,position:point,timestamp:Input.Timestamp(nanoseconds:0 as uint))
+    let up=Events.MouseButtonEvent(window:down.window,mouse:down.mouse,button:down.button,down:false,
+        clicks:down.clicks,position:point,timestamp:down.timestamp)
+    assert(Scene.handle(state,Events.Event.mouse_button_pressed(down)))
+    assert(Scene.handle(state,Events.Event.mouse_button_released(up)))
+}
+
 package func verify() {
     var world=Resources.World();var meshes=Resources.Meshes3D();var images=Resources.Images()
     var state=Scene.TruckScene(1)
@@ -34,6 +54,19 @@ package func verify() {
             assert(Physics.Geometry3D.distance(vertex,rim).separation>0.005)
         }
     }
+    click(state,"Plus court");Scene.perform(world,meshes,state)
+    assert(state.truck.final_drive==15.0)
+    assert(Scene.handle(state,key_event(Input.Key.space,32 as uint32)))
+    assert(state.panel.handbrake && state.panel.final_drive==15.0 && !state.panel.gearing_requested,"Space must brake without activating the focused gearing button")
+    state.panel.handbrake=false
+    state.truck.gas=1.0;click(state,"Plus long");Scene.perform(world,meshes,state)
+    assert(state.truck.final_drive==15.0 && state.panel.final_drive==15.0,"rejected gearing must restore displayed selection")
+    state.truck.gas=0.0;state.panel.forward=true
+    click(state,"Plus long");Scene.perform(world,meshes,state)
+    assert(state.truck.final_drive==15.0,"held throttle must reject gearing before the next physics tick")
+    state.panel.forward=false
+    click(state,"Plus long");Scene.perform(world,meshes,state);assert(state.truck.final_drive==14.0)
+    click(state,"Plus court");Scene.perform(world,meshes,state)
     let count=world.entities().count()
     var tyre=state.truck.wheels[0].tyre
     let rim=state.view!.wheels[0].rim;let rubber=state.view!.wheels[0].rubber
@@ -75,7 +108,7 @@ package func verify() {
     state.panel.handle(key_event(Input.Key.r,114 as uint32));Scene.perform(world,meshes,state)
     assert(tyre!=state.truck.wheels[0].tyre && !tyre.is_valid())
     assert(world.entities().count()==count && state.view!.wheels[0].rim==rim && state.view!.wheels[0].rubber==rubber)
-    assert(state.panel.inflation==1 && state.truck.world.worker_count()==1)
+    assert(state.panel.inflation==1 && state.truck.world.worker_count()==1 && state.truck.final_drive==15.0)
     state.view!.update(world,meshes)
     let points=meshes.snapshot(state.view!.wheels[0].presenter.mesh()).vertices()
     for index in 0...points.count() {

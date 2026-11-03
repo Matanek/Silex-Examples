@@ -75,7 +75,8 @@ package func reversing(verify:bool=false) {
         }
     }
     print("reverse first_seconds=",first," minimum_upright=",upright)
-    if verify { assert(before>15.0 && first>0.0 && first<3.0 && upright>0.9) }
+    // Braking now opens the clutch instead of reversing drive torque on moving wheels.
+    if verify { assert(before>15.0 && first>0.0 && first<4.0 && upright>0.9) }
 }
 
 func mean_travel(truck:Model.Truck) float {

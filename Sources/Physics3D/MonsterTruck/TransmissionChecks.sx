@@ -1,0 +1,49 @@
+use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.Transmission
+use Physics3D.MonsterTruck.EngineSoundChecks
+use STD.Math
+use STD.Process
+
+func driving(final:float) {
+    var truck=Model.Truck(final_drive:final)
+    for _ in 0...120 { truck.step() }
+    var chassis=truck.chassis;var rim=truck.wheels[0].rim
+    assert(truck.configure_gearing(final))
+    assert(truck.chassis==chassis && truck.wheels[0].rim==rim,"ratio setting must retain physical bodies")
+    assert(!truck.configure_gearing(7.0) && !truck.configure_gearing(21.0))
+    truck.controls(1.0,0.0);assert(!truck.configure_gearing(14.0),"cannot reconfigure with held throttle")
+    var highest=0;var bead=0.0;var up=1.0
+    for frame in 0...1_440 {
+        truck.held(true,false,false,false,false,false);truck.step()
+        let state=truck.motor.state()
+        if state.gear>highest { highest=state.gear }
+        assert(Math.is_finite(state.engine_rpm) && state.engine_rpm>=Transmission.Settings.idle && state.engine_rpm<=Transmission.Settings.redline)
+        assert(Math.is_finite(truck.chassis.position().length()))
+        bead=Math.max(bead,truck.maximum_bead_error());up=Math.min(up,truck.chassis.transform().vector(Math.Vec3.up()).y)
+        if frame%240==239 { print("drive final=",final," t=",(frame+1)/120," speed=",truck.chassis.linear_velocity().z,
+            " gear=",state.gear," rpm=",state.engine_rpm," bead=",bead," up=",up) }
+    }
+    let speed=truck.chassis.linear_velocity().z
+    assert(!truck.configure_gearing(14.0),"moving vehicle must reject gearing changes")
+    var reverse_time= -1.0
+    for frame in 0...960 {
+        truck.held(false,true,false,false,false,false);truck.step()
+        if reverse_time<0.0 && truck.chassis.linear_velocity().z< -0.5 { reverse_time=(frame+1) as float/120.0 }
+    }
+    print("result final=",final," top=",speed," highest_gear=",highest," reverse_seconds=",reverse_time,
+        " reverse_speed=",truck.chassis.linear_velocity().z," bead=",bead," up=",up)
+    assert((final<14.0 || highest==3) && speed>5.0,"automatic transmission must drive through all forward gears")
+    assert(reverse_time>0.0 && truck.motor.state().gear== -1,"opposite pedal must brake then reverse")
+    assert(bead<0.08 && up>0.8,"short gearbox must preserve tyre seating and upright travel")
+    truck.controls(0.0,0.0,brake:true,handbrake:true)
+    for _ in 0...480 { truck.step() }
+    assert(truck.chassis.linear_velocity().length()<0.5,"brakes must stop the powered vehicle")
+    assert(truck.configure_gearing(14.0),"reconfiguration must work once stopped with released throttle")
+}
+func main() {
+    driving(8.0);driving(14.0);driving(20.0)
+    var directory="Build/EngineLibrary-Monster-Package"
+    let arguments=Process.arguments();if arguments.count()>1 { directory=arguments[1] }
+    EngineSoundChecks.verify(directory)
+    print("Monster transmission and sound checks passed")
+}
