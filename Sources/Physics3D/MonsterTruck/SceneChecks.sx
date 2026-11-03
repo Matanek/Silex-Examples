@@ -55,24 +55,42 @@ package func verify() {
         }
     }
     click(state,"Plus court");Scene.perform(world,meshes,state)
-    assert(state.truck.final_drive==15.0)
+    assert(state.truck.final_drive==9.0)
     assert(Scene.handle(state,key_event(Input.Key.space,32 as uint32)))
-    assert(state.panel.handbrake && state.panel.final_drive==15.0 && !state.panel.gearing_requested,"Space must brake without activating the focused gearing button")
+    assert(state.panel.handbrake && state.panel.final_drive==9.0 && !state.panel.gearing_requested,"Space must brake without activating the focused gearing button")
     state.panel.handbrake=false
     state.truck.gas=1.0;click(state,"Plus long");Scene.perform(world,meshes,state)
-    assert(state.truck.final_drive==15.0 && state.panel.final_drive==15.0,"rejected gearing must restore displayed selection")
+    assert(state.truck.final_drive==9.0 && state.panel.final_drive==9.0,"rejected gearing must restore displayed selection")
     state.truck.gas=0.0;state.panel.forward=true
     click(state,"Plus long");Scene.perform(world,meshes,state)
-    assert(state.truck.final_drive==15.0,"held throttle must reject gearing before the next physics tick")
+    assert(state.truck.final_drive==9.0,"held throttle must reject gearing before the next physics tick")
     state.panel.forward=false
-    click(state,"Plus long");Scene.perform(world,meshes,state);assert(state.truck.final_drive==14.0)
+    click(state,"Plus long");Scene.perform(world,meshes,state);assert(state.truck.final_drive==8.0)
     click(state,"Plus court");Scene.perform(world,meshes,state)
     let count=world.entities().count()
     var tyre=state.truck.wheels[0].tyre
     let rim=state.view!.wheels[0].rim;let rubber=state.view!.wheels[0].rubber
     // Logical AZERTY letters may arrive with QWERTY physical scan codes.
     let forward=key_event(Input.Key.w,122 as uint32);let left=key_event(Input.Key.a,113 as uint32)
-    state.panel.handle(forward);state.panel.handle(left)
+    state.panel.handle(forward)
+    assert(Scene.handle(state,key_event(Input.Key.left_shift,0 as uint32)))
+    assert(state.panel.boost)
+    state.truck.held(state.panel.forward,false,false,false,false,state.panel.boost)
+    assert(state.truck.gas==1.5,"Shift must reach the physical boost command")
+    let release_shift=key_event(Input.Key.left_shift,0 as uint32)
+    match release_shift {
+        key_pressed(key)=>{ assert(Scene.handle(state,Events.Event.key_released(key))) }
+        else=>{}
+    }
+    assert(!state.panel.boost)
+    assert(Scene.handle(state,key_event(Input.Key.right_shift,0 as uint32)) && state.panel.boost)
+    match key_event(Input.Key.right_shift,0 as uint32) {
+        key_pressed(key)=>{ Scene.handle(state,Events.Event.key_released(key)) }
+        else=>{}
+    }
+    assert(!state.panel.boost)
+    state.truck.controls(0.0,0.0)
+    state.panel.handle(left)
     state.panel.handle(key_event(Input.Key.space,32 as uint32))
     assert(state.panel.forward && state.panel.left && state.panel.handbrake && !state.panel.reset)
     state.panel.handle(key_event(Input.Key.a,97 as uint32))
@@ -108,7 +126,7 @@ package func verify() {
     state.panel.handle(key_event(Input.Key.r,114 as uint32));Scene.perform(world,meshes,state)
     assert(tyre!=state.truck.wheels[0].tyre && !tyre.is_valid())
     assert(world.entities().count()==count && state.view!.wheels[0].rim==rim && state.view!.wheels[0].rubber==rubber)
-    assert(state.panel.inflation==1 && state.truck.world.worker_count()==1 && state.truck.final_drive==15.0)
+    assert(state.panel.inflation==1 && state.truck.world.worker_count()==1 && state.truck.final_drive==9.0)
     state.view!.update(world,meshes)
     let points=meshes.snapshot(state.view!.wheels[0].presenter.mesh()).vertices()
     for index in 0...points.count() {

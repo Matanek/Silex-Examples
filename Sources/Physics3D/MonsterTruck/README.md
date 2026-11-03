@@ -14,8 +14,8 @@ with the tools in `Packages/GFX.Audio/Native/EngineSimulator`, then compile
 without opening a window:
 
 ```sh
-silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o Build/MonsterTruck-Short-Gears
-Build/MonsterTruck-Short-Gears --engine-library /absolute/path/to/EngineLibrary
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o Build/MonsterTruck-Drive-Response
+Build/MonsterTruck-Drive-Response --engine-library /absolute/path/to/EngineLibrary
 ```
 
 Chevrolet 454 sound is enabled by default. Without an option, the bank path is
@@ -72,13 +72,18 @@ Coefficients 60 / 1400 / 2600 are not calibrated bar values. The chassis weighs
 150 kg, each rim 20 kg and each carcass 9.6 kg.
 
 The engine, clutch and differentials in `GFX.Physics.WheelDrive3D` actually
-drive the rims. The engine produces up to 240 N·m between 850 and 5500 RPM,
+drive the rims. The engine has a nominal peak torque of 240 N·m between 850 and 7000 RPM,
 calibrated for this demonstration’s masses. Its automatic transmission uses
-three close ratios, 3.2 / 2.3 / 1.6, and reverse −3.2. Upshifts occur at
+three close ratios, 3.2 / 2.6 / 2.1, and reverse −3.2. Upshifts occur at
 4200 RPM and downshifts at 1700 RPM; transitions open then reengage the clutch.
-An unsupported driven wheel prevents upshifts. Launch modulates clutch pressure.
+An unsupported wheel receiving drive torque prevents upshifts. Launch modulates clutch pressure.
 
-Final drive starts at 14 and is adjustable from 8 to 20 using the buttons.
+The center differential redistributes torque to the axle retaining traction
+when the other spins. GFX.Physics provides this through
+`differential_limited_slip_ratio:2.2`, avoiding wasted torque in unloaded front
+wheels during acceleration. Each axle’s left/right distribution remains separate.
+
+Final drive starts at 8 and is adjustable from 6 to 12 using the buttons.
 A higher value shortens gearing: slower wheels at equal engine RPM, higher
 engine RPM at equal wheel speed. Torque multiplication changes too. Traction,
 load and gear shifts still limit actual acceleration. Adjustment is rejected
@@ -86,7 +91,15 @@ while the vehicle or wheels are moving, or while the throttle remains applied.
 R retains the setting. `Transmission.sx` and `Model.sx` own this demo’s
 configuration and driving policy.
 
-Shift multiplies combustion torque by 1.25. Every wheel torque produces an
+During normal driving, a governor progressively reduces combustion near
+4800 RPM. Shift multiplies available torque by 1.25 and unlocks an RPM reserve
+up to 7000 RPM. This provides acceleration even after reaching the normal RPM
+range. Wheels can back-drive the engine above the requested combustion RPM,
+within its physical 7000 RPM limit. The HUD shows “Turbo : actif” while
+Shift + Z is requested. A short boost can produce a wheelie; holding it can
+flip the truck.
+
+Every wheel torque produces an
 opposite chassis reaction. Front braking reaches 1000 N·m per wheel. With Shift, service braking
 acts on all four wheels: 1250 N·m at the front and 937.5 N·m at the rear. The
 rear handbrake reaches 2200 N·m. An opposite-direction
@@ -111,16 +124,19 @@ Self-collision and soft/soft contacts are unavailable.
 These commands exit before creating the graphical application:
 
 ```sh
-Build/MonsterTruck-Short-Gears --check
-Build/MonsterTruck-Short-Gears --scene-check
-Build/MonsterTruck-Short-Gears --arena-check
-Build/MonsterTruck-Short-Gears --slope-check
-Build/MonsterTruck-Short-Gears --ramp-check
+Build/MonsterTruck-Drive-Response --check
+Build/MonsterTruck-Drive-Response --scene-check
+Build/MonsterTruck-Drive-Response --arena-check
+Build/MonsterTruck-Drive-Response --slope-check
+Build/MonsterTruck-Drive-Response --ramp-check
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/DriveChecks.sx --release -o Build/MonsterTruck-Drive-Checks
+Build/MonsterTruck-Drive-Checks
 ```
 
 They cover physics, inflation, centering, short stunt inputs, controls, HUD,
-terrain seams and slow driving on actual approach facets. States are compared
-with one and four workers.
+terrain seams and slow driving on actual approach facets. `DriveChecks` also
+compares acceleration with the former drive, rolling boost, a recoverable wheelie
+and both final-drive extremes. States are compared with one and four workers.
 
 `--single` selects one worker for playing. `--profile` opens a twelve-second
 automated drive; `--profile-slope` opens a six-second test with brakes held

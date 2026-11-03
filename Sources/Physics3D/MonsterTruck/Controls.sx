@@ -2,6 +2,7 @@ use GFX.Color
 use GFX.Input
 use GFX.Input.Events
 use GFX.UI
+use Physics3D.MonsterTruck.Transmission
 
 package static struct Hud { let width:int=304;let height:int=414 }
 
@@ -24,11 +25,11 @@ package class Panel {
     var reset:bool=false
     var changed:bool=false
     var inflation:int=0
-    var final_drive:float=14.0
+    var final_drive:float=Transmission.Settings.final_drive
     var gearing_requested:bool=false
     var feedback:UI.State<str> =UI.State<str>("Réglage de boîte à l’arrêt")
-    func shorter() { self.final_drive+=1.0;if self.final_drive>20.0 { self.final_drive=20.0 }self.gearing_requested=true }
-    func longer() { self.final_drive-=1.0;if self.final_drive<8.0 { self.final_drive=8.0 }self.gearing_requested=true }
+    func shorter() { self.final_drive+=1.0;if self.final_drive>Transmission.Settings.maximum_final { self.final_drive=Transmission.Settings.maximum_final }self.gearing_requested=true }
+    func longer() { self.final_drive-=1.0;if self.final_drive<Transmission.Settings.minimum_final { self.final_drive=Transmission.Settings.minimum_final }self.gearing_requested=true }
     func message(reads:UI.Reads) UI.View { return self.text(reads.read(self.feedback)) }
     func gearing_button(label:str,action:func()) UI.Button {
         var button=UI.Button(label,action);button.style.height=32.0;button.style.font_size=14.0;button.style.padding=UI.Insets(6.0)

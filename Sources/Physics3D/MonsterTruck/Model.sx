@@ -20,7 +20,7 @@ package class Truck {
     var final_drive:float
     var motor:Physics.WheelDrive3D
     private var supported:bool[]=[]
-    init(workers:int=1,obstacles:bool=false,spawn:Physics.Transform3D=Physics.Transform3D(Math.Vec3(0.0,2.35,0.0)),tyre_flex:float=4.0,final_drive:float=14.0) {
+    init(workers:int=1,obstacles:bool=false,spawn:Physics.Transform3D=Physics.Transform3D(Math.Vec3(0.0,2.35,0.0)),tyre_flex:float=4.0,final_drive:float=Transmission.Settings.final_drive) {
         self.final_drive=final_drive;self.motor=Transmission.create(final_drive)
         self.world=Physics.World3D(Physics.World3DSettings() ..soft_body_substeps=1 ..velocity_iterations=8)
         if workers>1 { self.world.enable_parallelism(workers) }
@@ -81,7 +81,7 @@ package class Truck {
         for wheel in self.wheels { wheel.tyre.set_pressure(value) }
     }
     func configure_gearing(value:float) bool {
-        if !Math.is_finite(value) || value<8.0 || value>20.0 || Math.abs(self.gas)>0.001 || Math.abs(self.drive)>0.001 || self.chassis.linear_velocity().length()>0.5 { return false }
+        if !Math.is_finite(value) || value<Transmission.Settings.minimum_final || value>Transmission.Settings.maximum_final || Math.abs(self.gas)>0.001 || Math.abs(self.drive)>0.001 || self.chassis.linear_velocity().length()>0.5 { return false }
         for wheel in self.wheels { if Math.abs(wheel.spin(self.chassis))>0.5 { return false } }
         self.motor=Transmission.create(value);self.final_drive=value;return true
     }
@@ -104,8 +104,8 @@ package class Truck {
                 self.motor.set_wheel(i,spin,grounded:self.supported[i])
             }
             var throttle=Math.clamp(self.drive,-1.0,1.0)
-            var scale=1.0;if Math.abs(self.drive)>1.0 { scale+=0.5*Math.min(0.5,Math.abs(self.drive)-1.0) }
             let rpm=self.motor.state().engine_rpm
+            let scale=Transmission.torque_scale(self.drive,rpm)
             var clutch=Math.max(Math.clamp(mean*1.1/3.0,0.0,1.0),Math.clamp((rpm-680.0)/1275.0,0.0,1.0))
             if self.brake || self.handbrake { throttle=0.0;clutch=0.0 }
             self.motor.step(delta,throttle,torque_scale:scale,clutch:clutch)

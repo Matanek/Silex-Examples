@@ -102,7 +102,7 @@ func main() {
     }
     var state=Scene.TruckScene(workers,profile,slope,ramp)
     if audible { state.sound=EngineSound(directory) }
-    var title="MONSTER PICKUP — ZQSD · Espace frein à main · Maj boost"
+    var title="MONSTER PICKUP — Boîte + turbo · ZQSD · Espace frein · Maj boost"
     if profile { title="MESURE AUTOMATIQUE — Monster pickup — 12 secondes" }
     if ramp {title="MESURE AUTOMATIQUE — Montée de rampe — 12 secondes"}
     if slope { title="MESURE AUTOMATIQUE — Monster truck sur pente — 6 secondes" }

@@ -14,8 +14,8 @@ native v3 avec les outils de `Packages/GFX.Audio/Native/EngineSimulator`, puis
 compiler sans ouvrir de fenêtre :
 
 ```sh
-silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o Build/MonsterTruck-Short-Gears
-Build/MonsterTruck-Short-Gears --engine-library /chemin/absolu/vers/EngineLibrary
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o Build/MonsterTruck-Drive-Response
+Build/MonsterTruck-Drive-Response --engine-library /chemin/absolu/vers/EngineLibrary
 ```
 
 Le son Chevrolet 454 est actif par défaut. Sans option, la banque est cherchée
@@ -73,14 +73,20 @@ moins. Sous la charge de référence de ce montage, le rayon chargé est d’env
 Le châssis pèse 150 kg, chaque jante 20 kg et chaque carcasse 9,6 kg.
 
 Le moteur, l’embrayage et les différentiels de `GFX.Physics.WheelDrive3D`
-entraînent réellement les jantes. Le moteur développe au plus 240 N·m, entre
-850 et 5500 tr/min, pour les masses de ce montage de démonstration. La boîte
-automatique utilise trois rapports rapprochés, 3,2 / 2,3 / 1,6, et une marche
+entraînent réellement les jantes. Le moteur a un couple nominal maximal de
+240 N·m, entre 850 et 7000 tr/min, pour les masses de ce montage de démonstration. La boîte
+automatique utilise trois rapports rapprochés, 3,2 / 2,6 / 2,1, et une marche
 arrière de −3,2. Elle monte à 4200 tr/min et descend à 1700 tr/min ; ses
-transitions ouvrent puis referment l’embrayage. Une roue motrice sans appui
-empêche les montées de rapport. Le lancement dose la prise d’embrayage.
+transitions ouvrent puis referment l’embrayage. Une roue recevant du couple
+sans appui empêche les montées de rapport. Le lancement dose la prise d’embrayage.
 
-Le rapport de pont initial vaut 14, réglable de 8 à 20 avec les boutons. Une
+Le différentiel central redistribue le couple vers le pont qui conserve de
+l’appui lorsque l’autre patine. Ce transfert est fourni par GFX.Physics avec
+`differential_limited_slip_ratio:2.2` ; il évite de dépenser le couple dans les
+roues avant délestées pendant l’accélération. La répartition gauche/droite de
+chaque essieu reste distincte.
+
+Le rapport de pont initial vaut 8, réglable de 6 à 12 avec les boutons. Une
 valeur supérieure raccourcit la transmission : à régime égal, les roues tournent
 moins vite ; à vitesse de roue égale, le moteur tourne plus vite. La multiplication
 du couple change aussi. L’adhérence, la charge et les changements de rapport
@@ -89,7 +95,15 @@ ou les roues tournent encore, ou si les gaz ne sont pas relâchés. R conserve l
 réglage ; les fichiers `Transmission.sx` et `Model.sx` portent la configuration
 et la politique de conduite de cette démo.
 
-Maj multiplie le couple de combustion par 1,25. Le couple de chaque roue produit
+En conduite normale, un gouverneur réduit progressivement la combustion à
+l’approche de 4800 tr/min. Maj multiplie le couple disponible par 1,25 et ouvre
+une réserve de régime jusqu’à 7000 tr/min. Cela donne de la reprise même lorsque
+le régime normal est déjà atteint. Un moteur entraîné par les roues peut dépasser
+le régime de combustion demandé, dans la limite physique de 7000 tr/min.
+Le HUD indique « Turbo : actif » pendant la commande Maj + Z. Une impulsion
+permet de cabrer ; maintenir le boost peut retourner le camion.
+
+Le couple de chaque roue produit
 une réaction opposée sur le châssis. Le frein avant atteint 1000 N·m par roue. Avec Maj, le freinage
 agit sur les quatre roues : 1250 N·m à l’avant et 937,5 N·m à l’arrière. Le
 frein à main arrière atteint 2200 N·m. Une demande dans le
@@ -115,16 +129,20 @@ pas disponibles.
 Ces commandes quittent avant la création de l’application graphique :
 
 ```sh
-Build/MonsterTruck-Short-Gears --check
-Build/MonsterTruck-Short-Gears --scene-check
-Build/MonsterTruck-Short-Gears --arena-check
-Build/MonsterTruck-Short-Gears --slope-check
-Build/MonsterTruck-Short-Gears --ramp-check
+Build/MonsterTruck-Drive-Response --check
+Build/MonsterTruck-Drive-Response --scene-check
+Build/MonsterTruck-Drive-Response --arena-check
+Build/MonsterTruck-Drive-Response --slope-check
+Build/MonsterTruck-Drive-Response --ramp-check
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/DriveChecks.sx --release -o Build/MonsterTruck-Drive-Checks
+Build/MonsterTruck-Drive-Checks
 ```
 
 Elles couvrent la physique, les gonflages, le centrage, les figures sur appuis
 courts, les commandes, le HUD, les raccords du terrain et le roulage lent sur
-les vraies facettes inclinées. Les états sont comparés à un et quatre workers.
+les vraies facettes inclinées. `DriveChecks` compare aussi la reprise à la
+propulsion antérieure, le boost en roulant, un cabrage récupérable et les
+rapports de pont extrêmes. Les états sont comparés à un et quatre workers.
 
 `--single` choisit un worker pour jouer. `--profile` ouvre un parcours automatique
 pendant douze secondes ; `--profile-slope` ouvre un test de six secondes,

@@ -55,6 +55,7 @@ package func reversing(verify:bool=false) {
     for frame in 0...720 {
         if frame>=120 { truck.held(true,false,false,false,false,false) }
         truck.step()
+        if truck.chassis.linear_velocity().z>=20.0 { break }
     }
     let before=truck.chassis.linear_velocity().z;var first= -1.0;var upright=1.0
     for frame in 0...480 {

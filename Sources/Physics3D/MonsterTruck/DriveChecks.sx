@@ -1,0 +1,80 @@
+use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.Transmission
+use STD.Math
+
+struct Observation {
+    var speed2:float=0.0
+    var speed8:float=0.0
+    var speed:float=0.0
+    var rpm:float=0.0
+    var lift:float=0.0
+    var initial_torque:float=0.0
+    var bead:float=0.0
+    var upright:float=1.0
+    var final_up:float=1.0
+    init() {}
+}
+func lowest(points:Math.Vec3[]) float {
+    var result=100.0;for point in points { result=Math.min(result,point.y) }return result
+}
+func drive(final:float,frames:int,boost_at:int= -1,release_at:int= -1) Observation {
+    var truck=Model.Truck(4,final_drive:final)
+    for _ in 0...240 { truck.step() }
+    var result=Observation()
+    for frame in 0...frames {
+        let held=release_at<0 || frame<release_at
+        let boosted=boost_at>=0 && frame>=boost_at && held
+        truck.held(held,false,false,false,false,boosted);truck.step()
+        let engine=truck.motor.state()
+        assert(engine.engine_rpm>=Transmission.Settings.idle && engine.engine_rpm<=Transmission.Settings.redline)
+        assert(Math.is_finite(truck.chassis.position().length()))
+        var front=100.0;var rear=100.0
+        for i,wheel in truck.wheels.indexed() {
+            if wheel.front { front=Math.min(front,lowest(wheel.tyre.positions())) }
+            else { rear=Math.min(rear,lowest(wheel.tyre.positions())) }
+            if frame<12 { result.initial_torque+=truck.motor.wheel_torque(i)/12.0 }
+        }
+        if rear<0.06 { result.lift=Math.max(result.lift,front) }
+        result.upright=Math.min(result.upright,truck.chassis.transform().vector(Math.Vec3.up()).y)
+        result.bead=Math.max(result.bead,truck.maximum_bead_error())
+        assert(result.bead<0.08 && truck.minimum_y()>0.025)
+        if frame==239 { result.speed2=truck.chassis.linear_velocity().z }
+        if frame==959 { result.speed8=truck.chassis.linear_velocity().z }
+    }
+    result.speed=truck.chassis.linear_velocity().z;result.rpm=truck.motor.state().engine_rpm
+    result.final_up=truck.chassis.transform().vector(Math.Vec3.up()).y
+    print("DRIVE final=",final," boost_at=",boost_at," speed2=",result.speed2," speed8=",result.speed8,
+        " final_speed=",result.speed," rpm=",result.rpm," lift=",result.lift," up=",result.upright,
+        " initial_torque=",result.initial_torque," bead=",result.bead)
+    return result
+}
+func matched_torque(final:float) float {
+    // Compare identical rotor states: spin the engine with the external clutch
+    // open, then engage for one substep. A trajectory average mixes different RPM.
+    var motor=Transmission.create(final)
+    for i in 0...4 { motor.set_wheel(i,0.0) }
+    for _ in 0...400 { motor.step(1.0/960.0,1.0,clutch:0.0) }
+    assert(motor.state().gear==1 && motor.state().engine_rpm==Transmission.Settings.redline)
+    motor.step(1.0/960.0,1.0)
+    var torque=0.0;for i in 0...4 { torque+=motor.wheel_torque(i) }return torque
+}
+package func verify() {
+    let normal=drive(Transmission.Settings.final_drive,960)
+    // Recorded 7a9edab reference: 13.13 m/s at 2 s, 27.72 m/s at 8 s.
+    assert(normal.speed2>11.8 && normal.speed8>26.3,"the geared truck must retain the established driving response")
+    let boosted=drive(Transmission.Settings.final_drive,960,boost_at:600)
+    assert(boosted.rpm>normal.rpm+500.0,"rolling boost must unlock real engine RPM")
+    assert(boosted.lift>normal.lift+0.4 || boosted.speed8>normal.speed8+0.5,"rolling boost must affect the vehicle, not only wheel spin")
+    let wheelie=drive(Transmission.Settings.final_drive,600,boost_at:0,release_at:120)
+    assert(wheelie.lift>1.0 && wheelie.final_up>0.9,"boost must allow a recoverable rear-wheel wheelie")
+    let long=drive(Transmission.Settings.minimum_final,2400)
+    let short=drive(Transmission.Settings.maximum_final,2400)
+    let long_torque=matched_torque(Transmission.Settings.minimum_final)
+    let short_torque=matched_torque(Transmission.Settings.maximum_final)
+    print("MATCHED torque_long=",long_torque," torque_short=",short_torque)
+    assert(short_torque>long_torque*1.2,"short gearing must multiply wheel torque at matched engine and wheel speeds")
+    assert(long.speed>short.speed*1.08,"gearing must alter achievable vehicle speed")
+    assert(long.upright>0.8 && short.upright>0.8)
+    print("Drive response checks passed: reference acceleration, rolling boost, recoverable wheelie and actual gearing contrast")
+}
+func main() { verify() }

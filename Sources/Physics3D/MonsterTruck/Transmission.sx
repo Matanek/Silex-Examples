@@ -1,20 +1,32 @@
 use GFX.Physics
+use STD.Math
 
 package static struct Settings {
     let idle:float=850.0
-    let redline:float=5_500.0
+    let redline:float=7_000.0
+    let normal_rpm:float=4_800.0
     let torque:float=240.0
-    let final_drive:float=14.0
+    let final_drive:float=8.0
+    let minimum_final:float=6.0
+    let maximum_final:float=12.0
 }
 
-package func create(final_drive:float=Settings.final_drive) Physics.WheelDrive3D {
+package func create(final_drive:float=Settings.final_drive,differential_limited_slip_ratio:float?=2.2) Physics.WheelDrive3D {
     return Physics.WheelDrive3D(
         Physics.VehicleEngine3DSettings(maximum_torque:Settings.torque,minimum_rpm:Settings.idle,
             maximum_rpm:Settings.redline,inertia:0.08),
-        Physics.VehicleTransmission3DSettings(gear_ratios:[3.2,2.3,1.6],reverse_gear_ratios:[-3.2],
+        Physics.VehicleTransmission3DSettings(gear_ratios:[3.2,2.6,2.1],reverse_gear_ratios:[-3.2],
             clutch_strength:10.0,switch_time:0.14,clutch_release_time:0.18,switch_latency:0.55,
             shift_up_rpm:4_200.0,shift_down_rpm:1_700.0),
         wheel_inertias:[16.0,16.0,16.0,16.0],differentials:[
-            Physics.VehicleDifferential3DSettings(0,2,ratio:final_drive,engine_torque_ratio:0.5),
-            Physics.VehicleDifferential3DSettings(1,3,ratio:final_drive,engine_torque_ratio:0.5)])
+            Physics.VehicleDifferential3DSettings(0,2,ratio:final_drive,limited_slip_ratio:1.4,engine_torque_ratio:0.5),
+            Physics.VehicleDifferential3DSettings(1,3,ratio:final_drive,limited_slip_ratio:1.4,engine_torque_ratio:0.5)],differential_limited_slip_ratio:differential_limited_slip_ratio)
+}
+
+// Normal and boosted combustion have distinct governors, as the former wheel
+// drive had distinct speed targets. The engine/wheel coupling remains physical.
+package func torque_scale(drive:float,rpm:float) float {
+    let boost=Math.clamp((Math.abs(drive)-1.0)/0.5,0.0,1.0)
+    let ceiling=Settings.normal_rpm+boost*(Settings.redline-Settings.normal_rpm)
+    return (1.0+boost*0.25)*Math.clamp((ceiling-rpm)/300.0,0.0,1.0)
 }
