@@ -9,21 +9,20 @@ Les faces jaunes et rouges montrent les trajectoires, avec des bordures blanches
 
 ## Lancer et conduire
 
-Depuis la racine du workspace contenant `Silex-Examples/`, avec ses packages locaux :
+Depuis la racine du workspace contenant `Silex-Examples/`, préparer une banque
+native v3 avec les outils de `Packages/GFX.Audio/Native/EngineSimulator`, puis
+compiler sans ouvrir de fenêtre :
 
 ```sh
-silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o Build/MonsterTruck-Chevrolet
+Build/MonsterTruck-Chevrolet --engine-library /chemin/absolu/vers/EngineLibrary
 ```
 
-Pour compiler sans ouvrir de fenêtre :
-
-```sh
-silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --debug -o /private/tmp/silex-monster-truck-debug-demo
-```
-
-Lancer ensuite `/private/tmp/silex-monster-truck-debug-demo` sans option, depuis
-n’importe quel dossier. `run` utilise Debug par défaut ; `--release` reste
-disponible pour comparer les modes.
+Le son Chevrolet 454 est actif par défaut. Sans option, la banque est cherchée
+sous `Build/EngineLibrary-Monster-Package`, relatif au répertoire courant. Le
+chemin absolu explicite fonctionne depuis tout dossier. `--silent` conserve la
+conduite sans ouvrir de moteur sonore ni de périphérique audio. Le HUD montre
+le régime sonore. L’interface et le rendu gardent leurs commandes habituelles.
 
 | Commande | Action |
 | --- | --- |
@@ -97,11 +96,11 @@ pas disponibles.
 Ces commandes quittent avant la création de l’application graphique :
 
 ```sh
-/private/tmp/silex-monster-truck-debug-demo --check
-/private/tmp/silex-monster-truck-debug-demo --scene-check
-/private/tmp/silex-monster-truck-debug-demo --arena-check
-/private/tmp/silex-monster-truck-debug-demo --slope-check
-/private/tmp/silex-monster-truck-debug-demo --ramp-check
+Build/MonsterTruck-Chevrolet --check
+Build/MonsterTruck-Chevrolet --scene-check
+Build/MonsterTruck-Chevrolet --arena-check
+Build/MonsterTruck-Chevrolet --slope-check
+Build/MonsterTruck-Chevrolet --ramp-check
 ```
 
 Elles couvrent la physique, les gonflages, le centrage, les figures sur appuis
@@ -115,3 +114,33 @@ freins maintenus sur une rampe. Le titre et le HUD identifient ces mesures.
 puis freinage sur la pente. `--ramp-check` vérifie huit approches sans fenêtre,
 avec contrôle des talons et du sol. Les temps sans rendu ne permettent pas de
 conclure sur les FPS graphiques.
+
+## Son Chevrolet réutilisable
+
+La source est `GFX.Audio.Engines.Library.driven_engine("454")` ; la démo ne
+recopie aucun calcul acoustique. Elle fournit régime et charge par
+`OperatingState`, puis reçoit des blocs prêts sans attente dans la boucle
+physique. La file contient au plus cinq blocs de lecture et quatre demandes
+natives, environ 98 ms hors périphérique. R réinitialise aussi le son.
+
+Le modèle de conduite agit directement sur les jantes ; il ne possède pas de
+vilebrequin ni de boîte de vitesses. L’adaptateur acoustique utilise donc leur
+rotation relative au châssis, avec la première démultiplication du profil 454,
+un ralenti et un glissement de lancement simplifiés. L’effort vient de l’écart
+entre leur vitesse commandée et leur vitesse réelle. Cela conserve le régime
+en l’air et en recul, et allège l’effort lorsque les roues tournent librement.
+Freins et frein à main relâchent la charge sonore. Le régime est lissé et borné
+à l’échelle du profil. Ce raccord sonore ne change aucune force de conduite et
+ne prétend pas ajouter une transmission physique.
+
+Contrôle croisé hors ligne, sans fenêtre ni périphérique sonore :
+
+```sh
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/EngineSoundChecks.sx --debug -o Build/MonsterTruck-Audio-Checks
+Build/MonsterTruck-Audio-Checks /chemin/absolu/vers/EngineLibrary
+```
+
+Il vérifie la dérivation du régime, recul, effort, freins, roues en l’air,
+production PCM et reset, ainsi qu’une trajectoire physique identique avec et
+sans lecture des données audio. L’écoute interactive et la tenue graphique
+restent à contrôler sur la machine utilisée.

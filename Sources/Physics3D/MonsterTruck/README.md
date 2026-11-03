@@ -9,21 +9,20 @@ speed. Yellow and red surfaces mark the lines, with white borders.
 
 ## Launch and drive
 
-From the workspace root containing `Silex-Examples/`, with its local packages:
+From the workspace root containing `Silex-Examples/`, prepare a v3 native bank
+with the tools in `Packages/GFX.Audio/Native/EngineSimulator`, then compile
+without opening a window:
 
 ```sh
-silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o Build/MonsterTruck-Chevrolet
+Build/MonsterTruck-Chevrolet --engine-library /absolute/path/to/EngineLibrary
 ```
 
-To compile without opening a window:
-
-```sh
-silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --debug -o /private/tmp/silex-monster-truck-debug-demo
-```
-
-Then run `/private/tmp/silex-monster-truck-debug-demo` without arguments from any
-directory. `run` uses Debug by default; `--release` remains available to compare
-the modes.
+Chevrolet 454 sound is enabled by default. Without an option, the bank path is
+`Build/EngineLibrary-Monster-Package`, relative to the current directory. An
+explicit absolute path works from any directory. `--silent` retains driving
+without opening an audio engine or device. The HUD displays acoustic RPM.
+The interface and renderer retain their usual controls.
 
 | Control | Action |
 | --- | --- |
@@ -94,11 +93,11 @@ Self-collision and soft/soft contacts are unavailable.
 These commands exit before creating the graphical application:
 
 ```sh
-/private/tmp/silex-monster-truck-debug-demo --check
-/private/tmp/silex-monster-truck-debug-demo --scene-check
-/private/tmp/silex-monster-truck-debug-demo --arena-check
-/private/tmp/silex-monster-truck-debug-demo --slope-check
-/private/tmp/silex-monster-truck-debug-demo --ramp-check
+Build/MonsterTruck-Chevrolet --check
+Build/MonsterTruck-Chevrolet --scene-check
+Build/MonsterTruck-Chevrolet --arena-check
+Build/MonsterTruck-Chevrolet --slope-check
+Build/MonsterTruck-Chevrolet --ramp-check
 ```
 
 They cover physics, inflation, centering, short stunt inputs, controls, HUD,
@@ -111,3 +110,32 @@ on a ramp. The title and HUD identify these measurements. Windowless timings
 do not establish graphical FPS. `--profile-ramp` opens a twelve-second slow,
 oblique climb followed by braking on the slope. `--ramp-check` checks eight
 approaches without a window, including bead retention and ground clearance.
+
+## Reusable Chevrolet sound
+
+The source is `GFX.Audio.Engines.Library.driven_engine("454")`; the demo copies
+no acoustic calculation. It supplies RPM and effort through `OperatingState`
+and consumes ready blocks without waiting in the physics loop. Playback holds
+at most five queued blocks and four native requests, about 98 ms excluding the
+device. R also resets sound.
+
+The driving model acts directly on rims; it has no crankshaft or gearbox.
+The acoustic adapter therefore uses rim rotation relative to the chassis,
+the 454 profile’s first gearing, and a simplified idle/launch slip model.
+Effort comes from the difference between commanded and actual wheel speed.
+This retains RPM in the air and in reverse, with less effort when wheels spin
+freely. Brakes and the handbrake release acoustic effort. RPM is smoothed and
+bounded by the profile scale. This sound connection changes no driving forces
+and does not claim to add a physical transmission.
+
+Offline integration check without a window or audio device:
+
+```sh
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/EngineSoundChecks.sx --debug -o Build/MonsterTruck-Audio-Checks
+Build/MonsterTruck-Audio-Checks /absolute/path/to/EngineLibrary
+```
+
+It covers RPM derivation, reverse, effort, brakes, airborne wheels, PCM and
+reset, plus identical physics trajectories with and without reading audio
+inputs. Interactive listening and graphical performance still require checks
+on the machine used.

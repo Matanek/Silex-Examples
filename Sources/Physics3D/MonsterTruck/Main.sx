@@ -12,6 +12,7 @@ use Physics3D.MonsterTruck.RampChecks
 use Physics3D.MonsterTruck.SlopeChecks
 use Physics3D.MonsterTruck.ArenaChecks
 use Physics3D.MonsterTruck.SceneChecks
+use Physics3D.MonsterTruck.EngineSound
 use STD.Math
 use STD.Process
 use STD.Time
@@ -56,6 +57,7 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
         state.truck.step();state.accumulator-=1.0/120.0;ticks++
     }
     state.metrics.physics_seconds+=clock.get_elapsed_seconds()
+    if var sound=state.sound { sound.update(state.truck,simulation.delta()) }
     state.telemetry+=simulation.delta()
     if state.telemetry>=0.15 { Scene.labels(state);state.telemetry=0.0 }
     if state.ui.update(0.0) {
@@ -82,8 +84,12 @@ func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
 }
 
 func main() {
-    var workers=4;var profile=false;var slope=false;var ramp=false
-    for arg in Process.arguments() {
+    var workers=4;var profile=false;var slope=false;var ramp=false;var audible=true
+    var directory="Build/EngineLibrary-Monster-Package"
+    let arguments=Process.arguments()
+    for i,arg in arguments.indexed() {
+        if arg=="--silent" { audible=false }
+        if arg=="--engine-library" { if i+1>=arguments.count() { panic("--engine-library requires a bank directory") } directory=arguments[i+1] }
         if arg=="--ramp-check" {RampChecks.verify();return}
         if arg=="--slope-check" { SlopeChecks.verify();return }
         if arg=="--arena-check" { ArenaChecks.verify();return }
@@ -95,6 +101,7 @@ func main() {
         if arg=="--profile" { profile=true }
     }
     var state=Scene.TruckScene(workers,profile,slope,ramp)
+    if audible { state.sound=EngineSound(directory) }
     var title="MONSTER PICKUP — ZQSD · Espace frein à main · Maj boost"
     if profile { title="MESURE AUTOMATIQUE — Monster pickup — 12 secondes" }
     if ramp {title="MESURE AUTOMATIQUE — Montée de rampe — 12 secondes"}

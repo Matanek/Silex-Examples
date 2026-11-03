@@ -1,0 +1,88 @@
+use GFX.Audio
+use GFX.Audio.Engines
+use STD.Error.Kind
+use STD.Math
+use Physics3D.MonsterTruck.Model
+
+// The truck has wheel motors, not a crankshaft or gearbox. This read-only
+// adapter derives an acoustic crank speed and effort from those wheel motors.
+package func operating(truck:@Model.Truck, idle:float, ceiling:float, ratio:float) Engines.OperatingState {
+    let pose = truck.chassis.transform()
+    let chassis_spin = truck.chassis.angular_velocity()
+    var spin = 0.0; var effort = 0.0
+    let pedal = Math.clamp(Math.abs(truck.drive), 0.0, 1.0)
+    for wheel in truck.wheels {
+        let axle = pose.vector(Math.Quat.angle_axis(wheel.current_steering, Math.Vec3.up()).rotate(Math.Vec3.right()))
+        let velocity = wheel.rim.angular_velocity().subtract(chassis_spin).dot(axle)
+        spin += Math.abs(velocity)
+        effort += Math.min(1.0, Math.abs((truck.drive * 30.04 - velocity) * 180.0) / 1250.0)
+    }
+    spin /= truck.wheels.count() as float; effort /= truck.wheels.count() as float
+    var load = Math.max(pedal * 0.15, pedal * effort)
+    if truck.brake || truck.handbrake { load = 0.0 }
+    let coupled = spin * ratio * 60.0 / (2.0 * Math.pi())
+    let launch = idle + 1_200.0 * pedal
+    return Engines.OperatingState(rpm:Math.clamp(Math.max(coupled, launch), idle, ceiling), load:load)
+}
+
+package class EngineSound {
+    private var source:Engines.DrivenEngine
+    private var audio:Audio
+    private var stream:Audio.Stream
+    private var playing:Audio.PlayingSound = Audio.PlayingSound()
+    private var samples:float32[] = []
+    private var pending:bool = false
+    private var offset:int = 0
+    private var rpm:float = 850.0
+    private let ratio:float
+    init(directory:str, offline:bool = false) {
+        var library = Engines.Library.open(directory); self.source = library.driven_engine("454")
+        let gearing = self.source.profile.gearing
+        self.ratio = round_float<float>(gearing.final_drive * gearing.ratios[0])
+        if offline { self.audio = Audio.offline(sample_rate:44_100, channels:2) } else { self.audio = Audio() }
+        self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+        for _ in 0...960 { self.samples.append(0.0) }
+        self.source.set_state(Engines.OperatingState(rpm:self.rpm)); self.source.enqueue()
+    }
+    func current_rpm() float { return self.source.current_rpm() }
+    func update(truck:@Model.Truck, delta:float) {
+        var state = operating(truck, self.source.profile.idle, self.source.profile.ceiling, self.ratio)
+        self.rpm += (state.rpm - self.rpm) * Math.clamp(delta * 12.0, 0.0, 1.0)
+        state.rpm = self.rpm; self.source.set_state(state)
+        self.feed()
+    }
+    func reset() {
+        if self.playing.is_valid() { self.audio.stop(self.playing) }
+        self.audio.release(self.stream); self.source.reset()
+        self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+        self.playing = Audio.PlayingSound(); self.pending = false; self.offset = 0; self.rpm = self.source.profile.idle
+        self.source.set_state(Engines.OperatingState(rpm:self.rpm)); self.source.enqueue()
+    }
+    private func feed() {
+        var count = 0
+        while count < 8 {
+            if self.audio.stream_info(self.stream).queued_frames >= 2_400 { break }
+            if !self.pending {
+                if !self.source.render_ready(&self.samples[0:960]) { break }
+                self.pending = true; self.offset = 0
+            }
+            match try self.audio.write(self.stream, @self.samples[self.offset * 2:960]) {
+                failure(error) => { if error.kind != Kind.would_block() { panic(error.detail) } break }
+                success(frames) => {
+                    self.offset += frames
+                    if self.offset == 480 { self.pending = false; self.source.enqueue() }
+                    if frames == 0 { break }
+                }
+            }
+            count++
+        }
+        if !self.playing.is_valid() && self.audio.stream_info(self.stream).queued_frames >= 1_920 {
+            self.playing = self.audio.play(self.stream, Audio.Playback(fade_in_seconds:0.05))
+        }
+    }
+    func render_offline(frames:int) float32[] { return self.audio.render(frames) }
+    drop {
+        if self.playing.is_valid() { self.audio.stop(self.playing) }
+        self.audio.release(self.stream)
+    }
+}

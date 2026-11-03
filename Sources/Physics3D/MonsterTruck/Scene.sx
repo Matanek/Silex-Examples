@@ -10,6 +10,7 @@ use Physics3D.MonsterTruck.PickupView
 use Physics3D.MonsterTruck.Environment
 use Physics3D.MonsterTruck.Terrain
 use Physics3D.MonsterTruck.ChaseCamera
+use Physics3D.MonsterTruck.EngineSound
 use Physics3D.SoftTire.Metrics
 use STD.Math
 
@@ -27,6 +28,7 @@ package class TruckScene {
     var profile:bool=false
     var slope_profile:bool=false
     var ramp_profile:bool=false
+    var sound:EngineSound?=null
     let workers:int
     init(workers:int=4,profile:bool=false,slope:bool=false,ramp:bool=false) {
         self.workers=workers;self.profile=profile;self.slope_profile=slope;self.ramp_profile=ramp
@@ -47,13 +49,16 @@ package class TruckScene {
         self.view!.rebind(next,world,meshes);self.truck=next
         self.accumulator=0.0;self.chase.reset(self.truck.chassis.position())
         self.panel.reset=false
+        if var sound=self.sound { sound.reset() }
     }
 }
 
 package func labels(state:&TruckScene) {
     let speed=Math.round(state.truck.chassis.linear_velocity().length()*3.6) as int
     let fps=Math.round(state.metrics.fps) as int
-    state.panel.metrics.set("Vitesse : $(speed) km/h\n$(fps) FPS")
+    var audio=""
+    if var sound=state.sound { audio="\n454 : $(Math.round(sound.current_rpm()) as int) tr/min" }
+    state.panel.metrics.set("Vitesse : $(speed) km/h$(audio)\n$(fps) FPS")
     var name="monster"
     if state.panel.inflation==1 { name="bas" }
     if state.panel.inflation==2 { name="ferme" }
