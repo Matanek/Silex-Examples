@@ -47,6 +47,12 @@ public func check() {
     assert(workshop.source.current_rpm() > 700.0)
     workshop.bore.set(100.0); workshop.change_part(100.0); workshop.update(0.15)
     assert(workshop.source.parts()!.block.bore_mm == 100.0 as float32)
+    assert(workshop.source.parts()!.exhausts[1].outlet_level == 0.1 as float32)
+    workshop.listening.set(2); workshop.choose_listening(2)
+    workshop.pipe.set(1_700.0); workshop.change_part(1_700.0); workshop.update(0.15)
+    let solo = workshop.source.parts()!.mix
+    assert(solo.intake == 1.0 as float32 && solo.exhaust == 0.0 as float32 && solo.mechanics == 0.0 as float32 && solo.turbo == 0.0 as float32)
+    workshop.listening.set(0); workshop.choose_listening(0)
     for profile in 0...3 {
         workshop.profile.set(profile); workshop.choose_profile(profile)
         for _ in 0...25 { workshop.update(0.01); workshop.source.render(&samples[0:960]) }

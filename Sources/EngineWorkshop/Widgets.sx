@@ -32,7 +32,9 @@ public class Knob {
     func value() float { return self.state.value() }
     func set(value:float) { self.state.set(value) }
     private func label(value:float) str {
-        let rounded = Math.round(value * 10.0) / 10.0
+        var precision:float = 10.0
+        if self.high <= 3.0 { precision = 100.0 }
+        let rounded = Math.round(value * precision) / precision
         return "$(rounded) $(self.suffix)"
     }
     func view(changed:func(float)) UI.View {

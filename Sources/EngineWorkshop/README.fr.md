@@ -26,7 +26,11 @@ appliqués aux lignes ensemble.
 - **Admission** : conduit, boîte à air et absorption du filtre.
 - **Échappement** : collecteurs, lignes et silencieux.
 - **Mécanique et turbo** : masse, amortissement, roue, pression maximale et inertie.
-- **Écoute des pièces** : isoler une voie en mettant les autres niveaux à zéro.
+- **Écoute des pièces** : choisir directement une voie seule ; les quatre niveaux
+  du mélange sont conservés. Le solo utilise le niveau 1 pour cette voie.
+  Accélérer pour comparer l’admission ; monter le turbo et demander de la
+  suralimentation pour l’entendre. Le mélange complet peut masquer de petites
+  variations de géométrie.
 
 La cylindrée et la compression géométrique se calculent depuis les pièces.
 Un assemblage incompatible est refusé en conservant le son précédent. Ajuster
@@ -36,10 +40,16 @@ restaure les pièces et le mix du modèle sélectionné, sans imposer un redéma
 La page défile et les cartes se réorganisent selon la largeur de fenêtre.
 La synthèse, les phases, les filtres et les transitions appartiennent au package.
 La démo possède uniquement le banc de régime, les contrôles et l’alimentation
-du flux borné : blocs 480 frames, file 1 440 frames à 48 kHz, au plus 40 ms de
-PCM préparé/en file hors sortie du périphérique.
+du flux borné : blocs 480 frames, file 4 800 frames à 48 kHz, au plus 110 ms de
+PCM préparé/en file hors sortie du périphérique. La file est alimentée autour
+des mises à jour et du dessin ; les commandes deviennent audibles après cette
+réserve. `--trace-audio` affiche à la fermeture les observations de file vide et
+le plus grand intervalle entre mises à jour. Ce n’est pas un compteur historique
+des ruptures du périphérique. Modifier les pièces conserve l’équilibre 1:0,1
+des sorties du V8.
 
 ```sh
+Build/EngineWorkshop --trace-audio
 Build/EngineWorkshop --check
 Build/EngineWorkshop --render Build/EngineWorkshop.wav
 silex compile Silex-Examples/Sources/EngineWorkshop/Measure.sx --release -o Build/EngineWorkshop-Measure

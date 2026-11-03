@@ -17,14 +17,26 @@ class WorkshopSession:Canvas.Session {
     private var producer:Synthesis.StreamProducer
     private var playing:Audio.PlayingSound = Audio.PlayingSound()
     private var volume:float = -1.0
-    init() {
+    private let trace:bool
+    private var empty_observations:int = 0
+    private var max_interval:float = 0.0
+    init(trace:bool = false) {
+        self.trace = trace
         self.workshop = Workshop(); self.ui = UI.Session(self.workshop.view()); self.audio = Audio()
         self.producer = Synthesis.StreamProducer.create(self.audio, self.workshop.source, 9_223_372_036_854_775_807,
-            block_frames:480, capacity_frames:1_440)
-        for _ in 0...3 { self.producer.pump() }
+            block_frames:480, capacity_frames:4_800)
+        self.feed()
     }
-    func drawing(width:int, height:int) Canvas { return self.ui.drawing(width, height) }
+    func drawing(width:int, height:int) Canvas {
+        var result = self.ui.drawing(width, height)
+        self.feed()
+        return result
+    }
     func update(delta:float) bool {
+        if self.trace {
+            if delta > self.max_interval { self.max_interval = delta }
+            if self.playing.is_valid() && self.audio.stream_info(self.producer.stream()).starved { self.empty_observations++ }
+        }
         self.workshop.update(delta)
         if !self.playing.is_valid() {
             self.playing = self.audio.play(self.producer.stream(), Audio.Playback(volume:self.workshop.volume.value(), fade_in_seconds:0.05))
@@ -32,8 +44,14 @@ class WorkshopSession:Canvas.Session {
         if self.volume != self.workshop.volume.value() {
             self.volume = self.workshop.volume.value(); self.audio.set_volume(self.playing, self.volume)
         }
+        self.feed()
+        let changed = self.ui.update(delta)
+        self.feed()
+        return changed
+    }
+    private func feed() {
         var count = 0
-        while count < 4 {
+        while count < 12 {
             let info = self.audio.stream_info(self.producer.stream())
             if info.queued_frames >= info.capacity_frames { break }
             match try self.producer.pump() {
@@ -43,7 +61,6 @@ class WorkshopSession:Canvas.Session {
             }
             count++
         }
-        return self.ui.update(delta)
     }
     func handle(event:@Events.Event) bool {
         match event {
@@ -67,10 +84,13 @@ class WorkshopSession:Canvas.Session {
     func accepts_text_input() bool { return self.ui.accepts_text_input() }
     func text_input_target() Canvas.TextInputTarget? { return self.ui.text_input_target() }
     func pointer_cursor() Window.Cursor { return self.ui.pointer_cursor() }
-    drop { if self.playing.is_valid() { self.audio.stop(self.playing, fade_out_seconds:0.03) } }
+    drop {
+        if self.trace { print("Audio: empty queue observations=", self.empty_observations, "; maximum update interval ms=", self.max_interval * 1_000.0) }
+        if self.playing.is_valid() { self.audio.stop(self.playing, fade_out_seconds:0.03) }
+    }
 }
-public func show() {
-    var session = WorkshopSession()
+public func show(trace:bool = false) {
+    var session = WorkshopSession(trace)
     Viewer.show(session, Viewer.CanvasSettings(width:1_160, height:860,
         title:"Silex — Atelier des moteurs", background:Color.bytes(8, 13, 20)))
 }

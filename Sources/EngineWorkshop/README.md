@@ -25,7 +25,10 @@ settings apply to all paths together.
 - **Intake**: runner, airbox and filter absorption.
 - **Exhaust**: headers, pipes and silencers.
 - **Mechanics and turbo**: mass, damping, wheel, maximum pressure and inertia.
-- **Listen to parts**: isolate one branch by setting the other levels to zero.
+- **Listen to parts**: select a solo branch directly; the four full-mix levels are
+  preserved. Solo uses level 1 for that branch. For intake comparisons, accelerate;
+  the turbo needs to be fitted and supplied with boost. Small geometry changes
+  can be masked in the full mix.
 
 Displacement and geometric compression are derived from the parts. Invalid
 assemblies preserve the previous sound. Adjust the chamber when compression
@@ -34,10 +37,15 @@ mix without requiring an engine restart.
 
 The page scrolls and cards rearrange with window width. Synthesis, phases,
 filters and transitions belong to the package. The demo owns only the RPM
-bench, controls and bounded stream feeding: 480-frame blocks and 1,440 queued
-frames at 48 kHz, at most 40 ms of prepared/queued PCM excluding device output.
+bench, controls and bounded stream feeding: 480-frame blocks and 4,800 queued
+frames at 48 kHz, at most 110 ms of prepared/queued PCM excluding device output.
+The queue is replenished around UI update/drawing; commands reach queued audio
+after this reserve. `--trace-audio` reports empty-queue observations and the
+largest update interval when the window closes. This is not a historical device
+underrun counter. The V8 preserves its 1:0.1 outlet balance while editing parts.
 
 ```sh
+Build/EngineWorkshop --trace-audio
 Build/EngineWorkshop --check
 Build/EngineWorkshop --render Build/EngineWorkshop.wav
 silex compile Silex-Examples/Sources/EngineWorkshop/Measure.sx --release -o Build/EngineWorkshop-Measure

@@ -14,6 +14,7 @@ public class Workshop {
     var profile:UI.State<int?> = UI.State<int?>(0)
     var cylinder_count:UI.State<int?> = UI.State<int?>(8)
     var cycle:UI.State<int?> = UI.State<int?>(4)
+    var listening:UI.State<int?> = UI.State<int?>(0)
     var status:UI.State<str> = UI.State<str>("V8 · 7,4 L · deux échappements")
     var readout:UI.State<str> = UI.State<str>("0 tr/min · contact coupé")
     var notice:UI.State<str> = UI.State<str>("Modifiez une pièce pour comparer son effet.")
@@ -69,9 +70,18 @@ public class Workshop {
     }
     func change_cycle(value:int) { self.parts.block.firing_angles = []; self.dirty = true; self.quiet = 0.0 }
     func controls_changed(value:float) {}
+    private func listening_mix() EngineParts.Mix {
+        let solo = self.listening.value() ?? 0
+        if solo == 1 { return EngineParts.Mix(exhaust:1.0, intake:0.0, mechanics:0.0, turbo:0.0) }
+        if solo == 2 { return EngineParts.Mix(exhaust:0.0, intake:1.0, mechanics:0.0, turbo:0.0) }
+        if solo == 3 { return EngineParts.Mix(exhaust:0.0, intake:0.0, mechanics:1.0, turbo:0.0) }
+        if solo == 4 { return EngineParts.Mix(exhaust:0.0, intake:0.0, mechanics:0.0, turbo:1.0) }
+        return EngineParts.Mix(exhaust:self.exhaust_mix.value(), intake:self.intake_mix.value(),
+            mechanics:self.mechanics_mix.value(), turbo:self.turbo_mix.value())
+    }
+    func choose_listening(value:int) { self.change_mix(0.0) }
     func change_mix(value:float) {
-        self.source.set_mix(EngineParts.Mix(exhaust:self.exhaust_mix.value(), intake:self.intake_mix.value(),
-            mechanics:self.mechanics_mix.value(), turbo:self.turbo_mix.value()))
+        self.source.set_mix(self.listening_mix())
     }
     func choose_profile(value:int) {
         var parts = EngineParts.v8()
@@ -110,12 +120,13 @@ public class Workshop {
             let pipe_length = parts.exhausts[i].pipe.length_mm + pipe_offset
             parts.exhausts[i] = EngineParts.Exhaust(header:EngineParts.Pipe(length_mm:header_length, diameter_mm:self.header_diameter.value()),
                 pipe:EngineParts.Pipe(length_mm:pipe_length, diameter_mm:self.pipe_diameter.value()),
-                silencer:EngineParts.Silencer(volume_litres:self.silencer.value(), absorption:self.absorption.value()))
+                silencer:EngineParts.Silencer(volume_litres:self.silencer.value(), absorption:self.absorption.value()),
+                outlet_level:parts.exhausts[i].outlet_level)
         }
         parts.mechanics = EngineParts.Mechanics(block_mass_kg:self.mass.value(), damping:self.damping.value())
         parts.turbo = null
         if self.turbo.value() { parts.turbo = EngineParts.Turbo(wheel_mm:self.wheel.value(), max_boost_bar:self.pressure.value(), spool_seconds:self.spool.value()) }
-        parts.mix = EngineParts.Mix(exhaust:self.exhaust_mix.value(), intake:self.intake_mix.value(), mechanics:self.mechanics_mix.value(), turbo:self.turbo_mix.value())
+        parts.mix = self.listening_mix()
         match try self.source.set_parts(parts) {
             failure(error) => { self.notice.set("Compression hors plage (2 à 25). Ajustez la chambre.") }
             success => {
@@ -170,7 +181,11 @@ public class Workshop {
         var exhaust = Widgets.card("Échappement", "Collecteurs, lignes et silencieux", [self.header.view(self.change_part), self.header_diameter.view(self.change_part), self.pipe.view(self.change_part), self.pipe_diameter.view(self.change_part), self.silencer.view(self.change_part), self.absorption.view(self.change_part)])
         var mechanics = Widgets.card("Mécanique et turbo", "Vibrations, roue et montée en pression", [self.mass.view(self.change_part), self.damping.view(self.change_part), UI.Checkbox("Monter un turbo", self.turbo, on_change:self.change_turbo), self.wheel.view(self.change_part), self.pressure.view(self.change_part), self.spool.view(self.change_part)])
         var controls = Widgets.card("Banc de commande", "Espace maintenu pour donner des gaz", [self.rpm.view(self.controls_changed), self.throttle.view(self.controls_changed), self.load.view(self.controls_changed), self.boost.view(self.controls_changed)])
-        var mix = Widgets.card("Écoute des pièces", "Isolez une voie pour comparer son caractère", [self.exhaust_mix.view(self.change_mix), self.intake_mix.view(self.change_mix), self.mechanics_mix.view(self.change_mix), self.turbo_mix.view(self.change_mix), self.volume.view(self.controls_changed)])
+        let listening_options:UI.SelectOption<int>[] = [UI.SelectOption<int>(0, "Mélange complet"), UI.SelectOption<int>(1, "Échappement seul"), UI.SelectOption<int>(2, "Admission seule"), UI.SelectOption<int>(3, "Mécanique seule"), UI.SelectOption<int>(4, "Turbo seul")]
+        var mix = Widgets.card("Écoute des pièces", "Solo à niveau 1 · niveaux du mélange conservés", [
+            UI.Select<int>(listening_options, self.listening, on_change:self.choose_listening, style:select_style),
+            Widgets.text("Admission : accélérez. Turbo : montez-le et augmentez la suralimentation.", 12.0, Color.slate_400()),
+            self.exhaust_mix.view(self.change_mix), self.intake_mix.view(self.change_mix), self.mechanics_mix.view(self.change_mix), self.turbo_mix.view(self.change_mix), self.volume.view(self.controls_changed)])
         var first = UI.Row([block, intake, exhaust], wrap:true); first.style.gap = 14.0
         var second = UI.Row([mechanics, controls, mix], wrap:true); second.style.gap = 14.0
         var content = UI.Column([title, Widgets.text("Composez un moteur, écoutez chaque pièce."), tools, readout, status, notice, first, second])
