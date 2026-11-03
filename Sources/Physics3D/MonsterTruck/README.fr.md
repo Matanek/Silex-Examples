@@ -28,7 +28,7 @@ le régime du moteur physique et le rapport engagé. L’interface et le rendu g
 | --- | --- |
 | Z maintenu | Accélération normale progressive |
 | Maj + Z | Turbo : 25 % de couple supplémentaire, réponse plus franche |
-| S maintenu | Frein avant et demande immédiate de marche arrière |
+| S maintenu | Marche arrière ; inversion progressive si le camion avance |
 | Maj + S | Freinage renforcé sur quatre roues pour lever l’arrière |
 | Q / D | Direction avant, gauche / droite depuis la caméra arrière |
 | A / E ou ← / → | Direction arrière selon la direction voulue pour le nez |
@@ -106,13 +106,19 @@ permet de cabrer ; maintenir le boost peut retourner le camion.
 Le couple de chaque roue produit
 une réaction opposée sur le châssis. Le frein avant atteint 1000 N·m par roue. Avec Maj, le freinage
 agit sur les quatre roues : 1250 N·m à l’avant et 937,5 N·m à l’arrière. Le
-frein à main arrière atteint 2200 N·m. Une demande dans le
-sens opposé freine d’abord, embrayage ouvert, puis enclenche le recul après le
-ralentissement. Le moteur physique continue de tourner pendant le freinage.
+frein à main arrière atteint 2200 N·m. Au sol, Z et S transmettent le nouveau
+sens dès le premier pas, même lorsque le camion roule encore dans l’autre
+sens. L’embrayage patine sous pression limitée pendant cette transition ; le
+couple opposé ralentit puis relance le véhicule. Le régime de combustion est
+limité pendant le patinage pour éviter un à-coup au raccrochage. La pression
+tient compte du rapport de pont : une boîte plus courte réduit la
+pression transitoire pour éviter un freinage brutal aux roues. La pleine
+prise revient progressivement en 0,2 s. La masse et l’adhérence déterminent
+toujours le temps nécessaire pour inverser le déplacement.
 
-Au sol, la décision de freinage suit le déplacement du châssis. En vol, elle
-suit le sens de rotation des roues : les pédales gardent leur sens pendant un
-salto. La pédale opposée freine les roues avant de les entraîner dans l’autre
+Maj avec la pédale opposée conserve le freinage renforcé suivant le déplacement
+du châssis. En vol, la décision de freinage suit le sens de rotation des roues :
+les pédales gardent leur sens pendant un salto. La pédale opposée freine les roues avant de les entraîner dans l’autre
 sens ; Espace conserve le frein arrière pour agir sur la rotation en l’air.
 
 Les quatre suspensions SixDOF offrent ±80 cm de course, des ressorts de
@@ -184,9 +190,18 @@ silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/TransmissionChecks.s
 Build/MonsterTruck-Transmission-Checks /chemin/absolu/vers/EngineLibrary
 ```
 
-Il vérifie les trois rapports, le freinage puis le recul, les restrictions de
+Il vérifie les trois rapports, l’inversion de marche, les restrictions de
 réglage, la stabilité des pneus, la corrélation régime/charge, la production PCM
 et le reset, ainsi qu’une trajectoire physique identique avec et sans lecture
 des données audio. `--scene-check` contrôle aussi les boutons à la souris,
 Espace après focus et la conservation du réglage après R. L’écoute interactive
 et la tenue graphique restent à contrôler sur la machine utilisée.
+
+`ReversalChecks.sx` contrôle aussi les deux sens à 2 et 18 m/s, les rapports de
+pont extrêmes à 12 m/s, l’annulation d’une inversion, le délai du couple et la
+stabilité pendant la reprise d’embrayage :
+
+```sh
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/ReversalChecks.sx --release -o Build/MonsterTruck-Reversal-Checks
+Build/MonsterTruck-Reversal-Checks
+```

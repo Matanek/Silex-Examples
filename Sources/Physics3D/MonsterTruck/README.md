@@ -28,7 +28,7 @@ The interface and renderer retain their usual controls.
 | --- | --- |
 | Hold Z | Progressive normal acceleration |
 | Shift + Z | Turbo: 25% more torque and a sharper response |
-| Hold S | Front brake and immediate reverse request |
+| Hold S | Reverse drive; progressive reversal while moving forward |
 | Shift + S | Stronger four-wheel service braking to lift the rear |
 | Q / D | Front steering, left / right from the rear camera |
 | A / E or ← / → | Rear steering in the desired direction of the nose |
@@ -102,11 +102,18 @@ flip the truck.
 Every wheel torque produces an
 opposite chassis reaction. Front braking reaches 1000 N·m per wheel. With Shift, service braking
 acts on all four wheels: 1250 N·m at the front and 937.5 N·m at the rear. The
-rear handbrake reaches 2200 N·m. An opposite-direction
-request first brakes with the clutch open, then engages reverse after slowing
-down. The physical engine keeps running while braking.
+rear handbrake reaches 2200 N·m. On the ground, Z and S request the new
+direction on the first step, even while the truck is still travelling the
+other way. Limited clutch pressure permits slip during this transition;
+opposing torque slows the vehicle and drives it back. Combustion RPM is
+limited during slip to avoid a surge when the clutch reconnects. Transient
+pressure accounts for the final ratio: shorter gearing lowers it to avoid
+abrupt wheel braking. Full coupling
+returns progressively over 0.2 s. Mass and grip still determine how long it
+takes to reverse actual travel.
 
-On the ground, braking follows chassis travel. In flight, it follows wheel
+Shift with the opposite pedal retains stronger braking based on chassis travel.
+In flight, braking follows wheel
 rotation direction so the pedals retain their meaning throughout a flip. The
 opposite pedal brakes the wheels before driving them the other way; Space
 retains rear braking to control rotation in the air.
@@ -176,9 +183,18 @@ silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/TransmissionChecks.s
 Build/MonsterTruck-Transmission-Checks /absolute/path/to/EngineLibrary
 ```
 
-It checks all three gears, braking then reverse, adjustment restrictions, tire
+It checks all three gears, direction reversal, adjustment restrictions, tire
 stability, RPM/load correlation, PCM production and reset, plus identical
 physics trajectories with and without reading audio inputs. `--scene-check`
 also checks mouse buttons, Space after focus, and retaining gearing after R.
 Interactive listening and graphical performance still require checks on the
 machine used.
+
+`ReversalChecks.sx` also checks both directions at 2 and 18 m/s, the extreme
+final ratios at 12 m/s, cancellation of a reversal, torque response time and
+stability through clutch recovery:
+
+```sh
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/ReversalChecks.sx --release -o Build/MonsterTruck-Reversal-Checks
+Build/MonsterTruck-Reversal-Checks
+```

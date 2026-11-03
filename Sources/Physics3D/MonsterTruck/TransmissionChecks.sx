@@ -25,16 +25,23 @@ func driving(final:float) {
             " gear=",state.gear," rpm=",state.engine_rpm," bead=",bead," up=",up) }
     }
     let speed=truck.chassis.linear_velocity().z
+    let heading=truck.chassis.transform().vector(Math.Vec3.back())
     assert(!truck.configure_gearing(8.0),"moving vehicle must reject gearing changes")
     var reverse_time= -1.0
     for frame in 0...960 {
         truck.held(false,true,false,false,false,false);truck.step()
         if reverse_time<0.0 && truck.chassis.linear_velocity().z< -0.5 { reverse_time=(frame+1) as float/120.0 }
+        bead=Math.max(bead,truck.maximum_bead_error());up=Math.min(up,truck.chassis.transform().vector(Math.Vec3.up()).y)
+        assert(bead<0.08 && up>0.8 && truck.minimum_y()>0.025,"reversing at top speed must preserve tyre seating and upright travel")
+        let current=truck.chassis.transform().vector(Math.Vec3.back())
+        let cosine=(heading.x*current.x+heading.z*current.z)/Math.sqrt((heading.x*heading.x+heading.z*heading.z)*(current.x*current.x+current.z*current.z))
+        assert(cosine>0.9,"straight reversal must not produce a large uncommanded yaw")
     }
     print("result final=",final," top=",speed," highest_gear=",highest," reverse_seconds=",reverse_time,
         " reverse_speed=",truck.chassis.linear_velocity().z," bead=",bead," up=",up)
     assert((final<8.0 || highest==3) && speed>5.0,"automatic transmission must drive through all forward gears")
-    assert(reverse_time>0.0 && truck.motor.state().gear== -1,"opposite pedal must brake then reverse")
+    assert(reverse_time>0.0 && truck.motor.state().gear== -1,"opposite pedal must engage reverse drive")
+    assert(truck.chassis.linear_velocity().z< -5.0,"reverse drive must retain real progress after the transition")
     assert(bead<0.08 && up>0.8,"short gearbox must preserve tyre seating and upright travel")
     truck.controls(0.0,0.0,brake:true,handbrake:true)
     for _ in 0...480 { truck.step() }

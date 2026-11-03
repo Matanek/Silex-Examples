@@ -76,7 +76,7 @@ package func reversing(verify:bool=false) {
         }
     }
     print("reverse first_seconds=",first," minimum_upright=",upright)
-    // Braking now opens the clutch instead of reversing drive torque on moving wheels.
+    // Opposite drive uses limited clutch pressure during the physical reversal.
     if verify { assert(before>15.0 && first>0.0 && first<4.0 && upright>0.9) }
 }
 

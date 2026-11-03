@@ -99,7 +99,7 @@ package class Panel {
         var title=self.text("MONSTER PICKUP");title.style.font_size=18.0
         var column=UI.Column([title,UI.Reactive(self.values),UI.Reactive(self.parameters),
             self.gearing_buttons(),UI.Reactive(self.message),
-            self.text("Z / S : moteur / frein AV / recul\nQ/D : AV · A/E ou ←/→ : AR\nT : coupler · Espace : frein AR\nMaj : turbo / frein fort\nP : gonflage · R : recommencer\nÉchap : quitter")])
+            self.text("Z / S : avancer / reculer\nQ/D : AV · A/E ou ←/→ : AR\nT : coupler · Espace : frein AR\nMaj : turbo / frein fort\nP : gonflage · R : recommencer\nÉchap : quitter")])
         column.style.margin=UI.Insets(12.0);column.style.padding=UI.Insets(12.0);column.style.gap=6.0
         column.style.background=Color.slate_900().with_alpha(0.88)
         column.style.foreground=Color.slate_100();column.style.radius=8.0

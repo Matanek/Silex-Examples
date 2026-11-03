@@ -1,0 +1,72 @@
+use Physics3D.MonsterTruck.Model
+use STD.Math
+use STD.Process
+
+func accelerate(truck:Model.Truck,direction:int,speed:float) {
+    for _ in 0...240 { truck.step() }
+    for _ in 0...1440 {
+        truck.held(direction>0,direction<0,false,false,false,false);truck.step()
+        if truck.chassis.linear_velocity().z*(direction as float)>=speed { return }
+    }
+    assert(false,"reversal setup must reach its requested speed under real wheel torque")
+}
+
+func reversal(initial:int,speed:float,final:float=8.0) {
+    var truck=Model.Truck(final_drive:final);accelerate(truck,initial,speed)
+    let target= -initial;let before=truck.chassis.linear_velocity().z
+    var gear= -1.0;var motor= -1.0;var crossed= -1.0;var ten= -1.0
+    var up=1.0;var bead=0.0
+    for frame in 0...720 {
+        // Release the first key before holding the opposite key.
+        truck.held(target>0,target<0,false,false,false,false)
+        if frame==0 { assert(!truck.brake,"normal ground reversal must send drive instead of waiting on the service brake") }
+        truck.step()
+        let time=(frame+1) as float/120.0;let state=truck.motor.state()
+        var torque=0.0;for i in 0...4 { torque+=truck.motor.wheel_torque(i) }
+        if gear<0.0 && state.gear*target>0 { gear=time }
+        if motor<0.0 && torque*(target as float)>1.0 { motor=time }
+        let travel=truck.chassis.linear_velocity().z*(target as float)
+        if crossed<0.0 && travel>0.5 { crossed=time }
+        if ten<0.0 && travel>10.0/3.6 { ten=time }
+        up=Math.min(up,truck.chassis.transform().vector(Math.Vec3.up()).y)
+        bead=Math.max(bead,truck.maximum_bead_error())
+        assert(up>0.9 && bead<0.08 && truck.minimum_y()>0.025,
+            "reversal and subsequent clutch recovery must preserve upright travel and tyre seating")
+    }
+    print("REVERSAL initial=",initial," before=",before," final=",final," gear_seconds=",gear,
+        " motor_seconds=",motor," crossed_seconds=",crossed," ten_kmh_seconds=",ten," up=",up," bead=",bead)
+    assert(gear>0.0 && gear<=1.0/120.0 && motor>0.0 && motor<0.3,
+        "opposite gear must be requested on the first step and supply torque without a braking wait")
+    var limit=3.5;if speed<3.0 { limit=1.75 }
+    assert(crossed>0.0 && crossed<limit && ten>crossed && ten<limit+1.25,
+        "opposite drive must reverse actual travel and continue accelerating")
+}
+
+func cancellation() {
+    var truck=Model.Truck();accelerate(truck,1,8.0)
+    for _ in 0...30 { truck.held(false,true,false,false,false,false);truck.step() }
+    let before=truck.chassis.linear_velocity().z;var recovered= -1.0
+    for frame in 0...360 {
+        truck.held(true,false,false,false,false,false);truck.step()
+        var torque=0.0;for i in 0...4 { torque+=truck.motor.wheel_torque(i) }
+        if recovered<0.0 && truck.motor.state().gear>0 && torque>1.0 { recovered=(frame+1) as float/120.0 }
+        assert(truck.chassis.transform().vector(Math.Vec3.up()).y>0.9)
+        assert(truck.maximum_bead_error()<0.08 && truck.minimum_y()>0.025)
+    }
+    assert(recovered>0.0 && recovered<0.5 && truck.chassis.linear_velocity().z>before,
+        "cancelling a reversal must recover forward drive without a latched brake or clutch")
+    print("REVERSAL cancelled: drive_seconds=",recovered," speed_before=",before,
+        " speed_after=",truck.chassis.linear_velocity().z)
+}
+
+func low_speed() { reversal(-1,2.0);reversal(1,2.0) }
+func ratios() { reversal(-1,12.0,6.0);reversal(1,12.0,6.0);reversal(-1,12.0,12.0);reversal(1,12.0,12.0) }
+func main() {
+    for arg in Process.arguments() {
+        if arg=="--low-speed" { low_speed();return }
+        if arg=="--ratios" { ratios();return }
+        if arg=="--cancel" { cancellation();return }
+    }
+    reversal(-1,18.0);reversal(1,18.0);low_speed();ratios();cancellation()
+    print("Responsive reversal checks passed: both directions, low and high speed, final ratios and cancellation")
+}
