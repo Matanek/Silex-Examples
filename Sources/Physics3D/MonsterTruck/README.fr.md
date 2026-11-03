@@ -110,6 +110,11 @@ frein à main arrière atteint 2200 N·m. Une demande dans le
 sens opposé freine d’abord, embrayage ouvert, puis enclenche le recul après le
 ralentissement. Le moteur physique continue de tourner pendant le freinage.
 
+Au sol, la décision de freinage suit le déplacement du châssis. En vol, elle
+suit le sens de rotation des roues : les pédales gardent leur sens pendant un
+salto. La pédale opposée freine les roues avant de les entraîner dans l’autre
+sens ; Espace conserve le frein arrière pour agir sur la rotation en l’air.
+
 Les quatre suspensions SixDOF offrent ±80 cm de course, des ressorts de
 1800 N/m et un amortissement de 300 N·s/m. Le montage garde son centre de
 masse bas. Le braquage reste disponible à haute vitesse, avec un minimum de
@@ -136,13 +141,17 @@ Build/MonsterTruck-Drive-Response --slope-check
 Build/MonsterTruck-Drive-Response --ramp-check
 silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/DriveChecks.sx --release -o Build/MonsterTruck-Drive-Checks
 Build/MonsterTruck-Drive-Checks
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/AirborneChecks.sx --release -o Build/MonsterTruck-Airborne-Checks
+Build/MonsterTruck-Airborne-Checks
 ```
 
 Elles couvrent la physique, les gonflages, le centrage, les figures sur appuis
 courts, les commandes, le HUD, les raccords du terrain et le roulage lent sur
 les vraies facettes inclinées. `DriveChecks` compare aussi la reprise à la
 propulsion antérieure, le boost en roulant, un cabrage récupérable et les
-rapports de pont extrêmes. Les états sont comparés à un et quatre workers.
+rapports de pont extrêmes. `AirborneChecks` couvre les orientations, les pédales
+au sol/en vol et les rotations aériennes complètes. Les états sont comparés à
+un et quatre workers.
 
 `--single` choisit un worker pour jouer. `--profile` ouvre un parcours automatique
 pendant douze secondes ; `--profile-slope` ouvre un test de six secondes,

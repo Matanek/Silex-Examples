@@ -58,7 +58,6 @@ package class Truck {
     }
     func held(forward:bool,reverse:bool,left:bool,right:bool,handbrake:bool,boost:bool,
         rear_left:bool=false,rear_right:bool=false,coupled:bool=true) {
-        let speed=self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z
         var throttle=0.0;var braking=false
         if forward && !reverse {
             throttle=1.0;if boost { throttle=1.5 }
@@ -66,7 +65,7 @@ package class Truck {
         if reverse {
             throttle= -0.75
         }
-        braking=throttle*speed< -0.5
+        if throttle!=0.0 { braking=throttle*self.braking_speed()< -0.5 }
         var turn=0.0;if left { turn+=1.0 }
         if right { turn-=1.0 }
         var rear:float?=null
@@ -76,6 +75,16 @@ package class Truck {
             rear=input
         }
         self.controls(throttle,turn,braking,handbrake,rear,hard_brake:boost && braking)
+    }
+    private func braking_speed() float {
+        for contact in self.supported {
+            if contact { return self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z }
+        }
+        // Flight velocity projected on a tumbling chassis reverses during a flip.
+        // The pedals must follow rotor direction until the wheels regain support.
+        var speed=0.0
+        for wheel in self.wheels { speed+=wheel.spin(self.chassis)*TyreProfile.Dimensions.radius/4.0 }
+        return speed
     }
     func set_pressure(value:float) {
         for wheel in self.wheels { wheel.tyre.set_pressure(value) }

@@ -106,6 +106,11 @@ rear handbrake reaches 2200 N·m. An opposite-direction
 request first brakes with the clutch open, then engages reverse after slowing
 down. The physical engine keeps running while braking.
 
+On the ground, braking follows chassis travel. In flight, it follows wheel
+rotation direction so the pedals retain their meaning throughout a flip. The
+opposite pedal brakes the wheels before driving them the other way; Space
+retains rear braking to control rotation in the air.
+
 The four SixDOF suspensions provide ±80 cm of travel, 1800 N/m springs and
 300 N·s/m damping. The assembly retains its low centre of mass. Steering
 remains available at speed with a 0.35 rad minimum; coupled rear steering
@@ -131,12 +136,16 @@ Build/MonsterTruck-Drive-Response --slope-check
 Build/MonsterTruck-Drive-Response --ramp-check
 silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/DriveChecks.sx --release -o Build/MonsterTruck-Drive-Checks
 Build/MonsterTruck-Drive-Checks
+silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/AirborneChecks.sx --release -o Build/MonsterTruck-Airborne-Checks
+Build/MonsterTruck-Airborne-Checks
 ```
 
 They cover physics, inflation, centering, short stunt inputs, controls, HUD,
 terrain seams and slow driving on actual approach facets. `DriveChecks` also
 compares acceleration with the former drive, rolling boost, a recoverable wheelie
-and both final-drive extremes. States are compared with one and four workers.
+and both final-drive extremes. `AirborneChecks` covers vehicle attitudes, ground
+and airborne pedals, and complete aerial rotations. States are compared with
+one and four workers.
 
 `--single` selects one worker for playing. `--profile` opens a twelve-second
 automated drive; `--profile-slope` opens a six-second test with brakes held
