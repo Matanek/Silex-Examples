@@ -59,3 +59,20 @@ after N while moving, successive + commands can reach a safe gear.
 Disable road mode after stopping to return to the free bench. Holding RPM and
 load controls appear only in free mode, where they apply. Transmission and
 telemetry are supplied by `GFX.Audio.Engines`, not private demo calculations.
+
+Buttons describe their next action: **Démarrer** or **Arrêter**, **Passer en
+manuel** or **Passer en automatique**. The road checkbox uses the panel’s light
+foreground color.
+
+In road mode, open **Régler la démultiplication** to stage final-drive and
+individual gear ratios. A larger numeric value shortens the gearing; at the
+same speed, the engine turns faster. Ratios must decrease from first to last.
+**Appliquer la démultiplication** requires the engine and vehicle to be stopped.
+Dragging these sliders does not change the simulation before applying.
+**Rapports d’origine** restores the profile’s stock gearbox. Selecting another
+profile also restores its stock values. The demo retains each profile’s gear
+count; the API accepts custom gearboxes with 1..12 ratios. Prepare a v2 bank
+for this workflow.
+
+Stock gearing remains the default. A taller gear does not guarantee more
+acceleration: engine torque and vehicle drag also affect the result.

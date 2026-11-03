@@ -110,6 +110,8 @@ class Session:Canvas.Session {
         let released = Events.MouseButtonEvent(window:mouse.window, mouse:mouse.mouse, button:mouse.button,
             down:false, clicks:mouse.clicks, position:position, timestamp:mouse.timestamp)
         self.handle(Events.Event.mouse_button_released(released))
+        self.drawing(1_100, 900)
+        assert(source.read(power)!.name == "Arrêter · M", "button must describe its next action")
         assert(self.bench.is_running() && source.focused() == power, "mouse click must start and focus the ignition button")
         self.handle(key_event(Keyboard.Key.space))
         assert(self.bench.is_running() && self.bench.source.controls().accelerating,
@@ -120,6 +122,8 @@ class Session:Canvas.Session {
         assert(self.bench.is_running() && !self.bench.source.controls().accelerating)
         self.handle(key_event(Keyboard.Key.enter))
         assert(!self.bench.is_running(), "Enter must retain focused button activation")
+        self.drawing(1_100, 900)
+        assert(source.read(power)!.name == "Démarrer · M")
         self.handle(key_event(Keyboard.Key.m, code:109 as uint32))
         self.handle(key_event(Keyboard.Key.space))
         self.handle(Events.Event.window_focus_lost(Events.WindowEvent(window:mouse.window, timestamp:mouse.timestamp)))
@@ -129,6 +133,9 @@ class Session:Canvas.Session {
         self.update(0.0); self.drawing(1_100, 900)
         self.handle(key_event(Keyboard.Key.a, code:97 as uint32))
         assert(!self.bench.auto_mode())
+        self.drawing(1_100, 900)
+        source = self.ui.accessibility()
+        assert(find_named(source, source.root()!, "Passer en automatique · A") != null)
         self.handle(key_event(Keyboard.Key.a, repeated:true, code:97 as uint32))
         assert(!self.bench.auto_mode(), "held A must not toggle repeatedly")
         self.handle(key_event(Keyboard.Key.up)); assert(self.bench.source.controls().gear == 1)
@@ -139,8 +146,31 @@ class Session:Canvas.Session {
         self.handle(key_event(Keyboard.Key.s, code:115 as uint32))
         self.handle(Events.Event.window_focus_lost(Events.WindowEvent(window:mouse.window, timestamp:mouse.timestamp)))
         assert(!self.bench.source.controls().braking)
+        self.verify_gearing()
         print("Road key routing passed: A/repeat, arrows, N, S/release and focus loss")
         print("Real session input passed: mouse focus, Space press/repeat/release, Enter, M and focus loss")
+    }
+    private func verify_gearing() {
+        self.bench.toggle_gearing(); self.drawing(1_100, 900)
+        var source = self.ui.accessibility()
+        let slider = find_slider(source, source.root()!)!
+        assert(source.perform(slider, Accessibility.Request(Accessibility.Action.set_value, number:5.0)))
+        assert(self.bench.source.gearing.final_drive == 3.73, "editing must wait for Apply")
+        self.bench.toggle_running()
+        let generation = self.bench.profile_generation
+        self.bench.apply_gearing()
+        assert(self.bench.profile_generation == generation, "running gearing replacement must be rejected")
+        self.bench.toggle_running()
+        let apply = find_named(source, source.root()!, "Appliquer la démultiplication")!
+        assert(source.perform(apply, Accessibility.Request(Accessibility.Action.activate)))
+        assert(self.bench.source.gearing.final_drive == 5.0 && self.bench.profile_generation == generation + 1)
+        self.update(0.0); self.drawing(1_100, 900)
+        source = self.ui.accessibility()
+        let restore = find_named(source, source.root()!, "Rapports d’origine")!
+        assert(source.perform(restore, Accessibility.Request(Accessibility.Action.activate)))
+        assert(self.bench.source.gearing.final_drive == 3.73)
+        assert(self.bench.source.gearing.ratios[0] == 2.97)
+        print("Gearing editor passed: staged slider, ignition guard, Apply and original ratios")
     }
     func accepts_text_input() bool { return self.ui.accepts_text_input() }
     func text_input_target() Canvas.TextInputTarget? { return self.ui.text_input_target() }
@@ -156,10 +186,21 @@ public func show(directory:str) {
 }
 
 func find_power(source:Accessibility.Source, id:str) str? {
+    return find_named(source, id, "Démarrer · M")
+}
+func find_named(source:Accessibility.Source, id:str, name:str) str? {
     let element = source.read(id)!
-    if element.role == Accessibility.Role.button && element.name == "Démarrer / arrêter · M" { return id }
+    if element.role == Accessibility.Role.button && element.name == name { return id }
     for i in 0...element.child_count {
-        if child = source.child(id, i) { if found = find_power(source, child) { return found } }
+        if child = source.child(id, i) { if found = find_named(source, child, name) { return found } }
+    }
+    return null
+}
+func find_slider(source:Accessibility.Source, id:str) str? {
+    let element = source.read(id)!
+    if element.role == Accessibility.Role.slider { return id }
+    for i in 0...element.child_count {
+        if child = source.child(id, i) { if found = find_slider(source, child) { return found } }
     }
     return null
 }

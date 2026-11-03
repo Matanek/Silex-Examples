@@ -58,3 +58,21 @@ sans commande nouvelle ; après N en roulant, + permet d’atteindre un rapport 
 Décocher Route revient au banc libre après arrêt. Le régime de maintien et la
 charge ne sont affichés qu’en mode libre, où ils ont un effet. La transmission
 et sa télémétrie viennent de `GFX.Audio.Engines`, pas d’un calcul privé de la démo.
+
+Les boutons indiquent l’action suivante : **Démarrer** ou **Arrêter**, **Passer
+en manuel** ou **Passer en automatique**. Le libellé de la case Route utilise
+la couleur claire du panneau.
+
+En Route, ouvrir **Régler la démultiplication** pour préparer le rapport de pont
+et chaque rapport de boîte. Une valeur numérique plus élevée raccourcit le
+rapport ; à vitesse identique, le moteur tourne plus vite. Les rapports doivent
+décroître de la première à la dernière. **Appliquer la démultiplication** ne
+prend effet que moteur et véhicule arrêtés ; les gestes sur ces sliders ne
+modifient pas la simulation avant l’application. **Rapports d’origine** rétablit
+la boîte du profil. Changer de profil retrouve aussi ses valeurs d’origine.
+La démo conserve le nombre de rapports du profil ; l’API permet des boîtes
+personnalisées de 1 à 12 rapports. Préparer une banque v2 pour ce parcours.
+
+Les rapports d’origine sont conservés par défaut. Un rapport plus long ne
+garantit pas une accélération plus forte : couple moteur et traînée du véhicule
+interviennent aussi.
