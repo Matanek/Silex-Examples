@@ -1,0 +1,80 @@
+use GFX.Audio.Engines
+use GFX.UI
+use GFX.Color
+use Module.Widgets
+use Module.Widgets.Knob
+use Module.Tachometer.Tachometer
+
+// Only input and presentation live here. GFX.Audio owns every sound-producing step.
+public class Bench {
+    var source:Engines.Engine
+    let reference_mode:bool = true
+    var reference_ready:bool = false
+    var profile_generation:int = 0
+    var accelerating:bool = false
+    var focused:bool = true
+    var base_rpm:float = 800.0
+    var notice:str = ""
+    private var library:Engines.Library
+    private var running:bool = false
+    private var selection:UI.State<int?> = UI.State<int?>(0)
+    private var selected:int = 0
+    private var idle:Knob = Knob("Régime de maintien", 800.0, 700.0, 4_000.0, "tr/min")
+    private var exhaust:Knob = Knob("Échappement · brut → filtré", 1.0, 0.0, 1.0)
+    private var texture:Knob = Knob("Texture", 1.0, 0.0, 1.0)
+    private var load:Knob = Knob("Charge", 0.2, 0.0, 1.0)
+    private var intake:Knob = Knob("Admission du 4T", 0.0, 0.0, 1.0)
+    private var ambience:Knob = Knob("Ambiance", 0.0, 0.0, 1.0)
+    private var volume:Knob = Knob("Volume", 0.7, 0.0, 1.0)
+    init(directory:str) {
+        self.library = Engines.Library.open(directory); self.source = self.library.engine()
+    }
+    func profile() Engines.Profile { return self.source.profile }
+    func rpm() float { return self.source.current_rpm() }
+    func is_starting() bool { return self.source.is_starting() }
+    func is_running() bool { return self.running }
+    func toggle_running() { self.running = !self.running; self.accelerating = false; self.sync() }
+    func changed(value:float) { self.sync() }
+    func sync() {
+        self.base_rpm = self.idle.value()
+        self.source.set_controls(Engines.Controls(running:self.running, accelerating:self.accelerating && self.focused,
+            idle_rpm:self.base_rpm, exhaust:self.exhaust.value(), texture:self.texture.value(), load:self.load.value(),
+            intake:self.intake.value(), ambience:self.ambience.value(), volume:self.volume.value()))
+    }
+    func restore() {
+        self.idle.set(800.0); self.exhaust.set(1.0); self.texture.set(1.0); self.load.set(0.2)
+        self.intake.set(self.profile().intake); self.ambience.set(0.0); self.volume.set(0.7); self.sync()
+    }
+    func choose(index:int) {
+        if self.running || self.rpm() >= 5.0 {
+            self.selection.set(self.selected); self.notice = "Coupez le moteur et attendez son arrêt pour changer."; return
+        }
+        let profiles = self.library.profiles()
+        if index < 0 || index >= profiles.count() { return }
+        self.source = self.library.engine(profiles[index].key)
+        self.selected = index; self.selection.set(index); self.profile_generation++
+        self.reference_ready = false; self.notice = ""; self.restore()
+    }
+    func view() UI.View {
+        var options:UI.SelectOption<int>[] = []
+        for i, profile in self.library.profiles().indexed() { options.append(UI.SelectOption<int>(i, profile.label)) }
+        var select_style = UI.Style(); select_style.height = 42.0; select_style.padding = UI.Insets(8.0)
+        select_style.background = Color.slate_700(); select_style.foreground = Color.slate_100(); select_style.radius = 8.0
+        var tools = UI.Row([UI.Select<int>(options, self.selection, on_change:self.choose, style:select_style),
+            Widgets.button("Démarrer / arrêter · M", self.toggle_running), Widgets.button("Réglages initiaux", self.restore)], wrap:true)
+        tools.style.gap = 12.0
+        var dial = UI.CustomView(Tachometer(self)); dial.style.width = 520.0; dial.style.height = 500.0
+        dial.style.minimum_width = 280.0; dial.style.grow = 1.0
+        var controls:UI.View[] = [self.idle.view(self.changed), self.load.view(self.changed), self.exhaust.view(self.changed),
+            self.texture.view(self.changed)]
+        if self.profile().key == "cross4" { controls.append(self.intake.view(self.changed)) }
+        controls.append(self.ambience.view(self.changed)); controls.append(self.volume.view(self.changed))
+        var panel = Widgets.card("Réglages du banc validé", "Espace maintenu : accélérer · relâcher : décélérer", controls)
+        var body = UI.Row([dial, panel], wrap:true); body.style.gap = 18.0
+        var content = UI.Column([Widgets.text("Moteurs — GFX.Audio", 28.0),
+            Widgets.text("Chaîne sonore de la première démo · bibliothèque réutilisable", 14.0, Color.slate_400()), tools, body])
+        content.style.padding = UI.Insets(22.0); content.style.gap = 16.0
+        content.style.background = Color.bytes(8, 13, 20)
+        return UI.ScrollView(content, smooth_scroll:true)
+    }
+}

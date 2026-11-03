@@ -29,6 +29,13 @@ beeps, impacts, a laser, an explosion, a changing engine, an 8-bit sound and
 melodies composed directly or through MIDI. Select a recipe with `--case` or
 verify its PCM and stream without a device using `--check`.
 
+The [validated engine library demo](Sources/EngineLibrary/README.md) consumes
+GFX.Audio's extracted engine sounds and controls, preserving the original bench
+as an independent PCM comparison witness.
+
+The parts workshop is experimental and its sound model is not the validated
+engine path.
+
 The [engine-parts workshop](Sources/EngineWorkshop/README.md) builds engine
 sounds through GFX.Audio's public part API: block/head, intake, exhaust,
 silencers, mechanics and optional turbo. Replace parts during playback or isolate

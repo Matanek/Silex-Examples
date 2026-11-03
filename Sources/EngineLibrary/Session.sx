@@ -1,0 +1,94 @@
+use GFX.Audio
+use GFX.UI
+use GFX.Viewer
+use GFX.Canvas
+use GFX.Color
+use GFX.Window
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use STD.Error.Kind
+use Module.Model.Bench
+
+class Session:Canvas.Session {
+    private var bench:Bench
+    private var ui:UI.Session
+    private var audio:Audio
+    private var stream:Audio.Stream
+    private var playing:Audio.PlayingSound = Audio.PlayingSound()
+    private var samples:float32[] = []
+    private var pending:bool = false
+    private var offset:int = 0
+    private var generation:int = 0
+    private var empty:int = 0
+    init(directory:str) {
+        self.bench = Bench(directory); self.ui = UI.Session(self.bench.view()); self.audio = Audio()
+        self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+        for _ in 0...960 { self.samples.append(0.0) }
+        self.bench.source.enqueue()
+    }
+    private func feed() {
+        if self.generation != self.bench.profile_generation {
+            if self.playing.is_valid() { self.audio.stop(self.playing) }
+            self.audio.release(self.stream)
+            self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+            self.playing = Audio.PlayingSound(); self.pending = false; self.offset = 0
+            self.generation = self.bench.profile_generation; self.bench.source.enqueue()
+            self.ui = UI.Session(self.bench.view())
+        }
+        if self.playing.is_valid() && self.audio.stream_info(self.stream).starved { self.empty++ }
+        var count = 0
+        while count < 8 {
+            if self.audio.stream_info(self.stream).queued_frames >= 2_400 { break }
+            if !self.pending {
+                if !self.bench.source.render_ready(&self.samples[0:960]) { break }
+                self.bench.reference_ready = true; self.pending = true; self.offset = 0
+            }
+            match try self.audio.write(self.stream, @self.samples[self.offset * 2:960]) {
+                failure(error) => { if error.kind != Kind.would_block() { panic(error.detail) }
+                    break }
+                success(frames) => {
+                    self.offset += frames
+                    if self.offset == 480 { self.pending = false; self.bench.source.enqueue() }
+                    if frames == 0 { break }
+                }
+            }
+            count++
+        }
+        if !self.playing.is_valid() && self.audio.stream_info(self.stream).queued_frames >= 1_920 {
+            self.playing = self.audio.play(self.stream, Audio.Playback(fade_in_seconds:0.05))
+        }
+    }
+    func update(delta:float) bool { self.bench.sync(); self.feed(); return self.ui.update(delta) }
+    func drawing(width:int, height:int) Canvas { return self.ui.drawing(width, height) }
+    func handle(event:@Events.Event) bool {
+        match event {
+            window_focus_lost(value) => { self.bench.focused = false; self.bench.accelerating = false; self.bench.sync() }
+            window_focus_gained(value) => { self.bench.focused = true }
+            key_pressed(value) => {
+                if !self.ui.accepts_text_input() && !value.modifiers.control && !value.modifiers.alt && !value.modifiers.system {
+                    let m = value.keycode == 109 as uint32 || value.keycode == 77 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.m)
+                    if m { if !value.repeated { self.bench.toggle_running() }
+                        return true }
+                    if value.key == Keyboard.Key.space {
+                        if self.ui.handle(event) { return true }
+                        self.bench.accelerating = true; self.bench.sync(); return true
+                    }
+                }
+            }
+            key_released(value) => { if value.key == Keyboard.Key.space { self.bench.accelerating = false; self.bench.sync() } }
+            else => {}
+        }
+        return self.ui.handle(event)
+    }
+    func accepts_text_input() bool { return self.ui.accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.ui.text_input_target() }
+    func pointer_cursor() Window.Cursor { return self.ui.pointer_cursor() }
+    drop {
+        if self.playing.is_valid() { self.audio.stop(self.playing) }
+        self.audio.release(self.stream); print("GFX.Audio engine demo: empty queue observations=", self.empty)
+    }
+}
+public func show(directory:str) {
+    var session = Session(directory)
+    Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:800, title:"Silex — Moteurs GFX.Audio", background:Color.bytes(8, 13, 20)))
+}

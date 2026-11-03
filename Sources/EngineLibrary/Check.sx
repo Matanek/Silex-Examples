@@ -1,0 +1,20 @@
+use STD.Process
+use GFX.UI
+use Module.Model.Bench
+
+func main() {
+    let arguments = Process.arguments()
+    var directory = "Build/EngineLibrary-Package"
+    if arguments.count() > 1 { directory = arguments[1] }
+    var bench = Bench(directory)
+    bench.toggle_running(); assert(bench.is_running() && bench.source.controls().running)
+    bench.accelerating = true; bench.sync(); assert(bench.source.controls().accelerating)
+    bench.focused = false; bench.sync(); assert(!bench.source.controls().accelerating)
+    bench.choose(1); assert(bench.profile().key == "454", "running profile replacement must be rejected")
+    bench.toggle_running(); bench.choose(6); assert(bench.profile().key == "cross4")
+    assert(bench.source.controls().intake == bench.profile().intake)
+    var ui = UI.Session(bench.view())
+    for width in [400, 760, 1_100] { ui.drawing(width, 800) }
+    bench.restore(); assert(bench.source.controls().exhaust == 1.0)
+    print("Package demo check passed: input, focus, profile guard, defaults and responsive drawing")
+}
