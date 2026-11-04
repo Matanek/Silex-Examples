@@ -1,0 +1,102 @@
+use GFX.Audio
+use GFX.Color
+use GFX.Viewer
+use STD.Error.Kind
+use Module.Model.Bench
+use Module.Session.BenchSession
+
+class ReferencePlayback {
+    private var audio:Audio
+    private var bench:Bench
+    private var output:Audio.Stream
+    private var playing:Audio.PlayingSound = Audio.PlayingSound()
+    private var samples:float32[] = []
+    private var offset:int = 0
+    private var pending:bool = false
+    private var stopped:bool = false
+    private var empty_observations:int = 0
+    private var largest_feed_frames:int = 0
+    private var generation:int = 0
+
+    init(bench:Bench) {
+        self.bench = bench; self.audio = Audio()
+        // Five queued blocks and at most four FIFO requests bound advance to 98 ms.
+        self.output = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+        for _ in 0...960 { self.samples.append(0.0) }
+        self.generation = self.bench.profile_generation
+        self.bench.request_reference(4)
+    }
+
+    func pump() {
+        if self.generation != self.bench.profile_generation {
+            if self.playing.is_valid() { self.audio.stop(self.playing, fade_out_seconds:0.0) }
+            self.audio.release(self.output)
+            self.output = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+            self.playing = Audio.PlayingSound(); self.pending = false; self.offset = 0
+            self.generation = self.bench.profile_generation
+            self.bench.request_reference(4)
+        }
+        if self.playing.is_valid() && self.audio.stream_info(self.output).starved { self.empty_observations++ }
+        var iterations = 0; var written = 0
+        while iterations < 8 {
+            let info = self.audio.stream_info(self.output)
+            if info.queued_frames >= info.capacity_frames { break }
+            if !self.pending {
+                let ready = self.bench.render_reference_ready(&self.samples[0:960])
+                if !ready { break }
+                self.pending = true; self.offset = 0
+            }
+            match (try self.audio.write(self.output, @self.samples[self.offset * 2:960])) {
+                failure(error) => {
+                    if error.kind == Kind.would_block() { break }
+                    panic(error.detail)
+                }
+                success(count) => {
+                    self.offset += count; written += count
+                    if self.offset == 480 {
+                        self.pending = false
+                        self.bench.request_reference(4)
+                    }
+                    if count == 0 { break }
+                }
+            }
+            iterations++
+        }
+        if !self.playing.is_valid() && self.audio.stream_info(self.output).queued_frames >= 1_920 {
+            self.playing = self.audio.play(self.output, Audio.Playback(fade_in_seconds:0.05))
+        }
+        if written > self.largest_feed_frames { self.largest_feed_frames = written }
+    }
+
+    func stop() {
+        if self.stopped { return }
+        self.stopped = true
+        if self.playing.is_valid() { self.audio.stop(self.playing, fade_out_seconds:0.0) }
+        self.audio.release(self.output)
+        print("Reference bench closed; empty stream observations: ", self.empty_observations,
+            "; generated frames: ", self.bench.produced_frames, "; largest feed frames: ", self.largest_feed_frames)
+    }
+
+    drop { self.stop() }
+}
+
+public func show_reference(smoke:bool, profile:bool, preset:str = "454", road:bool = false, manual:bool = false) {
+    var bench = Bench(running:false, reference:true)
+    var found = false
+    for index in 0...bench.catalog.count() {
+        if bench.catalog.get(index).key == preset { bench.select_profile(index); found = true; break }
+    }
+    if !found { panic("Unknown preset; choose 454, berline, sport, cruiser, moto, truck, cross4 or cross2") }
+    if road { bench.toggle_road() }
+    if manual && road { bench.toggle_auto() }
+    var playback = ReferencePlayback(bench)
+    var session = BenchSession(bench, playback.pump, automated:smoke, profile:profile)
+    var title = "Banc véhicules · M : contact · Espace : gaz · A : boîte · ↑ / ↓ : rapports"
+    if smoke { title = "Banc véhicules — Scénario automatique $(preset)" }
+    let settings = Viewer.CanvasSettings(width:1_180, height:880, title:title, background:Color.bytes(8, 13, 20))
+    var duration = 9.0; if road { duration = 35.0 }
+    if smoke { Viewer.show_until(session, func() bool { return session.elapsed >= duration }, settings) }
+    else { Viewer.show(session, settings) }
+    session.report_frames()
+    playback.stop()
+}

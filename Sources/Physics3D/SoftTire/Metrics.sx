@@ -1,0 +1,31 @@
+use STD.Math
+use STD.Time
+
+package class Metrics {
+    var started:bool=false
+    var clock:Time.Clock=Time.Clock()
+    var frames:int=0
+    var elapsed:float=0.0
+    var physics_seconds:float=0.0
+    var longest_frame:float=0.0
+    var fps:float=0.0
+    var interval:float=0.0
+    var interval_frames:int=0
+    func frame() {
+        let delta=self.clock.tick()
+        if !self.started { self.started=true;return }
+        self.elapsed+=delta
+        self.frames++;self.interval_frames++;self.interval+=delta
+        self.longest_frame=Math.max(self.longest_frame,delta)
+        if self.interval>=0.5 {
+            self.fps=(self.interval_frames as float)/self.interval
+            self.interval=0.0;self.interval_frames=0
+        }
+    }
+    func report(steps:int) {
+        print("render frames=",self.frames," wall_seconds=",self.elapsed,
+            " average_fps=",(self.frames as float)/Math.max(self.elapsed,0.000001),
+            " longest_frame_ms=",self.longest_frame*1000.0,
+            " physics_seconds=",self.physics_seconds," simulated_seconds=",(steps as float)/120.0)
+    }
+}

@@ -1,0 +1,122 @@
+use GFX.Input.Keyboard
+use GFX.Input.Events
+use GFX.Window
+use STD.Math
+use STD.Time.Stopwatch
+use Module.Model.Bench
+use Module.Session.BenchSession
+use Module.Checks.layout_ignition_key
+
+func block(bench:Bench, samples:&float32[..]) {
+    bench.render(&samples[0:samples.count()])
+    for value in samples { assert(Math.is_finite(value as float) && Math.abs(value as float) <= 1.0) }
+}
+
+func verify_road_async() {
+    var sync = Bench(running:false, reference:true); sync.toggle_road()
+    var async = Bench(running:false, reference:true); async.toggle_road()
+    var samples:float32[] = []; var actual:float32[] = []; var expected:float32[] = []
+    var rpms:float[] = [0.0, 0.0, 0.0, 0.0]; var speeds:float[] = [0.0, 0.0, 0.0, 0.0]
+    var gears:int[] = [0, 0, 0, 0]
+    for _ in 0...960 { samples.append(0.0); actual.append(0.0) }
+    for _ in 0...3_840 { expected.append(0.0) }
+    sync.set_running(true); async.set_running(true)
+    for batch in 0...350 {
+        for slot in 0...4 {
+            if batch == 70 { sync.accelerating = true; async.accelerating = true }
+            if batch == 280 { sync.accelerating = false; async.accelerating = false; sync.braking = true; async.braking = true }
+            sync.render(&samples[0:960])
+            rpms[slot] = sync.rpm(); speeds[slot] = sync.speed(); gears[slot] = sync.gear()
+            for i in 0...960 { expected[slot * 960 + i] = samples[i] }
+            async.request_reference(slot + 1)
+        }
+        for slot in 0...4 {
+            var watch = Stopwatch(); watch.start()
+            while !async.render_reference_ready(&actual[0:960]) { assert(watch.get_elapsed_seconds() < 5.0) }
+            assert(async.rpm() == rpms[slot] && async.speed() == speeds[slot] && async.gear() == gears[slot], "road telemetry FIFO")
+            for i in 0...960 { assert(actual[i] == expected[slot * 960 + i], "road PCM FIFO") }
+        }
+    }
+    print("Road asynchronous check passed: PCM, RPM, speed and gear bit exact across four FIFO requests")
+}
+
+public func verify() {
+    var bench = Bench(running:false, reference:true)
+    var samples:float32[] = []; for _ in 0...960 { samples.append(0.0) }
+    assert(bench.catalog.count() >= 8 && bench.profile().key == "454")
+    for index in 0...bench.catalog.count() {
+        assert(bench.select_profile(index), "stopped profile selection")
+        bench.set_running(true)
+        assert(!bench.select_profile((index + 1) % bench.catalog.count()), "running profile cannot change")
+        var peak = 0.0
+        for _ in 0...420 {
+            block(bench, &samples[0:960])
+            for value in samples { peak = Math.max(peak, Math.abs(value as float)) }
+        }
+        assert(bench.rpm() > 350.0 && peak > 0.001, "profile must start and produce audio")
+        let idle = bench.rpm(); bench.accelerating = true
+        for _ in 0...180 { block(bench, &samples[0:960]) }
+        assert(bench.rpm() > idle + 500.0, "profile responds to throttle")
+        bench.set_running(false)
+        for _ in 0...650 { block(bench, &samples[0:960]) }
+        assert(bench.can_change_vehicle(), "profile stops before replacement")
+        print("Fleet profile passed: ", bench.profile().label, "; idle ", idle, "; peak ", peak)
+    }
+    assert(bench.select_profile(0)); bench.toggle_road()
+    assert(bench.road_mode() && bench.auto_mode())
+    var session = BenchSession(bench)
+    session.handle(layout_ignition_key(Keyboard.Key.q, 97 as uint32))
+    assert(!bench.auto_mode(), "logical A on AZERTY toggles gearbox")
+    session.handle(layout_ignition_key(Keyboard.Key.q, 97 as uint32, repeated:true))
+    assert(!bench.auto_mode(), "gearbox repeat ignored")
+    session.handle(layout_ignition_key(Keyboard.Key.up, 0 as uint32))
+    for _ in 0...40 { block(bench, &samples[0:960]) }
+    assert(bench.gear() == 1 && !bench.auto_mode(), "up arrow selects first gear")
+    session.handle(layout_ignition_key(Keyboard.Key.up, 0 as uint32, repeated:true))
+    for _ in 0...40 { block(bench, &samples[0:960]) }
+    assert(bench.gear() == 1, "gear repeat ignored")
+    session.handle(layout_ignition_key(Keyboard.Key.n, 110 as uint32))
+    for _ in 0...40 { block(bench, &samples[0:960]) }
+    assert(bench.gear() == 0, "logical N returns to neutral")
+    let brake = layout_ignition_key(Keyboard.Key.s, 115 as uint32)
+    session.handle(brake); assert(bench.braking, "logical S applies brake")
+    match brake {
+        key_pressed(value) => { session.handle(Events.Event.key_released(value)) }
+        else => {}
+    }
+    assert(!bench.braking, "S release clears brake")
+    session.handle(brake)
+    let window = Events.WindowEvent(window:Window.Id(value:1 as uint32), timestamp:Events.Timestamp(nanoseconds:0 as uint))
+    session.handle(Events.Event.window_focus_lost(window))
+    assert(!bench.braking && !bench.focused, "focus loss releases brake")
+    session.handle(Events.Event.window_focus_gained(window))
+    bench.toggle_auto(); bench.set_running(true)
+    for _ in 0...300 { block(bench, &samples[0:960]) }
+    assert(bench.gear() == 0 && bench.speed() < 0.1, "auto remains in neutral without throttle")
+    bench.accelerating = true
+    for _ in 0...1_500 { block(bench, &samples[0:960]) }
+    assert(bench.gear() >= 3 && bench.speed() > 60.0 && bench.shift_count() >= 3, "automatic upshifts")
+    let current = bench.gear(); bench.shift_up()
+    for _ in 0...70 { block(bench, &samples[0:960]) }
+    assert(!bench.auto_mode() && bench.gear() == current + 1, "arrow from auto selects next actual gear")
+    bench.neutral()
+    for _ in 0...80 { block(bench, &samples[0:960]) }
+    assert(bench.gear() == 0 && bench.speed() > 40.0, "neutral uncouples without teleporting speed")
+    bench.accelerating = false; bench.braking = true
+    for _ in 0...700 { block(bench, &samples[0:960]) }
+    assert(bench.speed() < 0.5, "wheel brake stops vehicle")
+    bench.set_running(false)
+    for _ in 0...500 { block(bench, &samples[0:960]) }
+    assert(bench.can_change_vehicle())
+    bench.toggle_road(); assert(!bench.road_mode())
+    // A new worker may still be compiling; FIFO polling must preserve all frames.
+    bench.request_reference(4)
+    for slot in 0...4 {
+        var watch = Stopwatch(); watch.start()
+        while !bench.render_reference_ready(&samples[0:960]) { assert(watch.get_elapsed_seconds() < 5.0) }
+        assert(bench.produced_frames == (slot + 1) * 480)
+    }
+    assert(bench.reference_ready)
+    verify_road_async()
+    print("Fleet checks passed: catalogue, profile lifecycle, auto/manual, logical keys, neutral, brake, worker replacement")
+}

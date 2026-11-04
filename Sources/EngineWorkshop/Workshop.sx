@@ -1,0 +1,196 @@
+use GFX.UI
+use GFX.Color
+use GFX.Audio.Synthesis
+use GFX.Audio.Synthesis.EngineParts
+use STD.Math
+use Module.Widgets
+use Module.Widgets.Knob
+
+// This consumer owns controls and RPM response; all acoustic state lives in Audio.
+public class Workshop {
+    var source:Synthesis.Engine
+    var running:UI.State<bool> = UI.State<bool>(false)
+    var turbo:UI.State<bool> = UI.State<bool>(false)
+    var profile:UI.State<int?> = UI.State<int?>(0)
+    var cylinder_count:UI.State<int?> = UI.State<int?>(8)
+    var cycle:UI.State<int?> = UI.State<int?>(4)
+    var listening:UI.State<int?> = UI.State<int?>(0)
+    var status:UI.State<str> = UI.State<str>("V8 · 7,4 L · deux échappements")
+    var readout:UI.State<str> = UI.State<str>("0 tr/min · contact coupé")
+    var notice:UI.State<str> = UI.State<str>("Modifiez une pièce pour comparer son effet.")
+    var bore:Knob = Knob("Alésage", 108.0, 50.0, 130.0, "mm")
+    var stroke:Knob = Knob("Course", 101.6, 40.0, 130.0, "mm")
+    var chamber:Knob = Knob("Chambre de combustion", 100.0, 15.0, 150.0, "cm³")
+    var burn:Knob = Knob("Durée de combustion", 1.8, 0.2, 4.0, "ms")
+    var runner:Knob = Knob("Conduit d’admission", 420.0, 80.0, 700.0, "mm")
+    var runner_diameter:Knob = Knob("Diamètre d’admission", 48.0, 20.0, 80.0, "mm")
+    var airbox:Knob = Knob("Boîte à air", 12.0, 0.5, 25.0, "L")
+    var filter:Knob = Knob("Absorption du filtre", 0.65, 0.0, 1.0)
+    var header:Knob = Knob("Longueur des collecteurs", 700.0, 100.0, 1_500.0, "mm")
+    var header_diameter:Knob = Knob("Diamètre des collecteurs", 45.0, 20.0, 90.0, "mm")
+    var pipe:Knob = Knob("Longueur des lignes", 1_800.0, 200.0, 3_000.0, "mm")
+    var pipe_diameter:Knob = Knob("Diamètre des lignes", 65.0, 20.0, 120.0, "mm")
+    var silencer:Knob = Knob("Volume des silencieux", 14.0, 0.5, 30.0, "L")
+    var absorption:Knob = Knob("Absorption des silencieux", 0.7, 0.0, 1.0)
+    var mass:Knob = Knob("Masse du bloc", 230.0, 10.0, 400.0, "kg")
+    var damping:Knob = Knob("Amortissement mécanique", 0.65, 0.0, 1.0)
+    var wheel:Knob = Knob("Roue du turbo", 50.0, 25.0, 100.0, "mm")
+    var spool:Knob = Knob("Inertie du turbo", 0.35, 0.05, 1.5, "s")
+    var pressure:Knob = Knob("Pression maximale", 1.5, 0.2, 3.0, "bar")
+    var rpm:Knob = Knob("Régime demandé", 800.0, 500.0, 9_000.0, "tr/min")
+    var throttle:Knob = Knob("Accélérateur", 0.2, 0.0, 1.0)
+    var load:Knob = Knob("Charge", 0.3, 0.0, 1.0)
+    var boost:Knob = Knob("Suralimentation demandée", 0.7, 0.0, 1.0)
+    var exhaust_mix:Knob = Knob("Échappement", 0.8, 0.0, 1.0)
+    var intake_mix:Knob = Knob("Admission", 0.25, 0.0, 1.0)
+    var mechanics_mix:Knob = Knob("Mécanique", 0.08, 0.0, 1.0)
+    var turbo_mix:Knob = Knob("Turbo", 0.2, 0.0, 1.0)
+    var volume:Knob = Knob("Volume d’écoute", 0.65, 0.0, 1.0)
+    var accelerating:bool = false
+    private var parts:EngineParts.Assembly
+    private var dirty:bool = false
+    private var quiet:float = 0.0
+    private var display_elapsed:float = 0.0
+    private var current_rpm:float = 0.0
+    init() {
+        self.parts = EngineParts.v8(); self.source = Synthesis.Engine.assemble(self.parts)
+        self.source.set_state(0.0, fuel:0.0, ramp_frames:0)
+    }
+    func toggle_running() { self.running.set(!self.running.value()); self.accelerating = false }
+    func change_part(value:float) {
+        if !self.dirty { self.notice.set("Pièce modifiée · montage après le réglage") }
+        self.dirty = true; self.quiet = 0.0
+    }
+    func change_turbo(value:bool) { self.change_part(0.0) }
+    func change_cylinders(value:int) {
+        self.parts.block.firing_order = []; self.parts.block.firing_angles = []
+        self.parts.block.exhaust_banks = []
+        for i in 0...value { self.parts.block.exhaust_banks.append(i % self.parts.exhausts.count()) }
+        self.dirty = true; self.quiet = 0.0
+    }
+    func change_cycle(value:int) { self.parts.block.firing_angles = []; self.dirty = true; self.quiet = 0.0 }
+    func controls_changed(value:float) {}
+    private func listening_mix() EngineParts.Mix {
+        let solo = self.listening.value() ?? 0
+        if solo == 1 { return EngineParts.Mix(exhaust:1.0, intake:0.0, mechanics:0.0, turbo:0.0) }
+        if solo == 2 { return EngineParts.Mix(exhaust:0.0, intake:1.0, mechanics:0.0, turbo:0.0) }
+        if solo == 3 { return EngineParts.Mix(exhaust:0.0, intake:0.0, mechanics:1.0, turbo:0.0) }
+        if solo == 4 { return EngineParts.Mix(exhaust:0.0, intake:0.0, mechanics:0.0, turbo:1.0) }
+        return EngineParts.Mix(exhaust:self.exhaust_mix.value(), intake:self.intake_mix.value(),
+            mechanics:self.mechanics_mix.value(), turbo:self.turbo_mix.value())
+    }
+    func choose_listening(value:int) { self.change_mix(0.0) }
+    func change_mix(value:float) {
+        self.source.set_mix(self.listening_mix())
+    }
+    func choose_profile(value:int) {
+        var parts = EngineParts.v8()
+        if value == 1 { parts = EngineParts.motocross() }
+        if value == 2 { parts = EngineParts.motocross(EngineParts.Cycle.two_stroke) }
+        self.parts = parts
+        self.cylinder_count.set(parts.block.cylinders)
+        var cycle = 4; if parts.block.cycle == EngineParts.Cycle.two_stroke { cycle = 2 }
+        self.cycle.set(cycle)
+        self.bore.set(parts.block.bore_mm); self.stroke.set(parts.block.stroke_mm)
+        self.chamber.set(parts.head.chamber_cc); self.burn.set(parts.head.burn_ms)
+        self.runner.set(parts.intake.runner.length_mm); self.runner_diameter.set(parts.intake.runner.diameter_mm)
+        self.airbox.set(parts.intake.airbox_litres); self.filter.set(parts.intake.filter_absorption)
+        self.header.set(parts.exhausts[0].header.length_mm); self.header_diameter.set(parts.exhausts[0].header.diameter_mm)
+        self.pipe.set(parts.exhausts[0].pipe.length_mm); self.pipe_diameter.set(parts.exhausts[0].pipe.diameter_mm)
+        self.silencer.set(parts.exhausts[0].silencer.volume_litres); self.absorption.set(parts.exhausts[0].silencer.absorption)
+        self.mass.set(parts.mechanics.block_mass_kg); self.damping.set(parts.mechanics.damping); self.turbo.set(false)
+        self.exhaust_mix.set(parts.mix.exhaust); self.intake_mix.set(parts.mix.intake)
+        self.mechanics_mix.set(parts.mix.mechanics); self.turbo_mix.set(parts.mix.turbo)
+        self.apply()
+    }
+    func restore() { self.choose_profile(self.profile.value() ?? 0) }
+    func apply() {
+        var parts = self.parts
+        parts.block.cylinders = self.cylinder_count.value() ?? 8
+        parts.block.bore_mm = self.bore.value(); parts.block.stroke_mm = self.stroke.value()
+        parts.block.cycle = EngineParts.Cycle.four_stroke
+        if self.cycle.value() == 2 { parts.block.cycle = EngineParts.Cycle.two_stroke }
+        parts.head = EngineParts.Head(chamber_cc:self.chamber.value(), burn_ms:self.burn.value())
+        parts.intake = EngineParts.Intake(runner:EngineParts.Pipe(length_mm:self.runner.value(), diameter_mm:self.runner_diameter.value()),
+            airbox_litres:self.airbox.value(), filter_absorption:self.filter.value())
+        let header_offset = self.header.value() - parts.exhausts[0].header.length_mm
+        let pipe_offset = self.pipe.value() - parts.exhausts[0].pipe.length_mm
+        for i in 0...parts.exhausts.count() {
+            let header_length = parts.exhausts[i].header.length_mm + header_offset
+            let pipe_length = parts.exhausts[i].pipe.length_mm + pipe_offset
+            parts.exhausts[i] = EngineParts.Exhaust(header:EngineParts.Pipe(length_mm:header_length, diameter_mm:self.header_diameter.value()),
+                pipe:EngineParts.Pipe(length_mm:pipe_length, diameter_mm:self.pipe_diameter.value()),
+                silencer:EngineParts.Silencer(volume_litres:self.silencer.value(), absorption:self.absorption.value()),
+                outlet_level:parts.exhausts[i].outlet_level)
+        }
+        parts.mechanics = EngineParts.Mechanics(block_mass_kg:self.mass.value(), damping:self.damping.value())
+        parts.turbo = null
+        if self.turbo.value() { parts.turbo = EngineParts.Turbo(wheel_mm:self.wheel.value(), max_boost_bar:self.pressure.value(), spool_seconds:self.spool.value()) }
+        parts.mix = self.listening_mix()
+        match try self.source.set_parts(parts) {
+            failure(error) => { self.notice.set("Compression hors plage (2 à 25). Ajustez la chambre.") }
+            success => {
+                self.parts = parts
+                let litres = Math.round(parts.block.displacement_litres() * 100.0) / 100.0
+                let compression = Math.round(parts.compression_ratio() * 10.0) / 10.0
+                self.status.set("$(parts.block.cylinders) cyl. · $(litres) L · $(self.cycle.value() ?? 4)T · compression $(compression):1")
+                self.notice.set("Pièces montées · transition douce · $(parts.exhausts.count()) échappement(s)")
+            }
+        }
+        self.dirty = false
+    }
+    func update(delta:float) {
+        if self.dirty { self.quiet += delta; if self.quiet >= 0.12 { self.apply() } }
+        var target = self.rpm.value(); var fuel:float = 1.0
+        if self.accelerating { target = 7_000.0 }
+        if !self.running.value() { target = 0.0; fuel = 0.0 }
+        let time = 0.35
+        self.current_rpm += (target - self.current_rpm) * Math.min(1.0, delta / time)
+        if self.current_rpm < 0.1 { self.current_rpm = 0.0 }
+        var throttle = self.throttle.value(); if self.accelerating { throttle = 1.0 }
+        var boost = self.boost.value(); if !self.running.value() { boost = 0.0 }
+        self.source.set_state(self.current_rpm, throttle:throttle, load:self.load.value(), fuel:fuel, boost:boost)
+        self.display_elapsed += delta
+        if self.display_elapsed >= 0.1 {
+            self.display_elapsed = 0.0
+            var state = "contact coupé"; if self.running.value() { state = "moteur en marche" }
+            self.readout.set("$(Math.round(self.current_rpm) as int) tr/min · $(state)")
+        }
+    }
+    func readout_view(reads:UI.Reads) UI.View { return Widgets.text(reads.read(self.readout), 24.0, Color.cyan_300()) }
+    func status_view(reads:UI.Reads) UI.View { return Widgets.text(reads.read(self.status), 14.0, Color.slate_300()) }
+    func notice_view(reads:UI.Reads) UI.View { return Widgets.text(reads.read(self.notice), 12.0, Color.amber_200()) }
+    func view() UI.View {
+        let profile_options:UI.SelectOption<int>[] = [UI.SelectOption<int>(0, "V8 · deux lignes"), UI.SelectOption<int>(1, "Monocylindre · quatre temps"), UI.SelectOption<int>(2, "Monocylindre · deux temps")]
+        let counts:UI.SelectOption<int>[] = [UI.SelectOption<int>(1, "1 cylindre"), UI.SelectOption<int>(2, "2 cylindres"), UI.SelectOption<int>(4, "4 cylindres"), UI.SelectOption<int>(6, "6 cylindres"), UI.SelectOption<int>(8, "8 cylindres"), UI.SelectOption<int>(12, "12 cylindres")]
+        var select_style = UI.Style(); select_style.height = 38.0; select_style.padding = UI.Insets(8.0)
+        select_style.background = Color.slate_700(); select_style.foreground = Color.slate_100(); select_style.radius = 8.0
+        var profile = UI.Select<int>(profile_options, self.profile, on_change:self.choose_profile, style:select_style)
+        profile.style.width = 290.0
+        var tools = UI.Row([profile, Widgets.button("Démarrer / arrêter · M", self.toggle_running), Widgets.button("Remonter le modèle initial", self.restore)], wrap:true)
+        tools.style.gap = 10.0
+        var title = Widgets.text("Atelier des moteurs", 30.0, Color.slate_100())
+        var readout = UI.Reactive(self.readout_view)
+        var status = UI.Reactive(self.status_view)
+        var notice = UI.Reactive(self.notice_view)
+        var block = Widgets.card("Bloc et culasse", "Dimensions, cycle et combustion", [
+            UI.Select<int>(counts, self.cylinder_count, on_change:self.change_cylinders, style:select_style),
+            UI.Select<int>([UI.SelectOption<int>(4, "Quatre temps"), UI.SelectOption<int>(2, "Deux temps")], self.cycle, on_change:self.change_cycle, style:select_style),
+            self.bore.view(self.change_part), self.stroke.view(self.change_part), self.chamber.view(self.change_part), self.burn.view(self.change_part)])
+        var intake = Widgets.card("Admission", "Aspiration, conduit et filtre à air", [self.runner.view(self.change_part), self.runner_diameter.view(self.change_part), self.airbox.view(self.change_part), self.filter.view(self.change_part)])
+        var exhaust = Widgets.card("Échappement", "Collecteurs, lignes et silencieux", [self.header.view(self.change_part), self.header_diameter.view(self.change_part), self.pipe.view(self.change_part), self.pipe_diameter.view(self.change_part), self.silencer.view(self.change_part), self.absorption.view(self.change_part)])
+        var mechanics = Widgets.card("Mécanique et turbo", "Vibrations, roue et montée en pression", [self.mass.view(self.change_part), self.damping.view(self.change_part), UI.Checkbox("Monter un turbo", self.turbo, on_change:self.change_turbo), self.wheel.view(self.change_part), self.pressure.view(self.change_part), self.spool.view(self.change_part)])
+        var controls = Widgets.card("Banc de commande", "Espace maintenu pour donner des gaz", [self.rpm.view(self.controls_changed), self.throttle.view(self.controls_changed), self.load.view(self.controls_changed), self.boost.view(self.controls_changed)])
+        let listening_options:UI.SelectOption<int>[] = [UI.SelectOption<int>(0, "Mélange complet"), UI.SelectOption<int>(1, "Échappement seul"), UI.SelectOption<int>(2, "Admission seule"), UI.SelectOption<int>(3, "Mécanique seule"), UI.SelectOption<int>(4, "Turbo seul")]
+        var mix = Widgets.card("Écoute des pièces", "Solo à niveau 1 · niveaux du mélange conservés", [
+            UI.Select<int>(listening_options, self.listening, on_change:self.choose_listening, style:select_style),
+            Widgets.text("Admission : accélérez. Turbo : montez-le et augmentez la suralimentation.", 12.0, Color.slate_400()),
+            self.exhaust_mix.view(self.change_mix), self.intake_mix.view(self.change_mix), self.mechanics_mix.view(self.change_mix), self.turbo_mix.view(self.change_mix), self.volume.view(self.controls_changed)])
+        var first = UI.Row([block, intake, exhaust], wrap:true); first.style.gap = 14.0
+        var second = UI.Row([mechanics, controls, mix], wrap:true); second.style.gap = 14.0
+        var content = UI.Column([title, Widgets.text("Composez un moteur, écoutez chaque pièce."), tools, readout, status, notice, first, second])
+        content.style.gap = 14.0; content.style.padding = UI.Insets(22.0); content.style.background = Color.bytes(8, 13, 20)
+        content.style.foreground = Color.slate_100()
+        return UI.ScrollView(content, smooth_scroll:true)
+    }
+}

@@ -1,0 +1,37 @@
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Resources
+use GFX.Scene3D
+use Physics3D.MonsterTruck.Primitives
+use STD.Math
+
+func batch(world:&Resources.World,mesh:Scene3D.MeshHandle,color:Color,placements:Scene3D.Transform[]) {
+    var instances=Scene3D.Instances(placements)
+    world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D()) ..with(Components.Mesh3D(mesh,casts_shadows:false))
+        ..with(Components.Material3D(albedo:color,roughness:1.0)) ..with(instances))
+}
+
+package func create(world:&Resources.World,meshes:&Resources.Meshes3D,cube:Scene3D.MeshHandle) {
+    // Three immutable batches; no per-frame marker entities or mesh rebuilding.
+    var white:Scene3D.Transform[]=[];var dark:Scene3D.Transform[]=[]
+    var arrows:Scene3D.Transform[]=[]
+    let sides:float[]=[-54.0,54.0]
+    for x in sides { white.append(Scene3D.Transform(Math.Vec3(x,0.006,64.0),Math.Quat(),Math.Vec3(0.16,0.01,152.0))) }
+    let ends:float[]=[-12.0,140.0]
+    for z in ends { white.append(Scene3D.Transform(Math.Vec3(0.0,0.006,z),Math.Quat(),Math.Vec3(108.0,0.01,0.16))) }
+    let lines:float[]=[3.0,41.0]
+    for z in lines { for row in 0...2 { for column in 0...8 {
+        let x= -5.25+(column as float)*1.5
+        let tile=Scene3D.Transform(Math.Vec3(x,0.007,z+(row as float)*0.4),Math.Quat(),Math.Vec3(1.5,0.012,0.4))
+        if (column+row)%2==0 { white.append(tile) } else { dark.append(tile) }
+    } } }
+    let main_arrows:float[]=[6.0,42.0,90.0,128.0]
+    for z in main_arrows { arrows.append(Scene3D.Transform(Math.Vec3(0.0,0.015,z),Math.Quat(),Math.Vec3(2.2))) }
+    let side_arrows:Math.Vec3[]=[Math.Vec3(-29.0,0.015,40.0),Math.Vec3(29.0,0.015,40.0),
+        Math.Vec3(-43.0,0.015,2.0)]
+    for position in side_arrows { arrows.append(Scene3D.Transform(position,Math.Quat(),Math.Vec3(2.2))) }
+    batch(world,cube,Color.bytes(239,238,221),white)
+    batch(world,cube,Color.bytes(40,49,61),dark)
+    batch(world,meshes.add(Primitives.arrow()),Color.bytes(255,188,61),arrows)
+}

@@ -1,0 +1,50 @@
+use GFX.Physics
+use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.Terrain
+use STD.Math
+use STD.Process
+use STD.Time
+
+package func run(index:int,frames:int) {
+    var origin=Math.Vec3(0.0,2.35,6.0);var yaw=0.0
+    if index==1 {origin=Math.Vec3(-2.0,2.35,8.0);yaw=0.3}
+    if index==2 {origin=Math.Vec3(0.0,2.35,43.0)}
+    if index==3 {origin=Math.Vec3(-22.0,2.35,65.0);yaw=Math.half_pi()}
+    if index==4 {origin=Math.Vec3(-29.0,2.35,44.0)}
+    if index==5 {origin=Math.Vec3(29.0,2.35,65.0)}
+    if index==6 {origin=Math.Vec3(-1.0,2.35,8.0);yaw=-0.2}
+    var pose=Physics.Transform3D(origin,Math.Quat.angle_axis(yaw,Math.Vec3.up()))
+    if index==7 {pose=Terrain.slope_spawn()}
+    var truck=Model.Truck(4,obstacles:true,spawn:pose)
+    var clock=Time.Clock();var seconds=0.0;var maximum=0.0;var highest=0.0
+    for frame in 0...frames {
+        var gas=0.0;var turn=0.0
+        if frame>=120 {gas=0.25}
+        if index==0 || index==2 || index==4 || index==5 {gas=0.5}
+        if frame<120 {gas=0.0}
+        if index==6 && frame>=360 {turn=0.8}
+        truck.controls(gas,turn,brake:frame>=720,handbrake:frame>=720)
+        let before=clock.tick();truck.step();let elapsed=clock.tick()
+        seconds+=elapsed;maximum=Math.max(maximum,elapsed)
+        highest=Math.max(highest,truck.chassis.position().y)
+        assert(truck.maximum_bead_error()<0.08 && truck.minimum_y()>0.025)
+        if frame%120==119 {
+            let p=truck.chassis.position()
+            print("RAMP case=",index," frame=",frame+1," x=",p.x," y=",p.y," z=",p.z,
+                " speed=",truck.chassis.linear_velocity().length()," physics=",seconds," maximum=",maximum)
+            seconds=0.0;maximum=0.0
+        }
+    }
+    assert(highest>3.5)
+}
+
+package func verify() {for index in 0...8 {run(index,1200)}
+    print("Eight loaded ramp approaches passed")}
+
+func main() {
+    var frames=1200;var all=false
+    for arg in Process.arguments() {if arg=="--all" {all=true}
+        if arg=="--long" {frames=3600}}
+    var cases=2;if all {cases=8}
+    for index in 0...cases {run(index,frames)}
+}

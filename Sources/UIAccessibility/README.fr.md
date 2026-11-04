@@ -257,3 +257,56 @@ silex compile Silex-Examples/Sources/UIAccessibility/Main.sx --target linux-x64 
 
 Remplacer `linux-x64` par `linux-arm64` pour ARM64. Ce sont des candidats
 expérimentaux tant que cette qualification native manque.
+
+## Windows — pont UI Automation expérimental
+
+Les constructions ARM64 et X64 depuis macOS prouvent l’émission et la liaison,
+pas l’exécution Windows ni la navigation Narrator. Ces essais exigent le
+compilateur de développement intégrant les entrées C natives et leurs records.
+Depuis la racine du workspace, construire pour l’architecture du testeur :
+
+```sh
+silex compile Packages/GFX/Tests/Accessibility/Windows.sx --target windows-x64 --debug --output /tmp/WindowsUIA-CPU-x64.exe
+silex compile Silex-Examples/Sources/UIAccessibility/Main.sx --target windows-x64 --debug --output /tmp/UIAccessibility-Windows-x64.exe
+```
+
+Copier les deux fichiers sur Windows et les lancer dans PowerShell :
+
+```powershell
+.\WindowsUIA-CPU-x64.exe
+.\UIAccessibility-Windows-x64.exe --complete --placed
+```
+
+Remplacer `x64` par `arm64` pour ARM64. La fixture sans fenêtre attend
+`Windows UIA CPU protocol: passed`, puis un code de retour 0. Elle vérifie
+identité et références COM, tableaux natifs, callbacks depuis un thread natif,
+BSTR Unicode avec BOM/NUL et indisponibilité après détachement.
+
+Utiliser Inspect ou Accessibility Insights pour la structure, puis Narrator
+pour la navigation réelle. Vérifier les parcours suivants :
+
+1. Lire Nom/Ada et son libellé, modifier le nom avec ValuePattern, invoquer
+   Valider : un seul changement visible par action.
+2. Basculer Notifications, sélectionner Énergique, régler Volume entre 10 et 20,
+   puis le verrouiller : RangeValue reste lisible, la mutation est refusée.
+3. Ouvrir Documents, sélectionner Notes, replier/réouvrir : identités et
+   événements restent cohérents avec les valeurs visibles.
+4. Examiner Équipe : deux colonnes, trois lignes, en-têtes et cellules éditables.
+   GetItem demande une cellule ; lire sa valeur ne requiert pas son enfant monté.
+5. Dans le texte Unicode : lire, rechercher, déplacer ancre/caret par graphème,
+   mot et ligne, vérifier les rectangles visibles. ScrollIntoView haut/bas
+   révèle la plage sans changer focus ni sélection ; après édition, une plage
+   conservée reste bornée au contenu courant.
+6. Déplacer/redimensionner la fenêtre et changer d’écran/échelle (100/150/200 %) :
+   pointage et rectangles correspondent aux contrôles, y compris avec `--placed`.
+7. Agir depuis le client après un repos de la fenêtre : le retour visible
+   apparaît sans mouvement de souris.
+8. Fermer en conservant des références UIA, y compris pendant un rappel : les
+   appels suivants deviennent indisponibles, sans arrêt anormal ni blocage.
+
+Consigner architecture, version Windows, échelle, client/lecteur, commandes,
+empreintes des binaires, action et résultat attendu/observé, avec les journaux.
+Les attributs restent ceux du texte simple ; les plages conservées ne suivent
+pas les déplacements par ancrages éditoriaux. Une Source personnalisée fournit
+sa géométrie et sa révélation textuelles pour les opérations correspondantes.
+Les ponts gardent leur statut expérimental tant que ces essais natifs manquent.

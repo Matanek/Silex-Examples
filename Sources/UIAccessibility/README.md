@@ -246,3 +246,55 @@ silex compile Silex-Examples/Sources/UIAccessibility/Main.sx --target linux-x64 
 
 Replace `linux-x64` with `linux-arm64` for ARM64. These remain experimental
 candidates until this native qualification is completed.
+
+## Windows — experimental UI Automation bridge
+
+ARM64 and X64 builds from macOS prove emission and linkage, not Windows execution
+or Narrator navigation. These tests require the development compiler with native
+C entries and their records. From the workspace root, build for the tester’s
+architecture:
+
+```sh
+silex compile Packages/GFX/Tests/Accessibility/Windows.sx --target windows-x64 --debug --output /tmp/WindowsUIA-CPU-x64.exe
+silex compile Silex-Examples/Sources/UIAccessibility/Main.sx --target windows-x64 --debug --output /tmp/UIAccessibility-Windows-x64.exe
+```
+
+Copy both files to Windows and run them in PowerShell:
+
+```powershell
+.\WindowsUIA-CPU-x64.exe
+.\UIAccessibility-Windows-x64.exe --complete --placed
+```
+
+Replace `x64` with `arm64` for ARM64. The headless fixture expects
+`Windows UIA CPU protocol: passed`, followed by exit code 0. It checks COM
+identity and references, native arrays, callbacks from a native thread, Unicode
+BSTRs with BOM/NUL, and unavailability after detachment.
+
+Use Inspect or Accessibility Insights for structure, then Narrator for actual
+navigation. Check these paths:
+
+1. Read Nom/Ada and its label, change the name through ValuePattern, invoke
+   Valider: one visible change per action.
+2. Toggle Notifications, select Énergique, set Volume between 10 and 20, then
+   lock it: RangeValue remains readable while mutation is rejected.
+3. Open Documents, select Notes, collapse/reopen: identities and events remain
+   consistent with visible values.
+4. Inspect Équipe: two columns, three rows, headers and editable cells. GetItem
+   requests one cell; reading its value does not require its mounted child.
+5. In Unicode text, read, search, move anchor/caret by grapheme, word and line,
+   and check visible rectangles. Top/bottom ScrollIntoView reveals a range
+   without changing focus or selection; after editing, a retained range stays
+   clamped to current content.
+6. Move/resize the window and change display/scale (100/150/200%): hit testing
+   and rectangles match visible controls, including with `--placed`.
+7. Act through the client after the window has been idle: visible feedback
+   appears without moving the mouse.
+8. Close while retaining UIA references, including during a callback: subsequent
+   calls become unavailable without a crash or hang.
+
+Record architecture, Windows version, scale, client/reader, commands, binary
+hashes, action and expected/observed results, with logs. Attributes remain
+plain-text attributes; retained ranges do not follow moves through edit anchors.
+A custom Source supplies text geometry and reveal operations for the corresponding
+requests. The bridges remain experimental until these native checks are complete.

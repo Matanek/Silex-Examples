@@ -1,0 +1,78 @@
+use Physics3D.SoftTire.Model
+use Physics3D.SoftTire.BeadChecks
+use GFX.Physics
+use STD.Process
+use STD.Math
+use STD.Time
+
+package struct Observation {
+    var height:float=0.0
+    var distance:float=0.0
+    var volume:float=0.0
+    var minimum:float=0.0
+    var peak:float=0.0
+    var guide_vertical:float=0.0
+    init() {}
+}
+
+package func inspect(name:str, mass:float=20.0, pressure:float=150.0,
+    with_tire:bool=true, drive:bool=false, frames:int=480) Observation {
+    var clock=Time.Clock()
+    let initial_tick=clock.tick()
+    var rig=Model.TireRig(mass,pressure,with_tire,drive)
+    let preparation=clock.tick()
+    var simulation_seconds=0.0
+    var result=Observation();var frame=0
+    while frame<frames {
+        var throttle=0.0
+        if drive && frame>=240 { throttle=1.0 }
+        let observer_time=clock.tick()
+        rig.step(throttle)
+        simulation_seconds+=clock.tick()
+        let position=rig.rim.position()
+        assert(Math.is_finite(position.x) && Math.is_finite(position.y) && Math.is_finite(position.z))
+        result.peak=Math.max(result.peak,position.y)
+        result.guide_vertical=Math.max(result.guide_vertical,Math.abs(rig.guide.reaction_force().y))
+        if frame%120==119 {
+            print(name," frame=",frame+1," hub_y=",position.y," hub_z=",position.z,
+                " omega=",rig.rim.angular_velocity().x," floor=",rig.minimum_y()," volume=",rig.volume(),
+                " radius=",rig.maximum_radius()," guide_force=",rig.guide.reaction_force().y)
+        }
+        frame++
+    }
+    result.height=rig.rim.position().y;result.distance=rig.rim.position().z
+    result.volume=rig.volume();result.minimum=rig.minimum_y()
+    assert(result.guide_vertical<0.00001)
+    if with_tire {
+        assert(result.height>0.8 && result.height<1.7)
+        assert(result.minimum>=0.029 && result.volume>0.7 && result.volume<3.0)
+        assert(rig.maximum_radius()<1.8)
+        for position in rig.tire!.positions() {
+            assert(Math.is_finite(position.x) && Math.is_finite(position.y) && Math.is_finite(position.z))
+        }
+        assert(Math.abs(rig.rim.position().x)<0.001)
+    } else { assert(result.height< -2.0) }
+    print("cost case=",name," preparation_seconds=",preparation," simulation_seconds=",simulation_seconds,
+        " simulated_seconds=",(frames as float)/120.0)
+    return result
+}
+
+package func verify() {
+    let bare=inspect("bare",with_tire:false,frames:120)
+    assert(bare.height<0.0)
+    BeadChecks.verify()
+    print("Soft tire checks passed: reciprocal beads, low inflation, load and sustained driving")
+}
+
+func main() {
+    var mass=20.0;var pressure=150.0;var with_tire=true;var drive=false;var frames=480
+    for arg in Process.arguments() {
+        if arg=="--verify" { verify();return }
+        if arg=="--heavy" { mass=50.0 }
+        if arg=="--low" { pressure=50.0 }
+        if arg=="--bare" { with_tire=false }
+        if arg=="--drive" { drive=true;frames=600 }
+        if arg=="--quick" { frames=120 }
+    }
+    let result=inspect("inspection",mass,pressure,with_tire,drive,frames)
+}

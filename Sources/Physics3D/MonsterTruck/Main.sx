@@ -1,0 +1,114 @@
+use GFX.Application
+use GFX.Components
+use GFX.Input
+use GFX.Physics
+use GFX.Plugins
+use GFX.Resources
+use GFX.Scene2D
+use Physics3D.MonsterTruck.Scene
+use Physics3D.MonsterTruck.Controls
+use Physics3D.MonsterTruck.Checks
+use Physics3D.MonsterTruck.RampChecks
+use Physics3D.MonsterTruck.SlopeChecks
+use Physics3D.MonsterTruck.ArenaChecks
+use Physics3D.MonsterTruck.SceneChecks
+use Physics3D.MonsterTruck.EngineSound
+use STD.Math
+use STD.Process
+use STD.Time
+
+func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.TruckScene,input:@Resources.InputState,
+    simulation:@Application.Simulation,controller:&Application.Controller) {
+    if input.is_pressed(Input.Key.escape) { controller.stop();return }
+    if !state.profile {
+        for event in input.events() {
+            Scene.handle(state,event)
+            match event {
+                mouse_wheel(wheel)=>{ state.chase.distance=Math.clamp(state.chase.distance-wheel.delta.y*0.75,7.0,18.0) }
+                else=>{}
+            }
+        }
+        Scene.perform(world,meshes,state)
+    }
+    var duration=12.0;if state.slope_profile { duration=6.0 }
+    if state.profile && state.metrics.elapsed>=duration {
+        state.metrics.report(state.truck.steps)
+        print("truck x=",state.truck.chassis.position().x," y=",state.truck.chassis.position().y,
+            " z=",state.truck.chassis.position().z," bead=",state.truck.maximum_bead_error())
+        controller.stop();return
+    }
+    var clock=Time.Stopwatch();clock.start()
+    state.accumulator=Math.min(state.accumulator+Math.min(simulation.delta(),0.1),0.1)
+    var ticks=0
+    while state.accumulator>=1.0/120.0 && ticks<8 {
+        if state.profile {
+            var gas=0.0;if state.truck.steps>=240 { gas=0.75 }
+            if state.slope_profile { state.truck.controls(0.0,0.0,brake:true,handbrake:true) }
+            else if state.ramp_profile {
+                var throttle=0.0;if state.truck.steps>=120 && state.truck.steps<480 {throttle=0.25}
+                state.truck.controls(throttle,0.0,brake:state.truck.steps>=480,handbrake:state.truck.steps>=480)
+            }
+            else { state.truck.controls(gas,0.0) }
+        } else {
+            state.panel.drive(state.truck)
+        }
+        state.truck.step();state.accumulator-=1.0/120.0;ticks++
+    }
+    state.metrics.physics_seconds+=clock.get_elapsed_seconds()
+    if var sound=state.sound { sound.update(state.truck,simulation.delta()) }
+    state.telemetry+=simulation.delta()
+    if state.telemetry>=0.15 { Scene.labels(state);state.telemetry=0.0 }
+    if state.ui.update(0.0) {
+        world.update<Scene2D.Canvas>(state.hud,func(c:&Scene2D.Canvas) {
+            c.replace(state.ui.drawing(Controls.Hud.width,Controls.Hud.height))
+        })
+    }
+    Scene.follow(world,state,simulation.delta())
+}
+
+func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.TruckScene) {
+    state.metrics.frame();state.view!.update(world,meshes)
+    if state.profile && state.metrics.frames>0 && state.metrics.interval_frames==0 {
+        var slopes=0
+        if state.slope_profile || state.ramp_profile { for wheel in state.truck.wheels {
+            let hit=state.truck.world.ray_cast(Physics.Ray3D(wheel.rim.position(),Math.Vec3(0.0,-3.0,0.0)),
+                filter:Physics.QueryFilter3D(mask_bits:1))
+            if let support=hit { if support.normal().y<0.995 { slopes++ } }
+        } }
+        print("profile slope_contacts=",slopes," speed=",state.truck.chassis.linear_velocity().length()," elapsed=",state.metrics.elapsed," fps=",state.metrics.fps,
+            " z=",state.truck.chassis.position().z," y=",state.truck.chassis.position().y,
+            " simulated_seconds=",(state.truck.steps as float)/120.0," physics_seconds=",state.metrics.physics_seconds)
+    }
+}
+
+func main() {
+    var workers=4;var profile=false;var slope=false;var ramp=false;var audible=true
+    var directory="Build/EngineLibrary-Monster-Package"
+    let arguments=Process.arguments()
+    for i,arg in arguments.indexed() {
+        if arg=="--silent" { audible=false }
+        if arg=="--engine-library" { if i+1>=arguments.count() { panic("--engine-library requires a bank directory") } directory=arguments[i+1] }
+        if arg=="--ramp-check" {RampChecks.verify();return}
+        if arg=="--slope-check" { SlopeChecks.verify();return }
+        if arg=="--arena-check" { ArenaChecks.verify();return }
+        if arg=="--check" { Checks.verify();return }
+        if arg=="--scene-check" { SceneChecks.verify();return }
+        if arg=="--single" { workers=1 }
+        if arg=="--profile-ramp" {profile=true;ramp=true}
+        if arg=="--profile-slope" { profile=true;slope=true }
+        if arg=="--profile" { profile=true }
+    }
+    var state=Scene.TruckScene(workers,profile,slope,ramp)
+    if audible { state.sound=EngineSound(directory) }
+    var title="MONSTER PICKUP — Boîte + turbo · ZQSD · Espace frein · Maj boost"
+    if profile { title="MESURE AUTOMATIQUE — Monster pickup — 12 secondes" }
+    if ramp {title="MESURE AUTOMATIQUE — Montée de rampe — 12 secondes"}
+    if slope { title="MESURE AUTOMATIQUE — Monster truck sur pente — 6 secondes" }
+    Application() ..add_resource(state)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
+        ..add_plugin(Plugins.Input()) ..add_plugin(Plugins.Time())
+        ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
+        ..add_system(Application.Schedule.startup,Scene.startup)
+        ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+}

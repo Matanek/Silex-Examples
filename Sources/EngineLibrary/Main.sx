@@ -1,0 +1,9 @@
+use STD.Process
+use Module.Session
+
+func main() {
+    let arguments = Process.arguments()
+    var directory = "Build/EngineLibrary-Package"
+    if arguments.count() > 1 { directory = arguments[1] }
+    Session.show(directory)
+}

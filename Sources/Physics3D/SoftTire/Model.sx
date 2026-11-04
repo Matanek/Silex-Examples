@@ -1,0 +1,99 @@
+use GFX.Physics
+use STD.Math
+use Physics3D.SoftTire.Topology
+use Physics3D.SoftTire.Beads
+
+package func rim_mass(mass:float) Physics.MassProperties3D {
+    let radius=0.58;let width=0.5
+    let side=mass*(3.0*radius*radius+width*width)/12.0
+    return Physics.MassProperties3D(mass,Math.Vec3(side,0.5*mass*radius*radius,side))
+}
+
+package class TireRig {
+    var world:Physics.World3D
+    var rim:Physics.RigidBody3D
+    var guide:Physics.SixDOFConstraint3D
+    var tire:Physics.SoftBody3D?
+    var floor:Physics.RigidBody3D
+    var obstacle:Physics.RigidBody3D
+    var pressure:float
+    var seat:Beads.Seat?=null
+    var seated:bool
+    init(mass:float=20.0, pressure:float=150.0, with_tire:bool=true, with_obstacle:bool=false,
+        seated:bool=true,compliance:float=0.0005) {
+        self.world=Physics.World3D(Physics.World3DSettings() ..soft_body_substeps=2 ..velocity_iterations=24)
+        let center=Math.Vec3(0.0,1.24,0.0)
+        let rotation=Math.Quat.angle_axis(Math.pi()*0.5,Math.Vec3(0.0,0.0,1.0))
+        var support=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..collision_filter=Physics.CollisionFilter3D(category_bits:8,mask_bits:0))
+        self.floor=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0
+            ..collision_filter=Physics.CollisionFilter3D(category_bits:1,mask_bits:4))
+        self.obstacle=self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(2.0,0.18,0.5)))
+            ..transform=Physics.Transform3D(Math.Vec3(0.0,0.09,3.0)) ..is_enabled=with_obstacle
+            ..friction=1.0 ..collision_filter=Physics.CollisionFilter3D(category_bits:1,mask_bits:4))
+        self.rim=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..shape=Physics.Shape3D.cylinder(Physics.Cylinder3D(0.58,0.25))
+            ..mass_properties=rim_mass(mass) ..transform=Physics.Transform3D(center,rotation)
+            ..friction=1.8 ..allow_sleep=false ..linear_damping=0.05 ..angular_damping=0.1
+            ..collision_filter=Physics.CollisionFilter3D(category_bits:2,mask_bits:4))
+        self.guide=self.world.create_six_dof_constraint(support,self.rim,Physics.SixDOFConstraint3DSettings()
+            ..first_local_frame=Physics.Transform3D(center)
+            ..second_local_frame=Physics.Transform3D(Math.Vec3(),rotation.conjugated())
+            ..translation_x=(Physics.LinearAxis3DSettings() ..limit=Physics.LinearLimit3D.locked)
+            ..swing_limits=Physics.SwingLimits3D.cone(Math.Vec2()))
+        self.pressure=pressure;self.tire=null;self.seated=seated
+        if with_tire {
+            var body=self.world.create_soft_body(Topology.make_tire(compliance),Physics.SoftBody3DSettings()
+                ..transform=Physics.Transform3D(center) ..pressure=pressure
+                ..linear_damping=0.9 ..friction=1.4 ..vertex_radius=0.035
+                ..collision_filter=Physics.CollisionFilter3D(category_bits:4,mask_bits:3))
+            self.tire=body;self.seat=Beads.Seat(body,self.rim)
+        }
+    }
+    func step(throttle:float=0.0, brake:bool=false) {
+        // Four reciprocal coupling steps, each with two soft iterations: the
+        // original eight soft substeps are preserved, without an outer-frame lag.
+        let delta=1.0/480.0;var part=0
+        while part<4 {
+            if Math.abs(throttle)>0.01 || brake {
+                var target=throttle*5.0
+                if brake { target=0.0 }
+                let torque=Math.clamp((target-self.rim.angular_velocity().x)*35.0,-150.0,150.0)
+                self.rim.apply_torque(Math.Vec3(torque,0.0,0.0))
+            }
+            if self.seated { if var seat=self.seat { seat.solve(delta) } }
+            self.world.step(delta);part++
+        }
+    }
+    func set_load(mass:float) { self.rim.set_mass_properties(rim_mass(mass)) }
+    func set_pressure(pressure:float) {
+        self.pressure=pressure
+        if var tire=self.tire { tire.set_pressure(pressure) }
+    }
+    func minimum_y() float {
+        var minimum=100.0
+        if var tire=self.tire { for p in tire.positions() { minimum=Math.min(minimum,p.y) } }
+        return minimum
+    }
+    func volume() float {
+        if var tire=self.tire {
+            let positions=tire.positions();let faces=tire.definition().indices();let origin=positions[0]
+            var six=0.0;var i=0
+            while i<faces.count() {
+                six+=positions[faces[i]].subtract(origin).dot(positions[faces[i+1]].subtract(origin).cross(positions[faces[i+2]].subtract(origin)))
+                i+=3
+            }
+            return six/6.0
+        }
+        return 0.0
+    }
+    func maximum_radius() float {
+        var radius=0.0
+        if var tire=self.tire {
+            for p in tire.positions() { radius=Math.max(radius,p.subtract(self.rim.position()).length()) }
+        }
+        return radius
+    }
+}

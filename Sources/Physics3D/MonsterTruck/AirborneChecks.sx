@@ -1,0 +1,99 @@
+use GFX.Physics
+use Physics3D.MonsterTruck.Model
+use STD.Math
+use STD.Process
+
+func set_spin(truck:@Model.Truck,value:float) {
+    for wheel in truck.wheels {
+        let axle=truck.chassis.transform().vector(Math.Vec3.right())
+        wheel.rim.set_angular_velocity(truck.chassis.angular_velocity().add(axle.multiply(value)))
+    }
+}
+func orientations() {
+    let angles:float[]=[0.0,Math.half_pi(),Math.pi(),Math.pi()*1.5]
+    for angle in angles {
+        var truck=Model.Truck(spawn:Physics.Transform3D(Math.Vec3(0.0,100.0,0.0),
+            Math.Quat.angle_axis(angle,Math.Vec3.right())))
+        truck.chassis.set_linear_velocity(Math.Vec3(0.0,0.0,12.0));set_spin(truck,20.0)
+        truck.held(true,false,false,false,false,true)
+        print("AIR angle=",angle," forward_brake=",truck.brake)
+        assert(!truck.brake,"airborne throttle must not become a brake when chassis orientation reverses")
+    }
+}
+func pedals() {
+    var truck=Model.Truck(spawn:Physics.Transform3D(Math.Vec3(0.0,100.0,0.0)))
+    truck.chassis.set_linear_velocity(Math.Vec3(0.0,0.0,12.0));set_spin(truck,20.0)
+    truck.held(false,true,false,false,false,false)
+    assert(truck.brake,"opposite pedal must brake forward-spinning wheels in flight")
+    set_spin(truck,-20.0)
+    truck.held(false,true,false,false,false,false);assert(!truck.brake)
+    truck.held(true,false,false,false,false,false);assert(truck.brake)
+    set_spin(truck,20.0)
+    truck.held(true,false,false,false,true,true)
+    assert(!truck.brake && truck.handbrake,"explicit rear braking must remain available in flight")
+    truck.controls(0.0,0.0,brake:true);assert(truck.brake)
+    var ground=Model.Truck()
+    for _ in 0...240 { ground.step() }
+    ground.chassis.set_linear_velocity(Math.Vec3(0.0,0.0,12.0));set_spin(ground,-20.0)
+    ground.held(false,true,false,false,false,false)
+    assert(!ground.brake && ground.gas<0.0,"ground reversal must request reverse drive even if the wheels slip backwards")
+    ground.held(false,true,false,false,false,false,service_brake:true)
+    assert(ground.brake && ground.hard_brake,"explicit strong braking must follow ground travel")
+    ground.chassis.set_linear_velocity(Math.Vec3(0.0,0.0,-12.0));set_spin(ground,20.0)
+    ground.held(true,false,false,false,false,false);assert(!ground.brake && ground.gas>0.0)
+    ground.held(true,false,false,false,false,false,service_brake:true);assert(ground.brake && ground.hard_brake)
+}
+func flight(verify:bool=true) {
+    var truck=Model.Truck(spawn:Physics.Transform3D(Math.Vec3(0.0,100.0,0.0)))
+    let velocity=Math.Vec3(0.0,0.0,12.0);let rotation=Math.Vec3(-3.5,0.0,0.0)
+    let center=truck.chassis.world_center_of_mass()
+    truck.chassis.set_linear_velocity(velocity);truck.chassis.set_angular_velocity(rotation)
+    for wheel in truck.wheels {
+        let hub=wheel.rim.world_center_of_mass();let spin=Math.Vec3(20.0,0.0,0.0)
+        wheel.rim.set_linear_velocity(velocity.add(rotation.cross(hub.subtract(center))))
+        wheel.rim.set_angular_velocity(rotation.add(spin))
+        for vertex in 0...wheel.tyre.vertex_count() {
+            let point=wheel.tyre.position(vertex)
+            let desired=velocity.add(rotation.cross(point.subtract(center))).add(spin.cross(point.subtract(hub)))
+            // TyreProfile uses inverse particle mass 20, hence mass 0.05 kg.
+            wheel.tyre.apply_impulse(vertex,desired.multiply(0.05))
+        }
+    }
+    var inverted=0;var brakes=0;var recovered=false;var minimum_spin=1000.0;var minimum_rotation=1000.0
+    for frame in 0...360 {
+        truck.held(true,false,false,false,false,true)
+        if truck.brake { brakes++ }
+        truck.step()
+        let up=truck.chassis.transform().vector(Math.Vec3.up()).y
+        var spin=0.0;for wheel in truck.wheels { spin+=wheel.spin(truck.chassis)/4.0 }
+        if up< -0.5 {
+            inverted++;minimum_spin=Math.min(minimum_spin,spin)
+            minimum_rotation=Math.min(minimum_rotation,Math.abs(truck.chassis.angular_velocity().x))
+        }
+        if inverted>0 && up>0.8 { recovered=true }
+        if frame%30==29 { print("FLIP t=",(frame+1) as float/120.0," up=",up," spin=",spin,
+            " pitch_speed=",truck.chassis.angular_velocity().x," brake=",truck.brake) }
+        if verify { assert(!truck.brake && truck.minimum_y()>40.0 && truck.maximum_bead_error()<0.08) }
+    }
+    print("FLIP result inverted_frames=",inverted," automatic_brakes=",brakes," minimum_spin=",minimum_spin,
+        " minimum_pitch_speed=",minimum_rotation," completed=",recovered)
+    if verify { assert(inverted>0 && recovered && minimum_spin>5.0 && minimum_rotation>0.5) }
+}
+func course() {
+    var truck=Model.Truck(obstacles:true)
+    var inverted=0;var bead=0.0;var highest=0.0
+    for frame in 0...1440 {
+        if frame>=120 { truck.held(true,false,false,false,false,false) }
+        truck.step()
+        bead=Math.max(bead,truck.maximum_bead_error());highest=Math.max(highest,truck.chassis.position().y)
+        if truck.chassis.transform().vector(Math.Vec3.up()).y< -0.5 { inverted++ }
+        assert(bead<0.08 && truck.minimum_y()>0.025,"held forward input must preserve tyre seating through real jumps and landings")
+    }
+    assert(inverted>0 && highest>3.5)
+    print("AIR course inverted_frames=",inverted," peak_bead=",bead," highest=",highest)
+}
+package func verify() { orientations();pedals();flight();course();print("Airborne controls passed: attitude-independent wheel direction, explicit braking, uninterrupted backflip and real landings") }
+func main() {
+    for arg in Process.arguments() { if arg=="--trace" { flight(false);return } }
+    verify()
+}

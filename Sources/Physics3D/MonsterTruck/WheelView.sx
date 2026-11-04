@@ -1,0 +1,98 @@
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Physics
+use GFX.Resources
+use GFX.Scene3D
+use Physics3D.MonsterTruck.TyreProfile
+use Physics3D.MonsterTruck.Wheel
+use Physics3D.MonsterTruck.Primitives
+use STD.Math
+
+package struct Assets {
+    let cube:Scene3D.MeshHandle
+    let lug:Scene3D.MeshHandle
+    let rim:Scene3D.MeshHandle
+    let flange:Scene3D.MeshHandle
+    let disk:Scene3D.MeshHandle
+    let hub:Scene3D.MeshHandle
+}
+
+package func mesh_entity(world:&Resources.World,asset:Scene3D.MeshHandle,color:Color,
+    metallic:float=0.0,roughness:float=0.75) ECS.Entity {
+    return world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D()) ..with(Components.Mesh3D(asset))
+        ..with(Components.Material3D(albedo:color,metallic:metallic,roughness:roughness)))
+}
+
+func place(world:&Resources.World,entity:ECS.Entity,position:Math.Vec3,rotation:Math.Quat) {
+    world.update<Components.Transform3D>(entity,func(t:&Components.Transform3D) { t.position=position;t.rotation=rotation })
+}
+
+package class WheelView {
+    var wheel:Wheel
+    var presenter:Physics.SoftBodyMesh3D
+    var rubber:ECS.Entity
+    var rim:ECS.Entity
+    var flange:ECS.Entity
+    var disk:ECS.Entity
+    var hub:ECS.Entity
+    var bolts:ECS.Entity
+    var treads:ECS.Entity
+    let side:float
+    init(wheel:Wheel,assets:Assets,world:&Resources.World,meshes:&Resources.Meshes3D) {
+        self.wheel=wheel;var side=1.0
+        if wheel.anchor.x<0.0 { side= -1.0 }
+        self.side=side
+        self.presenter=Physics.SoftBodyMesh3D(self.wheel.tyre,meshes)
+        self.rubber=mesh_entity(world,self.presenter.mesh(),Color.bytes(4,5,6),roughness:0.98)
+        self.rim=mesh_entity(world,assets.rim,Color.bytes(72,80,92),metallic:0.8,roughness:0.3)
+        self.flange=mesh_entity(world,assets.flange,Color.bytes(220,38,34),metallic:0.45,roughness:0.35)
+        self.disk=mesh_entity(world,assets.disk,Color.bytes(175,186,200),metallic:0.8,roughness:0.3)
+        self.hub=mesh_entity(world,assets.hub,Color.bytes(53,61,73),metallic:0.7)
+        self.bolts=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D()) ..with(Components.Mesh3D(assets.cube))
+            ..with(Components.Material3D(albedo:Color.bytes(35,42,50),metallic:0.8)) ..with(Scene3D.Instances()))
+        self.treads=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D()) ..with(Components.Mesh3D(assets.lug))
+            ..with(Components.Material3D(albedo:Color.bytes(7,8,10),roughness:0.98)) ..with(Scene3D.Instances()))
+    }
+    func rebind(wheel:Wheel,world:&Resources.World,meshes:&Resources.Meshes3D) {
+        self.presenter.remove(meshes);self.wheel=wheel
+        self.presenter=Physics.SoftBodyMesh3D(self.wheel.tyre,meshes)
+        let asset=self.presenter.mesh()
+        world.update<Components.Mesh3D>(self.rubber,func(m:&Components.Mesh3D) { m.asset=asset })
+    }
+    func update(world:&Resources.World,meshes:&Resources.Meshes3D) {
+        self.presenter.update(meshes)
+        let pose=self.wheel.rim.transform()
+        place(world,self.rim,pose.position,pose.rotation)
+        place(world,self.flange,pose.point(Math.Vec3(0.0,-self.side*TyreProfile.Dimensions.flange_offset,0.0)),pose.rotation)
+        place(world,self.disk,pose.point(Math.Vec3(0.0,-self.side*(TyreProfile.Dimensions.flange_offset+0.03),0.0)),pose.rotation)
+        place(world,self.hub,pose.point(Math.Vec3(0.0,-self.side*(TyreProfile.Dimensions.flange_offset+0.07),0.0)),pose.rotation)
+        var bolts:Scene3D.Transform[]=[]
+        for index in 0...8 {
+            let angle=Math.two_pi()*(index as float)/8.0
+            let position=pose.point(Math.Vec3(Math.cos(angle)*0.44,-self.side*(TyreProfile.Dimensions.flange_offset+0.063),Math.sin(angle)*0.44))
+            bolts.append(Scene3D.Transform(position,pose.rotation,Math.Vec3(0.075,0.035,0.075)))
+        }
+        world.update<Scene3D.Instances>(self.bolts,func(i:&Scene3D.Instances) { i.replace(bolts) })
+        let points=self.wheel.tyre.positions()
+        let frame=pose.rotation.multiply(Math.Quat.angle_axis(-Math.half_pi(),Math.Vec3.back()))
+        var treads:Scene3D.Transform[]=[]
+        for ring in 0...24 {
+            let center=points[ring*8]
+            let tangent=points[((ring+1)%24)*8].subtract(points[((ring+23)%24)*8])
+            let across=points[ring*8+1].subtract(points[ring*8+7])
+            var normal=tangent.cross(across).normalized()
+            if normal.dot(center.subtract(pose.position))<0.0 { normal=normal.negated() }
+            let base=frame.multiply(Math.Quat.angle_axis(Math.two_pi()*(ring as float)/24.0,Math.Vec3.right()))
+            let aligned=Primitives.align(base.rotate(Math.Vec3.up()),normal).multiply(base)
+            for side in 0...2 {
+                var slice=1;var sign=1.0
+                if side==1 { slice=7;sign= -1.0 }
+                let position=center.add(points[ring*8+slice]).multiply(0.5).add(normal.multiply(0.005))
+                let rotation=aligned.multiply(Math.Quat.angle_axis(sign*0.48,Math.Vec3.up()))
+                treads.append(Scene3D.Transform(position,rotation,Math.Vec3(0.62,0.045,0.17)))
+            }
+        }
+        world.update<Scene3D.Instances>(self.treads,func(i:&Scene3D.Instances) { i.replace(treads) })
+    }
+}

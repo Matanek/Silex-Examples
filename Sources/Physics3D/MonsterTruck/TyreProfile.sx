@@ -1,0 +1,56 @@
+use GFX.Physics
+use STD.Math
+
+package static struct Dimensions {
+    let rings:int=24
+    let slices:int=8
+    let radius:float=1.10
+    let half_width:float=0.66
+    let rim_radius:float=0.66
+    let rim_half_width:float=0.43
+    let flange_radius:float=0.78
+    let flange_offset:float=0.45
+}
+
+func vertex(ring:int,slice:int) int {
+    return ((ring+24)%24)*8+(slice+8)%8
+}
+
+package func make(flex:float=1.0) Physics.SoftBody3DDefinition {
+    // Same 24x8 layout and particle masses as the qualified bead coupling.
+    // The flat tread and upright sidewalls replace the round torus section.
+    // Collision-sphere centers clear the rim barrel and flange corners.
+    let section:Math.Vec2[]=[Math.Vec2(0.0,1.10),Math.Vec2(0.54,1.10),
+        Math.Vec2(0.66,1.00),Math.Vec2(0.37,0.74),Math.Vec2(0.0,0.71),
+        Math.Vec2(-0.37,0.74),Math.Vec2(-0.66,1.00),Math.Vec2(-0.54,1.10)]
+    var positions:Math.Vec3[]=[];var faces:int[]=[];var masses:float[]=[]
+    var edges:Physics.SoftEdge3D[]=[];var bends:Physics.SoftBend3D[]=[]
+    for ring in 0...24 {
+        let angle=Math.two_pi()*(ring as float)/24.0
+        for slice in 0...8 {
+            let cross=section[slice]
+            positions.append(Math.Vec3(cross.x,cross.y*Math.cos(angle),cross.y*Math.sin(angle)))
+            masses.append(20.0)
+            let a=vertex(ring,slice);let b=vertex(ring+1,slice)
+            let c=vertex(ring,slice+1);let d=vertex(ring+1,slice+1)
+            faces.append(a);faces.append(b);faces.append(c)
+            faces.append(b);faces.append(d);faces.append(c)
+            // Sidewall cords resist stretching; bending still allows a contact patch.
+            var hoop=0.00015;var radial=0.00015;var shear=0.0003;var bending=0.005
+            if slice==2 || slice==5 {
+                hoop=0.00005;radial=0.00001;shear=0.000015;bending=0.0001
+            }
+            edges.append(Physics.SoftEdge3D(a,b,hoop*flex));edges.append(Physics.SoftEdge3D(a,c,radial*flex))
+            edges.append(Physics.SoftEdge3D(a,d,shear*flex));edges.append(Physics.SoftEdge3D(b,c,shear*flex))
+            bends.append(Physics.SoftBend3D(b,c,a,d,bending*flex))
+        }
+    }
+    // Internal shear diagonals transfer lateral tread loads to both bead seats.
+    // They preserve radial compliance without fixing particles to the rim.
+    let offsets:int[]=[-1,1]
+    for ring in 0...24 { for offset in offsets {
+        edges.append(Physics.SoftEdge3D(vertex(ring,2),vertex(ring+offset,5),0.0000003*flex*flex))
+        edges.append(Physics.SoftEdge3D(vertex(ring,6),vertex(ring+offset,3),0.0000003*flex*flex))
+    } }
+    return Physics.SoftBody3DDefinition(positions,faces,masses,edges,bends)
+}

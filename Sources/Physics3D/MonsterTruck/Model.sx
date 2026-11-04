@@ -1,0 +1,159 @@
+use GFX.Physics
+use STD.Math
+use Physics3D.MonsterTruck.Wheel
+use Physics3D.MonsterTruck.TyreProfile
+use Physics3D.MonsterTruck.Terrain
+use Physics3D.MonsterTruck.Transmission
+
+package class Truck {
+    var world:Physics.World3D
+    var chassis:Physics.RigidBody3D
+    var wheels:Wheel[]=[]
+    var steering:float=0.0
+    var rear_steering:float=0.0
+    var gas:float=0.0
+    var drive:float=0.0
+    var brake:bool=false
+    var handbrake:bool=false
+    var hard_brake:bool=false
+    var steps:int=0
+    var final_drive:float
+    var motor:Physics.WheelDrive3D
+    private var supported:bool[]=[]
+    private var reversing:bool=false
+    private var clutch_response:float=1.0
+    init(workers:int=1,obstacles:bool=false,spawn:Physics.Transform3D=Physics.Transform3D(Math.Vec3(0.0,2.35,0.0)),tyre_flex:float=4.0,final_drive:float=Transmission.Settings.final_drive) {
+        self.final_drive=final_drive;self.motor=Transmission.create(final_drive)
+        self.world=Physics.World3D(Physics.World3DSettings() ..soft_body_substeps=1 ..velocity_iterations=8)
+        if workers>1 { self.world.enable_parallelism(workers) }
+        self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0
+            ..collision_filter=Physics.CollisionFilter3D(category_bits:1,mask_bits:14))
+        self.chassis=self.world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..shape=Terrain.chassis_shape()
+            ..transform=spawn
+            // Engine and transmission sit below the body shell, slightly forward.
+            ..mass_properties=Physics.MassProperties3D(150.0,Math.Vec3(269.8,319.6,60.4),Math.Vec3(0.0,-0.85,0.15))
+            ..allow_sleep=false ..linear_damping=0.05 ..angular_damping=0.15
+            ..collision_filter=Physics.CollisionFilter3D(category_bits:8,mask_bits:1))
+        if obstacles { Terrain.create(self.world) }
+        var definition=TyreProfile.make(tyre_flex)
+        let sides:float[]=[-2.05,2.05];let axles:float[]=[-2.05,2.05]
+        for x in sides { for z in axles {
+            self.wheels.append(Wheel(self.world,self.chassis,definition,Math.Vec3(x,-1.05,z)))
+            self.supported.append(false)
+        } }
+    }
+    func controls(throttle:float,turn:float,brake:bool=false,handbrake:bool=false,rear_turn:float?=null,hard_brake:bool=false) {
+        self.reversing=false
+        self.gas=throttle;self.brake=brake;self.handbrake=handbrake;self.hard_brake=hard_brake
+        let speed=self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z
+        let limit=Math.max(0.35,0.62/(1.0+speed*speed/400.0))
+        let target=turn*limit
+        var rear_target= -target*0.65
+        if let independent=rear_turn { rear_target=independent*limit }
+        self.steering+=Math.clamp(target-self.steering,-0.02,0.02)
+        self.rear_steering+=Math.clamp(rear_target-self.rear_steering,-0.02,0.02)
+        for wheel in self.wheels {
+            var angle=self.steering;if !wheel.front { angle=self.rear_steering }
+            wheel.steer(angle)
+        }
+    }
+    func held(forward:bool,reverse:bool,left:bool,right:bool,handbrake:bool,boost:bool,
+        rear_left:bool=false,rear_right:bool=false,coupled:bool=true,
+        service_brake:bool=false,front_brake:bool=false) {
+        var throttle=0.0;var braking=service_brake || front_brake
+        if forward && !reverse {
+            throttle=1.0;if boost { throttle=1.5 }
+        }
+        if reverse {
+            throttle= -0.75
+        }
+        var reversing=false
+        if throttle!=0.0 && !service_brake && !front_brake && !handbrake {
+            braking=throttle*self.braking_speed()< -0.5
+            if braking {
+                // Ground pedals request opposing drive. Unsupported wheels
+                // retain rotor braking; explicit brakes always select their axle.
+                for contact in self.supported { if contact { reversing=true;break } }
+                if reversing { braking=false }
+            }
+        }
+        var turn=0.0;if left { turn+=1.0 }
+        if right { turn-=1.0 }
+        var rear:float?=null
+        if !coupled || rear_left || rear_right {
+            var input=0.0;if rear_left { input-=1.0 }
+            if rear_right { input+=1.0 }
+            rear=input
+        }
+        self.controls(throttle,turn,braking,handbrake,rear,hard_brake:service_brake)
+        self.reversing=reversing
+    }
+    private func braking_speed() float {
+        for contact in self.supported {
+            if contact { return self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z }
+        }
+        // Flight velocity projected on a tumbling chassis reverses during a flip.
+        // The pedals must follow rotor direction until the wheels regain support.
+        var speed=0.0
+        for wheel in self.wheels { speed+=wheel.spin(self.chassis)*TyreProfile.Dimensions.radius/4.0 }
+        return speed
+    }
+    func set_pressure(value:float) {
+        for wheel in self.wheels { wheel.tyre.set_pressure(value) }
+    }
+    func configure_gearing(value:float) bool {
+        if !Math.is_finite(value) || value<Transmission.Settings.minimum_final || value>Transmission.Settings.maximum_final || Math.abs(self.gas)>0.001 || Math.abs(self.drive)>0.001 || self.chassis.linear_velocity().length()>0.5 { return false }
+        for wheel in self.wheels { if Math.abs(wheel.spin(self.chassis))>0.5 { return false } }
+        self.motor=Transmission.create(value);self.final_drive=value;return true
+    }
+    func step() {
+        // Updated once per 120 Hz step, using the held pedal's direction.
+        // Limit coupling while opposing ground travel, then recover smoothly.
+        if self.reversing { self.clutch_response=Transmission.reversal_pressure(self.final_drive) }
+        else { self.clutch_response=Math.min(1.0,self.clutch_response+1.0/(120.0*Transmission.Settings.clutch_recovery)) }
+        // A finite throttle response avoids an impulse-like torque jump.
+        if self.gas*self.drive<0.0 { self.drive=0.0 }
+        var rise=0.025
+        if self.brake || Math.abs(self.gas)>1.0 { rise=0.1 }
+        self.drive+=Math.clamp(self.gas-self.drive,-0.1,rise)
+        if self.brake && Math.abs(self.gas)<0.001 { self.drive=0.0 }
+        for i,wheel in self.wheels.indexed() {
+            self.supported[i]=self.world.ray_cast(Physics.Ray3D(wheel.rim.position(),Math.Vec3(0.0,-1.3,0.0)),
+                filter:Physics.QueryFilter3D(mask_bits:1))!=null
+        }
+        let delta=1.0/960.0
+        for _ in 0...8 {
+            var mean=0.0
+            for i,wheel in self.wheels.indexed() {
+                let spin=wheel.spin(self.chassis);mean+=Math.abs(spin)/4.0
+                self.motor.set_wheel(i,spin,grounded:self.supported[i])
+            }
+            var throttle=Math.clamp(self.drive,-1.0,1.0)
+            let rpm=self.motor.state().engine_rpm
+            var scale=Transmission.torque_scale(self.drive,rpm)
+            if self.clutch_response<1.0 {
+                // Avoid storing excessive flywheel energy during clutch slip.
+                scale=Math.min(scale,Math.clamp((Transmission.Settings.reversal_rpm-rpm)/300.0,0.0,1.0))
+            }
+            var clutch=Math.max(Math.clamp(mean*1.1/3.0,0.0,1.0),Math.clamp((rpm-680.0)/1275.0,0.0,1.0))
+            clutch=Math.min(clutch,self.clutch_response)
+            if self.brake || self.handbrake { throttle=0.0;clutch=0.0 }
+            self.motor.step(delta,throttle,torque_scale:scale,clutch:clutch)
+            for i,wheel in self.wheels.indexed() { wheel.couple(self.chassis,self.motor.wheel_torque(i),self.brake,self.handbrake,self.hard_brake,delta) }
+            self.world.step(delta)
+        }
+        self.steps++
+    }
+    func maximum_bead_error() float {
+        var error=0.0
+        for wheel in self.wheels { error=Math.max(error,wheel.seat.maximum_error()) }
+        return error
+    }
+    func minimum_y() float {
+        var result=100.0
+        for wheel in self.wheels { for p in wheel.tyre.positions() { result=Math.min(result,p.y) } }
+        return result
+    }
+}

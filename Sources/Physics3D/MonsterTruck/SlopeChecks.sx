@@ -1,0 +1,32 @@
+use GFX.Physics
+use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.Terrain
+use STD.Math
+use STD.Time
+
+package func verify() {
+    var truck=Model.Truck(4,obstacles:true,spawn:Terrain.slope_spawn())
+    truck.controls(0.0,0.0,brake:true,handbrake:true,hard_brake:true)
+    var clock=Time.Clock();var seconds=0.0;var supported=0
+    for frame in 0...480 {
+        let before=clock.tick();truck.step();seconds+=clock.tick()
+        assert(truck.maximum_bead_error()<0.08 && truck.minimum_y()>0.025)
+        if frame%120==119 {
+            var slopes=0
+            for wheel in truck.wheels {
+                let hit=truck.world.ray_cast(Physics.Ray3D(wheel.rim.position(),Math.Vec3(0.0,-3.0,0.0)),
+                    filter:Physics.QueryFilter3D(mask_bits:1))
+                if let support=hit { if support.normal().y<0.995 { slopes++ } }
+            }
+            supported+=slopes
+            let speed=truck.chassis.linear_velocity().length()
+            print("arena slope frame=",frame+1," contacts=",slopes," speed=",speed," physics_seconds=",seconds)
+            assert(speed<2.0 && truck.chassis.transform().vector(Math.Vec3.up()).y>0.8)
+        }
+    }
+    assert(supported>=8)
+    print("Arena slope passed: slow loaded contact on real approach facets")
+}
+
+
+func main() { verify() }

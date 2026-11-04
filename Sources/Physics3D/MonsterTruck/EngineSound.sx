@@ -1,0 +1,68 @@
+use GFX.Audio
+use GFX.Audio.Engines
+use STD.Error.Kind
+use STD.Math
+use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.Transmission
+
+// Sound follows the physical engine. Other games can supply any OperatingState.
+package func operating(truck:@Model.Truck) Engines.OperatingState {
+    let state=truck.motor.state()
+    return Engines.OperatingState(rpm:state.engine_rpm,load:Math.clamp(state.engine_torque/Transmission.Settings.torque,0.0,1.0))
+}
+
+package class EngineSound {
+    private var source:Engines.DrivenEngine
+    private var audio:Audio
+    private var stream:Audio.Stream
+    private var playing:Audio.PlayingSound = Audio.PlayingSound()
+    private var samples:float32[] = []
+    private var pending:bool = false
+    private var offset:int = 0
+    init(directory:str, offline:bool = false) {
+        var library = Engines.Library.open(directory); self.source = library.driven_engine("454")
+        if offline { self.audio = Audio.offline(sample_rate:44_100, channels:2) } else { self.audio = Audio() }
+        self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+        for _ in 0...960 { self.samples.append(0.0) }
+        self.source.set_state(Engines.OperatingState(rpm:850.0)); self.source.enqueue()
+    }
+    func current_rpm() float { return self.source.current_rpm() }
+    func update(truck:@Model.Truck, delta:float) {
+        self.source.set_state(operating(truck))
+        self.feed()
+    }
+    func reset() {
+        if self.playing.is_valid() { self.audio.stop(self.playing) }
+        self.audio.release(self.stream); self.source.reset()
+        self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+        self.playing = Audio.PlayingSound(); self.pending = false; self.offset = 0
+        self.source.set_state(Engines.OperatingState(rpm:850.0)); self.source.enqueue()
+    }
+    private func feed() {
+        var count = 0
+        while count < 8 {
+            if self.audio.stream_info(self.stream).queued_frames >= 2_400 { break }
+            if !self.pending {
+                if !self.source.render_ready(&self.samples[0:960]) { break }
+                self.pending = true; self.offset = 0
+            }
+            match try self.audio.write(self.stream, @self.samples[self.offset * 2:960]) {
+                failure(error) => { if error.kind != Kind.would_block() { panic(error.detail) } break }
+                success(frames) => {
+                    self.offset += frames
+                    if self.offset == 480 { self.pending = false; self.source.enqueue() }
+                    if frames == 0 { break }
+                }
+            }
+            count++
+        }
+        if !self.playing.is_valid() && self.audio.stream_info(self.stream).queued_frames >= 1_920 {
+            self.playing = self.audio.play(self.stream, Audio.Playback(fade_in_seconds:0.05))
+        }
+    }
+    func render_offline(frames:int) float32[] { return self.audio.render(frames) }
+    drop {
+        if self.playing.is_valid() { self.audio.stop(self.playing) }
+        self.audio.release(self.stream)
+    }
+}

@@ -1,0 +1,63 @@
+use GFX.Color
+use GFX.Input
+use GFX.Input.Events
+use GFX.UI
+
+func letter(key:@Events.KeyEvent,lower:uint32,upper:uint32,physical:Input.Key) bool {
+    return key.keycode==lower || key.keycode==upper || (key.keycode==0 as uint32 && key.key==physical)
+}
+
+package static struct Hud { let width:int=270;let height:int=280 }
+
+package class Panel {
+    var forward:bool=false
+    var reverse:bool=false
+    var brake:bool=false
+    var reset:bool=false
+    var changed:bool=false
+    var heavy:bool=false
+    var pressure_level:int=0
+    var obstacle:bool=true
+    var metrics:UI.State<str> =UI.State<str>("Chargement du pneu…")
+    var settings:UI.State<str> =UI.State<str>("")
+    func mass() float { if self.heavy { return 50.0 }
+        return 20.0 }
+    func pressure() float {
+        if self.pressure_level==1 { return 50.0 }
+        if self.pressure_level==2 { return 1500.0 }
+        return 150.0
+    }
+    func held(key:@Events.KeyEvent,down:bool) bool {
+        if letter(key,122 as uint32,90 as uint32,Input.Key.z) { self.forward=down;return true }
+        if letter(key,115 as uint32,83 as uint32,Input.Key.s) { self.reverse=down;return true }
+        if key.key==Input.Key.space { self.brake=down;return true }
+        return false
+    }
+    func handle(event:@Events.Event) {
+        match event {
+            key_pressed(key)=>{
+                if self.held(key,true) || key.repeated { return }
+                if letter(key,114 as uint32,82 as uint32,Input.Key.r) { self.reset=true }
+                if letter(key,99 as uint32,67 as uint32,Input.Key.c) { self.heavy= !self.heavy;self.changed=true }
+                if letter(key,112 as uint32,80 as uint32,Input.Key.p) { self.pressure_level=(self.pressure_level+1)%3;self.changed=true }
+                if letter(key,111 as uint32,79 as uint32,Input.Key.o) { self.obstacle= !self.obstacle;self.changed=true }
+            }
+            key_released(key)=>{ let handled=self.held(key,false) }
+            window_focus_lost(_)=>{ self.forward=false;self.reverse=false;self.brake=false }
+            else=>{}
+        }
+    }
+    func text(value:str) UI.Text {
+        var result=UI.Text(value);result.style.font_size=14.0;return result
+    }
+    func values(reads:UI.Reads) UI.View { return self.text(reads.read(self.metrics)) }
+    func parameters(reads:UI.Reads) UI.View { return self.text(reads.read(self.settings)) }
+    func describe() UI.View {
+        var title=self.text("Pneu souple — prototype");title.style.font_size=18.0
+        var body=UI.Column([title,UI.Reactive(self.parameters),UI.Reactive(self.values),
+            self.text("Z / S : moteur avant / arrière\nEspace : frein maintenu\nC : charge · P : gonflage\nO : obstacle · R : recommencer\nSouris : caméra · Échap : quitter")])
+        body.style.padding=UI.Insets(12.0);body.style.gap=8.0
+        body.style.background=Color.slate_900().with_alpha(0.9);body.style.foreground=Color.slate_100()
+        body.style.radius=8.0;return body
+    }
+}

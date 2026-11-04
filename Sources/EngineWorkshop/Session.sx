@@ -1,0 +1,96 @@
+use GFX.Audio
+use GFX.Audio.Synthesis
+use GFX.Canvas
+use GFX.UI
+use GFX.Viewer
+use GFX.Color
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.Window
+use STD.Error.Kind
+use Module.Workshop.Workshop
+
+class WorkshopSession:Canvas.Session {
+    private var workshop:Workshop
+    private var ui:UI.Session
+    private var audio:Audio
+    private var producer:Synthesis.StreamProducer
+    private var playing:Audio.PlayingSound = Audio.PlayingSound()
+    private var volume:float = -1.0
+    private let trace:bool
+    private var empty_observations:int = 0
+    private var max_interval:float = 0.0
+    init(trace:bool = false) {
+        self.trace = trace
+        self.workshop = Workshop(); self.ui = UI.Session(self.workshop.view()); self.audio = Audio()
+        self.producer = Synthesis.StreamProducer.create(self.audio, self.workshop.source, 9_223_372_036_854_775_807,
+            block_frames:480, capacity_frames:4_800)
+        self.feed()
+    }
+    func drawing(width:int, height:int) Canvas {
+        var result = self.ui.drawing(width, height)
+        self.feed()
+        return result
+    }
+    func update(delta:float) bool {
+        if self.trace {
+            if delta > self.max_interval { self.max_interval = delta }
+            if self.playing.is_valid() && self.audio.stream_info(self.producer.stream()).starved { self.empty_observations++ }
+        }
+        self.workshop.update(delta)
+        if !self.playing.is_valid() {
+            self.playing = self.audio.play(self.producer.stream(), Audio.Playback(volume:self.workshop.volume.value(), fade_in_seconds:0.05))
+        }
+        if self.volume != self.workshop.volume.value() {
+            self.volume = self.workshop.volume.value(); self.audio.set_volume(self.playing, self.volume)
+        }
+        self.feed()
+        let changed = self.ui.update(delta)
+        self.feed()
+        return changed
+    }
+    private func feed() {
+        var count = 0
+        while count < 12 {
+            let info = self.audio.stream_info(self.producer.stream())
+            if info.queued_frames >= info.capacity_frames { break }
+            match try self.producer.pump() {
+                failure(error) => { if error.kind != Kind.would_block() { panic(error.detail) }
+                    break }
+                success(frames) => { if frames == 0 { break } }
+            }
+            count++
+        }
+    }
+    func handle(event:@Events.Event) bool {
+        match event {
+            window_focus_lost(value) => { self.workshop.accelerating = false }
+            key_pressed(value) => {
+                if !self.ui.accepts_text_input() && !value.modifiers.control && !value.modifiers.alt && !value.modifiers.system {
+                    let m = value.keycode == 109 as uint32 || value.keycode == 77 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.m)
+                    if m { if !value.repeated { self.workshop.toggle_running() }
+                        return true }
+                    if value.key == Keyboard.Key.space {
+                        if self.ui.handle(event) { return true }
+                        self.workshop.accelerating = true; return true
+                    }
+                }
+            }
+            key_released(value) => { if value.key == Keyboard.Key.space { self.workshop.accelerating = false } }
+            else => {}
+        }
+        return self.ui.handle(event)
+    }
+    func accepts_text_input() bool { return self.ui.accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.ui.text_input_target() }
+    func pointer_cursor() Window.Cursor { return self.ui.pointer_cursor() }
+    drop {
+        if self.trace { print("Audio: empty queue observations=", self.empty_observations, "; maximum update interval ms=", self.max_interval * 1_000.0) }
+        if self.playing.is_valid() { self.audio.stop(self.playing, fade_out_seconds:0.03) }
+    }
+}
+public func show(trace:bool = false) {
+    var session = WorkshopSession(trace)
+    Viewer.show(session, Viewer.CanvasSettings(width:1_160, height:860,
+        title:"Silex — Atelier des moteurs", background:Color.bytes(8, 13, 20)))
+}

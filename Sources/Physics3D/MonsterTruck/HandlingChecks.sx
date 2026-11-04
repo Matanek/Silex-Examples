@@ -1,0 +1,103 @@
+use Physics3D.MonsterTruck.Model
+use STD.Math
+use STD.Process
+
+func inspect(truck:Model.Truck) float {
+    var sidewall=0.0
+    for wheel in truck.wheels {
+        let travel=wheel.suspension.translation()
+        let expected=truck.chassis.transform().vector(
+            Math.Quat.angle_axis(wheel.current_steering,Math.Vec3.up()).rotate(Math.Vec3.right()))
+        let axle=wheel.rim.transform().vector(Math.Vec3.up())
+        let alignment=Math.abs(axle.dot(expected))
+        let lateral=Math.sqrt(travel.x*travel.x+travel.z*travel.z)
+        if lateral>=0.025 || Math.abs(travel.y)>=wheel.travel+0.01 || alignment<=0.995 {
+            print("Handling joint: lateral=",lateral," travel=",travel.y," alignment=",alignment)
+        }
+        assert(lateral<0.025 && Math.abs(travel.y)<wheel.travel+0.01 && alignment>0.995)
+        let pose=wheel.rim.transform()
+        for ring in 0...24 {
+            let tread=pose.inverse_point(wheel.tyre.position(ring*8))
+            sidewall=Math.max(sidewall,Math.abs(tread.y))
+        }
+    }
+    let bead=truck.maximum_bead_error();let floor=truck.minimum_y()
+    if bead>=0.08 || floor<=0.025 { print("Handling retention: bead=",bead," floor=",floor) }
+    assert(bead<0.08 && floor>0.025)
+    return sidewall
+}
+
+package func drive(pressure:float=1400.0) {
+    var truck=Model.Truck(4);truck.set_pressure(pressure);var lateral=0.0;var start_speed=0.0
+    for frame in 0...1320 {
+        if frame==120 { start_speed=truck.chassis.linear_velocity().length() }
+        if frame>=120 { truck.controls(1.0,0.0) }
+        truck.step();lateral=Math.max(lateral,inspect(truck))
+        assert(truck.chassis.transform().vector(Math.Vec3.up()).y>0.7)
+        // The physical clutch launches progressively; qualify movement and an actual upshift.
+        if frame==239 { assert(truck.chassis.linear_velocity().length()>start_speed+4.0) }
+        if frame==719 { assert(truck.chassis.linear_velocity().length()>18.0) }
+        if frame%120==119 {
+            let forward=truck.chassis.transform().vector(Math.Vec3.back())
+            print("launch t=",(frame-119)/120," speed=",truck.chassis.linear_velocity().length(),
+                " z=",truck.chassis.position().z," pitch=",forward.y," lateral=",lateral)
+        }
+    }
+    assert(truck.motor.state().gear>=2,"sustained acceleration must leave first gear")
+}
+
+package func turn(direction:float=1.0,pressure:float=1400.0) {
+    var truck=Model.Truck(4);truck.set_pressure(pressure);var lateral=0.0
+    for frame in 0...1080 {
+        if frame>=120 {
+            var steering=0.0;if frame>=600 { steering=direction }
+            truck.controls(1.0,steering)
+        }
+        truck.step();lateral=Math.max(lateral,inspect(truck))
+        assert(truck.chassis.transform().vector(Math.Vec3.up()).y>0.65)
+        if frame==839 {
+            assert(truck.chassis.transform().vector(Math.Vec3.back()).x*direction>0.1)
+            assert(truck.chassis.position().x*direction>1.0)
+            assert(Math.abs(truck.steering)>=0.35)
+        }
+        if frame%120==119 {
+            let pose=truck.chassis.transform()
+            print("turn t=",(frame-119)/120," x=",pose.position.x," z=",pose.position.z,
+                " speed=",truck.chassis.linear_velocity().length()," yaw=",pose.vector(Math.Vec3.back()).x,
+                " up=",pose.vector(Math.Vec3.up()).y," steering=",truck.steering," lateral=",lateral)
+        }
+    }
+}
+
+package func steering_modes() {
+    var front=Model.Truck(4);var rear=Model.Truck(4);var crab=Model.Truck(4)
+    for frame in 0...480 {
+        if frame>=120 {
+            front.controls(0.45,0.5,rear_turn:0.0)
+            rear.controls(0.45,0.0,rear_turn:0.5)
+            crab.controls(0.45,0.5,rear_turn:0.5)
+        }
+        front.step();rear.step();crab.step()
+        let a=inspect(front);let b=inspect(rear);let c=inspect(crab)
+    }
+    let a=front.chassis.transform().vector(Math.Vec3.back()).x
+    let b=rear.chassis.transform().vector(Math.Vec3.back()).x
+    let c=crab.chassis.transform().vector(Math.Vec3.back()).x
+    print("Steering modes: front yaw=",a," rear yaw=",b," crab yaw=",c," crab x=",crab.chassis.position().x)
+    assert(a>0.1 && b< -0.1 && Math.abs(c)<0.15 && crab.chassis.position().x>0.5)
+}
+
+package func verify() { drive();turn();turn(-1.0);steering_modes() }
+
+func main() {
+    var pressure=1400.0;var steering=0.0
+    for arg in Process.arguments() {
+        if arg=="--verify" { verify();return }
+        if arg=="--modes" { steering_modes();return }
+        if arg=="--turn" { steering=1.0 }
+        if arg=="--right" { steering= -1.0 }
+        if arg=="--low" { pressure=60.0 }
+        if arg=="--firm" { pressure=2600.0 }
+    }
+    if steering!=0.0 { turn(steering,pressure) } else { drive(pressure) }
+}

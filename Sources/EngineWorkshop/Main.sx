@@ -1,0 +1,19 @@
+use STD.Process
+use Module.Session
+use Module.Offline
+
+func main() {
+    let arguments = Process.arguments()
+    var i = 1
+    var trace = false
+    while i < arguments.count() {
+        if arguments[i] == "--check" { Offline.check(); return }
+        if arguments[i] == "--render" {
+            i++; if i >= arguments.count() { panic("--render requires a WAV path") }
+            Offline.render(arguments[i]); return
+        }
+        if arguments[i] == "--trace-audio" { trace = true; i++; continue }
+        panic("Options: --check | --render output.wav | --trace-audio")
+    }
+    Session.show(trace)
+}

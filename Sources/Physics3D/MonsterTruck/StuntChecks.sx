@@ -1,0 +1,36 @@
+use Physics3D.MonsterTruck.Model
+use STD.Math
+
+func clearance(truck:Model.Truck,front:bool) float {
+    var result=100.0
+    for wheel in truck.wheels { if wheel.front==front {
+        for point in wheel.tyre.positions() { result=Math.min(result,point.y) }
+    } }
+    return result
+}
+
+package func pulse(frames:int,braking:bool=false,verify:bool=false) {
+    var truck=Model.Truck(4)
+    for _ in 0...240 { truck.step() }
+    if braking {
+        for _ in 0...480 { truck.controls(0.65,0.0);truck.step() }
+    }
+    var lift=0.0;var minimum=1.0
+    for frame in 0...480 {
+        if frame<frames { truck.held(!braking,braking,false,false,false,!braking,service_brake:braking) }
+        else { truck.controls(0.0,0.0) }
+        truck.step()
+        let front=clearance(truck,true);let rear=clearance(truck,false)
+        if !braking && rear<0.06 { lift=Math.max(lift,front) }
+        if braking && front<0.06 { lift=Math.max(lift,rear) }
+        minimum=Math.min(minimum,truck.chassis.transform().vector(Math.Vec3.up()).y)
+    }
+    let up=truck.chassis.transform().vector(Math.Vec3.up()).y
+    print("stunt pulse=",frames," braking=",braking," lift=",lift," minimum_up=",minimum,
+        " final_up=",up," bead=",truck.maximum_bead_error())
+    if verify { assert(lift>0.15 && minimum>0.9 && up>0.9 && truck.maximum_bead_error()<0.08) }
+}
+
+package func verify() { pulse(45,verify:true);pulse(45,braking:true,verify:true) }
+
+func main() { verify() }

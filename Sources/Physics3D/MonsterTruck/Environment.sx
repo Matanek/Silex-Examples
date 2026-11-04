@@ -1,0 +1,24 @@
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Resources
+use GFX.Scene3D
+use GFX.Scene3D.Skybox.ProceduralSky
+use Physics3D.MonsterTruck.ArenaView
+use Physics3D.MonsterTruck.Markings
+use Physics3D.MotorcycleDriving.Ground
+use STD.Math
+
+package func create(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images) {
+    let ground=Ground.create(world,meshes,images)
+    world.update<Components.Material3D>(ground,func(material:&Components.Material3D) {
+        material.albedo=Color.bytes(181,140,95)
+    })
+    ArenaView.create(world,meshes)
+    let cube=meshes.add(Scene3D.Geometry.Cube.make())
+    Markings.create(world,meshes,cube)
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.55)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:3.0)
+        ..shadow_distance=65.0))
+    world.spawn(ECS.EntityRecipe() ..with(Scene3D.Skybox.procedural(ProceduralSky.day())))
+}

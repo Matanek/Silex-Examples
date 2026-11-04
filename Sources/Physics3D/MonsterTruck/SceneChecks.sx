@@ -1,0 +1,173 @@
+use GFX.Accessibility
+use GFX.Components
+use GFX.Input
+use GFX.Input.Events
+use GFX.Physics
+use GFX.Resources
+use GFX.Scene3D
+use GFX.Window
+use GFX.UI
+use Physics3D.MonsterTruck.Scene
+use Physics3D.MonsterTruck.Controls
+use Physics3D.MonsterTruck.HudChecks
+use STD.Math
+
+func key_event(key:Input.Key,code:uint32) Events.Event {
+    let modifiers=Input.Modifiers(shift:false,control:false,alt:false,system:false,
+        left_shift:false,right_shift:false,level5:false,left_control:false,right_control:false,
+        left_alt:false,right_alt:false,left_system:false,right_system:false,mode:false,
+        caps_lock:false,num_lock:false,scroll_lock:false)
+    return Events.Event.key_pressed(Events.KeyEvent(window:Window.Id(value:0 as uint32),
+        keyboard:Input.KeyboardId(value:0 as uint32),key:key,keycode:code,raw:0 as uint16,
+        repeated:false,modifiers:modifiers,timestamp:Input.Timestamp(nanoseconds:0 as uint)))
+}
+
+func named(source:Accessibility.Source,id:str,name:str) Accessibility.Element? {
+    let element=source.read(id)!
+    if element.role==Accessibility.Role.button && element.name==name { return element }
+    for i in 0...element.child_count {
+        if let child=source.child(id,i) { if let found=named(source,child,name) { return found } }
+    }
+    return null
+}
+func click(state:&Scene.TruckScene,name:str) {
+    var source=state.ui.accessibility();let button=named(source,source.root()!,name)!
+    let point=Math.Vec2(button.bounds.x+button.bounds.width*0.5,button.bounds.y+button.bounds.height*0.5)
+    let down=Events.MouseButtonEvent(window:Window.Id(value:0 as uint32),mouse:Input.MouseId(value:0 as uint32),
+        button:Input.MouseButton.left,down:true,clicks:1 as uint8,position:point,timestamp:Input.Timestamp(nanoseconds:0 as uint))
+    let up=Events.MouseButtonEvent(window:down.window,mouse:down.mouse,button:down.button,down:false,
+        clicks:down.clicks,position:point,timestamp:down.timestamp)
+    assert(Scene.handle(state,Events.Event.mouse_button_pressed(down)))
+    assert(Scene.handle(state,Events.Event.mouse_button_released(up)))
+}
+
+package func verify() {
+    var world=Resources.World();var meshes=Resources.Meshes3D();var images=Resources.Images()
+    var state=Scene.TruckScene(1)
+    Scene.startup(world,meshes,images,state);state.view!.update(world,meshes);Scene.follow(world,state,0.016)
+    // Contact-sphere thickness belongs in the initial rim/tire clearance.
+    for wheel in state.truck.wheels {
+        let rim=Physics.ShapePlacement3D(wheel.rim.shape(),wheel.rim.transform())
+        for point in wheel.tyre.positions() {
+            let vertex=Physics.ShapePlacement3D(Physics.Shape3D.sphere(Physics.Sphere3D(0.035)),
+                Physics.Transform3D(point))
+            assert(Physics.Geometry3D.distance(vertex,rim).separation>0.005)
+        }
+    }
+    click(state,"Plus court");Scene.perform(world,meshes,state)
+    assert(state.truck.final_drive==9.0)
+    assert(Scene.handle(state,key_event(Input.Key.space,32 as uint32)))
+    assert(state.panel.brake && !state.panel.front_brake && !state.panel.handbrake && state.panel.final_drive==9.0 && !state.panel.gearing_requested,"Space must select four-wheel braking without activating the focused gearing button")
+    match key_event(Input.Key.space,32 as uint32) {
+        key_pressed(key)=>{ assert(Scene.handle(state,Events.Event.key_released(key))) }
+        else=>{}
+    }
+    assert(!state.panel.brake)
+    state.truck.gas=1.0;click(state,"Plus long");Scene.perform(world,meshes,state)
+    assert(state.truck.final_drive==9.0 && state.panel.final_drive==9.0,"rejected gearing must restore displayed selection")
+    state.truck.gas=0.0;state.panel.forward=true
+    click(state,"Plus long");Scene.perform(world,meshes,state)
+    assert(state.truck.final_drive==9.0,"held throttle must reject gearing before the next physics tick")
+    state.panel.forward=false
+    click(state,"Plus long");Scene.perform(world,meshes,state);assert(state.truck.final_drive==8.0)
+    click(state,"Plus court");Scene.perform(world,meshes,state)
+    let count=world.entities().count()
+    var tyre=state.truck.wheels[0].tyre
+    let rim=state.view!.wheels[0].rim;let rubber=state.view!.wheels[0].rubber
+    // Logical AZERTY letters may arrive with QWERTY physical scan codes.
+    let forward=key_event(Input.Key.w,122 as uint32);let left=key_event(Input.Key.a,113 as uint32)
+    state.panel.handle(forward)
+    assert(Scene.handle(state,key_event(Input.Key.left_shift,0 as uint32)))
+    assert(state.panel.boost)
+    state.truck.held(state.panel.forward,false,false,false,false,state.panel.boost)
+    assert(state.truck.gas==1.5,"Shift must reach the physical boost command")
+    let release_shift=key_event(Input.Key.left_shift,0 as uint32)
+    match release_shift {
+        key_pressed(key)=>{ assert(Scene.handle(state,Events.Event.key_released(key))) }
+        else=>{}
+    }
+    assert(!state.panel.boost)
+    assert(Scene.handle(state,key_event(Input.Key.right_shift,0 as uint32)) && state.panel.boost)
+    match key_event(Input.Key.right_shift,0 as uint32) {
+        key_pressed(key)=>{ Scene.handle(state,Events.Event.key_released(key)) }
+        else=>{}
+    }
+    assert(!state.panel.boost)
+    state.truck.controls(0.0,0.0)
+    state.panel.handle(left)
+    state.panel.handle(key_event(Input.Key.space,32 as uint32))
+    assert(state.panel.forward && state.panel.left && state.panel.brake && !state.panel.handbrake && !state.panel.reset)
+    assert(Scene.handle(state,key_event(Input.Key.up,0 as uint32)))
+    assert(Scene.handle(state,key_event(Input.Key.down,0 as uint32)))
+    assert(state.panel.front_brake && state.panel.handbrake && state.panel.brake && !state.panel.gearing_requested)
+    state.panel.handle(key_event(Input.Key.a,97 as uint32))
+    state.panel.handle(key_event(Input.Key.left,0 as uint32))
+    assert(state.panel.rear_left && state.panel.arrow_left)
+    state.truck.held(false,false,false,false,false,false,
+        state.panel.rear_left || state.panel.arrow_left,false)
+    assert(state.truck.rear_steering<0.0 && !state.panel.reset)
+    state.panel.handle(key_event(Input.Key.e,101 as uint32))
+    state.panel.handle(key_event(Input.Key.right,0 as uint32))
+    assert(state.panel.rear_right && state.panel.arrow_right)
+    state.panel.handle(key_event(Input.Key.t,116 as uint32));assert(!state.panel.coupled)
+    state.panel.handle(key_event(Input.Key.t,116 as uint32));assert(state.panel.coupled)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
+    assert(state.panel.inflation==1 && tyre==state.truck.wheels[0].tyre && !state.panel.reset)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
+    assert(state.panel.inflation==2 && tyre==state.truck.wheels[0].tyre)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
+    assert(state.panel.inflation==0 && tyre==state.truck.wheels[0].tyre)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
+    state.panel.handle(Events.Event.mouse_button_pressed(Events.MouseButtonEvent(
+        window:Window.Id(value:0 as uint32),mouse:Input.MouseId(value:0 as uint32),button:Input.MouseButton.left,
+        down:true,clicks:1 as uint8,position:Math.Vec2(640.0,400.0),timestamp:Input.Timestamp(nanoseconds:0 as uint))))
+    assert(!state.panel.reset)
+    state.panel.handle(Events.Event.window_focus_lost(Events.WindowEvent(
+        window:Window.Id(value:0 as uint32),timestamp:Input.Timestamp(nanoseconds:0 as uint))))
+    assert(!state.panel.forward && !state.panel.left && !state.panel.brake && !state.panel.front_brake && !state.panel.handbrake && !state.panel.boost)
+    assert(!state.panel.rear_left && !state.panel.rear_right && !state.panel.arrow_left && !state.panel.arrow_right)
+    state.panel.handle(key_event(Input.Key.right,0 as uint32))
+    for _ in 0...3 { state.truck.held(false,false,false,false,false,false,
+        false,state.panel.rear_right || state.panel.arrow_right) }
+    assert(state.truck.rear_steering>0.0 && !state.panel.reset)
+    state.panel.handle(key_event(Input.Key.r,114 as uint32));Scene.perform(world,meshes,state)
+    assert(tyre!=state.truck.wheels[0].tyre && !tyre.is_valid())
+    assert(world.entities().count()==count && state.view!.wheels[0].rim==rim && state.view!.wheels[0].rubber==rubber)
+    assert(state.panel.inflation==1 && state.truck.world.worker_count()==1 && state.truck.final_drive==9.0)
+    state.view!.update(world,meshes)
+    let points=meshes.snapshot(state.view!.wheels[0].presenter.mesh()).vertices()
+    for index in 0...points.count() {
+        assert(points[index].position.nearly_equal(state.truck.wheels[0].tyre.position(index),0.000001))
+    }
+    Scene.labels(state);let updated=state.ui.update(0.0)
+    HudChecks.verify(state.ui)
+    var measurement=UI.Session(state.panel.measurement(false,true))
+    let measured=measurement.update(0.0);HudChecks.verify(measurement)
+    Scene.follow(world,state,0.016)
+    let camera=copy world.get<Components.Camera3D>(state.camera)
+    let transform=copy world.get<Components.Transform3D>(state.camera)
+    let center=camera.project(state.truck.chassis.position(),transform,Math.Vec2(1280.0,800.0))!
+    let left_point=camera.project(state.truck.chassis.position().add(Math.Vec3.right()),transform,Math.Vec2(1280.0,800.0))!
+    assert(left_point.x<center.x)
+    for wheel in state.truck.wheels { for point in wheel.tyre.positions() {
+        let screen=camera.project(point,transform,Math.Vec2(1280.0,800.0))!
+        assert(screen.x>310.0 && screen.x<1280.0 && screen.y>0.0 && screen.y<800.0)
+    } }
+    // The same travel direction must keep the same course even as the body
+    // stands on its rear wheels, rolls onto its roof, or pitches beyond vertical.
+    state.truck.chassis.set_linear_velocity(Math.Vec3(0.0,0.0,5.0))
+    let heading=state.chase.yaw
+    let tilts:float[]=[Math.half_pi(),Math.pi(),Math.pi()*1.5]
+    let axes:Math.Vec3[]=[Math.Vec3.right(),Math.Vec3.back()]
+    for axis in axes { for angle in tilts {
+        state.truck.chassis.set_transform(Physics.Transform3D(state.truck.chassis.position(),
+            Math.Quat.angle_axis(angle,axis)))
+        Scene.follow(world,state,0.016)
+        assert(Math.abs(state.chase.yaw-heading)<0.00001)
+        let view=world.get<Components.Transform3D>(state.camera)
+        assert(Math.abs(view.rotation.rotate(Math.Vec3.right()).y)<0.00001)
+    } }
+    print("Monster scene checks passed: input, reset, true tyre meshes, HUD, travel camera and rollover horizon")
+}
+
+func main() { verify() }

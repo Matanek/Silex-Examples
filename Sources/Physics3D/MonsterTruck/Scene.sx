@@ -1,0 +1,102 @@
+use GFX.Components
+use GFX.Physics
+use GFX.ECS
+use GFX.Input.Events
+use GFX.Resources
+use GFX.Scene2D
+use GFX.UI
+use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.Controls
+use Physics3D.MonsterTruck.PickupView
+use Physics3D.MonsterTruck.Environment
+use Physics3D.MonsterTruck.Terrain
+use Physics3D.MonsterTruck.ChaseCamera
+use Physics3D.MonsterTruck.EngineSound
+use Physics3D.SoftTire.Metrics
+use STD.Math
+
+package class TruckScene {
+    var truck:Model.Truck
+    var panel:Controls.Panel=Controls.Panel()
+    var ui:UI.Session
+    var view:PickupView?=null
+    var camera:ECS.Entity=ECS.Entity()
+    var hud:ECS.Entity=ECS.Entity()
+    var accumulator:float=0.0
+    var telemetry:float=0.0
+    var chase:ChaseCamera
+    var metrics:Metrics=Metrics()
+    var profile:bool=false
+    var slope_profile:bool=false
+    var ramp_profile:bool=false
+    var sound:EngineSound?=null
+    let workers:int
+    init(workers:int=4,profile:bool=false,slope:bool=false,ramp:bool=false) {
+        self.workers=workers;self.profile=profile;self.slope_profile=slope;self.ramp_profile=ramp
+        if slope { self.truck=Model.Truck(workers,obstacles:true,spawn:Terrain.slope_spawn()) }
+        else if ramp {self.truck=Model.Truck(workers,obstacles:true,
+            spawn:Physics.Transform3D(Math.Vec3(-2.0,2.35,8.0),Math.Quat.angle_axis(0.3,Math.Vec3.up())))}
+        else { self.truck=Model.Truck(workers,obstacles:true) }
+        self.chase=ChaseCamera(self.truck.chassis.position(),self.truck.chassis.transform().vector(Math.Vec3.back()))
+        if profile { self.ui=UI.Session(self.panel.measurement(slope,ramp)) }
+        else { self.ui=UI.Session(self.panel.describe()) }
+    }
+    func create_view(world:&Resources.World,meshes:&Resources.Meshes3D) {
+        self.view=PickupView(self.truck,world,meshes)
+    }
+    func reset(world:&Resources.World,meshes:&Resources.Meshes3D) {
+        var next=Model.Truck(self.workers,obstacles:true,final_drive:self.truck.final_drive)
+        next.set_pressure(self.panel.pressure())
+        self.view!.rebind(next,world,meshes);self.truck=next
+        self.accumulator=0.0;self.chase.reset(self.truck.chassis.position())
+        self.panel.reset=false
+        if var sound=self.sound { sound.reset() }
+    }
+}
+
+package func labels(state:&TruckScene) {
+    let speed=Math.round(state.truck.chassis.linear_velocity().length()*3.6) as int
+    let fps=Math.round(state.metrics.fps) as int
+    let engine=state.truck.motor.state();var gear="N"
+    if engine.gear>0 { gear="$(engine.gear)" }else if engine.gear<0 { gear="R" }
+    state.panel.metrics.set("Vitesse : $(speed) km/h\nBoîte : $(gear) · $(Math.round(engine.engine_rpm) as int) tr/min\n$(fps) FPS")
+    var name="monster"
+    if state.panel.inflation==1 { name="bas" }
+    if state.panel.inflation==2 { name="ferme" }
+    let section=Terrain.section_name(Terrain.section(state.truck.chassis.position()))
+    var mode="indépendante";if state.panel.coupled { mode="couplée" }
+    var turbo="prêt";if state.panel.boost && state.panel.forward { turbo="actif" }
+    state.panel.settings.set("Gonflage : $(name)\nDirection : $(mode)\nSecteur : $(section)\nRapport de pont : $(state.truck.final_drive)\nTurbo : $(turbo)")
+}
+
+package func startup(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images,state:&TruckScene) {
+    Environment.create(world,meshes,images);state.create_view(world,meshes)
+    state.camera=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
+        ..with(Components.Camera3D(vertical_fov:Math.radians(62.0),far_plane:450.0)))
+    labels(state)
+    state.hud=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform())
+        ..with(Scene2D.Canvas(state.ui.drawing(Controls.Hud.width,Controls.Hud.height),Controls.Hud.width,Controls.Hud.height)
+            ..anchor=Math.Vec2() ..pivot=Math.Vec2() ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+}
+
+package func handle(state:&TruckScene,event:@Events.Event) bool {
+    if state.panel.handle(event) { return true }
+    return state.ui.handle(event)
+}
+
+package func perform(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TruckScene) {
+    if state.panel.reset { state.reset(world,meshes) }
+    if state.panel.changed { state.truck.set_pressure(state.panel.pressure());state.panel.changed=false }
+    if state.panel.gearing_requested {
+        state.panel.gearing_requested=false
+        if !state.panel.forward && !state.panel.reverse && state.truck.configure_gearing(state.panel.final_drive) { state.panel.feedback.set("Démultiplication appliquée") }
+        else { state.panel.final_drive=state.truck.final_drive;state.panel.feedback.set("Arrêtez-vous, gaz relâchés") }
+        labels(state)
+    }
+}
+
+package func follow(world:&Resources.World,state:&TruckScene,delta:float) {
+    state.chase.update(state.truck.chassis.position(),state.truck.chassis.linear_velocity(),delta)
+    let pose=state.chase.transform()
+    world.update<Components.Transform3D>(state.camera,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
+}

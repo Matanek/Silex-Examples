@@ -1,0 +1,118 @@
+use GFX.Color
+use GFX.Input
+use GFX.Input.Events
+use GFX.UI
+use Physics3D.MonsterTruck.Transmission
+use Physics3D.MonsterTruck.Model
+
+package static struct Hud { let width:int=304;let height:int=414 }
+
+func letter(key:@Events.KeyEvent,lower:uint32,upper:uint32,physical:Input.Key) bool {
+    return key.keycode==lower || key.keycode==upper || (key.keycode==0 as uint32 && key.key==physical)
+}
+
+package class Panel {
+    var forward:bool=false
+    var reverse:bool=false
+    var left:bool=false
+    var right:bool=false
+    var rear_left:bool=false
+    var rear_right:bool=false
+    var arrow_left:bool=false
+    var arrow_right:bool=false
+    var coupled:bool=true
+    var handbrake:bool=false
+    var brake:bool=false
+    var front_brake:bool=false
+    var boost:bool=false
+    var reset:bool=false
+    var changed:bool=false
+    var inflation:int=0
+    var final_drive:float=Transmission.Settings.final_drive
+    var gearing_requested:bool=false
+    var feedback:UI.State<str> =UI.State<str>("Réglage de boîte à l’arrêt")
+    func shorter() { self.final_drive+=1.0;if self.final_drive>Transmission.Settings.maximum_final { self.final_drive=Transmission.Settings.maximum_final }self.gearing_requested=true }
+    func longer() { self.final_drive-=1.0;if self.final_drive<Transmission.Settings.minimum_final { self.final_drive=Transmission.Settings.minimum_final }self.gearing_requested=true }
+    func message(reads:UI.Reads) UI.View { return self.text(reads.read(self.feedback)) }
+    func gearing_button(label:str,action:func()) UI.Button {
+        var button=UI.Button(label,action);button.style.height=32.0;button.style.font_size=14.0;button.style.padding=UI.Insets(6.0)
+        button.style.background=Color.slate_700();button.style.foreground=Color.slate_100();return button
+    }
+    func gearing_buttons() UI.View {
+        var row=UI.Row([self.gearing_button("Plus court",self.shorter),self.gearing_button("Plus long",self.longer)])
+        row.style.gap=8.0;return row
+    }
+    var metrics:UI.State<str> =UI.State<str>("")
+    var settings:UI.State<str> =UI.State<str>("Pneus monster")
+    func pressure() float {
+        if self.inflation==1 { return 60.0 }
+        if self.inflation==2 { return 2600.0 }
+        return 1400.0
+    }
+    func held(key:@Events.KeyEvent,down:bool) bool {
+        if letter(key,122 as uint32,90 as uint32,Input.Key.z) { self.forward=down;return true }
+        if letter(key,115 as uint32,83 as uint32,Input.Key.s) { self.reverse=down;return true }
+        if letter(key,113 as uint32,81 as uint32,Input.Key.q) { self.left=down;return true }
+        if letter(key,100 as uint32,68 as uint32,Input.Key.d) { self.right=down;return true }
+        if letter(key,97 as uint32,65 as uint32,Input.Key.a) { self.rear_left=down;return true }
+        if letter(key,101 as uint32,69 as uint32,Input.Key.e) { self.rear_right=down;return true }
+        if key.key==Input.Key.left { self.arrow_left=down;return true }
+        if key.key==Input.Key.right { self.arrow_right=down;return true }
+        if key.key==Input.Key.space { self.brake=down;return true }
+        if key.key==Input.Key.up { self.front_brake=down;return true }
+        if key.key==Input.Key.down { self.handbrake=down;return true }
+        if key.key==Input.Key.left_shift || key.key==Input.Key.right_shift { self.boost=down;return true }
+        return false
+    }
+    func handle(event:@Events.Event) bool {
+        match event {
+            key_pressed(key)=>{
+                if self.held(key,true) || key.repeated { return true }
+                if letter(key,116 as uint32,84 as uint32,Input.Key.t) { self.coupled= !self.coupled;return true }
+                if letter(key,114 as uint32,82 as uint32,Input.Key.r) { self.reset=true;return true }
+                if letter(key,112 as uint32,80 as uint32,Input.Key.p) {
+                    self.inflation=(self.inflation+1)%3;self.changed=true;return true
+                }
+            }
+            key_released(key)=>{ return self.held(key,false) }
+            window_focus_lost(_)=>{
+                self.forward=false;self.reverse=false;self.left=false;self.right=false
+                self.brake=false;self.front_brake=false;self.handbrake=false;self.boost=false;self.rear_left=false;self.rear_right=false
+                self.arrow_left=false;self.arrow_right=false
+            }
+            else=>{}
+        }
+        return false
+    }
+    func drive(truck:&Model.Truck) {
+        truck.held(self.forward,self.reverse,self.left,self.right,self.handbrake,self.boost,
+            self.rear_left || self.arrow_left,self.rear_right || self.arrow_right,self.coupled,
+            service_brake:self.brake,front_brake:self.front_brake)
+    }
+    func text(value:str) UI.Text {
+        var view=UI.Text(value);view.style.font_size=14.0;return view
+    }
+    func values(reads:UI.Reads) UI.View { return self.text(reads.read(self.metrics)) }
+    func parameters(reads:UI.Reads) UI.View { return self.text(reads.read(self.settings)) }
+    func measurement(slope:bool,ramp:bool=false) UI.View {
+        var name="PARCOURS AUTOMATIQUE";var description="Conduite à trois quarts de gaz\nFermeture après douze secondes"
+        if slope { name="TEST AUTOMATIQUE — PENTE";description="Freins maintenus sur la rampe\nFermeture après six secondes" }
+        if ramp {name="TEST AUTOMATIQUE — MONTÉE";description="Montée lente puis freinage\nFermeture après douze secondes"}
+        var column=UI.Column([self.text(name),UI.Reactive(self.values),UI.Reactive(self.parameters),
+            self.text(description+"\nÉchap : quitter")])
+        column.style.margin=UI.Insets(12.0);column.style.padding=UI.Insets(12.0);column.style.gap=6.0
+        column.style.background=Color.slate_900().with_alpha(0.88)
+        column.style.foreground=Color.slate_100();column.style.radius=8.0
+        return column
+    }
+    func describe() UI.View {
+        var title=self.text("MONSTER PICKUP");title.style.font_size=18.0
+        var column=UI.Column([title,UI.Reactive(self.values),UI.Reactive(self.parameters),
+            self.gearing_buttons(),UI.Reactive(self.message),
+            self.text("Z/S : avancer / reculer\nQ/D : direction · ←/→ : AR\nEspace : frein 4 roues\n↑ : frein AV · ↓ : frein AR\nMaj : turbo · T : coupler\nP : pneus · R : reset · Échap : quitter")])
+        column.style.margin=UI.Insets(12.0);column.style.padding=UI.Insets(12.0);column.style.gap=6.0
+        column.style.background=Color.slate_900().with_alpha(0.88)
+        column.style.foreground=Color.slate_100();column.style.radius=8.0
+        return column
+    }
+}

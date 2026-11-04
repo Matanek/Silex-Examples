@@ -29,12 +29,40 @@ beeps, impacts, a laser, an explosion, a changing engine, an 8-bit sound and
 melodies composed directly or through MIDI. Select a recipe with `--case` or
 verify its PCM and stream without a device using `--check`.
 
+The [validated engine library demo](Sources/EngineLibrary/README.md) consumes
+GFX.Audio's extracted engine sounds and controls, preserving the original bench
+as an independent PCM comparison witness.
+
+The parts workshop is experimental and its sound model is not the validated
+engine path.
+
+The [engine-parts workshop](Sources/EngineWorkshop/README.md) builds engine
+sounds through GFX.Audio's public part API: block/head, intake, exhaust,
+silencers, mechanics and optional turbo. Replace parts during playback or isolate
+a sound branch; it runs independently of the original listening bench.
+
+The [vehicle engine audio bench](Sources/EngineAudio/README.md) offers sedan,
+sports car, truck, road/sports motorcycles and motocross profiles, including a
+two-stroke prototype. Its optional `--reference` helper runs engine-sim with
+cranking, coast-down and auto/manual gears in Route mode. It has separate local
+build instructions. The accepted 454 remains the default; listening feedback
+for new profiles and qualification for game integration are still needed.
+
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.
 
 The [rigid shapes scene](Sources/Physics3D/RigidShapesScene/README.md) shows
 cylinders, tapered shapes, capsule/box/convex sweeps, a terrain opening and an
 infinite supporting plane in one window.
+
+The [soft tire prototype](Sources/Physics3D/SoftTire/README.md) puts a powered
+dynamic rim inside a pressurized deformable carcass. Change its load and
+inflation, brake, and climb a small step on a guided single-wheel rig.
+
+The [monster pickup](Sources/Physics3D/MonsterTruck/README.md) combines four
+soft tires and physical suspension in a drivable vehicle. Use ZQSD and the
+rear handbrake to explore bumps, blocks, steps and ramps, and compare inflation
+settings without restarting.
 
 The [reactive UI form](Sources/UIReactiveForm.sx) demonstrates shared state,
 keyed editable rows, keyboard focus and hidden/disabled controls. Enable automatic

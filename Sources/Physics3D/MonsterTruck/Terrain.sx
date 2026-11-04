@@ -1,0 +1,77 @@
+use GFX.Physics
+use STD.Math
+use Physics3D.MonsterTruck.Arena
+
+package enum Section {
+    start
+    table
+    cross
+    bowl
+    kicker
+    rollers
+    calibration
+    open
+}
+
+package func section(position:Math.Vec3) Section {
+    if position.x< -37.0 { return Section.calibration }
+    if position.z<8.0 { return Section.start }
+    if Math.abs(position.x)>18.0 {
+        if position.x>0.0 && position.z>=43.0 && position.z<85.0 { return Section.bowl }
+        return Section.kicker
+    }
+    if position.z<42.0 { return Section.table }
+    if position.z<90.0 { return Section.cross }
+    if position.z<127.0 { return Section.rollers }
+    return Section.open
+}
+
+package func section_name(value:Section) str {
+    match value {
+        start=>{ return "Départ" }
+        table=>{ return "Table de saut" }
+        cross=>{ return "Butte centrale" }
+        bowl=>{ return "Cuvette" }
+        kicker=>{ return "Grandes rampes" }
+        rollers=>{ return "Petites bosses" }
+        calibration=>{ return "Piste de contrôle" }
+        open=>{ return "Arène libre" }
+    }
+}
+
+package func layout() Arena.Piece[] { return Arena.layout() }
+
+func shape(piece:Arena.Piece) Physics.Shape3D {
+    if piece.kind==1 { return Physics.Shape3D.sphere(Physics.Sphere3D(piece.size.x)) }
+    if piece.kind==2 { return Physics.Shape3D.cylinder(Physics.Cylinder3D(piece.size.x,piece.size.y)) }
+    return Physics.Shape3D.box(Physics.Box3D(piece.size))
+}
+
+package func create(world:Physics.World3D) {
+    for piece in layout() {
+        world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+            ..shape=shape(piece) ..transform=Physics.Transform3D(piece.position,piece.rotation) ..friction=1.1
+            ..collision_filter=Physics.CollisionFilter3D(category_bits:1,mask_bits:14))
+    }
+}
+
+package func slope_spawn() Physics.Transform3D {
+    let rotation=Math.Quat.angle_axis(-Math.atan2(1.05,3.0),Math.Vec3.right())
+    let surface=Physics.Transform3D(Math.Vec3(0.0,1.875,20.5),rotation)
+    return Physics.Transform3D(surface.point(Math.Vec3(0.0,2.35,0.0)),rotation)
+}
+
+package func chassis_shape() Physics.Shape3D {
+    var parts:Physics.CompoundChild3D[]=[
+        Physics.CompoundChild3D(0,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.25,0.35,4.2))),
+            Physics.Transform3D(Math.Vec3(0.0,-0.15,0.0))),
+        Physics.CompoundChild3D(1,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.9,1.0,1.8))),
+            Physics.Transform3D(Math.Vec3(0.0,1.0,0.1))),
+        Physics.CompoundChild3D(2,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(2.0,0.3,1.2))),
+            Physics.Transform3D(Math.Vec3(0.0,0.65,1.55))),
+        Physics.CompoundChild3D(3,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(2.1,0.45,4.6))),
+            Physics.Transform3D(Math.Vec3(0.0,0.35,0.0))),
+        Physics.CompoundChild3D(4,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.05,0.65,1.5))),
+            Physics.Transform3D(Math.Vec3(0.0,-0.65,0.15)))]
+    return Physics.Shape3D.compound(Physics.Compound3D(parts))
+}
