@@ -1,0 +1,180 @@
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Input.Events
+use GFX.Input.Pointer
+use GFX.Plugins
+use GFX.Rendering
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Scene3D
+use GFX.UI
+use GFX.Window
+use STD.FileSystem
+use STD.Math
+use STD.Process
+
+class Demo {
+    let verification:bool
+    var status:UI.State<str> = UI.State<str>("Choisissez Enregistrer PNG pour capturer cette scène.")
+    var ui:UI.Session? = null
+    var overlay:ECS.Entity? = null
+    var ticket:Rendering.Capture? = null
+    var requested:bool = false
+    var number:int = 0
+    var frames:int = 0
+    var width:int = 0
+    var height:int = 0
+
+    init(verification:bool) {
+        self.verification = verification
+        var heading = "Capturer le rendu GFX"
+        if verification { heading = "Vérification automatique du PNG GFX" }
+        var title = UI.Text(heading)
+        title.style.font_size = 27.0
+        var button = UI.Button("Enregistrer PNG", self.request)
+        button.style.padding = UI.Insets(12.0)
+        button.style.background = Color.indigo_600()
+        button.style.radius = 8.0
+        var content = UI.Column([
+            title,
+            UI.Text("Le PNG contient le cube 3D, le dessin 2D et cette interface."),
+            button, UI.Reactive(self.message)
+        ])
+        content.style.padding = UI.Insets(24.0)
+        content.style.gap = 10.0
+        content.style.foreground = Color.white()
+        self.ui = UI.Session(content)
+    }
+
+    func request() {
+        self.requested = true
+        self.status.set("Capture demandée… La scène continue de tourner.")
+    }
+
+    func message(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.status)) }
+}
+
+func create(world:&Resources.World, meshes:&Resources.Meshes3D, demo:&Demo) {
+    let cube = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(1.7)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.0, 0.0, 6.0)))
+        ..with(Components.Camera3D(vertical_fov:Math.radians(55.0))))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.7, -0.65, 0.0),
+            rotation:Math.Quat.angle_axis(0.55, Math.Vec3.up())
+                .multiply(Math.Quat.angle_axis(0.3, Math.Vec3.right()))))
+        ..with(Components.Mesh3D(cube))
+        ..with(Components.Material3D(albedo:Color.cyan_400(), metallic:0.1, roughness:0.35))
+        ..with(Components.Rotator3D(x_speed:0.25, y_speed:0.6, z_speed:0.0)))
+    world.spawn(ECS.EntityRecipe()..with(Components.AmbientLight3D(intensity:0.3)))
+    world.spawn(ECS.EntityRecipe()..with(Components.SunLight3D(
+        direction:Math.Vec3(-0.5, -1.0, -0.4), intensity:3.0)))
+    if var ui = demo.ui {
+        var drawing = ui.drawing(900, 580)
+        drawing.paint(func(painter:&Canvas.Painter) {
+            painter.fill(Canvas.Circle(Math.Vec2(48.0, 510.0), 16.0), Canvas.Fill.solid(Color.amber_400()))
+        })
+        demo.overlay = world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform2D())
+            ..with(Components.Canvas(drawing)..space = Components.CanvasSpace.viewport))
+    }
+}
+
+func update(
+    demo:&Demo, input:@Input, time:@Resources.FrameTime, world:&Resources.World,
+    window:&Window, renderer:&Rendering.Renderer, controller:&Application.Controller
+) {
+    demo.frames++
+    if demo.verification { assert(demo.frames < 10000) }
+    var changed = false
+    if var ui = demo.ui {
+        for event in input.events() { if ui.handle(event) { changed = true } }
+        if demo.verification && demo.frames == 3 {
+            let pressed = Events.Event.mouse_button_pressed(Events.MouseButtonEvent(
+                window:window.id(), mouse:Pointer.MouseId(value:1), button:Pointer.MouseButton.left,
+                down:true, clicks:1, position:Math.Vec2(80.0, 125.0), timestamp:Events.Timestamp(nanoseconds:0)))
+            let released = Events.Event.mouse_button_released(Events.MouseButtonEvent(
+                window:window.id(), mouse:Pointer.MouseId(value:1), button:Pointer.MouseButton.left,
+                down:false, clicks:1, position:Math.Vec2(80.0, 125.0), timestamp:Events.Timestamp(nanoseconds:1)))
+            assert(ui.handle(pressed))
+            assert(ui.handle(released))
+            assert(demo.requested)
+            changed = true
+        }
+        if ui.update(time.delta) { changed = true }
+        let size = window.size()
+        let width = size.x as int
+        let height = size.y as int
+        if width != demo.width || height != demo.height { changed = true }
+        if changed {
+            demo.width = width
+            demo.height = height
+            window.set_cursor(ui.pointer_cursor())
+            if let overlay = demo.overlay {
+                var drawing = ui.drawing(width, height)
+                drawing.paint(func(painter:&Canvas.Painter) {
+                    painter.fill(Canvas.Circle(Math.Vec2(48.0, height as float - 48.0), 16.0),
+                        Canvas.Fill.solid(Color.amber_400()))
+                })
+                world.update<Scene2D.Canvas>(overlay, func(canvas:&Scene2D.Canvas) { canvas.replace(drawing) })
+            }
+        }
+    }
+    if var ticket = demo.ticket {
+        if ticket.state() != Rendering.Capture.State.pending {
+            if let error = ticket.error() {
+                demo.status.set("Échec : " + error + " · Cliquez pour essayer un autre nom.")
+                if demo.verification { panic(error) }
+            } else {
+                demo.status.set("PNG enregistré : " + ticket.path())
+                print("PNG: ", ticket.path())
+            }
+            demo.ticket = null
+            if demo.verification { controller.stop() }
+        }
+    }
+    if demo.requested {
+        demo.requested = false
+        demo.number++
+        var path = "RenderCapture-$(demo.number).png"
+        if demo.verification { path = ".silex/render-capture-demo.png" }
+        match (try renderer.capture_png(path)) {
+            failure(error) => { demo.status.set("Échec : " + error) }
+            success(ticket) => { demo.ticket = ticket }
+        }
+    }
+}
+
+func rotate(time:@Resources.FrameTime, query:ECS.Query<(&Components.Transform3D, @Components.Rotator3D)>) {
+    for (transform, rotator) in query {
+        let pitch = Math.Quat.angle_axis(rotator.x_speed * time.delta, Math.Vec3.right())
+        let yaw = Math.Quat.angle_axis(rotator.y_speed * time.delta, Math.Vec3.up())
+        transform.rotation = yaw.multiply(pitch).multiply(transform.rotation).normalized()
+    }
+}
+
+func main() {
+    let arguments = Process.arguments()
+    var verification = false
+    for argument in arguments { if argument == "--verify" { verification = true } }
+    if verification { let removed = (try FileSystem.remove_file(".silex/render-capture-demo.png")) }
+    var demo = Demo(verification)
+    var title = "GFX — Capture PNG · 3D + 2D + UI"
+    if verification { title = "GFX — Vérification automatique de la capture PNG" }
+    Application()
+        ..add_resource(demo)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = title
+            ..width = 900 ..height = 580 ..hidden = verification))
+        ..add_plugin(Plugins.Time())
+        ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.Scene3D())
+        ..add_system(Application.Schedule.startup, create)
+        ..add_system(Application.Schedule.update, update)
+        ..add_system(Application.Schedule.update, rotate)
+        ..run()
+}

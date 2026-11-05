@@ -179,6 +179,27 @@ silex install Plot
 
 ## Running a demonstration
 
+The development example `Sources/RenderCapture.sx` combines a 3D cube, 2D Canvas
+and UI, with an **Enregistrer PNG** button and visible completion/error feedback.
+It saves `RenderCapture-<number>.png` in the execution directory, preserving
+existing files. With the development GFX capture packages linked, run it from
+the `SilexProject/` workspace root:
+
+```sh
+silex run Silex-Examples/Sources/RenderCapture.sx
+```
+
+The automatic proof can be compiled there and run without an interactive window:
+
+```sh
+silex compile Silex-Examples/Sources/RenderCapture.sx -o .silex/render-capture
+.silex/render-capture --verify
+```
+
+It writes `.silex/render-capture-demo.png` directly through the renderer. This
+example covers still images; controlled animation and video export remain separate
+capabilities in development.
+
 Run direct files from the repository root:
 
 ```sh
