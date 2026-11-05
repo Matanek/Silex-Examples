@@ -197,8 +197,32 @@ silex compile Silex-Examples/Sources/RenderCapture.sx -o .silex/render-capture
 ```
 
 It writes `.silex/render-capture-demo.png` directly through the renderer. This
-example covers still images; controlled animation and video export remain separate
-capabilities in development.
+example covers still images; the controlled animation example follows below. Video
+encoding remains a separate capability in development.
+
+### Export an animation as PNG frames
+
+[AnimationExport](Sources/AnimationExport.sx) exports an animated 3D cube, a
+moving 2D marker and a UI overlay as 60 indexed PNG files. The output samples
+run from t=0 to 59/60 s, representing one second at 60 Hz. From SilexProject:
+
+```sh
+silex compile Silex-Examples/Sources/AnimationExport.sx -o .silex/animation-export-demo
+.silex/animation-export-demo --output AnimationFrames
+```
+
+The output directory must be new; the program prints its absolute path. Files
+are named `frame-000000.png` through `frame-000059.png`. Computation and PNG
+writes may take longer than the simulated second without changing the poses.
+The example uses a hidden window and still requires a working graphical session.
+This is an image sequence; video encoding is not included. `--verify` selects
+an isolated output under `.silex/animation-export-frames` in the runtime directory.
+
+When using `silex run` instead, the runtime directory is the source directory;
+relative output paths follow it. Compiling and launching as above keeps outputs
+relative to the workspace root.
+
+### Other demonstrations
 
 Run direct files from the repository root:
 
