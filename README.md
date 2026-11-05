@@ -197,8 +197,7 @@ silex compile Silex-Examples/Sources/RenderCapture.sx -o .silex/render-capture
 ```
 
 It writes `.silex/render-capture-demo.png` directly through the renderer. This
-example covers still images; the controlled animation example follows below. Video
-encoding remains a separate capability in development.
+example covers still images; controlled PNG and MP4 animation examples follow below.
 
 ### Export an animation as PNG frames
 
@@ -221,6 +220,25 @@ an isolated output under `.silex/animation-export-frames` in the runtime directo
 When using `silex run` instead, the runtime directory is the source directory;
 relative output paths follow it. Compiling and launching as above keeps outputs
 relative to the workspace root.
+
+### Export a silent video
+
+[VideoExport](Sources/VideoExport.sx) produces the same animated cube, Canvas
+marker and UI as a finalized MP4: 60 frames at 60 Hz. Supply an absolute path
+to an FFmpeg supporting image2/PNG input and native MPEG-4/YUV420P in MP4.
+The output must be new. From the workspace root:
+
+```sh
+silex compile Silex-Examples/Sources/VideoExport.sx -o .silex/video-export-demo
+.silex/video-export-demo --ffmpeg /absolute/path/ffmpeg --output Animation.mp4
+```
+
+The export uses temporary PNG files next to the output, then removes them.
+It needs a graphics session even with its hidden window. `--verify` selects
+and replaces only the demo-owned `.silex/animation-video.mp4`; normal output
+never overwrites an existing file. The file is silent, lossy and opaque.
+See the [video guide](../Packages/GFX.Rendering/Docs/EN/Video.md) in a workspace
+checkout for dependency, dimensions and cancellation details.
 
 ### Other demonstrations
 

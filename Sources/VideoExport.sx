@@ -1,0 +1,113 @@
+use GFX.Animation
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Plugins
+use GFX.Rendering
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Scene3D
+use GFX.UI
+use STD.FileSystem
+use STD.Math
+use STD.Process
+
+class Demo {
+    var samples:int = 0
+    var last_time:float = 0.0
+}
+
+func create(world:&Resources.World, meshes:&Resources.Meshes3D) {
+    let cube = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(1.7)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.0, 0.0, 6.0)))
+        ..with(Components.Camera3D(vertical_fov:Math.radians(55.0))))
+    let start = Math.Quat.angle_axis(0.4, Math.Vec3.up())
+        .multiply(Math.Quat.angle_axis(0.3, Math.Vec3.right()))
+    let destination = Math.Quat.angle_axis(2.3, Math.Vec3.up()).multiply(start)
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.0, -0.3, 0.0), rotation:start))
+        ..with(Components.Mesh3D(cube))
+        ..with(Components.Material3D(albedo:Color.cyan_400(), metallic:0.1, roughness:0.35))
+        ..with(Animation.rotate_to(destination, 1.0).play()))
+    world.spawn(ECS.EntityRecipe()..with(Components.AmbientLight3D(intensity:0.3)))
+    world.spawn(ECS.EntityRecipe()..with(Components.SunLight3D(
+        direction:Math.Vec3(-0.5, -1.0, -0.4), intensity:3.0)))
+    var title = UI.Text("Une animation, un fichier MP4")
+    title.style.font_size = 26.0
+    var content = UI.Column([
+        title, UI.Text("Un cube 3D et un dessin 2D avancent au même temps contrôlé."),
+        UI.Text("De t = 0 à 59/60 s · MPEG-4 · 60 Hz")
+    ])
+    content.style.padding = UI.Insets(24.0)
+    content.style.gap = 10.0
+    content.style.foreground = Color.white()
+    var ui = UI.Session(content)
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(ui.drawing(720, 480))..space = Components.CanvasSpace.viewport))
+    var marker = Canvas()
+    marker.paint(func(painter:&Canvas.Painter) {
+        painter.fill(Canvas.Circle(Math.Vec2(40.0, 430.0), 14.0), Canvas.Fill.solid(Color.amber_400()))
+    })
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform2D())
+        ..with(Components.Canvas(marker)..space = Components.CanvasSpace.viewport)
+        ..with(Animation.move_to(Math.Vec2(620.0, 0.0), 1.0).play()))
+}
+
+func observe(demo:&Demo, simulation:@Application.Simulation) {
+    if demo.samples == 0 { assert(simulation.elapsed() == 0.0) }
+    demo.last_time = simulation.elapsed()
+    demo.samples++
+}
+
+func main() {
+    let arguments = Process.arguments()
+    var output = "Animation.mp4"
+    var ffmpeg = ""
+    var verification = false
+    var index = 1
+    while index < arguments.count() {
+        if arguments[index] == "--verify" { verification = true }
+        if arguments[index] == "--output" {
+            index++
+            if index >= arguments.count() { panic("--output attend un nouveau fichier") }
+            output = arguments[index]
+        }
+        if arguments[index] == "--ffmpeg" {
+            index++
+            if index >= arguments.count() { panic("--ffmpeg attend le chemin absolu de FFmpeg") }
+            ffmpeg = arguments[index]
+        }
+        index++
+    }
+    if ffmpeg == "" { panic("Fournir --ffmpeg /chemin/absolu/ffmpeg") }
+    if verification {
+        output = ".silex/animation-video.mp4"
+        let removed = (try FileSystem.remove_file(output))
+    }
+    var demo = Demo()
+    var application = Application()
+        ..add_resource(demo)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "GFX — Export MP4"..width = 720..height = 480
+            ..hidden = true..high_pixel_density = false))
+        ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Animation.Plugin())
+        ..add_system(Application.Schedule.startup, create)
+        ..add_system(Application.Schedule.update, observe)
+    print("Export MP4 de 60 images en cours ; FFmpeg : ", ffmpeg)
+    match (try Rendering.export_mp4(application, output, frames:60, ffmpeg:ffmpeg, frames_per_second:60)) {
+        failure(error) => { panic(error) }
+        success(count) => {
+            assert(count == 60 && demo.samples == 60)
+            assert(Math.abs(demo.last_time - 59.0 / 60.0) < 0.00001)
+            print("Vidéo enregistrée dans : ", FileSystem.canonicalize(output))
+            print("1 seconde à 60 Hz · MP4/MPEG-4 · sans piste sonore")
+        }
+    }
+}
