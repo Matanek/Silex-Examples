@@ -240,6 +240,25 @@ never overwrites an existing file. The file is silent, lossy and opaque.
 See the [video guide](../Packages/GFX.Rendering/Docs/EN/Video.md) in a workspace
 checkout for dependency, dimensions and cancellation details.
 
+### Export a timeline with audio
+
+[VideoWithAudio](Sources/VideoWithAudio.sx) exports a four-second 3D/Canvas/UI
+animation at 60 frames/s with stereo application audio. A beep and a flash share
+each half-second boundary. It renders offline with no audio device and lets
+the exporter handle the soundtrack, synchronization and MP4 finalization.
+
+From the `SilexProject` workspace root:
+
+```sh
+silex compile Silex-Examples/Sources/VideoWithAudio.sx --release -o .silex/video-with-audio
+.silex/video-with-audio --ffmpeg /absolute/path/to/ffmpeg --output Animation-Audio.mp4
+```
+
+Use a new output path. FFmpeg needs the native AAC encoder and f32le input,
+in addition to the silent video's dependencies. The default output is
+`Animation-Audio.mp4`; existing files are preserved. This example qualifies
+controlled export; live recording is currently silent.
+
 ### Other demonstrations
 
 Run direct files from the repository root:
