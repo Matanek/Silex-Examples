@@ -1248,3 +1248,25 @@ silex run Silex-Examples/Sources/Physics3D/SoftBodiesScene.sx --release
 
 `--smoke` selects a finite automated run; the default is interactive. Vertices
 collide with rigids; self-collision and soft/soft collision are not provided.
+
+
+## Record while playing
+
+[LiveRecording](Sources/LiveRecording.sx) keeps the cube, Canvas marker and UI
+interactive while recording the final render. Use **R** or the button to start
+and stop, **A/D** or the arrows to move, and **Escape** to quit. Wait for
+“Enregistré” before quitting to keep the file. The cancel button discards it.
+Each successful session creates `<prefix>-<number>.mp4` in the execution directory;
+existing files are preserved. MP4 is silent MPEG-4 Part 2/YUV420P at 30 Hz.
+
+From the `SilexProject` workspace root, using an explicitly installed FFmpeg:
+
+```sh
+silex compile Silex-Examples/Sources/LiveRecording.sx --release -o .silex/live-recording
+.silex/live-recording --ffmpeg /absolute/path/to/ffmpeg --output-prefix Partie
+```
+
+`--verify` runs two hidden sessions and exercises the same keyboard snapshot as
+the game controls. The owning GFX smoke separately verifies native input delivery
+while the encoder is blocked. See the [recording guide](https://github.com/Matanek/GFX.Rendering/blob/main/Docs/EN/Recording.md)
+for asynchronous states, duplicate/drop counters and resize behavior.

@@ -1,0 +1,245 @@
+use GFX.Application
+use GFX.Canvas
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Input
+use GFX.Input.State as InputState
+use GFX.Input.Keyboard
+use GFX.Plugins
+use GFX.Rendering
+use GFX.Resources
+use GFX.Scene2D
+use GFX.Scene3D
+use GFX.UI
+use GFX.Window
+use STD.FileSystem
+use STD.Math
+use STD.Process
+
+class Demo {
+    let ffmpeg:str
+    let prefix:str
+    let verification:bool
+    var status:UI.State<str> = UI.State<str>("Prêt · R ou le bouton pour enregistrer.")
+    var ui:UI.Session? = null
+    var overlay:ECS.Entity? = null
+    var cube:ECS.Entity? = null
+    var recording:Rendering.Recording? = null
+    var toggle_requested:bool = false
+    var cancel_requested:bool = false
+    var reported:bool = false
+    var number:int = 0
+    var completed:int = 0
+    var frames:int = 0
+    var moves:int = 0
+    var x:float = 0.7
+    var width:int = 0
+    var height:int = 0
+
+    init(ffmpeg:str, prefix:str, verification:bool) {
+        self.ffmpeg = ffmpeg
+        self.prefix = prefix
+        self.verification = verification
+        var title = UI.Text("Enregistrer pendant que vous jouez")
+        title.style.font_size = 27.0
+        var toggle = UI.Button("Démarrer / arrêter · R", self.toggle)
+        toggle.style.padding = UI.Insets(12.0)
+        toggle.style.background = Color.indigo_600()
+        toggle.style.radius = 8.0
+        var cancel = UI.Button("Annuler la vidéo", self.cancel)
+        cancel.style.padding = UI.Insets(12.0)
+        var content = UI.Column([
+            title,
+            UI.Text("Flèches ou A / D : déplacer le cube · Échap : quitter"),
+            UI.Text("Arrêtez la vidéo et attendez « Enregistré » pour conserver le fichier."),
+            UI.Row([toggle, cancel]), UI.Reactive(self.message)
+        ])
+        content.style.padding = UI.Insets(24.0)
+        content.style.gap = 10.0
+        content.style.foreground = Color.white()
+        self.ui = UI.Session(content)
+    }
+    func toggle() { self.toggle_requested = true }
+    func cancel() { self.cancel_requested = true }
+    func message(reads:UI.Reads) UI.View { return UI.Text(reads.read(self.status)) }
+}
+
+func create(world:&Resources.World, meshes:&Resources.Meshes3D, demo:&Demo) {
+    let cube = meshes.add(Scene3D.Geometry.Cube.make(Math.Vec3(1.7)))
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.0, 0.0, 6.0)))
+        ..with(Components.Camera3D(vertical_fov:Math.radians(55.0))))
+    demo.cube = world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:Math.Vec3(0.7, -0.65, 0.0),
+            rotation:Math.Quat.angle_axis(0.55, Math.Vec3.up())
+                .multiply(Math.Quat.angle_axis(0.3, Math.Vec3.right()))))
+        ..with(Components.Mesh3D(cube))
+        ..with(Components.Material3D(albedo:Color.cyan_400(), metallic:0.1, roughness:0.35))
+        ..with(Components.Rotator3D(x_speed:0.25, y_speed:0.6, z_speed:0.0)))
+    world.spawn(ECS.EntityRecipe()..with(Components.AmbientLight3D(intensity:0.3)))
+    world.spawn(ECS.EntityRecipe()..with(Components.SunLight3D(
+        direction:Math.Vec3(-0.5, -1.0, -0.4), intensity:3.0)))
+    if var ui = demo.ui {
+        var drawing = ui.drawing(900, 580)
+        drawing.paint(func(painter:&Canvas.Painter) {
+            painter.fill(Canvas.Circle(Math.Vec2(48.0, 510.0), 16.0), Canvas.Fill.solid(Color.amber_400()))
+        })
+        demo.overlay = world.spawn(ECS.EntityRecipe()
+            ..with(Components.Transform2D())
+            ..with(Components.Canvas(drawing)..space = Components.CanvasSpace.viewport))
+    }
+}
+
+// Verification drives the same keyboard snapshot consumed by update. Native
+// SDL event delivery is exercised separately by the GFX recording smoke.
+func automate(demo:&Demo, state:&InputState) {
+    if !demo.verification { return }
+    state.current_keys = []
+    if demo.frames == 2 { state.entered_keys.append(Keyboard.Key.r) }
+    if var recording = demo.recording {
+        if recording.state() == Rendering.Recording.State.recording {
+            if demo.number % 2 == 1 { state.current_keys = [Keyboard.Key.d] }
+            else { state.current_keys = [Keyboard.Key.a] }
+            if recording.statistics().duration_seconds >= 1.0 { state.entered_keys.append(Keyboard.Key.r) }
+        }
+        if recording.state() == Rendering.Recording.State.completed && demo.reported && demo.completed == 1 {
+            state.entered_keys.append(Keyboard.Key.r)
+        }
+    }
+}
+
+func update(
+    demo:&Demo, input:@Input, time:@Resources.FrameTime, world:&Resources.World,
+    window:&Window, renderer:&Rendering.Renderer, controller:&Application.Controller
+) {
+    demo.frames++
+    if demo.verification { assert(demo.frames < 1800, "verification did not complete") }
+    var changed = false
+    if var ui = demo.ui { for event in input.events() { if ui.handle(event) { changed = true } } }
+    if input.is_pressed(Keyboard.Key.r) { demo.toggle() }
+    if input.is_pressed(Keyboard.Key.escape) { controller.stop() }
+    var axis = 0.0
+    if input.is_down(Keyboard.Key.left) || input.is_down(Keyboard.Key.a) { axis -= 1.0 }
+    if input.is_down(Keyboard.Key.right) || input.is_down(Keyboard.Key.d) { axis += 1.0 }
+    if axis != 0.0 {
+        demo.x = Math.clamp(demo.x + axis * time.delta * 2.0, -3.0, 3.0)
+        demo.moves++
+        let x = demo.x
+        if let cube = demo.cube {
+            world.update<Scene3D.Transform>(cube, func(transform:&Scene3D.Transform) { transform.position.x = x })
+        }
+        changed = true
+    }
+    if demo.toggle_requested {
+        demo.toggle_requested = false
+        var start = true
+        if var recording = demo.recording {
+            if recording.state() == Rendering.Recording.State.preparing || recording.state() == Rendering.Recording.State.recording {
+                recording.stop()
+                start = false
+                demo.status.set("Finalisation de la vidéo… Vous pouvez continuer à jouer.")
+            } elif recording.state() == Rendering.Recording.State.stopping { start = false }
+        }
+        if start {
+            demo.number++
+            let path = demo.prefix + "-$(demo.number).mp4"
+            match (try renderer.record_mp4(path, ffmpeg:demo.ffmpeg, frames_per_second:30)) {
+                success(recording) => { demo.recording = recording; demo.reported = false; demo.status.set("Préparation de la vidéo…") }
+                failure(error) => { demo.status.set("Échec : " + error) }
+            }
+        }
+        changed = true
+    }
+    if demo.cancel_requested {
+        demo.cancel_requested = false
+        if var recording = demo.recording { recording.cancel() }
+        changed = true
+    }
+    if var recording = demo.recording {
+        let state = recording.state()
+        if state == Rendering.Recording.State.recording && demo.frames % 6 == 0 {
+            let stats = recording.statistics()
+            demo.status.set("Enregistrement · $(stats.frames) images · $(stats.duplicates) dupliquées · $(stats.dropped) non capturées")
+        }
+        if !demo.reported {
+            if state == Rendering.Recording.State.completed {
+                demo.reported = true
+                demo.completed++
+                let path = FileSystem.canonicalize(recording.path())
+                let stats = recording.statistics()
+                demo.status.set("Enregistré · vidéo $(demo.number). Chemin affiché dans le terminal.")
+                print("VIDEO $(path) · images=$(stats.frames) captures=$(stats.captured) dupliquées=$(stats.duplicates) durée=$(stats.duration_seconds)")
+                assert(stats.frames == stats.captured + stats.duplicates)
+            } elif state == Rendering.Recording.State.cancelled {
+                demo.reported = true
+                demo.status.set("Vidéo annulée · Aucun fichier conservé.")
+            } elif state == Rendering.Recording.State.failed {
+                demo.reported = true
+                if let error = recording.error() { demo.status.set("Échec : " + error); print(error) }
+                if demo.verification { panic("video demonstration failed") }
+            }
+        }
+    }
+    if var ui = demo.ui {
+        if ui.update(time.delta) { changed = true }
+        let size = window.size()
+        let width = size.x as int
+        let height = size.y as int
+        if width != demo.width || height != demo.height { changed = true }
+        if changed {
+            demo.width = width
+            demo.height = height
+            window.set_cursor(ui.pointer_cursor())
+            if let overlay = demo.overlay {
+                var drawing = ui.drawing(width, height)
+                let x = 40.0 + (demo.x + 3.0) / 6.0 * (width as float - 80.0)
+                drawing.paint(func(painter:&Canvas.Painter) {
+                    painter.fill(Canvas.Circle(Math.Vec2(x, height as float - 48.0), 16.0), Canvas.Fill.solid(Color.amber_400()))
+                })
+                world.update<Scene2D.Canvas>(overlay, func(canvas:&Scene2D.Canvas) { canvas.replace(drawing) })
+            }
+        }
+    }
+    if demo.verification && demo.completed == 2 {
+        assert(demo.moves > 30)
+        print("Deux sessions terminées pendant $(demo.frames) frames ; $(demo.moves) mouvements traités.")
+        controller.stop()
+    }
+}
+
+func rotate(time:@Resources.FrameTime, query:ECS.Query<(&Components.Transform3D, @Components.Rotator3D)>) {
+    for (transform, speed) in query {
+        transform.rotation = Math.Quat.angle_axis(speed.y_speed * time.delta, Math.Vec3.up()).multiply(transform.rotation)
+    }
+}
+
+func main() {
+    let arguments = Process.arguments()
+    var ffmpeg = ""
+    var prefix = "Recording"
+    var verification = false
+    var index = 1
+    while index < arguments.count() {
+        if arguments[index] == "--verify" { verification = true }
+        if arguments[index] == "--ffmpeg" { index++; assert(index < arguments.count()); ffmpeg = arguments[index] }
+        if arguments[index] == "--output-prefix" { index++; assert(index < arguments.count()); prefix = arguments[index] }
+        index++
+    }
+    assert(ffmpeg != "", "Fournir --ffmpeg /chemin/absolu/ffmpeg")
+    var demo = Demo(ffmpeg, prefix, verification)
+    Application(1)
+        ..add_resource(demo)
+        ..add_plugin(Plugins.Window(Plugins.Window.Settings()
+            ..title = "GFX — Enregistrement interactif"..width = 900..height = 580
+            ..hidden = verification..high_pixel_density = false))
+        ..add_plugin(Plugins.Time())
+        ..add_plugin(Plugins.Scene2D())
+        ..add_plugin(Plugins.Scene3D())
+        ..add_plugin(Application.FramePacing(60))
+        ..add_system(Application.Schedule.startup, create)
+        ..add_system(Application.Schedule.update, automate)
+        ..add_system(Application.Schedule.update, update)
+        ..add_system(Application.Schedule.update, rotate)
+        ..run()
+}
