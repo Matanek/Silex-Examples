@@ -256,8 +256,9 @@ silex compile Silex-Examples/Sources/VideoWithAudio.sx --release -o .silex/video
 
 Use a new output path. FFmpeg needs the native AAC encoder and f32le input,
 in addition to the silent video's dependencies. The default output is
-`Animation-Audio.mp4`; existing files are preserved. This example qualifies
-controlled export; live recording is currently silent.
+`Animation-Audio.mp4`; existing files are preserved. This example demonstrates
+controlled export. [LiveRecording](Sources/LiveRecording.sx) records the device
+mix in real time; press **B** there to produce a beep and a flash.
 
 ### Other demonstrations
 
