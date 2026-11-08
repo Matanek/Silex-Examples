@@ -11,71 +11,80 @@ func accelerate(truck:Model.Truck,direction:int,speed:float) {
     assert(false,"reversal setup must reach its requested speed under real wheel torque")
 }
 
-func reversal(initial:int,speed:float,final:float=8.0) {
-    var truck=Model.Truck(final_drive:final);accelerate(truck,initial,speed)
+func skid(initial:int,final:float=8.0,verify:bool=true,speed:float=18.0) {
+    var truck=Model.Truck(final_drive:final)
+    accelerate(truck,initial,speed)
     let target= -initial;let before=truck.chassis.linear_velocity().z
-    var gear= -1.0;var motor= -1.0;var crossed= -1.0;var ten= -1.0
-    var up=1.0;var bead=0.0
-    for frame in 0...720 {
-        // Release the first key before holding the opposite key.
-        truck.held(target>0,target<0,false,false,false,false)
-        if frame==0 { assert(!truck.brake,"normal ground reversal must send drive instead of waiting on the service brake") }
-        truck.step()
-        let time=(frame+1) as float/120.0;let state=truck.motor.state()
-        var torque=0.0;for i in 0...4 { torque+=truck.motor.wheel_torque(i) }
-        if gear<0.0 && state.gear*target>0 { gear=time }
-        if motor<0.0 && torque*(target as float)>1.0 { motor=time }
-        let travel=truck.chassis.linear_velocity().z*(target as float)
-        if crossed<0.0 && travel>0.5 { crossed=time }
-        if ten<0.0 && travel>10.0/3.6 { ten=time }
-        up=Math.min(up,truck.chassis.transform().vector(Math.Vec3.up()).y)
-        bead=Math.max(bead,truck.maximum_bead_error())
-        if up<=0.8 || bead>=0.08 || truck.minimum_y()<=0.025 {
-            print("REVERSAL unstable frame=",frame," speed=",truck.chassis.linear_velocity().z,
-                " up=",up," bead=",bead," floor=",truck.minimum_y()," torque=",torque,
-                " rpm=",state.engine_rpm," clutch=",state.clutch)
+    var reversed= -1.0;var body_at_reversal=0.0;var first_torque= -1.0;var first_gear= -1.0
+    var bead=0.0;var floor=100.0;var upright=1.0
+    var run=0;var sustained= -1.0;var sustained_body=0.0;var run_body=0.0
+    // A 650 ms pedal press measures driven slip; holding full power longer
+    // may deliberately pitch or flip the truck, as in the airborne checks.
+    for frame in 0...78 {
+        truck.held(target>0,target<0,false,false,false,false);truck.step()
+        var minimum_spin=1000.0;var torque=0.0
+        for i,wheel in truck.wheels.indexed() {
+            minimum_spin=Math.min(minimum_spin,wheel.spin(truck.chassis)*(target as float))
+            torque+=truck.motor.wheel_torque(i)
         }
-        // Use the grounded transmission stability bound while allowing the
-        // stronger physical pitch; require upright recovery after the maneuver.
-        assert(up>0.8 && bead<0.08 && truck.minimum_y()>0.025,
-            "direct reversal must preserve supported travel and tyre seating")
+        let time=(frame+1) as float/120.0
+        if first_torque<0.0 && torque*(target as float)>1.0 { first_torque=time }
+        if first_gear<0.0 && truck.motor.state().gear*target>0 { first_gear=time }
+        if verify && frame==0 && speed>3.0 {
+            assert(minimum_spin<0.0,"finite wheel inertia must not be replaced by an instantaneous speed change")
+        }
+        if reversed<0.0 && minimum_spin>1.0 {
+            reversed=time;body_at_reversal=truck.chassis.linear_velocity().z*(initial as float)
+        }
+        if minimum_spin>1.0 {
+            if run==0 { run_body=truck.chassis.linear_velocity().z*(initial as float) }
+            run++
+            if sustained<0.0 && run>=18 { sustained=time-17.0/120.0;sustained_body=run_body }
+        } else { run=0 }
+        bead=Math.max(bead,truck.maximum_bead_error());floor=Math.min(floor,truck.minimum_y())
+        upright=Math.min(upright,truck.chassis.transform().vector(Math.Vec3.up()).y)
+        if !verify && frame%15==14 {
+            print("TRACTION t=",time," min_wheel_requested=",minimum_spin," body_old=",truck.chassis.linear_velocity().z*(initial as float),
+                " rpm=",truck.motor.state().engine_rpm," torque=",torque," up=",truck.chassis.transform().vector(Math.Vec3.up()).y)
+        }
+        if verify { assert(!truck.brake && bead<0.08 && floor>0.025,"powered wheel slip must keep finite stable tyres without a hidden brake") }
     }
-    print("REVERSAL initial=",initial," before=",before," final=",final," gear_seconds=",gear,
-        " motor_seconds=",motor," crossed_seconds=",crossed," ten_kmh_seconds=",ten," up=",up," bead=",bead,
-        " final_up=",truck.chassis.transform().vector(Math.Vec3.up()).y)
-    assert(truck.chassis.transform().vector(Math.Vec3.up()).y>0.9,"direct reversal must recover upright after the transient pitch")
-    assert(gear>0.0 && gear<=1.0/120.0 && motor>0.0 && motor<=1.0/120.0,
-        "opposite gear and torque must both respond on the first simulation step")
-    var limit=3.5;if speed<3.0 { limit=1.75 }
-    assert(crossed>0.0 && crossed<limit && ten>crossed && ten<limit+1.25,
-        "opposite drive must reverse actual travel and continue accelerating")
+    print("TRACTION initial=",initial," final=",final," before=",before," torque_seconds=",first_torque,
+        " gear_seconds=",first_gear," sustained_seconds=",sustained," sustained_body=",sustained_body," wheels_reversed_seconds=",reversed," body_old_direction=",body_at_reversal," up=",upright," bead=",bead," floor=",floor)
+    if verify {
+        assert(first_torque>0.0 && first_torque<=1.0/120.0 && first_gear>0.0 && first_gear<=1.0/120.0,
+            "opposite gear and torque must respond on the first step")
+        assert(sustained>0.0 && sustained<=0.5 && (speed<3.0 || sustained_body>speed*0.5),
+            "all wheels must drive backwards while the chassis still slides forwards at speed")
+    }
 }
-
 func cancellation() {
     var truck=Model.Truck();accelerate(truck,1,8.0)
     for _ in 0...30 { truck.held(false,true,false,false,false,false);truck.step() }
-    let before=truck.chassis.linear_velocity().z;var recovered= -1.0
-    for frame in 0...360 {
+    var recovered= -1.0;var impulse=0.0
+    for frame in 0...12 {
         truck.held(true,false,false,false,false,false);truck.step()
         var torque=0.0;for i in 0...4 { torque+=truck.motor.wheel_torque(i) }
+        impulse+=torque/120.0
         if recovered<0.0 && truck.motor.state().gear>0 && torque>1.0 { recovered=(frame+1) as float/120.0 }
-        assert(truck.chassis.transform().vector(Math.Vec3.up()).y>0.9)
-        assert(truck.maximum_bead_error()<0.08 && truck.minimum_y()>0.025)
+        assert(!truck.brake && truck.maximum_bead_error()<0.08 && truck.minimum_y()>0.025)
     }
-    assert(recovered>0.0 && recovered<0.5 && truck.chassis.linear_velocity().z>before,
-        "cancelling a reversal must recover forward drive without a latched brake or clutch")
-    print("REVERSAL cancelled: drive_seconds=",recovered," speed_before=",before,
-        " speed_after=",truck.chassis.linear_velocity().z)
+    assert(recovered>0.0 && recovered<=1.0/120.0 && impulse>0.0,
+        "cancelling a ground reversal must restore forward torque immediately, without a latched brake or clutch")
+    print("REVERSAL cancelled: drive_seconds=",recovered," angular_impulse=",impulse)
 }
-
-func low_speed() { reversal(-1,2.0);reversal(1,2.0) }
-func ratios() { reversal(-1,12.0,6.0);reversal(1,12.0,6.0);reversal(-1,12.0,12.0);reversal(1,12.0,12.0) }
+func low_speed() { skid(1,speed:2.0);skid(-1,speed:2.0) }
+func ratios() {
+    let ratios:float[]=[6.0,12.0]
+    for ratio in ratios { skid(1,ratio,speed:12.0);skid(-1,ratio,speed:12.0) }
+}
 func main() {
     for arg in Process.arguments() {
+        if arg=="--trace" { skid(1,verify:false);skid(-1,verify:false);return }
         if arg=="--low-speed" { low_speed();return }
         if arg=="--ratios" { ratios();return }
         if arg=="--cancel" { cancellation();return }
     }
-    reversal(-1,18.0);reversal(1,18.0);low_speed();ratios();cancellation()
-    print("Responsive reversal checks passed: both directions, low and high speed, final ratios and cancellation")
+    skid(1);skid(-1);ratios();low_speed();cancellation()
+    print("Powered reversal passed: sustained four-wheel slip before chassis reversal, both directions, gearing and cancellation")
 }

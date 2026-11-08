@@ -74,8 +74,9 @@ obstacle with all three inflation settings.
 
 Each tire is 2.20 m in diameter and 1.32 m wide, with a 1.32 m rim and
 1.56 m flanges. It has 192 vertices, 384 triangles and 96 internal shear
-diagonals. The 48 bead links exchange impulses with the rim; vertices
-remain dynamic.
+diagonals. Reinforced bead seats (480,000 N/m, damping 250 N·s/m) retain the
+tires on their rims during powered landings. The 48 bead links exchange impulses
+with the rim; vertices remain dynamic.
 
 Low compresses more under load than Monster; Firm deforms less. Under this
 assembly's reference load, loaded radii are approximately 1.00 / 1.11 / 1.17 m.
@@ -121,16 +122,15 @@ ground and in flight. The gearbox engages through a 25 ms clutch take-up without
 a gear-change dead time. Opposing torque slows and reverses wheel rotation;
 the command does not wait for the truck to stop or add an automatic brake.
 
-The clutch slips under limited pressure while the wheels rotate against the
-requested pedal. In flight only their rotation relative to the chassis matters;
-attitude and travel direction do not delay the command. On the ground, pressure
-also remains limited while the truck still travels against the command: wheels
-already slipping in the new direction must not trigger a full-power launch and
-overturn the truck.
-Combustion RPM is limited during slip to avoid a take-up kick. Pressure accounts
-for final gearing; full engagement recovers over 0.2 s once this opposition has
-ended. The requested torque remains active throughout this take-up. Mass, wheel
-inertia and grip continue to determine the physical response.
+Chassis travel direction reduces neither clutch pressure nor the permitted
+engine RPM. Wheels can therefore spin in the requested direction while the
+truck still slides the other way. Clutch capacity is 450 N·m on the engine
+side, before gearbox and final-drive multiplication; it bounds physical torque
+in both directions independently of truck speed. Launch engagement depends on
+engine RPM and wheel rotation, but never drops below pedal demand: crossing
+zero does not disengage a motor that is still being commanded. The opposite
+chassis reaction enables pitch changes and stunts; the player controls them
+by metering the inputs.
 
 When Z and S are held together, the last distinct press wins; keyboard repeat
 does not change that priority. Releasing that key restores the other pedal if
@@ -215,8 +215,11 @@ Interactive listening and graphical performance still require checks on the
 machine used.
 
 `ReversalChecks.sx` also checks both directions at 2 and 18 m/s, the extreme
-final ratios at 12 m/s, cancellation of a reversal, torque response time and
-stability through clutch recovery:
+final ratios at 12 m/s, cancellation of a reversal and torque on the first step.
+It requires all four wheels to rotate in the new direction for at least 150 ms,
+before the chassis loses half its initial speed (at 12 and 18 m/s). Tire beads
+remain seated and tires stay above the ground; pitch remains free to react to
+torque:
 
 ```sh
 silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/ReversalChecks.sx --release -o Build/MonsterTruck-Reversal-Checks

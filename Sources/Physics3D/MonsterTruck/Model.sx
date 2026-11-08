@@ -20,7 +20,6 @@ package class Truck {
     var final_drive:float
     var motor:Physics.WheelDrive3D
     private var supported:bool[]=[]
-    private var clutch_response:float=1.0
     init(workers:int=1,obstacles:bool=false,spawn:Physics.Transform3D=Physics.Transform3D(Math.Vec3(0.0,2.35,0.0)),tyre_flex:float=4.0,final_drive:float=Transmission.Settings.final_drive) {
         self.final_drive=final_drive;self.motor=Transmission.create(final_drive)
         self.world=Physics.World3D(Physics.World3DSettings() ..soft_body_substeps=1 ..velocity_iterations=8)
@@ -86,20 +85,12 @@ package class Truck {
         self.motor=Transmission.create(value);self.final_drive=value;return true
     }
     func step() {
-        // At 120 Hz, oppose the actual rotors immediately, including in flight.
-        // While supported, retain clutch slip until ground travel also follows:
-        // early wheel spin alone must not release a full-power launch impulse.
-        var grounded=false;var rotor_speed=0.0
+        // At 120 Hz, refresh support once per wheel. It informs automatic
+        // upshifts, never permission to apply the requested drive direction.
         for i,wheel in self.wheels.indexed() {
             self.supported[i]=self.world.ray_cast(Physics.Ray3D(wheel.rim.position(),Math.Vec3(0.0,-1.3,0.0)),
                 filter:Physics.QueryFilter3D(mask_bits:1))!=null
-            if self.supported[i] { grounded=true }
-            rotor_speed+=wheel.spin(self.chassis)/4.0
         }
-        let travel=self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z
-        let reversing=self.gas*rotor_speed< -0.1 || (grounded && self.gas*travel< -0.5)
-        if reversing { self.clutch_response=Transmission.reversal_pressure(self.final_drive) }
-        else { self.clutch_response=Math.min(1.0,self.clutch_response+1.0/(120.0*Transmission.Settings.clutch_recovery)) }
         // A finite throttle response avoids an impulse-like torque jump.
         if self.gas*self.drive<0.0 { self.drive=0.0 }
         var rise=0.025
@@ -115,13 +106,12 @@ package class Truck {
             }
             var throttle=Math.clamp(self.drive,-1.0,1.0)
             let rpm=self.motor.state().engine_rpm
-            var scale=Transmission.torque_scale(self.drive,rpm)
-            if self.clutch_response<1.0 {
-                // Avoid storing excessive flywheel energy during clutch slip.
-                scale=Math.min(scale,Math.clamp((Transmission.Settings.reversal_rpm-rpm)/300.0,0.0,1.0))
-            }
-            var clutch=Math.max(Math.clamp(mean*1.1/3.0,0.0,1.0),Math.clamp((rpm-680.0)/1275.0,0.0,1.0))
-            clutch=Math.min(clutch,self.clutch_response)
+            let scale=Transmission.torque_scale(self.drive,rpm)
+            // Keep pedal demand engaged even as a loaded wheel crosses zero.
+            // Otherwise the launch assist opens the clutch precisely when torque
+            // is needed to break traction. Capacity is bounded in the powertrain.
+            let launch=Math.max(Math.clamp(mean*1.1/3.0,0.0,1.0),Math.clamp((rpm-680.0)/1275.0,0.0,1.0))
+            var clutch=Math.max(Math.abs(throttle),launch)
             if self.brake || self.handbrake { throttle=0.0;clutch=0.0 }
             self.motor.step(delta,throttle,torque_scale:scale,clutch:clutch)
             for i,wheel in self.wheels.indexed() { wheel.couple(self.chassis,self.motor.wheel_torque(i),self.brake,self.handbrake,self.hard_brake,delta) }

@@ -75,7 +75,9 @@ récupérer l’équilibre. Comparer ensuite un même relief avec les trois gonf
 
 Chaque pneu mesure 2,20 m de diamètre et 1,32 m de largeur, avec une jante de
 1,32 m et des rebords de 1,56 m. Il comporte 192 sommets, 384 triangles et
-96 diagonales internes de cisaillement. Les 48 liaisons de talons échangent
+96 diagonales internes de cisaillement. Les attaches de talons renforcées
+(480 000 N/m, amortissement de 250 N·s/m) conservent les pneus sur les jantes
+lors des réceptions sous couple. Les 48 liaisons de talons échangent
 des impulsions avec la jante ; les sommets restent dynamiques.
 
 Le profil Bas s’écrase davantage sous charge que Monster ; Ferme se déforme
@@ -126,17 +128,16 @@ au sol comme en vol. La boîte engage le rapport avec une prise d’embrayage de
 inversent leur rotation sous l’effet du couple opposé ; la commande n’attend
 pas l’arrêt du camion et n’ajoute aucun frein automatique.
 
-L’embrayage patine sous pression limitée tant que les roues tournent à l’opposé
-de la pédale demandée. En vol, seule leur rotation relative au châssis compte ;
-l’orientation et le sens du déplacement ne retardent pas la commande. Au sol,
-la pression reste aussi limitée pendant que le camion avance encore à l’opposé :
-des roues qui patinent déjà dans le nouveau sens ne doivent pas déclencher une
-reprise à pleine puissance et un retournement.
-Le régime de combustion est limité pendant le patinage pour éviter un à-coup au
-raccrochage. La pression tient compte du rapport de pont ; la pleine prise
-revient progressivement en 0,2 s une fois cette opposition résorbée. Le couple
-demandé reste appliqué pendant cette prise progressive. La masse, l’inertie des
-roues et l’adhérence continuent de déterminer la réponse physique.
+Le sens du déplacement du châssis ne réduit ni la pression d’embrayage ni le
+régime moteur autorisé. Les roues peuvent donc patiner dans le sens demandé
+pendant que le camion glisse encore dans l’autre sens. La capacité d’embrayage
+est de 450 N·m côté moteur, avant multiplication par la boîte et les ponts ;
+elle borne le couple physique dans les deux sens, indépendamment de la vitesse
+du camion. La prise au démarrage dépend du régime et de la rotation des roues,
+mais ne descend jamais sous la demande de pédale : passer par zéro ne débraye pas
+un moteur encore sollicité.
+La réaction opposée sur le châssis permet les transferts d’assiette et les
+figures : le joueur dose les appuis pour les contrôler.
 
 Si Z et S sont maintenues ensemble, la dernière pression distincte prend la
 priorité ; l’auto-répétition du clavier ne la change pas. Relâcher cette touche
@@ -227,8 +228,11 @@ Espace après focus et la conservation du réglage après R. L’écoute interac
 et la tenue graphique restent à contrôler sur la machine utilisée.
 
 `ReversalChecks.sx` contrôle aussi les deux sens à 2 et 18 m/s, les rapports de
-pont extrêmes à 12 m/s, l’annulation d’une inversion, le délai du couple et la
-stabilité pendant la reprise d’embrayage :
+pont extrêmes à 12 m/s, l’annulation d’une inversion et le couple dès le premier
+pas. Il exige que les quatre roues tournent dans le nouveau sens pendant au
+moins 150 ms, avant que le châssis ait perdu la moitié de sa vitesse initiale
+(aux vitesses de 12 et 18 m/s). Les talons restent assis et les pneus ne
+traversent pas le sol ; l’assiette demeure libre de réagir au couple :
 
 ```sh
 silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/ReversalChecks.sx --release -o Build/MonsterTruck-Reversal-Checks

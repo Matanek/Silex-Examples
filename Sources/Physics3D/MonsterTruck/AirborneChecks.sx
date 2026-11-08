@@ -87,6 +87,10 @@ func course() {
         truck.step()
         bead=Math.max(bead,truck.maximum_bead_error());highest=Math.max(highest,truck.chassis.position().y)
         if truck.chassis.transform().vector(Math.Vec3.up()).y< -0.5 { inverted++ }
+        if bead>=0.08 || truck.minimum_y()<=0.025 {
+            print("AIR course failure frame=",frame," bead=",bead," floor=",truck.minimum_y(),
+                " position=",truck.chassis.position().z," up=",truck.chassis.transform().vector(Math.Vec3.up()).y)
+        }
         assert(bead<0.08 && truck.minimum_y()>0.025,"held forward input must preserve tyre seating through real jumps and landings")
     }
     assert(inverted>0 && highest>3.5)

@@ -44,7 +44,8 @@ package class Wheel {
             ..transform=Physics.Transform3D(center,chassis.transform().rotation) ..pressure=1400.0 ..linear_damping=0.9
             ..friction=1.4 ..vertex_radius=0.035
             ..collision_filter=Physics.CollisionFilter3D(category_bits:4,mask_bits:3))
-        self.seat=Beads.Seat(self.tyre,self.rim,stiffness:240000.0,damping:175.0)
+        // Stiffer bead seats retain the tyre under powered landings and reversals.
+        self.seat=Beads.Seat(self.tyre,self.rim,stiffness:480000.0,damping:250.0)
         let locked=Physics.LinearAxis3DSettings() ..limit=Physics.LinearLimit3D.locked
         let spring=Physics.LinearAxis3DSettings() ..limit=Physics.LinearLimit3D.bounded(-self.travel,self.travel)
             ..motor=Physics.LinearMotor3D.position(0.0,6000.0,1800.0,300.0)
