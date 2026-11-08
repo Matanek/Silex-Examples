@@ -27,7 +27,7 @@ package class TruckScene {
     var chase:ChaseCamera
     var metrics:Metrics=Metrics()
     var profile:bool=false
-    var slope_profile:bool=false
+    var hold_profile:bool=false
     var ramp_profile:bool=false
     let profile_duration:float
     let profile_throttle:float
@@ -40,16 +40,16 @@ package class TruckScene {
     let trace_performance:bool
     var sound:EngineSound?=null
     let workers:int
-    init(workers:int=4,profile:bool=false,slope:bool=false,ramp:bool=false,throttle:float=0.75,turn:bool=false,trace:bool=false,duration:float=12.0,spawn:Physics.Transform3D?=null) {
+    init(workers:int=4,profile:bool=false,slope:bool=false,ramp:bool=false,throttle:float=0.75,turn:bool=false,trace:bool=false,duration:float=12.0,spawn:Physics.Transform3D?=null,bumps:bool=false) {
         self.profile_duration=duration;self.profile_throttle=throttle;self.profile_turn=turn;self.trace_performance=trace
-        self.workers=workers;self.profile=profile;self.slope_profile=slope;self.ramp_profile=ramp
+        self.workers=workers;self.profile=profile;self.hold_profile=slope || bumps;self.ramp_profile=ramp
         if let pose=spawn { self.truck=Model.Truck(workers,obstacles:true,spawn:pose) }
         else if slope { self.truck=Model.Truck(workers,obstacles:true,spawn:Terrain.slope_spawn()) }
         else if ramp {self.truck=Model.Truck(workers,obstacles:true,
             spawn:Physics.Transform3D(Math.Vec3(-2.0,2.35,8.0),Math.Quat.angle_axis(0.3,Math.Vec3.up())))}
         else { self.truck=Model.Truck(workers,obstacles:true) }
         self.chase=ChaseCamera(self.truck.chassis.position(),self.truck.chassis.transform().vector(Math.Vec3.back()))
-        if profile { self.ui=UI.Session(self.panel.measurement(slope,ramp,throttle,turn,duration)) }
+        if profile { self.ui=UI.Session(self.panel.measurement(slope,ramp,throttle,turn,duration,bumps:bumps)) }
         else { self.ui=UI.Session(self.panel.describe()) }
     }
     func create_view(world:&Resources.World,meshes:&Resources.Meshes3D) {

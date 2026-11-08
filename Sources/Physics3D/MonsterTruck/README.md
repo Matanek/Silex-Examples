@@ -200,6 +200,11 @@ marks a transition during the measured interval. Exclude transition intervals
 when comparing foreground and background performance. `--ledge` places the
 truck on the yellow table's side edge, rear wheels on the module and front
 wheels towards the ground; controls remain available.
+`--bumps` starts on the small yellow rollers. `--profile-bumps` holds the brakes
+there for twelve seconds, with a measurement HUD and automatic shutdown.
+`ModuleCostChecks.sx` compares flat ground, small rollers, central ramps, a
+side module, and the table edge without a window: computation per simulated
+second, maximum step cost, and physical state. It does not measure rendering FPS.
 These measurements are optional; ordinary launches emit no trace.
 Compare binaries separately, without concurrent builds or tests, in the same
 mode and on the same course.

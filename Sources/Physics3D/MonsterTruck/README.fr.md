@@ -213,6 +213,12 @@ signale une transition pendant l’intervalle mesuré. Écarter les intervalles 
 transition pour comparer les performances au premier plan et en arrière-plan.
 `--ledge` place le camion sur l’arête latérale de la table jaune, roues arrière
 sur le module et roues avant vers le sol ; les commandes restent disponibles.
+`--bumps` démarre sur les petites bosses jaunes. `--profile-bumps` y maintient
+les freins pendant douze secondes, avec un HUD de mesure et fermeture automatique.
+`ModuleCostChecks.sx` compare sans fenêtre le plat, les petites bosses, les
+rampes centrales, un module latéral et l’arête de la table : temps de calcul
+par seconde simulée, coût maximal d’un pas et état physique. Ce contrôle ne
+mesure pas les FPS du rendu.
 Ces mesures sont optionnelles ; le lancement ordinaire ne produit aucune trace.
 Pour comparer des binaires, les exécuter séparément, sans build ni autre test
 concurrent, dans le même mode et sur le même parcours.

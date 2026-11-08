@@ -103,13 +103,14 @@ package class Panel {
     }
     func values(reads:UI.Reads) UI.View { return self.text(reads.read(self.metrics)) }
     func parameters(reads:UI.Reads) UI.View { return self.text(reads.read(self.settings)) }
-    func measurement(slope:bool,ramp:bool=false,throttle:float=0.75,turn:bool=false,duration:float=12.0) UI.View {
+    func measurement(slope:bool,ramp:bool=false,throttle:float=0.75,turn:bool=false,duration:float=12.0,bumps:bool=false) UI.View {
         var name="PARCOURS AUTOMATIQUE";var description="Conduite à trois quarts de gaz"
         if throttle==1.0 { description="Conduite à plein gaz" }
         if throttle>1.0 { description="Conduite avec turbo" }
         if turn { description="Plein gaz puis braquage sur la rampe" }
         if slope { name="TEST AUTOMATIQUE — PENTE";description="Freins maintenus sur la rampe" }
         if ramp {name="TEST AUTOMATIQUE — MONTÉE";description="Montée lente puis freinage"}
+        if bumps { name="TEST AUTOMATIQUE — PETITES BOSSES";description="Freins maintenus sur les petites bosses" }
         description+="\nFermeture après $(duration as int) secondes"
         var column=UI.Column([self.text(name),UI.Reactive(self.values),UI.Reactive(self.parameters),
             self.text(description+"\nÉchap : quitter")])

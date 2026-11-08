@@ -71,6 +71,10 @@ package func ledge_spawn() Physics.Transform3D {
     return Physics.Transform3D(Math.Vec3(6.3,height,25.0),rotation)
 }
 
+package func bumps_spawn() Physics.Transform3D {
+    return Physics.Transform3D(Math.Vec3(0.0,3.0,101.5))
+}
+
 package func chassis_shape() Physics.Shape3D {
     var parts:Physics.CompoundChild3D[]=[
         Physics.CompoundChild3D(0,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.25,0.35,4.2))),

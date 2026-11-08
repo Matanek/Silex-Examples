@@ -1,0 +1,36 @@
+use GFX.Physics
+use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.Terrain
+use STD.Math
+use STD.Process
+use STD.Time
+
+func run(index:int) {
+    var position=Math.Vec3(0.0,2.35,-10.0);var yaw=0.0
+    if index>=1 && index<=5 { position=Math.Vec3(0.0,3.0,99.0+(index as float)*1.25) }
+    if index==6 { position=Math.Vec3(0.0,5.0,55.5) }
+    if index==7 { position=Math.Vec3(0.0,5.0,58.5) }
+    if index==8 { position=Math.Vec3(25.0,5.0,20.5);yaw= -0.55 }
+    if index==9 { position=Math.Vec3(0.0,4.5,20.5) }
+    var spawn=Physics.Transform3D(position,Math.Quat.angle_axis(yaw,Math.Vec3.up()))
+    if index==10 { spawn=Terrain.ledge_spawn() }
+    var truck=Model.Truck(4,obstacles:true,spawn:spawn)
+    var clock=Time.Clock();var seconds=0.0;var maximum=0.0
+    for frame in 0...480 {
+        truck.controls(0.0,0.0,brake:true,handbrake:true)
+        let before=clock.tick();truck.step();let elapsed=clock.tick()
+        seconds+=elapsed;maximum=Math.max(maximum,elapsed)
+        assert(truck.maximum_bead_error()<0.08 && truck.minimum_y()>0.025)
+        if frame%120==119 {
+            let p=truck.chassis.position()
+            print("MODULE case=",index," tick=",frame+1," seconds=",seconds," maximum=",maximum,
+                " x=",p.x," y=",p.y," z=",p.z," speed=",truck.chassis.linear_velocity().length()," bead=",truck.maximum_bead_error())
+            seconds=0.0;maximum=0.0
+        }
+    }
+}
+func main() {
+    let arguments=Process.arguments()
+    for arg in arguments { for index in 0...11 { if arg=="--case-$(index)" { run(index);return } } }
+    for index in 0...11 { run(index) }
+}

@@ -43,7 +43,7 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
     while state.accumulator>=1.0/120.0 && ticks<8 {
         if state.profile {
             var gas=0.0;if state.truck.steps>=240 { gas=state.profile_throttle }
-            if state.slope_profile { state.truck.controls(0.0,0.0,brake:true,handbrake:true) }
+            if state.hold_profile { state.truck.controls(0.0,0.0,brake:true,handbrake:true) }
             else if state.ramp_profile {
                 var throttle=0.0;if state.truck.steps>=120 && state.truck.steps<480 {throttle=0.25}
                 state.truck.controls(throttle,0.0,brake:state.truck.steps>=480,handbrake:state.truck.steps>=480)
@@ -100,7 +100,7 @@ func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
 }
 
 func main() {
-    var workers=4;var profile=false;var slope=false;var ramp=false;var audible=true
+    var workers=4;var profile=false;var slope=false;var ramp=false;var audible=true;var bumps=false
     var profile_throttle:float=0.75;var profile_turn=false;var trace_performance=false;var profile_duration:float=12.0
     var spawn:Physics.Transform3D?=null
     var directory:str?=null
@@ -115,6 +115,8 @@ func main() {
         if arg=="--scene-check" { SceneChecks.verify();return }
         if arg=="--single" { workers=1 }
         if arg=="--ledge" { spawn=Terrain.ledge_spawn() }
+        if arg=="--bumps" || arg=="--profile-bumps" { spawn=Terrain.bumps_spawn() }
+        if arg=="--profile-bumps" { profile=true;bumps=true }
         if arg=="--profile-ramp" {profile=true;ramp=true}
         if arg=="--profile-slope" { profile=true;slope=true }
         if arg=="--profile" { profile=true }
@@ -125,12 +127,13 @@ func main() {
         if arg=="--profile-long" { profile=true;profile_duration=36.0 }
     }
     if slope { profile_duration=6.0 }
-    var state=Scene.TruckScene(workers,profile,slope,ramp,profile_throttle,profile_turn,trace_performance,profile_duration,spawn:spawn)
+    var state=Scene.TruckScene(workers,profile,slope,ramp,profile_throttle,profile_turn,trace_performance,profile_duration,spawn:spawn,bumps:bumps)
     if audible { state.sound=EngineSound(directory) }
     var title="MONSTER PICKUP — Boîte + turbo · ZQSD · Espace frein · Maj boost"
     if profile { title="MESURE AUTOMATIQUE — Monster pickup — $(profile_duration as int) secondes" }
     if ramp {title="MESURE AUTOMATIQUE — Montée de rampe — $(profile_duration as int) secondes"}
     if slope { title="MESURE AUTOMATIQUE — Monster truck sur pente — 6 secondes" }
+    if bumps { title="MESURE AUTOMATIQUE — Petites bosses — $(profile_duration as int) secondes" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
         ..add_plugin(Plugins.Input()) ..add_plugin(Plugins.Time())
