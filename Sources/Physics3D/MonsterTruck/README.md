@@ -38,7 +38,7 @@ without access to the package sources.
 | --- | --- |
 | Hold Z | Progressive normal acceleration |
 | Shift + Z | Turbo: 25% more torque and a sharper response |
-| Hold S | Reverse drive; progressive reversal while moving forward |
+| Hold S | Reverse torque, both on the ground and in flight |
 | Hold ↑ | Independent front brake |
 | Hold ↓ | Independent rear brake |
 | Q / D | Coupled four-wheel steering by default, left / right from the rear camera |
@@ -114,23 +114,33 @@ Every wheel torque produces an
 opposite chassis reaction. Up brakes only the front wheels, up to
 1000 N·m per wheel. Space applies the four-wheel service brake: 1250 N·m
 at the front and 937.5 N·m at the rear. Down brakes only the rear wheels,
-up to 2200 N·m per wheel. On the ground, Z and S request the new
-direction on the first step, even while the truck is still travelling the
-other way. Limited clutch pressure permits slip during this transition;
-opposing torque slows the vehicle and drives it back. Combustion RPM is
-limited during slip to avoid a surge when the clutch reconnects. Transient
-pressure accounts for the final ratio: shorter gearing lowers it to avoid
-abrupt wheel braking. Full coupling
-returns progressively over 0.2 s. Mass and grip still determine how long it
-takes to reverse actual travel.
+up to 2200 N·m per wheel.
+
+Z and S send the new torque direction on the next simulation step, both on the
+ground and in flight. The gearbox engages through a 25 ms clutch take-up without
+a gear-change dead time. Opposing torque slows and reverses wheel rotation;
+the command does not wait for the truck to stop or add an automatic brake.
+
+The clutch slips under limited pressure while the wheels rotate against the
+requested pedal. In flight only their rotation relative to the chassis matters;
+attitude and travel direction do not delay the command. On the ground, pressure
+also remains limited while the truck still travels against the command: wheels
+already slipping in the new direction must not trigger a full-power launch and
+overturn the truck.
+Combustion RPM is limited during slip to avoid a take-up kick. Pressure accounts
+for final gearing; full engagement recovers over 0.2 s once this opposition has
+ended. The requested torque remains active throughout this take-up. Mass, wheel
+inertia and grip continue to determine the physical response.
+
+When Z and S are held together, the last distinct press wins; keyboard repeat
+does not change that priority. Releasing that key restores the other pedal if
+it remains held. In flight this directly controls wheel angular momentum and
+its reaction on truck pitch, including during a flip.
 
 The three brake commands are independent of Z/S and take priority over drive.
-Releasing them restores the held motor command; focus loss releases all brakes.
-Shift remains the boost modifier and does not turn S into a brake.
-In flight, automatic opposite-pedal braking follows wheel
-rotation direction so the pedals retain their meaning throughout a flip. The
-opposite pedal brakes the wheels before driving them the other way; Space
-brakes all four wheels. Up and Down also allow independent axle braking in flight.
+Releasing them restores the held motor command; focus loss releases them all.
+Shift remains boost and never turns S into a brake. Up and Down brake their
+respective axles in flight; Space brakes all four wheels.
 
 The four SixDOF suspensions provide ±80 cm of travel, 1800 N/m springs and
 300 N·s/m damping. The assembly retains its low centre of mass. Steering
@@ -216,3 +226,15 @@ Build/MonsterTruck-Reversal-Checks
 `BrakeChecks.sx` verifies Space/Up/Down routing, release and focus loss, physical
 braking of each axle, a four-wheel stop with held throttle and resumed drive
 after brake release.
+
+`DirectionChecks.sx` also checks opposing torque on the first step, free-wheel
+reversal and pitch reaction in both directions, under four attitudes and with
+final drive ratios 6, 8 and 12. It also verifies 100 ms pedal alternation for
+airborne angular momentum control:
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/MonsterTruck/DirectionChecks.sx --release
+```
+
+`BrakeChecks.sx` also covers last-pedal priority, overlapping presses, release
+and keyboard repeat.

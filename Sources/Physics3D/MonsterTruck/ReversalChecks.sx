@@ -30,13 +30,22 @@ func reversal(initial:int,speed:float,final:float=8.0) {
         if ten<0.0 && travel>10.0/3.6 { ten=time }
         up=Math.min(up,truck.chassis.transform().vector(Math.Vec3.up()).y)
         bead=Math.max(bead,truck.maximum_bead_error())
-        assert(up>0.9 && bead<0.08 && truck.minimum_y()>0.025,
-            "reversal and subsequent clutch recovery must preserve upright travel and tyre seating")
+        if up<=0.8 || bead>=0.08 || truck.minimum_y()<=0.025 {
+            print("REVERSAL unstable frame=",frame," speed=",truck.chassis.linear_velocity().z,
+                " up=",up," bead=",bead," floor=",truck.minimum_y()," torque=",torque,
+                " rpm=",state.engine_rpm," clutch=",state.clutch)
+        }
+        // Use the grounded transmission stability bound while allowing the
+        // stronger physical pitch; require upright recovery after the maneuver.
+        assert(up>0.8 && bead<0.08 && truck.minimum_y()>0.025,
+            "direct reversal must preserve supported travel and tyre seating")
     }
     print("REVERSAL initial=",initial," before=",before," final=",final," gear_seconds=",gear,
-        " motor_seconds=",motor," crossed_seconds=",crossed," ten_kmh_seconds=",ten," up=",up," bead=",bead)
-    assert(gear>0.0 && gear<=1.0/120.0 && motor>0.0 && motor<0.3,
-        "opposite gear must be requested on the first step and supply torque without a braking wait")
+        " motor_seconds=",motor," crossed_seconds=",crossed," ten_kmh_seconds=",ten," up=",up," bead=",bead,
+        " final_up=",truck.chassis.transform().vector(Math.Vec3.up()).y)
+    assert(truck.chassis.transform().vector(Math.Vec3.up()).y>0.9,"direct reversal must recover upright after the transient pitch")
+    assert(gear>0.0 && gear<=1.0/120.0 && motor>0.0 && motor<=1.0/120.0,
+        "opposite gear and torque must both respond on the first simulation step")
     var limit=3.5;if speed<3.0 { limit=1.75 }
     assert(crossed>0.0 && crossed<limit && ten>crossed && ten<limit+1.25,
         "opposite drive must reverse actual travel and continue accelerating")

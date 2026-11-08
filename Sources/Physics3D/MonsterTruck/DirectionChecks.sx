@@ -1,0 +1,85 @@
+use GFX.Physics
+use Physics3D.MonsterTruck.Model
+use STD.Math
+use STD.Process
+
+func spinning(initial:int,final:float,angle:float) Model.Truck {
+    var truck=Model.Truck(final_drive:final,
+        spawn:Physics.Transform3D(Math.Vec3(0.0,100.0,0.0),Math.Quat.angle_axis(angle,Math.Vec3.right())))
+    let velocity=Math.Vec3(0.0,0.0,12.0)
+    let rotation=truck.chassis.transform().vector(Math.Vec3.right()).multiply(20.0*(initial as float))
+    truck.chassis.set_linear_velocity(velocity)
+    for wheel in truck.wheels {
+        wheel.rim.set_linear_velocity(velocity);wheel.rim.set_angular_velocity(rotation)
+        let center=wheel.rim.world_center_of_mass()
+        for vertex in 0...wheel.tyre.vertex_count() {
+            let speed=velocity.add(rotation.cross(wheel.tyre.position(vertex).subtract(center)))
+            wheel.tyre.apply_impulse(vertex,speed.multiply(0.05))
+        }
+    }
+    // Begin with an already engaged engine, as when the vehicle leaves a ramp.
+    for _ in 0...240 {
+        for i in 0...4 { truck.motor.set_wheel(i,20.0*(initial as float),grounded:false) }
+        truck.motor.step(1.0/960.0,0.75*(initial as float))
+    }
+    truck.drive=0.75*(initial as float)
+    return truck
+}
+
+func response(initial:int,final:float,angle:float,verify:bool=true) {
+    var truck=spinning(initial,final,angle)
+    let target= -initial;let axis=truck.chassis.transform().vector(Math.Vec3.right())
+    var first_torque= -1.0;var crossed= -1.0;var maximum_bead=0.0;var automatic_brakes=0
+    var early_spin=0.0;var early_pitch=0.0
+    for frame in 0...120 {
+        truck.held(target>0,target<0,false,false,false,false)
+        if truck.brake { automatic_brakes++ }
+        truck.step()
+        var torque=0.0;var spin=0.0
+        for i,wheel in truck.wheels.indexed() { torque+=truck.motor.wheel_torque(i);spin+=wheel.spin(truck.chassis)/4.0 }
+        let time=(frame+1) as float/120.0
+        if first_torque<0.0 && torque*(target as float)>1.0 { first_torque=time }
+        if crossed<0.0 && spin*(target as float)>1.0 { crossed=time }
+        if frame==11 { early_spin=spin;early_pitch=truck.chassis.angular_velocity().dot(axis) }
+        maximum_bead=Math.max(maximum_bead,truck.maximum_bead_error())
+        if verify { assert(maximum_bead<0.08 && truck.minimum_y()>80.0) }
+    }
+    print("DIRECTION initial=",initial," final=",final," angle=",angle," automatic_brakes=",automatic_brakes,
+        " torque_seconds=",first_torque," rotor_crossed_seconds=",crossed," spin_at_100ms=",early_spin,
+        " pitch_at_100ms=",early_pitch," bead=",maximum_bead)
+    if verify {
+        assert(automatic_brakes==0,"opposite direction must never add a hidden brake in flight")
+        assert(first_torque>0.0 && first_torque<=1.0/120.0,"opposite wheel torque must start on the first simulation step")
+        assert(crossed>0.0 && crossed<0.5,"wheel inertia must reverse promptly without waiting for vehicle travel")
+        assert(early_spin*(initial as float)<18.0 && early_pitch*(initial as float)>0.05,
+            "direction changes must promptly alter wheel momentum and react on chassis pitch")
+    }
+}
+func alternating() {
+    var truck=spinning(1,8.0,0.0)
+    let directions:int[]=[-1,1,-1,1]
+    for direction in directions {
+        var response= -1.0;var angular_impulse=0.0
+        for frame in 0...12 {
+            truck.held(direction>0,direction<0,false,false,false,false);truck.step()
+            var torque=0.0;for i in 0...4 { torque+=truck.motor.wheel_torque(i) }
+            angular_impulse+=torque/120.0
+            if response<0.0 && torque*(direction as float)>1.0 { response=(frame+1) as float/120.0 }
+            assert(!truck.brake && truck.maximum_bead_error()<0.08)
+        }
+        print("DIRECTION alternating target=",direction," torque_seconds=",response," angular_impulse=",angular_impulse)
+        assert(response>0.0 && response<=0.1 && angular_impulse*(direction as float)>0.0,
+            "short alternating pedals must let the player control wheel momentum in flight")
+    }
+}
+func main() {
+    for arg in Process.arguments() {
+        if arg=="--alternating" { alternating();return }
+        if arg=="--trace" { response(1,8.0,0.0,false);response(-1,8.0,0.0,false);return }
+    }
+    let ratios:float[]=[6.0,8.0,12.0]
+    let angles:float[]=[0.0,Math.half_pi(),Math.pi(),Math.pi()*1.5]
+    for final in ratios { for angle in angles { response(1,final,angle);response(-1,final,angle) } }
+    alternating()
+    print("Direct direction controls passed: both senses, pitch orientations, final ratios and physical reaction")
+}

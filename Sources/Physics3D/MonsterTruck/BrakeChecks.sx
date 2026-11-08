@@ -6,13 +6,13 @@ use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.Model
 use STD.Math
 
-func key_event(key:Input.Key,code:uint32=0 as uint32) Events.KeyEvent {
+func key_event(key:Input.Key,code:uint32=0 as uint32,repeated:bool=false) Events.KeyEvent {
     let modifiers=Input.Modifiers(shift:false,control:false,alt:false,system:false,
         left_shift:false,right_shift:false,level5:false,left_control:false,right_control:false,
         left_alt:false,right_alt:false,left_system:false,right_system:false,mode:false,
         caps_lock:false,num_lock:false,scroll_lock:false)
     return Events.KeyEvent(window:Window.Id(value:0 as uint32),keyboard:Input.KeyboardId(value:0 as uint32),
-        key:key,keycode:code,raw:0 as uint16,repeated:false,modifiers:modifiers,
+        key:key,keycode:code,raw:0 as uint16,repeated:repeated,modifiers:modifiers,
         timestamp:Input.Timestamp(nanoseconds:0 as uint))
 }
 func press(panel:Controls.Panel,key:Input.Key,code:uint32=0 as uint32) {
@@ -43,6 +43,16 @@ func input() {
     press(panel,Input.Key.space,32 as uint32)
     panel.handle(Events.Event.window_focus_lost(Events.WindowEvent(window:Window.Id(value:0 as uint32),timestamp:Input.Timestamp(nanoseconds:0 as uint))))
     panel.drive(truck);assert(!panel.brake && !panel.front_brake && !panel.handbrake && !truck.brake && !truck.handbrake)
+    // Last distinct pedal press wins; repeat events must not steal direction.
+    press(panel,Input.Key.z,122 as uint32);panel.drive(truck);assert(truck.gas>0.0)
+    press(panel,Input.Key.s,115 as uint32);panel.drive(truck);assert(truck.gas<0.0 && !truck.brake)
+    panel.handle(Events.Event.key_pressed(key_event(Input.Key.z,122 as uint32,repeated:true)))
+    panel.drive(truck);assert(truck.gas<0.0)
+    release(panel,Input.Key.s,115 as uint32);panel.drive(truck);assert(truck.gas>0.0)
+    press(panel,Input.Key.s,115 as uint32);press(panel,Input.Key.z,122 as uint32)
+    panel.drive(truck);assert(truck.gas>0.0 && !truck.brake)
+    release(panel,Input.Key.z,122 as uint32);panel.drive(truck);assert(truck.gas<0.0)
+    release(panel,Input.Key.s,115 as uint32);panel.drive(truck);assert(truck.gas==0.0)
     // Steering commands remain independent of the brake keys.
     press(panel,Input.Key.q,113 as uint32);panel.drive(truck)
     assert(truck.steering>0.0 && truck.rear_steering<0.0 && panel.coupled)

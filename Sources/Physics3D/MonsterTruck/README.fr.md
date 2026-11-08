@@ -38,7 +38,7 @@ répertoire courant, sans accès aux sources du package.
 | --- | --- |
 | Z maintenu | Accélération normale progressive |
 | Maj + Z | Turbo : 25 % de couple supplémentaire, réponse plus franche |
-| S maintenu | Marche arrière ; inversion progressive si le camion avance |
+| S maintenu | Couple en marche arrière, au sol comme en vol |
 | ↑ maintenu | Frein avant indépendant |
 | ↓ maintenu | Frein arrière indépendant |
 | Q / D | Direction couplée des quatre roues par défaut, gauche / droite depuis la caméra arrière |
@@ -118,23 +118,37 @@ Le couple de chaque roue produit
 une réaction opposée sur le châssis. La flèche Haut freine seulement l’avant, jusqu’à
 1000 N·m par roue. Espace actionne le frein principal sur les quatre roues :
 1250 N·m à l’avant et 937,5 N·m à l’arrière. La flèche Bas freine seulement
-l’arrière, jusqu’à 2200 N·m par roue. Au sol, Z et S transmettent le nouveau
-sens dès le premier pas, même lorsque le camion roule encore dans l’autre
-sens. L’embrayage patine sous pression limitée pendant cette transition ; le
-couple opposé ralentit puis relance le véhicule. Le régime de combustion est
-limité pendant le patinage pour éviter un à-coup au raccrochage. La pression
-tient compte du rapport de pont : une boîte plus courte réduit la
-pression transitoire pour éviter un freinage brutal aux roues. La pleine
-prise revient progressivement en 0,2 s. La masse et l’adhérence déterminent
-toujours le temps nécessaire pour inverser le déplacement.
+l’arrière, jusqu’à 2200 N·m par roue.
+
+Z et S transmettent le nouveau sens de couple dès le prochain pas de simulation,
+au sol comme en vol. La boîte engage le rapport avec une prise d’embrayage de
+25 ms, sans temps mort de changement de rapport. Les roues ralentissent puis
+inversent leur rotation sous l’effet du couple opposé ; la commande n’attend
+pas l’arrêt du camion et n’ajoute aucun frein automatique.
+
+L’embrayage patine sous pression limitée tant que les roues tournent à l’opposé
+de la pédale demandée. En vol, seule leur rotation relative au châssis compte ;
+l’orientation et le sens du déplacement ne retardent pas la commande. Au sol,
+la pression reste aussi limitée pendant que le camion avance encore à l’opposé :
+des roues qui patinent déjà dans le nouveau sens ne doivent pas déclencher une
+reprise à pleine puissance et un retournement.
+Le régime de combustion est limité pendant le patinage pour éviter un à-coup au
+raccrochage. La pression tient compte du rapport de pont ; la pleine prise
+revient progressivement en 0,2 s une fois cette opposition résorbée. Le couple
+demandé reste appliqué pendant cette prise progressive. La masse, l’inertie des
+roues et l’adhérence continuent de déterminer la réponse physique.
+
+Si Z et S sont maintenues ensemble, la dernière pression distincte prend la
+priorité ; l’auto-répétition du clavier ne la change pas. Relâcher cette touche
+rétablit l’autre pédale encore maintenue. En vol, on peut ainsi jouer directement
+sur le moment cinétique des roues et sa réaction sur l’inclinaison du camion,
+y compris pendant un salto.
 
 Les trois commandes de frein sont indépendantes de Z/S et prioritaires sur
 la motricité. Leur relâchement rétablit la commande moteur maintenue ; la perte
 de focus les libère toutes. Maj reste le turbo et ne transforme pas S en frein.
-En vol, le freinage automatique de la pédale opposée suit le sens de rotation des roues :
-les pédales gardent leur sens pendant un salto. La pédale opposée freine les roues avant de les entraîner dans l’autre
-sens. Haut et Bas permettent aussi de freiner séparément les essieux en l’air,
-et Espace freine les quatre roues.
+Haut et Bas freinent séparément les essieux en l’air ; Espace freine les quatre
+roues.
 
 Les quatre suspensions SixDOF offrent ±80 cm de course, des ressorts de
 1800 N/m et un amortissement de 300 N·s/m. Le montage garde son centre de
@@ -224,3 +238,15 @@ Build/MonsterTruck-Reversal-Checks
 `BrakeChecks.sx` vérifie le routage Espace/Haut/Bas, le relâchement et la perte
 de focus, le freinage physique de chaque essieu, l’arrêt quatre roues avec
 l’accélérateur maintenu puis la reprise à la libération du frein.
+
+`DirectionChecks.sx` contrôle aussi le couple opposé au premier pas, l’inversion
+des roues libres et la réaction d’inclinaison, dans les deux sens, sous quatre
+orientations et avec les rapports de pont 6, 8 et 12. Il vérifie également les
+alternances de pédales de 100 ms pour piloter le moment cinétique en vol :
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/MonsterTruck/DirectionChecks.sx --release
+```
+
+`BrakeChecks.sx` couvre également la priorité de la dernière pédale pressée,
+leur chevauchement, leur relâchement et l’auto-répétition du clavier.

@@ -15,11 +15,12 @@ package static struct Settings {
 }
 
 package func create(final_drive:float=Settings.final_drive,differential_limited_slip_ratio:float?=2.2) Physics.WheelDrive3D {
+    // Brief engagement keeps direction changes usable for pitch control in flight.
     return Physics.WheelDrive3D(
         Physics.VehicleEngine3DSettings(maximum_torque:Settings.torque,minimum_rpm:Settings.idle,
             maximum_rpm:Settings.redline,inertia:0.08),
         Physics.VehicleTransmission3DSettings(gear_ratios:[3.2,2.6,2.1],reverse_gear_ratios:[-3.2],
-            clutch_strength:10.0,switch_time:0.14,clutch_release_time:0.18,switch_latency:0.55,
+            clutch_strength:10.0,switch_time:0.0,clutch_release_time:0.025,switch_latency:0.55,
             shift_up_rpm:4_200.0,shift_down_rpm:1_700.0),
         wheel_inertias:[16.0,16.0,16.0,16.0],differentials:[
             Physics.VehicleDifferential3DSettings(0,2,ratio:final_drive,limited_slip_ratio:1.4,engine_torque_ratio:0.5),

@@ -20,7 +20,6 @@ package class Truck {
     var final_drive:float
     var motor:Physics.WheelDrive3D
     private var supported:bool[]=[]
-    private var reversing:bool=false
     private var clutch_response:float=1.0
     init(workers:int=1,obstacles:bool=false,spawn:Physics.Transform3D=Physics.Transform3D(Math.Vec3(0.0,2.35,0.0)),tyre_flex:float=4.0,final_drive:float=Transmission.Settings.final_drive) {
         self.final_drive=final_drive;self.motor=Transmission.create(final_drive)
@@ -45,7 +44,6 @@ package class Truck {
         } }
     }
     func controls(throttle:float,turn:float,brake:bool=false,handbrake:bool=false,rear_turn:float?=null,hard_brake:bool=false) {
-        self.reversing=false
         self.gas=throttle;self.brake=brake;self.handbrake=handbrake;self.hard_brake=hard_brake
         let speed=self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z
         let limit=Math.max(0.35,0.62/(1.0+speed*speed/400.0))
@@ -62,22 +60,12 @@ package class Truck {
     func held(forward:bool,reverse:bool,left:bool,right:bool,handbrake:bool,boost:bool,
         rear_left:bool=false,rear_right:bool=false,coupled:bool=true,
         service_brake:bool=false,front_brake:bool=false) {
-        var throttle=0.0;var braking=service_brake || front_brake
+        var throttle=0.0;let braking=service_brake || front_brake
         if forward && !reverse {
             throttle=1.0;if boost { throttle=1.5 }
         }
         if reverse {
             throttle= -0.75
-        }
-        var reversing=false
-        if throttle!=0.0 && !service_brake && !front_brake && !handbrake {
-            braking=throttle*self.braking_speed()< -0.5
-            if braking {
-                // Ground pedals request opposing drive. Unsupported wheels
-                // retain rotor braking; explicit brakes always select their axle.
-                for contact in self.supported { if contact { reversing=true;break } }
-                if reversing { braking=false }
-            }
         }
         var turn=0.0;if left { turn+=1.0 }
         if right { turn-=1.0 }
@@ -88,17 +76,6 @@ package class Truck {
             rear=input
         }
         self.controls(throttle,turn,braking,handbrake,rear,hard_brake:service_brake)
-        self.reversing=reversing
-    }
-    private func braking_speed() float {
-        for contact in self.supported {
-            if contact { return self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z }
-        }
-        // Flight velocity projected on a tumbling chassis reverses during a flip.
-        // The pedals must follow rotor direction until the wheels regain support.
-        var speed=0.0
-        for wheel in self.wheels { speed+=wheel.spin(self.chassis)*TyreProfile.Dimensions.radius/4.0 }
-        return speed
     }
     func set_pressure(value:float) {
         for wheel in self.wheels { wheel.tyre.set_pressure(value) }
@@ -109,9 +86,19 @@ package class Truck {
         self.motor=Transmission.create(value);self.final_drive=value;return true
     }
     func step() {
-        // Updated once per 120 Hz step, using the held pedal's direction.
-        // Limit coupling while opposing ground travel, then recover smoothly.
-        if self.reversing { self.clutch_response=Transmission.reversal_pressure(self.final_drive) }
+        // At 120 Hz, oppose the actual rotors immediately, including in flight.
+        // While supported, retain clutch slip until ground travel also follows:
+        // early wheel spin alone must not release a full-power launch impulse.
+        var grounded=false;var rotor_speed=0.0
+        for i,wheel in self.wheels.indexed() {
+            self.supported[i]=self.world.ray_cast(Physics.Ray3D(wheel.rim.position(),Math.Vec3(0.0,-1.3,0.0)),
+                filter:Physics.QueryFilter3D(mask_bits:1))!=null
+            if self.supported[i] { grounded=true }
+            rotor_speed+=wheel.spin(self.chassis)/4.0
+        }
+        let travel=self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z
+        let reversing=self.gas*rotor_speed< -0.1 || (grounded && self.gas*travel< -0.5)
+        if reversing { self.clutch_response=Transmission.reversal_pressure(self.final_drive) }
         else { self.clutch_response=Math.min(1.0,self.clutch_response+1.0/(120.0*Transmission.Settings.clutch_recovery)) }
         // A finite throttle response avoids an impulse-like torque jump.
         if self.gas*self.drive<0.0 { self.drive=0.0 }
@@ -119,10 +106,6 @@ package class Truck {
         if self.brake || Math.abs(self.gas)>1.0 { rise=0.1 }
         self.drive+=Math.clamp(self.gas-self.drive,-0.1,rise)
         if self.brake && Math.abs(self.gas)<0.001 { self.drive=0.0 }
-        for i,wheel in self.wheels.indexed() {
-            self.supported[i]=self.world.ray_cast(Physics.Ray3D(wheel.rim.position(),Math.Vec3(0.0,-1.3,0.0)),
-                filter:Physics.QueryFilter3D(mask_bits:1))!=null
-        }
         let delta=1.0/960.0
         for _ in 0...8 {
             var mean=0.0

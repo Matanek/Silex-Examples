@@ -65,7 +65,7 @@ package func labels(state:&TruckScene) {
     if state.panel.inflation==2 { name="ferme" }
     let section=Terrain.section_name(Terrain.section(state.truck.chassis.position()))
     var mode="indépendante";if state.panel.coupled { mode="couplée" }
-    var turbo="prêt";if state.panel.boost && state.panel.forward { turbo="actif" }
+    var turbo="prêt";if state.truck.gas>1.0 { turbo="actif" }
     state.panel.settings.set("Gonflage : $(name)\nDirection : $(mode)\nSecteur : $(section)\nRapport de pont : $(state.truck.final_drive)\nTurbo : $(turbo)")
 }
 

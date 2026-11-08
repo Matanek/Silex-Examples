@@ -14,6 +14,7 @@ func letter(key:@Events.KeyEvent,lower:uint32,upper:uint32,physical:Input.Key) b
 package class Panel {
     var forward:bool=false
     var reverse:bool=false
+    private var forward_selected:bool=true
     var left:bool=false
     var right:bool=false
     var rear_left:bool=false
@@ -50,8 +51,14 @@ package class Panel {
         return 1400.0
     }
     func held(key:@Events.KeyEvent,down:bool) bool {
-        if letter(key,122 as uint32,90 as uint32,Input.Key.z) { self.forward=down;return true }
-        if letter(key,115 as uint32,83 as uint32,Input.Key.s) { self.reverse=down;return true }
+        if letter(key,122 as uint32,90 as uint32,Input.Key.z) {
+            if down && !key.repeated { self.forward_selected=true }
+            self.forward=down;return true
+        }
+        if letter(key,115 as uint32,83 as uint32,Input.Key.s) {
+            if down && !key.repeated { self.forward_selected=false }
+            self.reverse=down;return true
+        }
         if letter(key,113 as uint32,81 as uint32,Input.Key.q) { self.left=down;return true }
         if letter(key,100 as uint32,68 as uint32,Input.Key.d) { self.right=down;return true }
         if letter(key,97 as uint32,65 as uint32,Input.Key.a) { self.rear_left=down;return true }
@@ -85,7 +92,9 @@ package class Panel {
         return false
     }
     func drive(truck:&Model.Truck) {
-        truck.held(self.forward,self.reverse,self.left,self.right,self.handbrake,self.boost,
+        let forward=self.forward && (!self.reverse || self.forward_selected)
+        let reverse=self.reverse && (!self.forward || !self.forward_selected)
+        truck.held(forward,reverse,self.left,self.right,self.handbrake,self.boost,
             self.rear_left || self.arrow_left,self.rear_right || self.arrow_right,self.coupled,
             service_brake:self.brake,front_brake:self.front_brake)
     }
