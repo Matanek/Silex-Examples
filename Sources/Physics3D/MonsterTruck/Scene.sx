@@ -32,16 +32,19 @@ package class TruckScene {
     let profile_duration:float
     let profile_throttle:float
     let profile_turn:bool
+    var trace_focused:bool=false
+    var trace_focus_changed:bool=false
     var trace_physics_seconds:float=0.0
     var trace_physics_ticks:int=0
     var trace_maximum_update:float=0.0
     let trace_performance:bool
     var sound:EngineSound?=null
     let workers:int
-    init(workers:int=4,profile:bool=false,slope:bool=false,ramp:bool=false,throttle:float=0.75,turn:bool=false,trace:bool=false,duration:float=12.0) {
+    init(workers:int=4,profile:bool=false,slope:bool=false,ramp:bool=false,throttle:float=0.75,turn:bool=false,trace:bool=false,duration:float=12.0,spawn:Physics.Transform3D?=null) {
         self.profile_duration=duration;self.profile_throttle=throttle;self.profile_turn=turn;self.trace_performance=trace
         self.workers=workers;self.profile=profile;self.slope_profile=slope;self.ramp_profile=ramp
-        if slope { self.truck=Model.Truck(workers,obstacles:true,spawn:Terrain.slope_spawn()) }
+        if let pose=spawn { self.truck=Model.Truck(workers,obstacles:true,spawn:pose) }
+        else if slope { self.truck=Model.Truck(workers,obstacles:true,spawn:Terrain.slope_spawn()) }
         else if ramp {self.truck=Model.Truck(workers,obstacles:true,
             spawn:Physics.Transform3D(Math.Vec3(-2.0,2.35,8.0),Math.Quat.angle_axis(0.3,Math.Vec3.up())))}
         else { self.truck=Model.Truck(workers,obstacles:true) }

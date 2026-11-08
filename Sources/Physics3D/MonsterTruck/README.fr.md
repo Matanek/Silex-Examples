@@ -208,6 +208,11 @@ les demi-secondes, le terminal donne les FPS, le secteur, la position, le nombre
 de roues au-dessus d’une pente, le temps physique moyen par pas de 1/120 s et
 le coût maximal d’une mise à jour. Le cumul de temps physique et de temps
 simulé permet de distinguer une surcharge de simulation du reste de la frame.
+`focused` indique le focus lors de la dernière mise à jour ; `focus_changed`
+signale une transition pendant l’intervalle mesuré. Écarter les intervalles de
+transition pour comparer les performances au premier plan et en arrière-plan.
+`--ledge` place le camion sur l’arête latérale de la table jaune, roues arrière
+sur le module et roues avant vers le sol ; les commandes restent disponibles.
 Ces mesures sont optionnelles ; le lancement ordinaire ne produit aucune trace.
 Pour comparer des binaires, les exécuter séparément, sans build ni autre test
 concurrent, dans le même mode et sur le même parcours.

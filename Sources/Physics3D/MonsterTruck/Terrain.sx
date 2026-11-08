@@ -61,6 +61,16 @@ package func slope_spawn() Physics.Transform3D {
     return Physics.Transform3D(surface.point(Math.Vec3(0.0,2.35,0.0)),rotation)
 }
 
+// Rear wheels start on the yellow table's side edge, front wheels towards
+// the ground. Keep the normal interactive controls for contact diagnosis.
+package func ledge_spawn() Physics.Transform3D {
+    let pitch:float=0.625
+    let yaw=Math.Quat.angle_axis(Math.half_pi(),Math.Vec3.up())
+    let rotation=yaw.multiply(Math.Quat.angle_axis(pitch,Math.Vec3.right()))
+    let height=1.1+1.05*Math.cos(pitch)+2.05*Math.sin(pitch)
+    return Physics.Transform3D(Math.Vec3(6.3,height,25.0),rotation)
+}
+
 package func chassis_shape() Physics.Shape3D {
     var parts:Physics.CompoundChild3D[]=[
         Physics.CompoundChild3D(0,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.25,0.35,4.2))),

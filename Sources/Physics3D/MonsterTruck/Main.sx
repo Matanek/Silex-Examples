@@ -60,6 +60,9 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
     let physics_seconds=clock.get_elapsed_seconds()
     state.metrics.physics_seconds+=physics_seconds
     if state.profile || state.trace_performance {
+        let focused=input.focused_window()!=null
+        if focused!=state.trace_focused { state.trace_focus_changed=true }
+        state.trace_focused=focused
         state.trace_physics_seconds+=physics_seconds;state.trace_physics_ticks+=ticks
         state.trace_maximum_update=Math.max(state.trace_maximum_update,physics_seconds)
     }
@@ -88,15 +91,18 @@ func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
             " simulated_seconds=",(state.truck.steps as float)/120.0," physics_seconds=",state.metrics.physics_seconds,
             " x=",state.truck.chassis.position().x," sector=",Terrain.section_name(Terrain.section(state.truck.chassis.position())),
             " physics_ms_per_tick=",state.trace_physics_seconds*1000.0/Math.max(1.0,state.trace_physics_ticks as float),
-            " maximum_update_ms=",state.trace_maximum_update*1000.0,
+            " maximum_update_ms=",state.trace_maximum_update*1000.0," focused=",state.trace_focused,
+            " focus_changed=",state.trace_focus_changed,
             " up=",state.truck.chassis.transform().vector(Math.Vec3.up()).y)
         state.trace_physics_seconds=0.0;state.trace_physics_ticks=0;state.trace_maximum_update=0.0
+        state.trace_focus_changed=false
     }
 }
 
 func main() {
     var workers=4;var profile=false;var slope=false;var ramp=false;var audible=true
     var profile_throttle:float=0.75;var profile_turn=false;var trace_performance=false;var profile_duration:float=12.0
+    var spawn:Physics.Transform3D?=null
     var directory:str?=null
     let arguments=Process.arguments()
     for i,arg in arguments.indexed() {
@@ -108,6 +114,7 @@ func main() {
         if arg=="--check" { Checks.verify();return }
         if arg=="--scene-check" { SceneChecks.verify();return }
         if arg=="--single" { workers=1 }
+        if arg=="--ledge" { spawn=Terrain.ledge_spawn() }
         if arg=="--profile-ramp" {profile=true;ramp=true}
         if arg=="--profile-slope" { profile=true;slope=true }
         if arg=="--profile" { profile=true }
@@ -118,7 +125,7 @@ func main() {
         if arg=="--profile-long" { profile=true;profile_duration=36.0 }
     }
     if slope { profile_duration=6.0 }
-    var state=Scene.TruckScene(workers,profile,slope,ramp,profile_throttle,profile_turn,trace_performance,profile_duration)
+    var state=Scene.TruckScene(workers,profile,slope,ramp,profile_throttle,profile_turn,trace_performance,profile_duration,spawn:spawn)
     if audible { state.sound=EngineSound(directory) }
     var title="MONSTER PICKUP — Boîte + turbo · ZQSD · Espace frein · Maj boost"
     if profile { title="MESURE AUTOMATIQUE — Monster pickup — $(profile_duration as int) secondes" }

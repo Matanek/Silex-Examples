@@ -195,7 +195,12 @@ the scenario to 36 seconds; the slope test remains fixed at six seconds.
 second the terminal reports FPS, sector, position, the number of wheels above
 a slope, mean physics time per 1/120 s step, and maximum update cost. Cumulative
 physics and simulated time help distinguish simulation overload from the rest
-of the frame. These measurements are optional; ordinary launches emit no trace.
+of the frame. `focused` reports focus at the latest update; `focus_changed`
+marks a transition during the measured interval. Exclude transition intervals
+when comparing foreground and background performance. `--ledge` places the
+truck on the yellow table's side edge, rear wheels on the module and front
+wheels towards the ground; controls remain available.
+These measurements are optional; ordinary launches emit no trace.
 Compare binaries separately, without concurrent builds or tests, in the same
 mode and on the same course.
 
