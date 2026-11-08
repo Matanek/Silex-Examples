@@ -197,6 +197,21 @@ puis freinage sur la pente. `--ramp-check` vérifie huit approches sans fenêtre
 avec contrôle des talons et du sol. Les temps sans rendu ne permettent pas de
 conclure sur les FPS graphiques.
 
+`--profile-drive`, `--profile-boost` et `--profile-turn` conservent la durée de
+douze secondes avec, respectivement, plein gaz, turbo et plein gaz suivi d’un
+braquage sur la table. Le HUD décrit le scénario réellement exécuté. Le son
+reste actif, sauf avec `--silent`. Ajouter `--profile-long` prolonge le
+scénario à 36 secondes ; le test de pente reste fixé à six secondes.
+
+`--trace-performance` conserve la conduite libre et le HUD interactif. Toutes
+les demi-secondes, le terminal donne les FPS, le secteur, la position, le nombre
+de roues au-dessus d’une pente, le temps physique moyen par pas de 1/120 s et
+le coût maximal d’une mise à jour. Le cumul de temps physique et de temps
+simulé permet de distinguer une surcharge de simulation du reste de la frame.
+Ces mesures sont optionnelles ; le lancement ordinaire ne produit aucune trace.
+Pour comparer des binaires, les exécuter séparément, sans build ni autre test
+concurrent, dans le même mode et sur le même parcours.
+
 ## Son Chevrolet réutilisable
 
 La source est `GFX.Audio.Engines.Library.driven_engine("454")` ; la démo ne

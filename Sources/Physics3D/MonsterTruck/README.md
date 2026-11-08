@@ -185,6 +185,20 @@ do not establish graphical FPS. `--profile-ramp` opens a twelve-second slow,
 oblique climb followed by braking on the slope. `--ramp-check` checks eight
 approaches without a window, including bead retention and ground clearance.
 
+`--profile-drive`, `--profile-boost` and `--profile-turn` retain the twelve-second
+run with, respectively, full throttle, boost, and full throttle followed by a
+turn on the table. The HUD describes the scenario actually running. Sound
+remains enabled unless `--silent` is supplied. Add `--profile-long` to extend
+the scenario to 36 seconds; the slope test remains fixed at six seconds.
+
+`--trace-performance` retains free driving and the interactive HUD. Every half
+second the terminal reports FPS, sector, position, the number of wheels above
+a slope, mean physics time per 1/120 s step, and maximum update cost. Cumulative
+physics and simulated time help distinguish simulation overload from the rest
+of the frame. These measurements are optional; ordinary launches emit no trace.
+Compare binaries separately, without concurrent builds or tests, in the same
+mode and on the same course.
+
 ## Reusable Chevrolet sound
 
 The source is `GFX.Audio.Engines.Library.driven_engine("454")`; the demo copies

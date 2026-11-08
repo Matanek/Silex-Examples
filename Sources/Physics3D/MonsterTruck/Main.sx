@@ -5,6 +5,7 @@ use GFX.Physics
 use GFX.Plugins
 use GFX.Resources
 use GFX.Scene2D
+use Physics3D.MonsterTruck.Terrain
 use Physics3D.MonsterTruck.Scene
 use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.Checks
@@ -30,8 +31,7 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
         }
         Scene.perform(world,meshes,state)
     }
-    var duration=12.0;if state.slope_profile { duration=6.0 }
-    if state.profile && state.metrics.elapsed>=duration {
+    if state.profile && state.metrics.elapsed>=state.profile_duration {
         state.metrics.report(state.truck.steps)
         print("truck x=",state.truck.chassis.position().x," y=",state.truck.chassis.position().y,
             " z=",state.truck.chassis.position().z," bead=",state.truck.maximum_bead_error())
@@ -42,19 +42,27 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
     var ticks=0
     while state.accumulator>=1.0/120.0 && ticks<8 {
         if state.profile {
-            var gas=0.0;if state.truck.steps>=240 { gas=0.75 }
+            var gas=0.0;if state.truck.steps>=240 { gas=state.profile_throttle }
             if state.slope_profile { state.truck.controls(0.0,0.0,brake:true,handbrake:true) }
             else if state.ramp_profile {
                 var throttle=0.0;if state.truck.steps>=120 && state.truck.steps<480 {throttle=0.25}
                 state.truck.controls(throttle,0.0,brake:state.truck.steps>=480,handbrake:state.truck.steps>=480)
             }
-            else { state.truck.controls(gas,0.0) }
+            else {
+                var turn=0.0;if state.profile_turn && state.truck.steps>=480 { turn=0.8 }
+                state.truck.controls(gas,turn)
+            }
         } else {
             state.panel.drive(state.truck)
         }
         state.truck.step();state.accumulator-=1.0/120.0;ticks++
     }
-    state.metrics.physics_seconds+=clock.get_elapsed_seconds()
+    let physics_seconds=clock.get_elapsed_seconds()
+    state.metrics.physics_seconds+=physics_seconds
+    if state.profile || state.trace_performance {
+        state.trace_physics_seconds+=physics_seconds;state.trace_physics_ticks+=ticks
+        state.trace_maximum_update=Math.max(state.trace_maximum_update,physics_seconds)
+    }
     if var sound=state.sound { sound.update(state.truck,simulation.delta()) }
     state.telemetry+=simulation.delta()
     if state.telemetry>=0.15 { Scene.labels(state);state.telemetry=0.0 }
@@ -68,21 +76,27 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
 
 func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.TruckScene) {
     state.metrics.frame();state.view!.update(world,meshes)
-    if state.profile && state.metrics.frames>0 && state.metrics.interval_frames==0 {
+    if (state.profile || state.trace_performance) && state.metrics.frames>0 && state.metrics.interval_frames==0 {
         var slopes=0
-        if state.slope_profile || state.ramp_profile { for wheel in state.truck.wheels {
+        for wheel in state.truck.wheels {
             let hit=state.truck.world.ray_cast(Physics.Ray3D(wheel.rim.position(),Math.Vec3(0.0,-3.0,0.0)),
                 filter:Physics.QueryFilter3D(mask_bits:1))
             if let support=hit { if support.normal().y<0.995 { slopes++ } }
-        } }
+        }
         print("profile slope_contacts=",slopes," speed=",state.truck.chassis.linear_velocity().length()," elapsed=",state.metrics.elapsed," fps=",state.metrics.fps,
             " z=",state.truck.chassis.position().z," y=",state.truck.chassis.position().y,
-            " simulated_seconds=",(state.truck.steps as float)/120.0," physics_seconds=",state.metrics.physics_seconds)
+            " simulated_seconds=",(state.truck.steps as float)/120.0," physics_seconds=",state.metrics.physics_seconds,
+            " x=",state.truck.chassis.position().x," sector=",Terrain.section_name(Terrain.section(state.truck.chassis.position())),
+            " physics_ms_per_tick=",state.trace_physics_seconds*1000.0/Math.max(1.0,state.trace_physics_ticks as float),
+            " maximum_update_ms=",state.trace_maximum_update*1000.0,
+            " up=",state.truck.chassis.transform().vector(Math.Vec3.up()).y)
+        state.trace_physics_seconds=0.0;state.trace_physics_ticks=0;state.trace_maximum_update=0.0
     }
 }
 
 func main() {
     var workers=4;var profile=false;var slope=false;var ramp=false;var audible=true
+    var profile_throttle:float=0.75;var profile_turn=false;var trace_performance=false;var profile_duration:float=12.0
     var directory:str?=null
     let arguments=Process.arguments()
     for i,arg in arguments.indexed() {
@@ -97,12 +111,18 @@ func main() {
         if arg=="--profile-ramp" {profile=true;ramp=true}
         if arg=="--profile-slope" { profile=true;slope=true }
         if arg=="--profile" { profile=true }
+        if arg=="--profile-drive" { profile=true;profile_throttle=1.0 }
+        if arg=="--profile-boost" { profile=true;profile_throttle=1.5 }
+        if arg=="--profile-turn" { profile=true;profile_throttle=1.0;profile_turn=true }
+        if arg=="--trace-performance" { trace_performance=true }
+        if arg=="--profile-long" { profile=true;profile_duration=36.0 }
     }
-    var state=Scene.TruckScene(workers,profile,slope,ramp)
+    if slope { profile_duration=6.0 }
+    var state=Scene.TruckScene(workers,profile,slope,ramp,profile_throttle,profile_turn,trace_performance,profile_duration)
     if audible { state.sound=EngineSound(directory) }
     var title="MONSTER PICKUP — Boîte + turbo · ZQSD · Espace frein · Maj boost"
-    if profile { title="MESURE AUTOMATIQUE — Monster pickup — 12 secondes" }
-    if ramp {title="MESURE AUTOMATIQUE — Montée de rampe — 12 secondes"}
+    if profile { title="MESURE AUTOMATIQUE — Monster pickup — $(profile_duration as int) secondes" }
+    if ramp {title="MESURE AUTOMATIQUE — Montée de rampe — $(profile_duration as int) secondes"}
     if slope { title="MESURE AUTOMATIQUE — Monster truck sur pente — 6 secondes" }
     Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
