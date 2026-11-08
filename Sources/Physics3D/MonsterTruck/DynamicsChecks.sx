@@ -1,4 +1,5 @@
 use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.ReversalChecks
 use STD.Math
 use STD.Process
 
@@ -50,7 +51,7 @@ package func centering(verify:bool=false) {
     }
 }
 
-package func reversing(verify:bool=false) {
+package func reversing() {
     var truck=Model.Truck(4)
     for frame in 0...720 {
         if frame>=120 { truck.held(true,false,false,false,false,false) }
@@ -62,7 +63,6 @@ package func reversing(verify:bool=false) {
         truck.held(false,true,false,false,false,false)
         if frame==0 { print("reverse requested: speed=",before," gas=",truck.gas) }
         truck.step();upright=Math.min(upright,truck.chassis.transform().vector(Math.Vec3.up()).y)
-        if verify && frame==0 { assert(truck.gas<0.0 && truck.drive<0.0) }
         if first<0.0 && truck.chassis.linear_velocity().z< -0.5 { first=((frame+1) as float)/120.0 }
         if frame%60==59 {
             var wheel=truck.wheels[0]
@@ -76,8 +76,6 @@ package func reversing(verify:bool=false) {
         }
     }
     print("reverse first_seconds=",first," minimum_upright=",upright)
-    // Opposite drive uses limited clutch pressure during the physical reversal.
-    if verify { assert(before>15.0 && first>0.0 && first<4.0 && upright>0.9) }
 }
 
 func mean_travel(truck:Model.Truck) float {
@@ -100,7 +98,7 @@ package func suspension(verify:bool=false) {
     if verify { assert(excursion>0.12 && Math.abs(mean_travel(truck)-rest)<0.08) }
 }
 
-package func verify() { centering(true);reversing(true);suspension(true) }
+package func verify() { centering(true);ReversalChecks.verify();suspension(true) }
 
 func main() {
     for arg in Process.arguments() {

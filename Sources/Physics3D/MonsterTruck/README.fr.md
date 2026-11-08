@@ -167,6 +167,9 @@ pas disponibles.
 
 ## Vérifier
 
+Le contrôle général `--check` inclut les mêmes vérifications d’inversion soutenue
+que `ReversalChecks.sx` ; il ne contraint pas l’assiette pendant un plein couple prolongé.
+
 Ces commandes quittent avant la création de l’application graphique :
 
 ```sh

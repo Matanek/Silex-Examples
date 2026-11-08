@@ -78,6 +78,11 @@ func ratios() {
     let ratios:float[]=[6.0,12.0]
     for ratio in ratios { skid(1,ratio,speed:12.0);skid(-1,ratio,speed:12.0) }
 }
+package func verify() {
+    skid(1);skid(-1);ratios();low_speed();cancellation()
+    print("Powered reversal passed: sustained four-wheel slip before chassis reversal, both directions, gearing and cancellation")
+}
+
 func main() {
     for arg in Process.arguments() {
         if arg=="--trace" { skid(1,verify:false);skid(-1,verify:false);return }
@@ -85,6 +90,5 @@ func main() {
         if arg=="--ratios" { ratios();return }
         if arg=="--cancel" { cancellation();return }
     }
-    skid(1);skid(-1);ratios();low_speed();cancellation()
-    print("Powered reversal passed: sustained four-wheel slip before chassis reversal, both directions, gearing and cancellation")
+    verify()
 }

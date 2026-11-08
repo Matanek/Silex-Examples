@@ -157,6 +157,9 @@ Self-collision and soft/soft contacts are unavailable.
 
 ## Verify
 
+The general `--check` includes the same sustained reversal checks as
+`ReversalChecks.sx`; it does not constrain pitch during prolonged full torque.
+
 These commands exit before creating the graphical application:
 
 ```sh

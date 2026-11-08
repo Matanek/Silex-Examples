@@ -6,7 +6,7 @@ is a catalog of standalone applications: focused technical illustrations
 belong in documentation, while API proofs remain under `Tests/` in their
 owning package.
 
-This development revision requires the compiler and packages using the single
+These sources require Silex 0.48.0 and the coordinated packages using the single
 `Result` API: ordinary calls return the success value or panic, and `try call()`
 keeps the `Result` for explicit error handling. Update the toolchain and
 packages together before running these sources.
