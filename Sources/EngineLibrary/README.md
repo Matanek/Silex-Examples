@@ -7,12 +7,15 @@ exhaust responses, intake and output processing. The demo owns input, the
 instrument display and stream feeding. The autonomous `EngineAudio` bench
 remains available as an independent comparison witness.
 
-Prepare a library with GFX.Audio's tools, then from the workspace or Spec group:
+The package supplies the standard engines on macOS ARM64. From the workspace
+root, launch the demo directly without additional preparation:
 
 ```sh
-silex compile Silex-Examples/Sources/EngineLibrary/Main.sx --debug -o Build/EngineLibrary-Demo
-Build/EngineLibrary-Demo /absolute/path/to/EngineLibrary
+silex run Silex-Examples/Sources/EngineLibrary/Main.sx
 ```
+
+A custom library remains optional: after compilation, pass its absolute path
+as the binary’s first argument.
 
 **M** toggles ignition; hold **Space** to accelerate. Release or focus loss closes
 the throttle. Space retains priority after clicking a button; Enter activates
@@ -33,7 +36,7 @@ Checks without a window or audio output:
 
 ```sh
 silex compile Silex-Examples/Sources/EngineLibrary/Check.sx --debug -o Build/EngineLibrary-Demo-Check
-Build/EngineLibrary-Demo-Check /absolute/path/to/EngineLibrary
+Build/EngineLibrary-Demo-Check
 silex compile Silex-Examples/Sources/EngineAudio/PackageParity.sx --release -o Build/EngineLibrary-Parity
 Build/EngineLibrary-Parity /absolute/path/to/EngineLibrary
 ```

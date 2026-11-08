@@ -20,7 +20,7 @@ func mapping() {
     }
     print("Acoustic mapping passed: physical RPM and torque drive sound without a second transmission")
 }
-package func verify(directory:str) {
+package func verify(directory:str? = null) {
     mapping()
     var expected = Model.Truck(); var actual = Model.Truck()
     var sound = EngineSound(directory, offline:true)
@@ -45,7 +45,7 @@ package func verify(directory:str) {
     print("Physics/audio checks passed: identical trajectory, finite nonzero PCM, nonblocking feed and reset; energy=", energy)
 }
 func main() {
-    let arguments = Process.arguments(); var directory = "Build/EngineLibrary-Monster-Package"
+    let arguments = Process.arguments(); var directory:str? = null
     if arguments.count() > 1 { directory = arguments[1] }
     verify(directory)
 }

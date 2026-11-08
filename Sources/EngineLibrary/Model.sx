@@ -38,7 +38,7 @@ public class Bench {
     private var intake:Knob = Knob("Admission du 4T", 0.0, 0.0, 1.0)
     private var ambience:Knob = Knob("Ambiance", 0.0, 0.0, 1.0)
     private var volume:Knob = Knob("Volume", 0.7, 0.0, 1.0)
-    init(directory:str) {
+    init(directory:str?) {
         self.library = Engines.Library.open(directory); self.source = self.library.engine(); self.prepare_gearing()
     }
     func profile() Engines.Profile { return self.source.profile }

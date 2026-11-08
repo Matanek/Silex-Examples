@@ -51,7 +51,7 @@ func driving(final:float) {
 func main() {
     DriveChecks.verify()
     driving(6.0);driving(8.0);driving(12.0)
-    var directory="Build/EngineLibrary-Monster-Package"
+    var directory:str?=null
     let arguments=Process.arguments();if arguments.count()>1 { directory=arguments[1] }
     EngineSoundChecks.verify(directory)
     print("Monster transmission and sound checks passed")

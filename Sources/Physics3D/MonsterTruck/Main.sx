@@ -83,7 +83,7 @@ func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
 
 func main() {
     var workers=4;var profile=false;var slope=false;var ramp=false;var audible=true
-    var directory="Build/EngineLibrary-Monster-Package"
+    var directory:str?=null
     let arguments=Process.arguments()
     for i,arg in arguments.indexed() {
         if arg=="--silent" { audible=false }

@@ -5,13 +5,15 @@ profils, les réponses d’échappement, l’aspiration et les traitements de so
 La démo possède uniquement les entrées, le compte-tours et l’alimentation du flux.
 Le banc `EngineAudio` reste autonome pour les comparaisons.
 
-Préparer une bibliothèque avec les outils de GFX.Audio, puis depuis la racine du
-workspace ou du groupe de Spec :
+Le package fournit les moteurs standard sur macOS ARM64. Depuis la racine du
+workspace, lancer directement la démo, sans préparation supplémentaire :
 
 ```sh
-silex compile Silex-Examples/Sources/EngineLibrary/Main.sx --debug -o Build/EngineLibrary-Demo
-Build/EngineLibrary-Demo /chemin/absolu/vers/EngineLibrary
+silex run Silex-Examples/Sources/EngineLibrary/Main.sx
 ```
+
+Une bibliothèque personnalisée reste optionnelle : après compilation, passer
+son chemin absolu comme premier argument du binaire.
 
 **M** démarre ou coupe le moteur ; **Espace** maintenu donne des gaz. Le relâchement
 et la perte de focus les ferment. Espace reste réservé aux gaz après un clic
@@ -32,7 +34,7 @@ Contrôles sans fenêtre ni sortie sonore :
 
 ```sh
 silex compile Silex-Examples/Sources/EngineLibrary/Check.sx --debug -o Build/EngineLibrary-Demo-Check
-Build/EngineLibrary-Demo-Check /chemin/absolu/vers/EngineLibrary
+Build/EngineLibrary-Demo-Check
 silex compile Silex-Examples/Sources/EngineAudio/PackageParity.sx --release -o Build/EngineLibrary-Parity
 Build/EngineLibrary-Parity /chemin/absolu/vers/EngineLibrary
 ```

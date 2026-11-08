@@ -23,7 +23,7 @@ class Session:Canvas.Session {
     private var offset:int = 0
     private var generation:int = 0
     private var empty:int = 0
-    init(directory:str, offline:bool = false) {
+    init(directory:str?, offline:bool = false) {
         self.bench = Bench(directory); self.ui = UI.Session(self.bench.view())
         if offline { self.audio = Audio.offline(sample_rate:44_100, channels:2) } else { self.audio = Audio() }
         self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
@@ -214,7 +214,7 @@ class Session:Canvas.Session {
         self.audio.release(self.stream); print("GFX.Audio engine demo: empty queue observations=", self.empty)
     }
 }
-public func show(directory:str) {
+public func show(directory:str?) {
     var session = Session(directory)
     Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:800, title:"Silex — Moteurs GFX.Audio", background:Color.bytes(8, 13, 20)))
 }
@@ -244,6 +244,6 @@ func key_event(key:Keyboard.Key, down:bool = true, repeated:bool = false, code:u
     if down { return Events.Event.key_pressed(value) }
     return Events.Event.key_released(value)
 }
-public func verify_input(directory:str) {
+public func verify_input(directory:str?) {
     var session = Session(directory, offline:true); session.verify_input()
 }

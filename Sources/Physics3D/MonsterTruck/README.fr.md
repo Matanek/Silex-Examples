@@ -9,20 +9,30 @@ Les faces jaunes et rouges montrent les trajectoires, avec des bordures blanches
 
 ## Lancer et conduire
 
-Depuis la racine du workspace contenant `Silex-Examples/`, préparer une banque
-native v3 avec les outils de `Packages/GFX.Audio/Native/EngineSimulator`, puis
-compiler sans ouvrir de fenêtre :
+Depuis la racine du workspace contenant `Silex-Examples/` :
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
+```
+
+Le son Chevrolet 454 de `GFX.Audio.Engines` est actif par défaut. Le package
+fournit le simulateur et ses ressources sur macOS ARM64 ; aucune banque externe
+ni commande de préparation n’est nécessaire. Le HUD montre le régime du moteur
+physique et le rapport engagé.
+
+Pour utiliser une bibliothèque personnalisée, compiler puis fournir son chemin
+absolu. Les options se passent au binaire compilé :
 
 ```sh
 silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o Build/MonsterTruck-Drive-Response
 Build/MonsterTruck-Drive-Response --engine-library /chemin/absolu/vers/EngineLibrary
 ```
 
-Le son Chevrolet 454 est actif par défaut. Sans option, la banque est cherchée
-sous `Build/EngineLibrary-Monster-Package`, relatif au répertoire courant. Le
-chemin absolu explicite fonctionne depuis tout dossier. `--silent` conserve la
-conduite sans ouvrir de moteur sonore ni de périphérique audio. Le HUD montre
-le régime du moteur physique et le rapport engagé. L’interface et le rendu gardent leurs commandes habituelles.
+Cette personnalisation exige une bibliothèque native v3 complète, compatible avec
+`GFX.Audio.Engines`. Un chemin invalide reste une erreur explicite. `--silent`
+désactive volontairement le son ; l’absence d’une bibliothèque personnalisée ne
+le désactive jamais. Le moteur standard embarqué fonctionne aussi depuis un autre
+répertoire courant, sans accès aux sources du package.
 
 | Commande | Action |
 | --- | --- |
@@ -192,7 +202,7 @@ Contrôle croisé hors ligne, sans fenêtre ni périphérique sonore :
 
 ```sh
 silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/TransmissionChecks.sx --release -o Build/MonsterTruck-Transmission-Checks
-Build/MonsterTruck-Transmission-Checks /chemin/absolu/vers/EngineLibrary
+Build/MonsterTruck-Transmission-Checks
 ```
 
 Il vérifie les trois rapports, l’inversion de marche, les restrictions de

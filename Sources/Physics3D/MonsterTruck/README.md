@@ -9,20 +9,30 @@ speed. Yellow and red surfaces mark the lines, with white borders.
 
 ## Launch and drive
 
-From the workspace root containing `Silex-Examples/`, prepare a v3 native bank
-with the tools in `Packages/GFX.Audio/Native/EngineSimulator`, then compile
-without opening a window:
+From the workspace root containing `Silex-Examples/`:
+
+```sh
+silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
+```
+
+The Chevrolet 454 sound from `GFX.Audio.Engines` is enabled by default. The package
+supplies the simulator and resources on macOS ARM64; no external library or
+preparation command is required. The HUD displays physical engine RPM and the
+selected gear.
+
+To use a custom library, compile and supply its absolute path. Pass application
+options to the compiled binary:
 
 ```sh
 silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx --backend native --release -o Build/MonsterTruck-Drive-Response
 Build/MonsterTruck-Drive-Response --engine-library /absolute/path/to/EngineLibrary
 ```
 
-Chevrolet 454 sound is enabled by default. Without an option, the bank path is
-`Build/EngineLibrary-Monster-Package`, relative to the current directory. An
-explicit absolute path works from any directory. `--silent` retains driving
-without opening an audio engine or device. The HUD displays physical engine RPM and selected gear.
-The interface and renderer retain their usual controls.
+This customization requires a complete v3 native library compatible with
+`GFX.Audio.Engines`. An invalid path remains an explicit error. `--silent`
+intentionally disables sound; omitting a custom library never disables it.
+The embedded standard engine also works from another current directory,
+without access to the package sources.
 
 | Control | Action |
 | --- | --- |
@@ -184,7 +194,7 @@ Offline integration check without a window or audio device:
 
 ```sh
 silex compile Silex-Examples/Sources/Physics3D/MonsterTruck/TransmissionChecks.sx --release -o Build/MonsterTruck-Transmission-Checks
-Build/MonsterTruck-Transmission-Checks /absolute/path/to/EngineLibrary
+Build/MonsterTruck-Transmission-Checks
 ```
 
 It checks all three gears, direction reversal, adjustment restrictions, tire
