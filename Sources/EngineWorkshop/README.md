@@ -1,65 +1,85 @@
-# Assemble and listen to an engine
+# Shape a vehicle sound signature
 
-This demo uses only GFX.Audio's part-based engine generator. Compare its sounds
-with the reference simulator in the [EngineLibrary demo](../EngineLibrary/README.md).
+Choose a vehicle, start it and hold **Space** to rev. **M** or the button toggles
+ignition. The workshop uses GFX.Audio’s procedural parts generator; it needs
+no bank of recordings.
 
-From the workspace or Spec group root:
+From the `SilexProject/` root, select the local package and build:
 
 ```sh
+silex link Packages/GFX.Audio --workspace Silex-Examples
 silex compile Silex-Examples/Sources/EngineWorkshop/Main.sx --release -o Build/EngineWorkshop
 Build/EngineWorkshop
 ```
 
-**M** or the button toggles ignition. Requested RPM, load and throttle drive the
-sound; holding **Space** requests full throttle at 7,000 RPM. Releasing returns
-to the selected RPM. Focus loss releases that command. Listening volume is
-separate from the engine's four sound branches.
+## Choose a vehicle
 
-Choose a V8, 450 four-stroke single or 250 two-stroke single, then edit parts.
-Changes are prepared after 120 ms without further editing and crossfaded over
-50 ms. The newest pending request replaces the previous one. Displayed lengths
-refer to the first exhaust; other paths keep their length offsets. Other exhaust
-settings apply to all paths together.
+The menu supplies 17 profiles:
 
-- **Block and head**: cylinders, cycle, bore, stroke, chamber and combustion duration.
-- **Intake**: runner, airbox and filter absorption.
-- **Exhaust**: headers, pipes and silencers.
-- **Mechanics and turbo**: mass, damping, wheel, maximum pressure and inertia.
-- **Listen to parts**: select a solo branch directly; the four full-mix levels are
-  preserved. Solo uses level 1 for that branch. For intake comparisons, accelerate;
-  the turbo needs to be fitted and supplied with boost. Small geometry changes
-  can be masked in the full mix.
+- 1.0 L three-cylinder petrol, 1.4 L four-cylinder petrol and 1.6 L turbo diesel city cars;
+- 2.0 L turbo I4, 3.2 L flat-six, 5.0 L cross-plane V8, 5.2 L V10 and 6.0 L V12 sports cars;
+- 125, 250 and 500 cc two-stroke, and 250 and 500 cc four-stroke motocross bikes;
+- 1,000 cc inline-four and grouped-firing V4 race motorcycles;
+- 1,200 and 1,800 cc custom/chopper V-twins with 315°/405° firing intervals.
 
-Displacement and geometric compression are derived from the parts. Invalid
-assemblies preserve the previous sound. Adjust the chamber when compression
-falls outside 2..25. The restore button resets the selected model's parts and
-mix without requiring an engine restart.
+GTI, 911, Mustang, R8, Ferrari and Harley labels describe sonic inspirations,
+not certified replicas of commercial models. Profiles and synthesis belong to
+`GFX.Audio.Synthesis.EngineVehicles`.
 
-The page scrolls and cards rearrange with window width. Synthesis, phases,
-filters and transitions belong to the package. The demo owns only the RPM
-bench, controls and bounded stream feeding: 480-frame blocks and 4,800 queued
-frames at 48 kHz, at most 110 ms of prepared/queued PCM excluding device output.
-The queue is replenished around UI update/drawing; commands reach queued audio
-after this reserve. `--trace-audio` reports empty-queue observations and the
-largest update interval when the window closes. This is not a historical device
-underrun counter. The V8 preserves its 1:0.1 outlet balance while editing parts.
+## Hear the controls
+
+**Total displacement** is entered directly in cc on a logarithmic 50..12,000
+scale. It preserves bore/stroke proportions and compression ratio. This is not
+one chamber’s volume. Generator geometry limits still apply: an incompatible
+assembly is rejected with a message while the previous sound remains active.
+
+**Exhaust** opens or muffles the profile through absorption and baffles; zero
+keeps its stock exhaust. **Combustion** changes attack; **Intake** combines level
+and absorption; **Mechanics** changes its level; **Operation** varies combustion
+and slightly varies rotation. Changes wait for 120 ms without slider movement,
+then crossfade over 50 ms. Editing B while listening to A switches back to B.
+
+Throttle controls target RPM; load lowers it and strengthens the loaded sound.
+Response time varies by profile and remains editable. Expand **Imposer le régime
+du banc** to set RPM independently of throttle for constant-speed comparison.
+The readout shows actual bench RPM; the bench slider spans the profile’s idle
+to its limit. Listening volume remains independent of timbre.
+
+**Essai 8 secondes** plays idle, acceleration, load and release. It leaves the
+engine running. A bench command interrupts the audition; losing focus releases
+Space.
+
+**Mémoriser les réglages dans A** stores the current B sound definition.
+**Basculer A / B** compares timbres at the same RPM and load without changing
+response time. Levels are not automatically matched. Solo a branch to locate a
+difference; turbo remains silent on profiles without one. Pipe dimensions and
+compression remain available under **Réglages avancés**. The interface is French.
+
+## Export and verify
 
 ```sh
-Build/EngineWorkshop --trace-audio
+Build/EngineWorkshop --list
+Build/EngineWorkshop --render Build/Cross250.wav --profile cross-250-2t
+Build/EngineWorkshop --render Build/Vehicles.wav --catalogue
 Build/EngineWorkshop --check
-Build/EngineWorkshop --render Build/EngineWorkshop.wav
-silex compile Silex-Examples/Sources/EngineWorkshop/Measure.sx --release -o Build/EngineWorkshop-Measure
-Build/EngineWorkshop-Measure
+Build/EngineWorkshop --trace-audio
 ```
 
-`--check` opens neither window nor audio device; it checks models, changes to
-dimensions/topology/turbo, drawing at three widths and shutdown. The 12-second
-WAV contains idle, acceleration under load with turbo, a silencer change,
-overrun and shutdown. The separate measurement program times five repetitions of 480,000 frames per
-source for one and eight V8s with turbo at 6,000 RPM, excluding device, PCM
-transfer and UI.
+Each exported profile lasts 10 seconds: the interface’s audition, shutdown and
+a final faded tail. `--catalogue` concatenates all 17 in menu order (170 s) and
+prints timestamps. Without `--profile`, rendering selects `city-i3`. Export
+preserves initial listening volume and level differences without normalization.
 
-The acoustic model is simplified. Timbre and workshop usability still require
-listening and interaction; two-strokes do not yet model conical expansion
-chambers or detailed scavenging. No sound is certified as an exact commercial
-vehicle reproduction. The original bench is preserved.
+`--check` exercises all 17 assemblies, displacement, exhausts, comparisons,
+audition cycles, stops, rejection, drawing at three widths, the logarithmic
+slider and keyboard selection/start, without a window or audio device.
+`--trace-audio` reports empty-queue observations and the largest update interval
+at shutdown. Feeding stays bounded: 480-frame blocks, 4,800-frame capacity at
+48 kHz, at most 110 ms prepared/queued excluding the device.
+
+The acoustic model is stylized: simplified baffle filters and two-stroke
+expansion resonance, without cone, scavenging, power or road-transmission
+simulation. Quality and profile recognition require listening qualification.
+The [validated engine library](../EngineLibrary/README.md) remains separate.
+`Measure.sx` retains its historical V8 generator measurement; it does not measure
+the full catalogue.

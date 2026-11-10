@@ -36,10 +36,10 @@ and optional automatic or manual transmission.
 The parts workshop is experimental and its sound model is not the validated
 engine path.
 
-The [engine-parts workshop](Sources/EngineWorkshop/README.md) builds engine
-sounds through GFX.Audio's public part API: block/head, intake, exhaust,
-silencers, mechanics and optional turbo. Replace parts during playback or isolate
-a sound branch; compare its sound with the validated engine library demo.
+The [vehicle workshop](Sources/EngineWorkshop/README.md) supplies 17 procedural
+city car, sports car, motocross, race motorcycle and custom signatures through
+GFX.Audio's public API. Shape total displacement and character, compare A/B,
+run an eight-second audition and export individual profiles or the catalogue.
 
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.

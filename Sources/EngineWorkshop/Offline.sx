@@ -1,72 +1,133 @@
-use GFX.Audio.Synthesis
-use GFX.Audio.Synthesis.EngineParts
 use STD.File
 use STD.Math
 use GFX.UI
+use GFX.Input.Keyboard
 use Module.Workshop.Workshop
 
+func zeros(count:int) float32[] {
+    var values:float32[] = []; for _ in 0...count { values.append(0.0) }
+    return values
+}
 func word(bytes:&uint8[], value:int, count:int) {
     var current = value
     for _ in 0...count { bytes.append((current % 256) as uint8); current /= 256 }
 }
-public func render(path:str) {
-    var parts = EngineParts.v8(); parts.turbo = EngineParts.Turbo()
-    var source = Synthesis.Engine.assemble(parts)
+func wave(path:str, samples:@float32[..]) {
     var bytes:uint8[] = [82 as uint8, 73 as uint8, 70 as uint8, 70 as uint8]
-    let frames = 48_000 * 12
-    word(bytes, 36 + frames * 4, 4)
+    word(bytes, 36 + samples.count() * 2, 4)
     for byte in [87, 65, 86, 69, 102, 109, 116, 32] { bytes.append(byte as uint8) }
     word(bytes, 16, 4); word(bytes, 1, 2); word(bytes, 2, 2); word(bytes, 48_000, 4)
     word(bytes, 192_000, 4); word(bytes, 4, 2); word(bytes, 16, 2)
     for byte in [100, 97, 116, 97] { bytes.append(byte as uint8) }
-    word(bytes, frames * 4, 4)
-    var samples:float32[] = []; for _ in 0...960 { samples.append(0.0) }
-    source.set_state(800.0, throttle:0.2, load:0.2, ramp_frames:0)
-    for block in 0...1_200 {
-        if block == 250 { source.set_state(4_500.0, throttle:0.9, load:0.7, boost:0.8, ramp_frames:96_000) }
-        if block == 650 {
-            for i in 0...parts.exhausts.count() { parts.exhausts[i].silencer.absorption = 0.05 }
-            source.set_parts(parts)
-        }
-        if block == 850 { source.set_state(800.0, throttle:0.0, load:0.1, boost:0.0, ramp_frames:72_000) }
-        if block == 900 { source.set_state(0.0, fuel:0.0, ramp_frames:24_000) }
-        source.render(&samples[0:960])
-        for sample in samples {
-            var value = Math.round(sample * 32_767.0) as int
-            if value < 0 { value += 65_536 }
-            word(bytes, value, 2)
-        }
+    word(bytes, samples.count() * 2, 4)
+    for sample in samples {
+        assert(Math.is_finite(sample) && Math.abs(sample) <= 1.0)
+        var value = Math.round(sample * 32_767.0) as int
+        if value < 0 { value += 65_536 }
+        word(bytes, value, 2)
     }
     File.write_all(path, @bytes[0:bytes.count()])
-    print("Engine workshop WAV: ", path)
+}
+public func render(path:str, profile:str = "city-i3", catalogue:bool = false) {
+    var workshop = Workshop(); var output:float32[] = []; var samples = zeros(960)
+    var found = false
+    for i in 0...workshop.catalogue.count() {
+        if !catalogue && workshop.catalogue[i].id != profile { continue }
+        found = true
+        var vehicle = Workshop(); vehicle.choose_profile(i)
+        // Every clip starts with a fresh generator and identical silence/state.
+        vehicle.source.reset(); vehicle.source.set_state(0.0, fuel:0.0, ramp_frames:0)
+        vehicle.source.set_character(1.0, vehicle.roughness.value(), ramp_frames:0)
+        vehicle.audition_cycle()
+        print(output.count() / 96_000, " s: ", workshop.catalogue[i].id, " / ", workshop.name(i))
+        for block in 0...1_000 {
+            if block == 800 { vehicle.toggle_running() }
+            vehicle.update(0.01); vehicle.source.render(&samples[0:960])
+            // A short export fade closes the remaining coast-down tail at the
+            // clip boundary; interactive playback keeps the natural tail.
+            var fade:float = 1.0
+            if block >= 980 { fade = (999 - block) as float / 19.0 }
+            for sample in samples { output.append(sample * vehicle.volume.value() * fade) }
+        }
+    }
+    if !found { panic("Unknown profile: $(profile). Use --list.") }
+    wave(path, @output[0:output.count()]); print("Vehicle workshop WAV: ", path)
+}
+public func list() {
+    var workshop = Workshop()
+    for i in 0...workshop.catalogue.count() { print(workshop.catalogue[i].id, " : ", workshop.name(i)) }
+}
+func pump(workshop:Workshop, blocks:int) {
+    var samples = zeros(960)
+    for _ in 0...blocks {
+        workshop.update(0.01); workshop.source.render(&samples[0:960])
+        for sample in samples { assert(Math.is_finite(sample) && Math.abs(sample) <= 0.4) }
+    }
 }
 public func check() {
-    var workshop = Workshop(); var samples:float32[] = []; for _ in 0...960 { samples.append(0.0) }
-    workshop.toggle_running()
-    for _ in 0...100 { workshop.update(0.01); workshop.source.render(&samples[0:960]) }
-    assert(workshop.source.current_rpm() > 700.0)
-    workshop.bore.set(100.0); workshop.change_part(100.0); workshop.update(0.15)
-    assert(workshop.source.parts()!.block.bore_mm == 100.0 as float32)
-    assert(workshop.source.parts()!.exhausts[1].outlet_level == 0.1 as float32)
+    var workshop = Workshop()
+    assert(workshop.catalogue.count() == 17)
+    for i in 0...workshop.catalogue.count() {
+        workshop.choose_profile(i); workshop.running.set(true); pump(workshop, 100)
+        assert(workshop.source.current_rpm() > workshop.selected().idle_rpm * 0.7)
+        assert(Math.abs(workshop.source.parts()!.block.displacement_litres() * 1_000.0 - workshop.capacity.value()) < 0.1)
+        let stock = workshop.source.parts()!
+        workshop.capacity.set(workshop.capacity.value() * 1.2); workshop.change_part(0.0); pump(workshop, 20)
+        assert(Math.abs(workshop.source.parts()!.block.displacement_litres() / stock.block.displacement_litres() - 1.2) < 0.001)
+        workshop.exhaust.set(-0.8); workshop.change_part(0.0); pump(workshop, 20)
+        let closed = workshop.source.parts()!.exhausts[0].silencer
+        workshop.exhaust.set(0.8); workshop.change_part(0.0); pump(workshop, 20)
+        assert(workshop.source.parts()!.exhausts[0].silencer.baffles < closed.baffles)
+        workshop.compare(); pump(workshop, 20)
+        assert(workshop.reference_active)
+        assert(Math.abs(workshop.source.parts()!.block.displacement_litres() - stock.block.displacement_litres()) < 0.0001)
+        workshop.compare(); pump(workshop, 20); assert(!workshop.reference_active)
+        workshop.audition_cycle(); pump(workshop, 810); assert(!workshop.audition)
+        workshop.running.set(false); pump(workshop, 1_000)
+        assert(workshop.source.current_rpm() < 1.0)
+    }
+    workshop.choose_profile(5)
+    workshop.capacity.set(6_000.0); workshop.change_part(0.0); pump(workshop, 20)
+    assert(Math.abs(workshop.source.parts()!.block.displacement_litres() - 6.0) < 0.001)
+    let before = workshop.source.parts()!
+    workshop.compression.set(1.0); workshop.change_part(0.0); pump(workshop, 20)
+    assert(workshop.source.parts()!.head.chamber_cc == before.head.chamber_cc)
+    workshop.restore(); pump(workshop, 20)
     workshop.listening.set(2); workshop.choose_listening(2)
-    workshop.pipe.set(1_700.0); workshop.change_part(1_700.0); workshop.update(0.15)
+    workshop.pipe.set(1_700.0); workshop.change_part(0.0); pump(workshop, 20)
     let solo = workshop.source.parts()!.mix
     assert(solo.intake == 1.0 as float32 && solo.exhaust == 0.0 as float32 && solo.mechanics == 0.0 as float32 && solo.turbo == 0.0 as float32)
     workshop.listening.set(0); workshop.choose_listening(0)
-    for profile in 0...3 {
-        workshop.profile.set(profile); workshop.choose_profile(profile)
-        for _ in 0...25 { workshop.update(0.01); workshop.source.render(&samples[0:960]) }
-    }
-    workshop.cylinder_count.set(4); workshop.change_cylinders(4); workshop.update(0.15)
-    assert(workshop.source.parts()!.block.cylinders == 4)
-    workshop.turbo.set(true); workshop.change_turbo(true); workshop.update(0.15)
-    assert(workshop.source.parts()!.turbo != null)
-    for _ in 0...25 { workshop.source.render(&samples[0:960]) }
+    workshop.choose_profile(0); workshop.running.set(false); pump(workshop, 1_000)
+    workshop.response.set(0.1); workshop.throttle.set(1.0); workshop.load.set(0.0)
+    workshop.running.set(true); pump(workshop, 10)
+    let fast = workshop.source.current_rpm()
+    workshop.running.set(false); pump(workshop, 1_000)
+    workshop.response.set(1.0); workshop.running.set(true); pump(workshop, 10)
+    assert(fast > workshop.source.current_rpm() * 2.0, "response control did not change acceleration")
+    workshop.fixed_rpm.set(true); workshop.rpm.set(0.5); workshop.throttle.set(0.0); pump(workshop, 1_000)
+    let target = (workshop.selected().idle_rpm + workshop.selected().redline_rpm) * 0.5
+    assert(Math.abs(workshop.source.current_rpm() - target) < 1.0)
+    workshop.load.set(1.0); pump(workshop, 100)
+    assert(Math.abs(workshop.source.current_rpm() - target) < 1.0, "fixed bench lost its RPM under load")
+    workshop.fixed_rpm.set(false); workshop.running.set(false); pump(workshop, 1_000)
     var ui = UI.Session(workshop.view())
-    for size in [400, 760, 1_160] { ui.drawing(size, 700) }
-    workshop.toggle_running()
-    for _ in 0...300 { workshop.update(0.01); workshop.source.render(&samples[0:960]) }
-    assert(workshop.source.current_rpm() < 1.0)
-    for sample in samples { assert(Math.is_finite(sample) && Math.abs(sample) <= 0.4) }
-    print("Workshop check passed: profiles, dimensions, topology, turbo, responsive drawing and stop")
+    for size in [400, 760, 1_160] { ui.drawing(size, 900) }
+    workshop.advanced.set(true); ui.drawing(760, 1_000)
+    var slider = UI.Runtime(workshop.capacity.view(workshop.change_part)); slider.drawing(320, 120)
+    assert(slider.key_pressed(Keyboard.Key.tab)); assert(slider.key_pressed(Keyboard.Key.end))
+    assert(Math.abs(workshop.capacity.value() - 12_000.0) < 0.01)
+    assert(slider.key_pressed(Keyboard.Key.home)); assert(Math.abs(workshop.capacity.value() - 50.0) < 0.01)
+    workshop.restore()
+    // Exercise actual retained controls: Tab focuses the profile, End chooses
+    // its last entry, then Tab/Space activates the start button.
+    var runtime = UI.Runtime(workshop.view()); runtime.drawing(1_160, 900)
+    assert(runtime.key_pressed(Keyboard.Key.tab))
+    assert(runtime.key_pressed(Keyboard.Key.down))
+    assert(runtime.key_pressed(Keyboard.Key.end))
+    assert(runtime.key_pressed(Keyboard.Key.enter))
+    assert(workshop.profile.value() == 16)
+    assert(runtime.key_pressed(Keyboard.Key.tab)); assert(runtime.key_pressed(Keyboard.Key.space))
+    pump(workshop, 150); assert(workshop.running.value())
+    print("Workshop check passed: 17 profiles, capacity, exhaust, A/B, audition, stop, rejection, layout and keyboard controls")
 }

@@ -6,14 +6,25 @@ func main() {
     let arguments = Process.arguments()
     var i = 1
     var trace = false
+    var render_path:str? = null
+    var profile = "city-i3"
+    var catalogue = false
     while i < arguments.count() {
         if arguments[i] == "--check" { Offline.check(); return }
+        if arguments[i] == "--list" { Offline.list(); return }
+        if arguments[i] == "--profile" {
+            i++; if i >= arguments.count() { panic("--profile requires an id from --list") }
+            profile = arguments[i]; i++; continue
+        }
         if arguments[i] == "--render" {
             i++; if i >= arguments.count() { panic("--render requires a WAV path") }
-            Offline.render(arguments[i]); return
+            render_path = arguments[i]; i++; continue
         }
+        if arguments[i] == "--catalogue" { catalogue = true; i++; continue }
         if arguments[i] == "--trace-audio" { trace = true; i++; continue }
-        panic("Options: --check | --render output.wav | --trace-audio")
+        panic("Options: --check | --list | --render output.wav [--profile id | --catalogue] | --trace-audio")
     }
+    if let path = render_path { Offline.render(path, profile, catalogue); return }
+    if catalogue || profile != "city-i3" { panic("--profile and --catalogue require --render output.wav") }
     Session.show(trace)
 }

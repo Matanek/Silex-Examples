@@ -92,5 +92,5 @@ class WorkshopSession:Canvas.Session {
 public func show(trace:bool = false) {
     var session = WorkshopSession(trace)
     Viewer.show(session, Viewer.CanvasSettings(width:1_160, height:860,
-        title:"Silex — Atelier des moteurs", background:Color.bytes(8, 13, 20)))
+        title:"Silex — Atelier des véhicules", background:Color.bytes(8, 13, 20)))
 }

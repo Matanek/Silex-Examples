@@ -26,23 +26,50 @@ public class Knob {
     private let low:float
     private let high:float
     private let suffix:str
-    init(caption:str, value:float, low:float, high:float, suffix:str = "") {
+    private let logarithmic:bool
+    private var position:UI.State<float>
+    init(caption:str, value:float, low:float, high:float, suffix:str = "", logarithmic:bool = false) {
         self.state = UI.State<float>(value); self.caption = caption; self.low = low; self.high = high; self.suffix = suffix
+        self.logarithmic = logarithmic; self.position = UI.State<float>(value); self.set(value)
     }
     func value() float { return self.state.value() }
-    func set(value:float) { self.state.set(value) }
+    func set(value:float) {
+        self.state.set(value)
+        var position = value
+        if self.logarithmic { position = Math.log(value / self.low) / Math.log(self.high / self.low) }
+        self.position.set(position)
+    }
+    func move(value:float) float {
+        var actual = value
+        if self.logarithmic { actual = self.low * Math.pow(self.high / self.low, value) }
+        self.state.set(actual)
+        return actual
+    }
     private func label(value:float) str {
+        if self.suffix == "%" { return "$(Math.round(value * 100.0) as int) %" }
         var precision:float = 10.0
         if self.high <= 3.0 { precision = 100.0 }
         let rounded = Math.round(value * precision) / precision
         return "$(rounded) $(self.suffix)"
     }
     func view(changed:func(float)) UI.View {
+        var binding = KnobBinding(self, changed)
         var name = text(self.caption, 13.0); name.style.grow = 1.0
         var value = UI.Text(self.state, format:self.label); value.style.font_size = 12.0; value.style.foreground = Color.slate_400()
-        var slider = UI.Slider(self.state, self.low, self.high, changed)
+        var low = self.low; var high = self.high
+        if self.logarithmic { low = 0.0; high = 1.0 }
+        var slider = UI.Slider(self.position, low, high, binding.move)
         slider.style.height = 24.0; slider.style.accent = Color.cyan_400(); slider.style.background = Color.slate_700()
         var result = UI.Column([UI.Row([name, value]), slider]); result.style.gap = 5.0
         return result
     }
+}
+
+// The retained view owns the callback. The knob must not retain its workshop,
+// which already owns the knob, through a bound change handler.
+class KnobBinding {
+    private var knob:Knob
+    private let changed:func(float)
+    init(knob:Knob, changed:func(float)) { self.knob = knob; self.changed = changed }
+    func move(value:float) { self.changed(self.knob.move(value)) }
 }

@@ -1,69 +1,90 @@
-# Composer et écouter un moteur
+# Façonner une signature sonore de véhicule
 
-Cette nouvelle démo emploie exclusivement le générateur par pièces de GFX.Audio.
-La [démo EngineLibrary](../EngineLibrary/README.fr.md) permet de comparer ses
-sons à ceux du simulateur de référence.
+Choisir un véhicule, démarrer et maintenir **Espace** pour donner des gaz.
+**M** ou le bouton bascule le contact. L’atelier utilise le générateur procédural
+par pièces de GFX.Audio ; aucune banque d’enregistrements n’est nécessaire.
 
-Depuis la racine du workspace ou du groupe de Spec :
+Depuis la racine `SilexProject/`, utiliser le package local puis construire :
 
 ```sh
+silex link Packages/GFX.Audio --workspace Silex-Examples
 silex compile Silex-Examples/Sources/EngineWorkshop/Main.sx --release -o Build/EngineWorkshop
 Build/EngineWorkshop
 ```
 
-**M** ou le bouton bascule le contact. Le régime demandé, la charge et
-l’accélérateur pilotent le son ; **Espace** maintenu donne des gaz à 7 000 tr/min.
-Relâcher revient au régime choisi. La perte de focus relâche cette commande.
-Le volume d’écoute est séparé des quatre voies du moteur.
+## Choisir un véhicule
 
-Choisir V8, mono 450 quatre temps ou mono 250 deux temps, puis modifier les
-pièces. Les changements sont préparés après 120 ms sans mouvement de réglage et
-fondus sur 50 ms. La dernière modification en attente remplace la précédente.
-Les longueurs affichées concernent la première ligne ; les autres lignes
-conservent leurs écarts de parcours. Les autres réglages d’échappement sont
-appliqués aux lignes ensemble.
+Le menu propose 17 profils :
 
-- **Bloc et culasse** : cylindres, cycle, alésage, course, chambre et durée de combustion.
-- **Admission** : conduit, boîte à air et absorption du filtre.
-- **Échappement** : collecteurs, lignes et silencieux.
-- **Mécanique et turbo** : masse, amortissement, roue, pression maximale et inertie.
-- **Écoute des pièces** : choisir directement une voie seule ; les quatre niveaux
-  du mélange sont conservés. Le solo utilise le niveau 1 pour cette voie.
-  Accélérer pour comparer l’admission ; monter le turbo et demander de la
-  suralimentation pour l’entendre. Le mélange complet peut masquer de petites
-  variations de géométrie.
+- citadines essence 1,0 L trois cylindres, essence 1,4 L quatre cylindres et turbodiesel 1,6 L ;
+- sportives I4 turbo 2,0 L, flat-six 3,2 L, V8 cross-plane 5,0 L, V10 5,2 L et V12 6,0 L ;
+- motocross 125, 250 et 500 cm³ deux temps ; 250 et 500 cm³ quatre temps ;
+- motos de course 1 000 cm³ quatre cylindres en ligne et V4 à allumages groupés ;
+- custom et chopper bicylindres 1 200 et 1 800 cm³ à intervalles 315°/405°.
 
-La cylindrée et la compression géométrique se calculent depuis les pièces.
-Un assemblage incompatible est refusé en conservant le son précédent. Ajuster
-la chambre lorsque le rapport dépasse 2..25. « Remonter le modèle initial »
-restaure les pièces et le mix du modèle sélectionné, sans imposer un redémarrage.
+Les mentions GTI, 911, Mustang, R8, Ferrari et Harley sont des inspirations
+sonores, pas des reproductions certifiées de modèles commerciaux. Les profils
+et leur synthèse appartiennent à `GFX.Audio.Synthesis.EngineVehicles`.
 
-La page défile et les cartes se réorganisent selon la largeur de fenêtre.
-La synthèse, les phases, les filtres et les transitions appartiennent au package.
-La démo possède uniquement le banc de régime, les contrôles et l’alimentation
-du flux borné : blocs 480 frames, file 4 800 frames à 48 kHz, au plus 110 ms de
-PCM préparé/en file hors sortie du périphérique. La file est alimentée autour
-des mises à jour et du dessin ; les commandes deviennent audibles après cette
-réserve. `--trace-audio` affiche à la fermeture les observations de file vide et
-le plus grand intervalle entre mises à jour. Ce n’est pas un compteur historique
-des ruptures du périphérique. Modifier les pièces conserve l’équilibre 1:0,1
-des sorties du V8.
+## Entendre les réglages
+
+La **cylindrée totale** se règle directement en cm³, sur une échelle logarithmique
+50..12 000 ; elle conserve les proportions alésage/course et le rapport de
+compression. Ce réglage ne représente pas le volume d’une chambre. Les limites
+de dimensions du générateur restent applicables : un assemblage incompatible
+est refusé avec un message et le son précédent est conservé.
+
+**Échappement** ouvre ou assourdit le profil en combinant absorption et nombre
+de chicanes. Zéro conserve son échappement d’origine. **Combustion** change
+l’attaque ; **Admission** combine son niveau et son absorption ; **Mécanique**
+règle son niveau ; **Fonctionnement** fait varier les combustions et légèrement
+la rotation. Les changements attendent 120 ms sans mouvement, puis sont fondus
+sur 50 ms. Modifier B pendant l’écoute de A revient à B.
+
+L’accélérateur commande le régime cible ; l’effort le réduit et renforce le son
+en charge. Le temps de réponse est propre au profil et réglable. Déplier
+**Imposer le régime du banc** permet de fixer le régime indépendamment des gaz,
+pour comparer un moteur à régime constant. L’indication de régime donne les
+tr/min réels du banc ; le curseur du banc parcourt le ralenti jusqu’à la limite
+du profil. Le volume d’écoute reste indépendant du timbre.
+
+**Essai 8 secondes** joue ralenti, montée en régime, effort et relâchement.
+L’essai conserve le moteur en marche. Une action sur les commandes du banc
+interrompt l’essai ; une perte de focus relâche Espace.
+
+**Mémoriser les réglages dans A** conserve la définition sonore B courante.
+**Basculer A / B** compare les timbres au même régime et au même effort, sans
+changer le temps de réponse. Les niveaux ne sont pas égalisés automatiquement.
+Choisir une voie seule aide à localiser une différence ; le turbo reste muet
+sur les profils qui n’en possèdent pas. Les dimensions de ligne et la compression
+restent disponibles sous **Réglages avancés**.
+
+## Exporter et vérifier
 
 ```sh
-Build/EngineWorkshop --trace-audio
+Build/EngineWorkshop --list
+Build/EngineWorkshop --render Build/Cross250.wav --profile cross-250-2t
+Build/EngineWorkshop --render Build/Vehicles.wav --catalogue
 Build/EngineWorkshop --check
-Build/EngineWorkshop --render Build/EngineWorkshop.wav
-silex compile Silex-Examples/Sources/EngineWorkshop/Measure.sx --release -o Build/EngineWorkshop-Measure
-Build/EngineWorkshop-Measure
+Build/EngineWorkshop --trace-audio
 ```
 
-`--check` n’ouvre ni fenêtre ni périphérique ; il vérifie modèles, remplacement
-de dimensions/topologie/turbo, dessin à trois largeurs et arrêt. Le WAV contient
-12 s : ralenti, montée en charge avec turbo, changement de silencieux, retour et
-arrêt. Le programme de mesure séparé chronomètre cinq fois 480 000 frames par source, pour un puis
-huit V8 avec turbo à 6 000 tr/min ; périphérique, transfert PCM et UI exclus.
+Chaque profil exporté dure 10 s : le même essai que dans l’interface, puis arrêt
+et queue avec fondu final. `--catalogue` concatène les 17 essais dans l’ordre du
+menu (170 s) et affiche les repères en secondes. Sans `--profile`, le rendu
+choisit `city-i3`. L’export conserve le volume initial et les différences de
+niveau ; il ne normalise pas les profils.
 
-Le modèle acoustique est simplifié. Les sons et la lisibilité de l’atelier
-restent à qualifier par l’écoute et l’usage ; le 2T ne simule pas encore le pot
-de détente à cônes ou le balayage détaillé. Aucun son n’est présenté comme une
-reproduction exacte d’un véhicule commercial. L’ancien banc n’est pas remplacé.
+`--check` vérifie les 17 assemblages, cylindrées, échappements, comparaisons,
+cycles d’essai, arrêts, refus, dessins à trois largeurs, curseur logarithmique
+et sélection/démarrage au clavier sans fenêtre ni périphérique audio.
+`--trace-audio` rapporte à la fermeture les observations de file vide et le plus
+grand intervalle de mise à jour. La file reste bornée : blocs de 480 frames,
+capacité de 4 800 à 48 kHz, soit au plus 110 ms préparés/en file hors périphérique.
+
+Le modèle est acoustique et stylisé : chicanes filtrantes et résonance de détente
+2T simplifiées, sans simulation des cônes, du balayage, de la puissance ou d’une
+transmission routière. La qualité et la reconnaissance des profils restent à
+qualifier par l’écoute. La [bibliothèque moteur validée](../EngineLibrary/README.fr.md)
+reste un parcours distinct. `Measure.sx` conserve sa mesure du générateur V8
+historique ; elle ne mesure pas le catalogue complet.
