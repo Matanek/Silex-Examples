@@ -27,6 +27,14 @@ Le curseur d’accélérateur fournit une pédale continue et la charge sollicit
 le banc. À 800 tr/min, le maintien laisse le ralenti libre ; au-dessus, il
 maintient la rotation gaz relâchés selon le comportement du banc de référence.
 
+La pédale des customs 1 200/1 800, du V8 américain et de la citadine I4 répartit
+la faible ouverture utile à vide sur les premiers 90 % du curseur. Les derniers
+10 % rejoignent l’ouverture totale ; **Espace** donne toujours les pleins gaz.
+Cela permet de doser la montée avant le limiteur sans imposer un régime ni
+changer la mécanique. La commande du 454 et de la cross 500 4T est conservée.
+Ce banc tourne sans transmission routière. Cette correction de commande ne
+qualifie pas le timbre des profils.
+
 Le menu contient 18 entrées :
 
 - Chevrolet 454 d’origine ; citadines essence trois/quatre cylindres et diesel prototype ;
@@ -75,7 +83,9 @@ interactive existante.
 
 `--check` compare le PCM du 454 à EngineLibrary sur démarrage, accélération,
 charge et coupure, puis vérifie A/B, gardes de changement, clavier, curseur
-logarithmique et dessins à trois largeurs, sans périphérique. Le test consommateur
+logarithmique et dessins à trois largeurs, sans périphérique. Il mesure aussi
+la progression du régime à 25/50/75 % sur les quatre pédales calibrées et vérifie
+l’accès aux pleins gaz. Le test consommateur
 GFX.Audio exerce les 18 définitions et la pédale continue. Le flux interactif
 reste borné à cinq blocs de sortie et quatre calculs de 480 frames, environ
 98 ms hors périphérique ; l’interface consomme les blocs prêts sans attendre

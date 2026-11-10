@@ -102,11 +102,25 @@ public class Workshop {
         self.notice.set("Essai 8 s · démarrage, gaz progressifs, charge, relâchement")
         self.sync()
     }
+    // A free-revving engine needs very little opening. Spread the measured
+    // useful range over 90% of the slider, retaining wide-open throttle at 100%.
+    // This changes the bench input, never the simulated RPM or engine limits.
+    private func pedal(value:float) float {
+        if value >= 1.0 { return 1.0 }
+        var useful:float = 1.0
+        let key = self.selected().key
+        if key == "custom-1200" || key == "custom-1800" { useful = 0.16 }
+        if key == "sport-v8" { useful = 0.3 }
+        if key == "city-i4" { useful = 0.05 }
+        if useful == 1.0 { return value }
+        if value <= 0.9 { let position = value / 0.9; return useful * position * position }
+        return useful + (1.0 - useful) * ((value - 0.9) / 0.1)
+    }
     func sync() {
         var controls = self.source.controls()
         controls.running = self.running.value(); controls.accelerating = self.accelerating
         controls.throttle = null
-        if !self.accelerating && self.throttle.value() > 0.0 { controls.throttle = self.throttle.value() }
+        if !self.accelerating && self.throttle.value() > 0.0 { controls.throttle = self.pedal(self.throttle.value()) }
         controls.idle_rpm = self.idle.value(); controls.load = self.load.value()
         controls.texture = self.texture.value(); controls.exhaust = self.exhaust.value()
         controls.intake = self.intake.value(); controls.ambience = self.ambience.value(); controls.volume = self.volume.value()
@@ -117,7 +131,7 @@ public class Workshop {
         if self.audition {
             let time = self.audition_time
             controls.accelerating = false; controls.throttle = 0.0; controls.load = 0.1
-            if time >= 2.0 && time < 4.0 { controls.throttle = (time - 2.0) / 2.0 }
+            if time >= 2.0 && time < 4.0 { controls.throttle = self.pedal((time - 2.0) / 2.0) }
             if time >= 4.0 && time < 6.0 { controls.throttle = 1.0; controls.load = 0.7 }
         }
         self.source.set_controls(controls)
@@ -159,7 +173,7 @@ public class Workshop {
         }
         settings.append(Widgets.button("Rétablir le profil", self.restore)); settings.append(Widgets.text(self.selected().note, 12.0, Color.amber_200()))
         var setup = Widgets.card("Moteur", "Le changement de géométrie demande un moteur arrêté", settings)
-        var bench = Widgets.card("Banc d’écoute", "Espace maintenu pour donner des gaz", [self.throttle.view(self.controls_changed),
+        var bench = Widgets.card("Banc d’écoute", "Pédale progressive à vide · Espace : plein gaz", [self.throttle.view(self.controls_changed),
             self.load.view(self.controls_changed), self.idle.view(self.controls_changed), self.volume.view(self.controls_changed)])
         var sound:UI.View[] = [self.texture.view(self.sound_changed), self.exhaust.view(self.sound_changed), self.ambience.view(self.sound_changed)]
         if self.source.profile.intake > 0.0 { sound.append(self.intake.view(self.sound_changed)) }

@@ -24,6 +24,14 @@ Displayed RPM comes from simulation. The throttle slider supplies a continuous
 pedal and load engages the bench. At 800 RPM, hold leaves idle free; higher
 values hold rotation with released throttle using the reference bench’s behavior.
 
+For the 1,200/1,800 customs, American V8 and city I4, the first 90% of the pedal
+slider spans the small opening range useful on a free-revving bench. The final
+10% reaches wide-open throttle; **Space** always supplies full throttle. This
+makes the rise before the limiter controllable without imposing RPM or changing
+the mechanics. The 454 and 500 four-stroke motocross commands are preserved.
+This bench has no road transmission. Input calibration does not qualify profile
+timbre.
+
 The menu contains 18 entries:
 
 - stock Chevrolet 454; three/four-cylinder petrol city cars and a prototype diesel;
@@ -71,7 +79,9 @@ export does not read settings from an existing interactive window.
 
 `--check` compares 454 PCM with EngineLibrary during startup, acceleration,
 load and ignition cut, then checks A/B, replacement guards, keyboard controls,
-logarithmic slider and drawing at three widths without a device. GFX.Audio’s
+logarithmic slider and drawing at three widths without a device. It also measures
+RPM progression at 25/50/75% on all four calibrated pedals and checks access to
+wide-open throttle. GFX.Audio’s
 consumer test exercises all 18 definitions and continuous throttle. Interactive
 feeding stays bounded to five output blocks and four computations of 480 frames,
 about 98 ms excluding the device. UI consumes ready blocks without waiting for
