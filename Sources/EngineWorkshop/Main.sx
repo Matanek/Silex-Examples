@@ -7,7 +7,7 @@ func main() {
     var i = 1
     var trace = false
     var render_path:str? = null
-    var profile = "city-i3"
+    var profile = "454"
     var catalogue = false
     while i < arguments.count() {
         if arguments[i] == "--check" { Offline.check(); return }
@@ -25,6 +25,6 @@ func main() {
         panic("Options: --check | --list | --render output.wav [--profile id | --catalogue] | --trace-audio")
     }
     if let path = render_path { Offline.render(path, profile, catalogue); return }
-    if catalogue || profile != "city-i3" { panic("--profile and --catalogue require --render output.wav") }
+    if catalogue || profile != "454" { panic("--profile and --catalogue require --render output.wav") }
     Session.show(trace)
 }

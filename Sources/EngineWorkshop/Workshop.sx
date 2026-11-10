@@ -1,189 +1,149 @@
 use GFX.UI
 use GFX.Color
-use GFX.Audio.Synthesis
-use GFX.Audio.Synthesis.EngineParts
-use GFX.Audio.Synthesis.EngineVehicles
+use GFX.Audio.Engines
+use GFX.Audio.Engines.Vehicles
 use STD.Math
 use Module.Widgets
 use Module.Widgets.Knob
 
-// The workshop owns its listening bench; profiles and DSP belong to Audio.
+// The native simulator owns crank motion, combustion, gas flow and sound.
 public class Workshop {
-    var source:Synthesis.Engine
-    let catalogue:EngineVehicles.Profile[] = EngineVehicles.catalogue()
+    var source:Engines.Engine
+    let catalogue:Vehicles.Profile[] = Vehicles.catalogue()
+    var generation:int = 0
     var running:UI.State<bool> = UI.State<bool>(false)
     var profile:UI.State<int?> = UI.State<int?>(0)
-    var listening:UI.State<int?> = UI.State<int?>(0)
-    var advanced:UI.State<bool> = UI.State<bool>(false)
-    var fixed_rpm:UI.State<bool> = UI.State<bool>(false)
     var status:UI.State<str> = UI.State<str>("")
     var readout:UI.State<str> = UI.State<str>("Contact coupé")
-    var notice:UI.State<str> = UI.State<str>("Choisissez un véhicule, démarrez, puis donnez des gaz.")
-    var comparison:UI.State<str> = UI.State<str>("Écoute B · vos réglages")
-    var capacity:Knob = Knob("Cylindrée totale", 1_000.0, 50.0, 12_000.0, "cm³", logarithmic:true)
-    var exhaust:Knob = Knob("Échappement · feutré ↔ ouvert", 0.0, -1.0, 1.0, "%")
-    var attack:Knob = Knob("Combustion · ronde ↔ claquante", 0.4, 0.0, 1.0, "%")
-    var intake:Knob = Knob("Admission · discrète ↔ grondante", 0.12, 0.0, 1.0, "%")
-    var mechanics:Knob = Knob("Mécanique · discrète ↔ présente", 0.24, 0.0, 1.0, "%")
-    var roughness:Knob = Knob("Fonctionnement · régulier ↔ irrégulier", 0.2, 0.0, 1.0, "%")
-    var response:Knob = Knob("Temps de réponse aux gaz", 0.4, 0.08, 1.5, "s")
-    var rpm:Knob = Knob("Régime du banc · ralenti ↔ limite", 0.0, 0.0, 1.0, "%")
-    var throttle:Knob = Knob("Accélérateur", 0.15, 0.0, 1.0, "%")
-    var load:Knob = Knob("Effort demandé", 0.2, 0.0, 1.0, "%")
-    var volume:Knob = Knob("Volume d’écoute", 0.65, 0.0, 1.0, "%")
-    var header:Knob = Knob("Longueur des collecteurs", 400.0, 100.0, 1_500.0, "mm")
-    var pipe:Knob = Knob("Longueur des lignes", 2_100.0, 200.0, 3_000.0, "mm")
-    var silencer:Knob = Knob("Volume des silencieux", 10.0, 0.1, 30.0, "L", logarithmic:true)
-    var compression:Knob = Knob("Rapport de compression géométrique", 11.0, 2.0, 25.0, ":1")
+    var notice:UI.State<str> = UI.State<str>("Le Chevrolet 454 conserve exactement la chaîne sonore d’EngineLibrary.")
+    var comparison:UI.State<str> = UI.State<str>("Écoute B · réglages courants")
+    var capacity:Knob = Knob("Cylindrée totale à préparer", 7_438.0, 50.0, 12_000.0, "cm³", logarithmic:true)
+    var throttle:Knob = Knob("Accélérateur", 0.0, 0.0, 1.0, "%")
+    var idle:Knob = Knob("Maintien · 800 = ralenti libre", 800.0, 800.0, 4_000.0, "tr/min")
+    var load:Knob = Knob("Charge du banc", 0.2, 0.0, 1.0, "%")
+    var texture:Knob = Knob("Texture · souffle et variations", 1.0, 0.0, 1.0, "%")
+    var exhaust:Knob = Knob("Échappement · brut ↔ réponse filtrée", 1.0, 0.0, 1.0, "%")
+    var intake:Knob = Knob("Admission du mono 4T", 0.6, 0.0, 1.0, "%")
+    var ambience:Knob = Knob("Ambiance", 0.0, 0.0, 1.0, "%")
+    var volume:Knob = Knob("Volume d’écoute", 0.7, 0.0, 1.0, "%")
     var accelerating:bool = false
     var audition:bool = false
     var reference_active:bool = false
-    private var parts:EngineParts.Assembly
-    private var reference:EngineParts.Assembly
-    private var reference_roughness:float32 = 0.2
-    private var current_rpm:float = 0.0
-    private var dirty:bool = false
-    private var quiet:float = 0.0
-    private var display_elapsed:float = 0.0
+    private var selected_index:int = 0
+    private var active_capacity:float
+    private var reference:Engines.Controls = Engines.Controls()
     private var audition_time:float = 0.0
-    private var idle_rpm:float = 850.0
-    private var limit_rpm:float = 6_500.0
+    private var display_time:float = 0.0
 
     init() {
-        self.parts = self.catalogue[0].parts; self.reference = self.parts
-        self.source = Synthesis.Engine.assemble(self.parts)
-        self.choose_profile(0); self.source.set_state(0.0, fuel:0.0, ramp_frames:0)
+        self.source = Vehicles.create("454")
+        self.active_capacity = self.catalogue[0].displacement_cc
+        self.capacity.set(self.active_capacity)
+        self.intake.set(self.source.profile.intake)
+        self.update_status(); self.remember(); self.sync()
     }
-    func selected() EngineVehicles.Profile { return self.catalogue[self.profile.value() ?? 0] }
-    func name(index:int) str {
-        let names = ["Citadine · essence 1,0 L / 3 cylindres", "Citadine · essence 1,4 L / 4 cylindres",
-            "Citadine · turbodiesel 1,6 L", "Sportive · 2,0 L turbo / esprit GTI",
-            "Sportive · flat-six 3,2 L / esprit 911", "Sportive · V8 5,0 L / esprit Mustang",
-            "Sportive · V10 5,2 L / esprit R8", "Sportive · V12 6,0 L / esprit Ferrari",
-            "Motocross · 125 cm³ deux temps", "Motocross · 250 cm³ deux temps", "Motocross · 500 cm³ deux temps",
-            "Motocross · 250 cm³ quatre temps", "Motocross · 500 cm³ quatre temps",
-            "Moto de course · 1 000 cm³ / 4 en ligne", "Moto de course · 1 000 cm³ / V4 groupé",
-            "Custom · V-twin 1 200 / esprit Harley", "Chopper · V-twin 1 800 / esprit Harley"]
-        return names[index]
+    func selected() Vehicles.Profile { return self.catalogue[self.selected_index] }
+    func name(index:int) str { return self.catalogue[index].name }
+    func toggle_running() {
+        self.running.set(!self.running.value()); self.accelerating = false; self.audition = false; self.sync()
     }
-    func toggle_running() { self.running.set(!self.running.value()); self.accelerating = false; self.audition = false }
-    func audition_cycle() {
-        self.running.set(true); self.audition = true; self.audition_time = 0.0
-        self.notice.set("Essai 8 s · ralenti, montée, effort, relâchement")
+    func controls_changed(value:float) { self.audition = false; self.sync() }
+    func sound_changed(value:float) {
+        self.reference_active = false; self.comparison.set("Écoute B · réglages courants"); self.sync()
     }
-    func change_part(value:float) { self.dirty = true; self.quiet = 0.0; self.notice.set("Réglage B en préparation…") }
-    func controls_changed(value:float) { self.audition = false }
-    func choose_listening(value:int) { self.source.set_mix(self.listening_mix()) }
-    private func listening_mix() EngineParts.Mix {
-        var mix = self.parts.mix
-        if self.reference_active { mix = self.reference.mix }
-        let solo = self.listening.value() ?? 0
-        if solo == 1 { return EngineParts.Mix(exhaust:1.0, intake:0.0, mechanics:0.0, turbo:0.0) }
-        if solo == 2 { return EngineParts.Mix(exhaust:0.0, intake:1.0, mechanics:0.0, turbo:0.0) }
-        if solo == 3 { return EngineParts.Mix(exhaust:0.0, intake:0.0, mechanics:1.0, turbo:0.0) }
-        if solo == 4 { return EngineParts.Mix(exhaust:0.0, intake:0.0, mechanics:0.0, turbo:1.0) }
-        return mix
-    }
+    func capacity_changed(value:float) { self.notice.set("Cylindrée préparée · appliquez moteur arrêté") }
+    private func can_replace() bool { return !self.running.value() && self.source.current_rpm() < 5.0 }
     func choose_profile(index:int) {
-        self.profile.set(index)
-        let selected = self.selected()
-        self.idle_rpm = selected.idle_rpm; self.limit_rpm = selected.redline_rpm
-        self.capacity.set(selected.parts.block.displacement_litres() * 1_000.0)
-        self.exhaust.set(0.0); self.attack.set(selected.parts.head.sharpness)
-        self.intake.set(selected.parts.mix.intake); self.mechanics.set(selected.parts.mix.mechanics)
-        self.roughness.set(selected.roughness); self.response.set(selected.response_seconds)
-        self.header.set(selected.parts.exhausts[0].header.length_mm); self.pipe.set(selected.parts.exhausts[0].pipe.length_mm)
-        self.silencer.set(selected.parts.exhausts[0].silencer.volume_litres); self.compression.set(selected.parts.compression_ratio())
-        self.rpm.set(0.0); self.throttle.set(0.0); self.load.set(0.2)
-        self.accelerating = false; self.audition = false; self.reference_active = false
-        self.apply(); self.remember()
-    }
-    func restore() { self.choose_profile(self.profile.value() ?? 0) }
-    func remember() {
-        if self.dirty { self.apply() }
-        self.reference = self.parts; self.reference_roughness = self.roughness.value()
-        self.reference_active = false; self.activate()
-        self.notice.set("A mémorisé · modifiez B, puis comparez à régime et effort identiques")
-    }
-    func compare() {
-        if self.dirty { self.apply() }
-        self.reference_active = !self.reference_active; self.activate()
-    }
-    private func activate() {
-        var parts = self.parts; var roughness = self.roughness.value()
-        if self.reference_active { parts = self.reference; roughness = self.reference_roughness }
-        parts.mix = self.listening_mix()
-        self.source.set_parts(parts); self.source.set_mix(self.listening_mix()); self.source.set_character(1.0, roughness)
-        var label = "Écoute B · vos réglages"; if self.reference_active { label = "Écoute A · référence mémorisée" }
-        self.comparison.set(label)
-    }
-    func apply() {
-        let base = self.selected().parts
-        var parts = base
-        let scale = Math.pow((self.capacity.value() / 1_000.0) / base.block.displacement_litres(), 1.0 / 3.0)
-        parts.block.bore_mm *= scale; parts.block.stroke_mm *= scale
-        parts.head.chamber_cc = self.capacity.value() / (parts.block.cylinders as float * (self.compression.value() - 1.0))
-        parts.head.sharpness = self.attack.value()
-        parts.mix.intake = self.intake.value(); parts.mix.mechanics = self.mechanics.value()
-        parts.intake.filter_absorption = Math.clamp(base.intake.filter_absorption + (base.mix.intake - self.intake.value()) * 0.8, 0.0, 1.0)
-        for i in 0...parts.exhausts.count() {
-            parts.exhausts[i].header.length_mm += self.header.value() - base.exhausts[0].header.length_mm
-            parts.exhausts[i].pipe.length_mm += self.pipe.value() - base.exhausts[0].pipe.length_mm
-            parts.exhausts[i].silencer.volume_litres = self.silencer.value()
-            parts.exhausts[i].silencer.absorption = Math.clamp(base.exhausts[i].silencer.absorption - self.exhaust.value() * 0.8, 0.0, 1.0)
-            var baffles = base.exhausts[i].silencer.baffles - Math.round(self.exhaust.value() * 5.0) as int
-            if baffles < 0 { baffles = 0 }
-            if baffles > 8 { baffles = 8 }
-            parts.exhausts[i].silencer.baffles = baffles
+        if !self.can_replace() {
+            self.profile.set(self.selected_index); self.notice.set("Coupez le contact et attendez l’arrêt pour changer de moteur."); return
         }
-        match try parts.validate() {
-            failure(error) => { self.notice.set("Dimensions incompatibles. Ajustez la cylindrée ou la compression ; le son précédent est conservé.") }
-            success => {
-                self.parts = parts; self.reference_active = false; self.activate()
-                let cc = Math.round(parts.block.displacement_litres() * 1_000.0) as int
-                var cycle = "4T"; if parts.block.cycle == EngineParts.Cycle.two_stroke { cycle = "2T" }
-                self.status.set("$(parts.block.cylinders) cyl. · $(cc) cm³ · $(cycle) · $(self.selected().idle_rpm as int)–$(self.selected().redline_rpm as int) tr/min")
-                self.notice.set("B prêt · comparez l’attaque, le rythme et la résonance")
+        self.selected_index = index; self.profile.set(index)
+        self.capacity.set(self.selected().displacement_cc)
+        self.install()
+    }
+    func apply_capacity() {
+        if !self.can_replace() { self.notice.set("Appliquez la cylindrée après avoir coupé le contact et attendu l’arrêt."); return }
+        self.install()
+    }
+    private func install() {
+        match try Vehicles.create(self.selected().key, displacement_cc:self.capacity.value()) {
+            failure(error) => { self.notice.set("Cylindrée refusée : $(error.detail)") }
+            success(var source) => {
+                self.source = source; self.active_capacity = self.capacity.value(); self.generation++
+                self.accelerating = false; self.audition = false; self.reference_active = false
+                // Profile idle is metadata; this command engages the dyno.
+                // Keep the reference bench's free-idle default for every model.
+                self.throttle.set(0.0); self.idle.set(800.0)
+                self.texture.set(1.0); self.exhaust.set(1.0); self.intake.set(self.source.profile.intake)
+                self.ambience.set(0.0); self.load.set(0.2)
+                self.update_status(); self.remember(); self.sync()
+                self.notice.set("Moteur prêt · $(self.selected().note)")
             }
         }
-        self.dirty = false
+    }
+    private func update_status() {
+        let selected = self.selected()
+        self.status.set("$(selected.cylinders) cyl. · $(Math.round(self.active_capacity) as int) cm³ · $(selected.strokes)T · simulation thermique et réponse d’échappement")
+    }
+    func restore() { self.choose_profile(self.selected_index) }
+    func remember() {
+        self.reference = self.source.controls()
+        self.reference.texture = self.texture.value(); self.reference.exhaust = self.exhaust.value()
+        self.reference.intake = self.intake.value(); self.reference.ambience = self.ambience.value()
+        self.reference_active = false; self.comparison.set("Écoute B · réglages courants"); self.sync()
+    }
+    func compare() {
+        self.reference_active = !self.reference_active
+        var label = "Écoute B · réglages courants"; if self.reference_active { label = "Écoute A · réglages mémorisés" }
+        self.comparison.set(label); self.sync()
+    }
+    func audition_cycle() {
+        self.running.set(true); self.audition = true; self.audition_time = 0.0
+        self.notice.set("Essai 8 s · démarrage, gaz progressifs, charge, relâchement")
+        self.sync()
+    }
+    func sync() {
+        var controls = self.source.controls()
+        controls.running = self.running.value(); controls.accelerating = self.accelerating
+        controls.throttle = null
+        if !self.accelerating && self.throttle.value() > 0.0 { controls.throttle = self.throttle.value() }
+        controls.idle_rpm = self.idle.value(); controls.load = self.load.value()
+        controls.texture = self.texture.value(); controls.exhaust = self.exhaust.value()
+        controls.intake = self.intake.value(); controls.ambience = self.ambience.value(); controls.volume = self.volume.value()
+        if self.reference_active {
+            controls.texture = self.reference.texture; controls.exhaust = self.reference.exhaust
+            controls.intake = self.reference.intake; controls.ambience = self.reference.ambience
+        }
+        if self.audition {
+            let time = self.audition_time
+            controls.accelerating = false; controls.throttle = 0.0; controls.load = 0.1
+            if time >= 2.0 && time < 4.0 { controls.throttle = (time - 2.0) / 2.0 }
+            if time >= 4.0 && time < 6.0 { controls.throttle = 1.0; controls.load = 0.7 }
+        }
+        self.source.set_controls(controls)
     }
     func update(delta:float) {
-        if self.dirty { self.quiet += delta; if self.quiet >= 0.12 { self.apply() } }
-        var throttle = self.throttle.value(); var load = self.load.value()
-        var fraction = throttle * (1.0 - 0.35 * load)
-        if self.fixed_rpm.value() { fraction = self.rpm.value() }
-        if self.accelerating { fraction = 0.85; throttle = 1.0 }
         if self.audition {
             self.audition_time += delta
-            let time = self.audition_time
-            fraction = 0.0; throttle = 0.12; load = 0.1
-            if time >= 1.5 && time < 4.0 { fraction = (time - 1.5) / 2.5 * 0.85; throttle = 0.9; load = 0.35 }
-            if time >= 4.0 && time < 6.0 { fraction = 0.7; throttle = 0.85; load = 0.9 }
-            if time >= 6.0 { throttle = 0.0; load = 0.0 }
-            if time >= 8.0 { self.audition = false; self.notice.set("Essai terminé · régime du banc rétabli") }
+            if self.audition_time >= 8.0 { self.audition = false; self.notice.set("Essai terminé · commandes du banc rétablies") }
         }
-        var target = self.idle_rpm + fraction * (self.limit_rpm - self.idle_rpm)
-        var fuel:float = 1.0
-        if !self.running.value() { target = 0.0; fuel = 0.0; throttle = 0.0; load = 0.0 }
-        let previous = self.current_rpm
-        self.current_rpm += (target - self.current_rpm) * (1.0 - Math.exp(-delta / self.response.value()))
-        if self.current_rpm < 0.1 { self.current_rpm = 0.0 }
-        var brake:float = 0.0
-        if self.current_rpm < previous && throttle < 0.2 { brake = Math.clamp((previous - self.current_rpm) / Math.max(1.0, delta * 6_000.0), 0.0, 1.0) }
-        self.source.set_state(self.current_rpm, throttle:throttle, load:load, fuel:fuel, engine_brake:brake, boost:throttle * load * fraction)
-        self.display_elapsed += delta
-        if self.display_elapsed >= 0.1 {
-            self.display_elapsed = 0.0
-            var state = "contact coupé"; if self.running.value() { state = "banc en marche" }
-            if self.audition { state = "essai automatique" }
-            self.readout.set("$(Math.round(self.current_rpm) as int) tr/min · effort $(Math.round(load * 100.0) as int) % · $(state)")
+        self.sync(); self.display_time += delta
+        if self.display_time >= 0.1 {
+            self.display_time = 0.0
+            var state = "contact coupé"
+            if self.running.value() { state = "moteur en marche" }
+            if self.source.is_starting() { state = "démarrage" }
+            self.readout.set("$(Math.round(self.source.current_rpm()) as int) tr/min · $(state)")
         }
     }
-    func readout_view(reads:UI.Reads) UI.View { return Widgets.text(reads.read(self.readout), 23.0, Color.cyan_300()) }
+    func readout_view(reads:UI.Reads) UI.View { return Widgets.text(reads.read(self.readout), 24.0, Color.cyan_300()) }
     func status_view(reads:UI.Reads) UI.View { return Widgets.text(reads.read(self.status), 14.0, Color.slate_300()) }
     func notice_view(reads:UI.Reads) UI.View { return Widgets.text(reads.read(self.notice), 12.0, Color.amber_200()) }
     func comparison_view(reads:UI.Reads) UI.View { return Widgets.text(reads.read(self.comparison), 15.0, Color.cyan_300()) }
+    func power_view(reads:UI.Reads) UI.View {
+        var label = "Démarrer · M"; if reads.read(self.running) { label = "Arrêter · M" }
+        return Widgets.button(label, self.toggle_running)
+    }
     func view() UI.View {
         var options:UI.SelectOption<int>[] = []
         for i in 0...self.catalogue.count() { options.append(UI.SelectOption<int>(i, self.name(i))) }
@@ -191,33 +151,26 @@ public class Workshop {
         style.background = Color.slate_700(); style.foreground = Color.slate_100(); style.radius = 8.0
         var profile = UI.Select<int>(options, self.profile, on_change:self.choose_profile, style:style)
         profile.style.width = 320.0; profile.style.grow = 1.0
-        var tools = UI.Row([profile, Widgets.button("Démarrer / arrêter · M", self.toggle_running),
-            Widgets.button("Essai 8 secondes", self.audition_cycle), Widgets.button("Rétablir le profil", self.restore)], wrap:true)
+        var tools = UI.Row([profile, UI.Reactive(self.power_view), Widgets.button("Essai 8 secondes", self.audition_cycle)], wrap:true)
         tools.style.gap = 10.0
-        var character = Widgets.card("Signature sonore", "Réglages relatifs au véhicule choisi", [self.capacity.view(self.change_part),
-            self.exhaust.view(self.change_part), self.attack.view(self.change_part), self.intake.view(self.change_part),
-            self.mechanics.view(self.change_part), self.roughness.view(self.change_part)])
-        var bench = Widgets.card("Banc d’écoute", "Espace maintenu : accélérer · relâcher : revenir aux gaz choisis", [
-            self.throttle.view(self.controls_changed), self.load.view(self.controls_changed),
-            self.response.view(self.controls_changed), self.volume.view(self.controls_changed),
-            UI.CollapsiblePanel("Imposer le régime du banc", self.rpm.view(self.controls_changed), self.fixed_rpm),
-            Widgets.text("À régime constant, augmentez l’effort pour entendre le moteur travailler.", 12.0, Color.slate_400())])
-        let solos:UI.SelectOption<int>[] = [UI.SelectOption<int>(0, "Mélange complet"), UI.SelectOption<int>(1, "Échappement seul"),
-            UI.SelectOption<int>(2, "Admission seule"), UI.SelectOption<int>(3, "Mécanique seule"), UI.SelectOption<int>(4, "Turbo seul (si présent)")]
-        var comparison = Widgets.card("Comparer A / B", "Même régime et même effort · le niveau sonore peut changer", [
-            UI.Reactive(self.comparison_view), Widgets.button("Mémoriser les réglages dans A", self.remember),
-            Widgets.button("Basculer A / B", self.compare), UI.Select<int>(solos, self.listening, on_change:self.choose_listening, style:style),
-            Widgets.text("A conserve le timbre. L’essai et le banc sont communs aux deux écoutes.", 12.0, Color.slate_400())])
-        var row = UI.Row([character, bench, comparison], wrap:true); row.style.gap = 14.0
-        var dimensions = UI.Row([Widgets.card("Géométrie", "La cylindrée conserve les proportions du cylindre", [
-            self.compression.view(self.change_part), self.header.view(self.change_part)]),
-            Widgets.card("Ligne et silencieux", "Les écarts entre sorties sont conservés", [self.pipe.view(self.change_part), self.silencer.view(self.change_part)])], wrap:true)
-        dimensions.style.gap = 14.0
+        var settings:UI.View[] = [Widgets.text("Référence 454 : géométrie d’origine conservée. Le V8 américain permet de modifier la cylindrée.", 12.0, Color.slate_300())]
+        if self.selected().key != "454" {
+            settings = [self.capacity.view(self.capacity_changed), Widgets.button("Appliquer la cylindrée", self.apply_capacity)]
+        }
+        settings.append(Widgets.button("Rétablir le profil", self.restore)); settings.append(Widgets.text(self.selected().note, 12.0, Color.amber_200()))
+        var setup = Widgets.card("Moteur", "Le changement de géométrie demande un moteur arrêté", settings)
+        var bench = Widgets.card("Banc d’écoute", "Espace maintenu pour donner des gaz", [self.throttle.view(self.controls_changed),
+            self.load.view(self.controls_changed), self.idle.view(self.controls_changed), self.volume.view(self.controls_changed)])
+        var sound:UI.View[] = [self.texture.view(self.sound_changed), self.exhaust.view(self.sound_changed), self.ambience.view(self.sound_changed)]
+        if self.source.profile.intake > 0.0 { sound.append(self.intake.view(self.sound_changed)) }
+        sound.append(UI.Reactive(self.comparison_view)); sound.append(Widgets.button("Mémoriser B dans A", self.remember))
+        sound.append(Widgets.button("Basculer A / B", self.compare))
+        var character = Widgets.card("Écoute A / B", "Comparaison des traitements · volume et conduite communs", sound)
+        var row = UI.Row([setup, bench, character], wrap:true); row.style.gap = 14.0
         var content = UI.Column([Widgets.text("Atelier des véhicules", 30.0, Color.slate_100()),
-            Widgets.text("Choisissez une signature, façonnez son caractère, comparez en fonctionnement."), tools,
+            Widgets.text("Le moteur sonore d’EngineLibrary · Chevrolet 454 de référence conservé"), tools,
             UI.Reactive(self.readout_view), UI.Reactive(self.status_view), UI.Reactive(self.notice_view), row,
-            UI.CollapsiblePanel("Réglages avancés", dimensions, self.advanced),
-            Widgets.text("Profils sonores stylisés · inspirations, sans reproduction certifiée d’un modèle commercial.", 12.0, Color.slate_400())])
+            Widgets.text("Le régime et l’effort viennent de la simulation. Les variantes restent à qualifier par l’écoute.", 12.0, Color.slate_400())])
         content.style.gap = 14.0; content.style.padding = UI.Insets(22.0); content.style.background = Color.bytes(8, 13, 20)
         content.style.foreground = Color.slate_100()
         return UI.ScrollView(content, smooth_scroll:true)

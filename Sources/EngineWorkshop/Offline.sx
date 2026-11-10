@@ -2,6 +2,7 @@ use STD.File
 use STD.Math
 use GFX.UI
 use GFX.Input.Keyboard
+use GFX.Audio.Engines
 use Module.Workshop.Workshop
 
 func zeros(count:int) float32[] {
@@ -16,8 +17,8 @@ func wave(path:str, samples:@float32[..]) {
     var bytes:uint8[] = [82 as uint8, 73 as uint8, 70 as uint8, 70 as uint8]
     word(bytes, 36 + samples.count() * 2, 4)
     for byte in [87, 65, 86, 69, 102, 109, 116, 32] { bytes.append(byte as uint8) }
-    word(bytes, 16, 4); word(bytes, 1, 2); word(bytes, 2, 2); word(bytes, 48_000, 4)
-    word(bytes, 192_000, 4); word(bytes, 4, 2); word(bytes, 16, 2)
+    word(bytes, 16, 4); word(bytes, 1, 2); word(bytes, 2, 2); word(bytes, 44_100, 4)
+    word(bytes, 176_400, 4); word(bytes, 4, 2); word(bytes, 16, 2)
     for byte in [100, 97, 116, 97] { bytes.append(byte as uint8) }
     word(bytes, samples.count() * 2, 4)
     for sample in samples {
@@ -28,106 +29,74 @@ func wave(path:str, samples:@float32[..]) {
     }
     File.write_all(path, @bytes[0:bytes.count()])
 }
-public func render(path:str, profile:str = "city-i3", catalogue:bool = false) {
-    var workshop = Workshop(); var output:float32[] = []; var samples = zeros(960)
-    var found = false
-    for i in 0...workshop.catalogue.count() {
-        if !catalogue && workshop.catalogue[i].id != profile { continue }
+public func render(path:str, profile:str = "454", catalogue:bool = false) {
+    var listing = Workshop(); var output:float32[] = []
+    var samples = zeros(960); var found = false
+    for i in 0...listing.catalogue.count() {
+        if !catalogue && listing.catalogue[i].key != profile { continue }
         found = true
-        var vehicle = Workshop(); vehicle.choose_profile(i)
-        // Every clip starts with a fresh generator and identical silence/state.
-        vehicle.source.reset(); vehicle.source.set_state(0.0, fuel:0.0, ramp_frames:0)
-        vehicle.source.set_character(1.0, vehicle.roughness.value(), ramp_frames:0)
-        vehicle.audition_cycle()
-        print(output.count() / 96_000, " s: ", workshop.catalogue[i].id, " / ", workshop.name(i))
-        for block in 0...1_000 {
-            if block == 800 { vehicle.toggle_running() }
-            vehicle.update(0.01); vehicle.source.render(&samples[0:960])
-            // A short export fade closes the remaining coast-down tail at the
-            // clip boundary; interactive playback keeps the natural tail.
-            var fade:float = 1.0
-            if block >= 980 { fade = (999 - block) as float / 19.0 }
-            for sample in samples { output.append(sample * vehicle.volume.value() * fade) }
+        var vehicle = Workshop(); vehicle.choose_profile(i); vehicle.audition_cycle()
+        print(output.count() / 88_200, " s: ", listing.catalogue[i].key, " / ", listing.name(i))
+        var frame = 0
+        while frame < 441_000 {
+            var frames = 480; if frame + frames > 441_000 { frames = 441_000 - frame }
+            if frame >= 352_800 { vehicle.running.set(false); vehicle.audition = false; vehicle.accelerating = false }
+            vehicle.update(frames as float / 44_100.0)
+            vehicle.source.render(&samples[0:frames * 2])
+            for j in 0...frames * 2 {
+                var fade:float = 1.0
+                if frame + j / 2 >= 432_180 { fade = (440_999 - frame - j / 2) as float / 8_820.0 }
+                output.append(samples[j] * fade)
+            }
+            frame += frames
         }
     }
     if !found { panic("Unknown profile: $(profile). Use --list.") }
-    wave(path, @output[0:output.count()]); print("Vehicle workshop WAV: ", path)
+    wave(path, @output[0:output.count()]); print("Thermal vehicle workshop WAV: ", path)
 }
 public func list() {
     var workshop = Workshop()
-    for i in 0...workshop.catalogue.count() { print(workshop.catalogue[i].id, " : ", workshop.name(i)) }
-}
-func pump(workshop:Workshop, blocks:int) {
-    var samples = zeros(960)
-    for _ in 0...blocks {
-        workshop.update(0.01); workshop.source.render(&samples[0:960])
-        for sample in samples { assert(Math.is_finite(sample) && Math.abs(sample) <= 0.4) }
-    }
+    for i in 0...workshop.catalogue.count() { print(workshop.catalogue[i].key, " : ", workshop.name(i)) }
 }
 public func check() {
     var workshop = Workshop()
-    assert(workshop.catalogue.count() == 17)
-    for i in 0...workshop.catalogue.count() {
-        workshop.choose_profile(i); workshop.running.set(true); pump(workshop, 100)
-        assert(workshop.source.current_rpm() > workshop.selected().idle_rpm * 0.7)
-        assert(Math.abs(workshop.source.parts()!.block.displacement_litres() * 1_000.0 - workshop.capacity.value()) < 0.1)
-        let stock = workshop.source.parts()!
-        workshop.capacity.set(workshop.capacity.value() * 1.2); workshop.change_part(0.0); pump(workshop, 20)
-        assert(Math.abs(workshop.source.parts()!.block.displacement_litres() / stock.block.displacement_litres() - 1.2) < 0.001)
-        workshop.exhaust.set(-0.8); workshop.change_part(0.0); pump(workshop, 20)
-        let closed = workshop.source.parts()!.exhausts[0].silencer
-        workshop.exhaust.set(0.8); workshop.change_part(0.0); pump(workshop, 20)
-        assert(workshop.source.parts()!.exhausts[0].silencer.baffles < closed.baffles)
-        workshop.compare(); pump(workshop, 20)
-        assert(workshop.reference_active)
-        assert(Math.abs(workshop.source.parts()!.block.displacement_litres() - stock.block.displacement_litres()) < 0.0001)
-        workshop.compare(); pump(workshop, 20); assert(!workshop.reference_active)
-        workshop.audition_cycle(); pump(workshop, 810); assert(!workshop.audition)
-        workshop.running.set(false); pump(workshop, 1_000)
-        assert(workshop.source.current_rpm() < 1.0)
+    var library = Engines.Library.open(); var reference = library.engine("454")
+    var a = zeros(960); var b = zeros(960)
+    var controls = Engines.Controls(running:true)
+    for phase in 0...4 {
+        workshop.running.set(phase != 3); workshop.accelerating = phase == 1 || phase == 2
+        controls.running = phase != 3; controls.accelerating = phase == 1 || phase == 2
+        if phase == 2 { workshop.load.set(0.8); controls.load = 0.8 }
+        reference.set_controls(controls)
+        for _ in 0...120 {
+            workshop.update(480.0 / 44_100.0)
+            workshop.source.render(&a[0:960]); reference.render(&b[0:960])
+            assert(workshop.source.current_rpm() == reference.current_rpm())
+            for i in 0...960 { assert(a[i] == b[i], "workshop changed Chevrolet reference PCM") }
+        }
     }
-    workshop.choose_profile(5)
-    workshop.capacity.set(6_000.0); workshop.change_part(0.0); pump(workshop, 20)
-    assert(Math.abs(workshop.source.parts()!.block.displacement_litres() - 6.0) < 0.001)
-    let before = workshop.source.parts()!
-    workshop.compression.set(1.0); workshop.change_part(0.0); pump(workshop, 20)
-    assert(workshop.source.parts()!.head.chamber_cc == before.head.chamber_cc)
-    workshop.restore(); pump(workshop, 20)
-    workshop.listening.set(2); workshop.choose_listening(2)
-    workshop.pipe.set(1_700.0); workshop.change_part(0.0); pump(workshop, 20)
-    let solo = workshop.source.parts()!.mix
-    assert(solo.intake == 1.0 as float32 && solo.exhaust == 0.0 as float32 && solo.mechanics == 0.0 as float32 && solo.turbo == 0.0 as float32)
-    workshop.listening.set(0); workshop.choose_listening(0)
-    workshop.choose_profile(0); workshop.running.set(false); pump(workshop, 1_000)
-    workshop.response.set(0.1); workshop.throttle.set(1.0); workshop.load.set(0.0)
-    workshop.running.set(true); pump(workshop, 10)
-    let fast = workshop.source.current_rpm()
-    workshop.running.set(false); pump(workshop, 1_000)
-    workshop.response.set(1.0); workshop.running.set(true); pump(workshop, 10)
-    assert(fast > workshop.source.current_rpm() * 2.0, "response control did not change acceleration")
-    workshop.fixed_rpm.set(true); workshop.rpm.set(0.5); workshop.throttle.set(0.0); pump(workshop, 1_000)
-    let target = (workshop.selected().idle_rpm + workshop.selected().redline_rpm) * 0.5
-    assert(Math.abs(workshop.source.current_rpm() - target) < 1.0)
-    workshop.load.set(1.0); pump(workshop, 100)
-    assert(Math.abs(workshop.source.current_rpm() - target) < 1.0, "fixed bench lost its RPM under load")
-    workshop.fixed_rpm.set(false); workshop.running.set(false); pump(workshop, 1_000)
-    var ui = UI.Session(workshop.view())
-    for size in [400, 760, 1_160] { ui.drawing(size, 900) }
-    workshop.advanced.set(true); ui.drawing(760, 1_000)
-    var slider = UI.Runtime(workshop.capacity.view(workshop.change_part)); slider.drawing(320, 120)
+    workshop.exhaust.set(0.4); workshop.sound_changed(0.4); workshop.remember()
+    workshop.exhaust.set(0.9); workshop.sound_changed(0.9); workshop.compare()
+    assert(workshop.source.controls().exhaust == 0.4 as float)
+    workshop.compare(); assert(workshop.source.controls().exhaust == 0.9 as float)
+    let generation = workshop.generation
+    workshop.running.set(true); workshop.choose_profile(1)
+    assert(workshop.generation == generation && workshop.profile.value() == 0)
+    workshop.capacity.set(6_000.0); workshop.apply_capacity()
+    assert(workshop.generation == generation, "geometry changed on a running engine")
+    workshop.running.set(false)
+    // A fresh stopped bench exercises actual selection and start events.
+    var keyboard = Workshop(); var runtime = UI.Runtime(keyboard.view()); runtime.drawing(1_160, 900)
+    assert(runtime.key_pressed(Keyboard.Key.tab)); assert(runtime.key_pressed(Keyboard.Key.down))
+    assert(runtime.key_pressed(Keyboard.Key.end)); assert(runtime.key_pressed(Keyboard.Key.enter))
+    assert(keyboard.profile.value() == 17)
+    assert(keyboard.source.controls().idle_rpm == 800.0 as float, "nominal idle metadata must not engage the dyno")
+    assert(runtime.key_pressed(Keyboard.Key.tab)); assert(runtime.key_pressed(Keyboard.Key.enter))
+    assert(keyboard.running.value())
+    var ui = UI.Session(keyboard.view())
+    for width in [400, 760, 1_160] { ui.drawing(width, 900) }
+    var slider = UI.Runtime(keyboard.capacity.view(keyboard.capacity_changed)); slider.drawing(320, 120)
     assert(slider.key_pressed(Keyboard.Key.tab)); assert(slider.key_pressed(Keyboard.Key.end))
-    assert(Math.abs(workshop.capacity.value() - 12_000.0) < 0.01)
-    assert(slider.key_pressed(Keyboard.Key.home)); assert(Math.abs(workshop.capacity.value() - 50.0) < 0.01)
-    workshop.restore()
-    // Exercise actual retained controls: Tab focuses the profile, End chooses
-    // its last entry, then Tab/Space activates the start button.
-    var runtime = UI.Runtime(workshop.view()); runtime.drawing(1_160, 900)
-    assert(runtime.key_pressed(Keyboard.Key.tab))
-    assert(runtime.key_pressed(Keyboard.Key.down))
-    assert(runtime.key_pressed(Keyboard.Key.end))
-    assert(runtime.key_pressed(Keyboard.Key.enter))
-    assert(workshop.profile.value() == 16)
-    assert(runtime.key_pressed(Keyboard.Key.tab)); assert(runtime.key_pressed(Keyboard.Key.space))
-    pump(workshop, 150); assert(workshop.running.value())
-    print("Workshop check passed: 17 profiles, capacity, exhaust, A/B, audition, stop, rejection, layout and keyboard controls")
+    assert(Math.abs(keyboard.capacity.value() - 12_000.0) < 0.01)
+    print("Workshop check passed: exact Chevrolet PCM, A/B, safe profile/geometry changes, keyboard and three layouts")
 }

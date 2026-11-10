@@ -1,90 +1,90 @@
-# Façonner une signature sonore de véhicule
+# Écouter et adapter les moteurs de référence
 
-Choisir un véhicule, démarrer et maintenir **Espace** pour donner des gaz.
-**M** ou le bouton bascule le contact. L’atelier utilise le générateur procédural
-par pièces de GFX.Audio ; aucune banque d’enregistrements n’est nécessaire.
+EngineWorkshop utilise désormais `GFX.Audio.Engines.Vehicles`, avec le même
+simulateur thermique et la même chaîne sonore qu’EngineLibrary. Le Chevrolet
+454 est le profil initial : sa définition, ses réponses d’échappement et son
+traitement sont conservés. Le générateur simplifié par impulsions n’est plus
+utilisé dans cette démo.
 
-Depuis la racine `SilexProject/`, utiliser le package local puis construire :
+Depuis la racine `SilexProject/` :
 
 ```sh
 silex link Packages/GFX.Audio --workspace Silex-Examples
-silex compile Silex-Examples/Sources/EngineWorkshop/Main.sx --release -o Build/EngineWorkshop
+silex compile Silex-Examples/Sources/EngineWorkshop/Main.sx --debug -o Build/EngineWorkshop
 Build/EngineWorkshop
 ```
 
-## Choisir un véhicule
+Le simulateur embarqué reste construit en Release. Debug concerne ici le
+programme Silex de l’interface, comme pour EngineLibrary. La banque native
+est actuellement disponible sur macOS ARM64.
 
-Le menu propose 17 profils :
+## Choisir et écouter
 
-- citadines essence 1,0 L trois cylindres, essence 1,4 L quatre cylindres et turbodiesel 1,6 L ;
-- sportives I4 turbo 2,0 L, flat-six 3,2 L, V8 cross-plane 5,0 L, V10 5,2 L et V12 6,0 L ;
-- motocross 125, 250 et 500 cm³ deux temps ; 250 et 500 cm³ quatre temps ;
-- motos de course 1 000 cm³ quatre cylindres en ligne et V4 à allumages groupés ;
-- custom et chopper bicylindres 1 200 et 1 800 cm³ à intervalles 315°/405°.
+**M** ou le bouton démarre/coupe le contact. **Espace** maintenu donne des gaz,
+y compris après un clic sur un bouton ; Entrée active le contrôle focalisé.
+La perte de focus relâche Espace. Le régime affiché provient du simulateur.
+Le curseur d’accélérateur fournit une pédale continue et la charge sollicite
+le banc. À 800 tr/min, le maintien laisse le ralenti libre ; au-dessus, il
+maintient la rotation gaz relâchés selon le comportement du banc de référence.
 
-Les mentions GTI, 911, Mustang, R8, Ferrari et Harley sont des inspirations
-sonores, pas des reproductions certifiées de modèles commerciaux. Les profils
-et leur synthèse appartiennent à `GFX.Audio.Synthesis.EngineVehicles`.
+Le menu contient 18 entrées :
 
-## Entendre les réglages
+- Chevrolet 454 d’origine ; citadines essence trois/quatre cylindres et diesel prototype ;
+- sportives I4, flat-six, V8 sur base GM LS, V10 sur base LFA et V12 sur base Ferrari 412 T2 ;
+- motocross 125/250/500 deux temps et 250/500 quatre temps ;
+- motos de course I4 sur base Hayabusa et V4 à allumages groupés ;
+- custom/chopper 1 200/1 800 sur base Harley.
 
-La **cylindrée totale** se règle directement en cm³, sur une échelle logarithmique
-50..12 000 ; elle conserve les proportions alésage/course et le rapport de
-compression. Ce réglage ne représente pas le volume d’une chambre. Les limites
-de dimensions du générateur restent applicables : un assemblage incompatible
-est refusé avec un message et le son précédent est conservé.
+Changer de profil ou appliquer une cylindrée demande contact coupé et rotation
+arrêtée. La cylindrée concerne le moteur complet, en cm³ ; elle modifie ses
+dimensions et chambres, avec adaptation mécanique des monos. La référence
+454 conserve sa géométrie ; choisir le V8 américain pour une cylindrée modifiable.
+Un refus conserve le moteur en place. Le détail des modèles et de leurs limites
+appartient au [guide Vehicles](../../../Packages/GFX.Audio/Docs/FR/Vehicles.md).
 
-**Échappement** ouvre ou assourdit le profil en combinant absorption et nombre
-de chicanes. Zéro conserve son échappement d’origine. **Combustion** change
-l’attaque ; **Admission** combine son niveau et son absorption ; **Mécanique**
-règle son niveau ; **Fonctionnement** fait varier les combustions et légèrement
-la rotation. Les changements attendent 120 ms sans mouvement, puis sont fondus
-sur 50 ms. Modifier B pendant l’écoute de A revient à B.
+## Comparer les traitements
 
-L’accélérateur commande le régime cible ; l’effort le réduit et renforce le son
-en charge. Le temps de réponse est propre au profil et réglable. Déplier
-**Imposer le régime du banc** permet de fixer le régime indépendamment des gaz,
-pour comparer un moteur à régime constant. L’indication de régime donne les
-tr/min réels du banc ; le curseur du banc parcourt le ralenti jusqu’à la limite
-du profil. Le volume d’écoute reste indépendant du timbre.
+**Texture** agit sur le souffle et les variations du synthétiseur natif.
+**Échappement** mélange signal brut et réponse filtrée : 100 % conserve la
+réponse de référence. Ce réglage ne simule pas des chicanes. **Ambiance** ajoute
+le traitement spatial existant ; le volume reste indépendant. L’admission est
+proposée seulement pour les monos 4T qui fournissent le débit d’aspiration.
 
-**Essai 8 secondes** joue ralenti, montée en régime, effort et relâchement.
-L’essai conserve le moteur en marche. Une action sur les commandes du banc
-interrompt l’essai ; une perte de focus relâche Espace.
-
-**Mémoriser les réglages dans A** conserve la définition sonore B courante.
-**Basculer A / B** compare les timbres au même régime et au même effort, sans
-changer le temps de réponse. Les niveaux ne sont pas égalisés automatiquement.
-Choisir une voie seule aide à localiser une différence ; le turbo reste muet
-sur les profils qui n’en possèdent pas. Les dimensions de ligne et la compression
-restent disponibles sous **Réglages avancés**.
+**Mémoriser B dans A** et **Basculer A / B** comparent ces réglages d’écoute sur
+le même moteur en fonctionnement. Ils ne remplacent ni sa géométrie ni ses
+commandes de conduite. Modifier un traitement revient à B. **Essai 8 secondes**
+joue démarrage, gaz progressifs, charge et relâchement, puis laisse le contact
+allumé. Une commande de conduite interrompt cet essai.
 
 ## Exporter et vérifier
 
 ```sh
 Build/EngineWorkshop --list
+Build/EngineWorkshop --render Build/Chevrolet454.wav
 Build/EngineWorkshop --render Build/Cross250.wav --profile cross-250-2t
 Build/EngineWorkshop --render Build/Vehicles.wav --catalogue
 Build/EngineWorkshop --check
 Build/EngineWorkshop --trace-audio
 ```
 
-Chaque profil exporté dure 10 s : le même essai que dans l’interface, puis arrêt
-et queue avec fondu final. `--catalogue` concatène les 17 essais dans l’ordre du
-menu (170 s) et affiche les repères en secondes. Sans `--profile`, le rendu
-choisit `city-i3`. L’export conserve le volume initial et les différences de
-niveau ; il ne normalise pas les profils.
+L’export produit les réglages initiaux du profil choisi, à 44 100 Hz stéréo.
+Chaque clip dure 10 s : l’essai, puis la coupure et une queue avec fondu final.
+Le catalogue concatène les 18 clips (180 s) et affiche les repères. Les niveaux
+ne sont pas normalisés et l’export ne reprend pas les réglages d’une fenêtre
+interactive existante.
 
-`--check` vérifie les 17 assemblages, cylindrées, échappements, comparaisons,
-cycles d’essai, arrêts, refus, dessins à trois largeurs, curseur logarithmique
-et sélection/démarrage au clavier sans fenêtre ni périphérique audio.
-`--trace-audio` rapporte à la fermeture les observations de file vide et le plus
-grand intervalle de mise à jour. La file reste bornée : blocs de 480 frames,
-capacité de 4 800 à 48 kHz, soit au plus 110 ms préparés/en file hors périphérique.
+`--check` compare le PCM du 454 à EngineLibrary sur démarrage, accélération,
+charge et coupure, puis vérifie A/B, gardes de changement, clavier, curseur
+logarithmique et dessins à trois largeurs, sans périphérique. Le test consommateur
+GFX.Audio exerce les 18 définitions et la pédale continue. Le flux interactif
+reste borné à cinq blocs de sortie et quatre calculs de 480 frames, environ
+98 ms hors périphérique ; l’interface consomme les blocs prêts sans attendre
+le calcul. `--trace-audio` rapporte les observations de file vide et l’intervalle
+maximal entre mises à jour, pas un historique des ruptures du périphérique.
 
-Le modèle est acoustique et stylisé : chicanes filtrantes et résonance de détente
-2T simplifiées, sans simulation des cônes, du balayage, de la puissance ou d’une
-transmission routière. La qualité et la reconnaissance des profils restent à
-qualifier par l’écoute. La [bibliothèque moteur validée](../EngineLibrary/README.fr.md)
-reste un parcours distinct. `Measure.sx` conserve sa mesure du générateur V8
-historique ; elle ne mesure pas le catalogue complet.
+Le diesel reste une approximation à allumage commandé, sans injection ni
+auto-inflammation. L’I4 de sportive ne simule pas de turbo. Le 2T conserve les
+lumières et le balayage simplifiés du simulateur, sans pot de détente à cônes.
+Ces limites sont visibles pour les profils concernés. Les variantes demandent
+une qualification à l’écoute ; la parité du 454 protège la référence sonore.
+`Measure.sx` concerne toujours le prototype par pièces, pas cette chaîne native.

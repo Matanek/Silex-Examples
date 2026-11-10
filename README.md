@@ -33,13 +33,10 @@ The [validated engine library demo](Sources/EngineLibrary/README.md) consumes
 GFX.Audio's engine sounds and controls, including the simulator, engine profiles
 and optional automatic or manual transmission.
 
-The parts workshop is experimental and its sound model is not the validated
-engine path.
-
-The [vehicle workshop](Sources/EngineWorkshop/README.md) supplies 17 procedural
-city car, sports car, motocross, race motorcycle and custom signatures through
-GFX.Audio's public API. Shape total displacement and character, compare A/B,
-run an eight-second audition and export individual profiles or the catalogue.
+The [vehicle workshop](Sources/EngineWorkshop/README.md) now uses this same
+thermal sound chain: the unchanged Chevrolet 454 reference and 17 vehicle
+variants. Adapt total displacement with the engine stopped, compare processing
+A/B, run an eight-second audition and export profiles or the catalogue.
 
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.
