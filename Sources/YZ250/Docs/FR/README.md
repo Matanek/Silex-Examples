@@ -6,9 +6,10 @@ Depuis la racine `SilexProject/` :
 silex run Silex-Examples/Sources/YZ250/Main.sx
 ```
 
-La fenêtre **YZ250 · banque compacte · H4 · ESPACE = gaz** utilise la matière
-réelle de l’enregistrement fourni, avec **896 Kio** de PCM16 stéréo : 768 Kio
-de prises initiales et 128 Kio pour le palier G seul, en deux bandes passantes.
+La fenêtre **YZ250 · ralenti / retombée · H5 · ESPACE = gaz** utilise environ
+**1,25 Mio** de PCM16 stéréo. Le ralenti et la fermeture des gaz proviennent du
+début proche de **2018_Yamaha_YZ_250x.mp3** ; les attaques et le palier G gardent
+la référence YZ250/FMF précédente.
 Elle remplace le précédent banc à grains A/B/C à cette entrée. Le prototype
 spectral P1 reste séparé et ne constitue plus la version proposée à l’écoute.
 Le Chevrolet 454, la 500 4T et GFX.Audio sont inchangés.
@@ -32,23 +33,43 @@ la retombée. Comparer différentes charges et vérifier le son à régime fixe.
 **Montée longue · ×4** est le réglage initial d’inertie : à la charge par défaut,
 il faut environ quatre secondes de pleins gaz pour parcourir 95 % de la plage.
 **Réponse vive · ×1** garde une réaction brève ; ×4 permet une montée prolongée.
-Le curseur permet ×1 à ×10. L’inertie allonge uniquement l’accélération ; la
-retombée conserve sa réponse vive. Ce réglage ne simule pas une boîte de vitesses
+Le curseur permet ×1 à ×10. L’inertie allonge uniquement l’accélération.
+La retombée utilise une constante de 0,62 s : environ 1,86 s pour parcourir
+95 % du retour au régime de base, après fermeture des gaz. Le statut affiche
+**retombée / claquements** pendant cette texture distincte. Ce réglage ne simule pas une boîte de vitesses
 et n’ajoute aucun changement de rapport automatique.
 
-Le **régime de base** vaut maintenant **1 800 tr/min**, réglable de 1 800 à
-3 500. Il est extrapolé sous la plage enregistrée, sans prétendre reproduire un
-ralenti réel mesuré. Les dix exports utilisent le réglage de base initial.
+Le **régime de base** vaut **1 800** dans l’échelle de commande, réglable de
+1 800 à 3 500. À 1 800, la nouvelle prise de ralenti conserve son tempo natif.
+Cette valeur n’est pas une mesure de ses tr/min au compte-tours.
+Les onze exports utilisent le réglage de base initial.
 
 **G seul · palier** conserve uniquement la prise de l’essai G, au-dessus de
 6 000 tr/min une fois le régime stabilisé. La charge y règle le niveau sonore,
 sans mélange avec d’autres timbres. Elle continue de ralentir la montée en
-mode accélérateur. **Prises initiales · comparer** réactive l’ancien mélange
-au palier. Le régime et la phase restent continus.
+mode accélérateur. **Prises initiales · comparer** désactive G et les nouvelles
+textures de ralenti et de retombée. Le régime et la phase restent continus.
 
 Le volume ne change pas la réponse du moteur.
 
 ## Ce qui conserve le caractère de la référence
+
+La nouvelle prise de ralenti utilise **4,06–4,70 s** du fichier YZ250X : la fin
+au ralenti identifiée dans les 4,7 premières secondes. Le démarrage autour de
+1 s et la partie où la moto s’éloigne sont exclus. Le PCM garde son temps natif,
+avec un raccord de boucle de 20 ms et un gain fixe. Trois bandes passantes
+préparées hors ligne évitent le repliement pendant la transposition. Son lecteur
+suit progressivement la commande de régime et s’efface sur les premiers
+1 600 tr/min au-dessus de la base, pour rejoindre les attaques existantes.
+
+La retombée utilise **3,64–4,00 s**, à la fermeture du dernier coup de gaz proche.
+La préparation suit la seconde partielle pour corriger la hauteur interne,
+sans recaler les formes d’explosion entre elles. La prise conserve 32 cycles
+avec leurs claquements. Fermer les gaz sous charge déclenche ce chemin même
+quand la texture de charge devient nulle ; il s’efface progressivement à
+l’approche du ralenti et lors d’une réouverture. Le niveau n’est pas multiplié
+par l’ouverture des gaz. Allonger seulement les tr/min tout en coupant le son
+à la fermeture ne suffirait pas à reproduire une décélération.
 
 Le programme lit douze courtes boucles issues du PCM réel du fichier **2023
 YZ250 + FMF Full Exhaust PURE SOUND.mp3**. Chaque segment stocke **32 tours** avec leurs explosions, leur bruit et leur
@@ -99,7 +120,8 @@ jusqu’à 10 500 tr/min. À 7 000 tr/min, G garde sa bande passante initiale.
 
 `PeakBounds.sx` contient une enveloppe conservatrice des crêtes des mélanges initiaux.
 La prise G utilise la crête maximale de ses deux bandes passantes.
-Les deux chemins sont bornés séparément avant leur transition convexe.
+G, les mélanges initiaux, le ralenti et la retombée sont bornés séparément
+avant leurs transitions convexes.
 Le gain respecte un plafond de 0,98 pour toutes les phases de lecture, y compris
 les poids résiduels pendant les transitions. La protection
 utilise les crêtes des données et les poids de mélange, pas le niveau instantané
@@ -123,20 +145,23 @@ stéréo, sans normalisation automatique ni compresseur.
 ## Taille et limites
 
 `Assets/Compact.pcm` contient douze segments de 64 Kio ; `Assets/Registered.pcm`
-contient G seul et sa vue filtrée, deux segments de 64 Kio. Le total vaut
-**917 504 octets**. Ce sont les seules données audio embarquées. Le chargement
-les décode une fois en float32 : environ 1,75 Mio en mémoire. Les anciens assets
+contient G seul et sa vue filtrée, deux segments de 64 Kio. `Assets/LowSpeed.pcm`
+ajoute **393 652 octets** de ralenti et de retombée. Le total vaut
+**1 311 156 octets**. Ce sont les seules données audio embarquées. Le chargement
+les décode une fois en float32 : environ 2,50 Mio en mémoire. Les anciens assets
 `Reference.pcm` et `Grains.bin` restent des données historiques de préparation ;
-ils ne sont plus embarqués ni lus par la démo H4.
+ils ne sont plus embarqués ni lus par la démo H5.
 
-La référence couvre des tr/min acoustiquement estimés à **3 660–10 500**, sans
-compte-tours. La démo accepte **1 800–10 500** : le bas supplémentaire est une
-transposition de la texture enregistrée, pas une nouvelle prise de son.
-Le ralenti n’est pas enregistré. Les deux textures de charge sont des indices
-de montée/retombée, pas des mesures de couple. Une source de treize secondes ne
-couvre pas toutes les situations ; des répétitions et des différences de timbre
-entre boucles restent à juger à l’écoute. Le microphone et l’échappement FMF
-font partie de la référence. Ce prototype hybride attend une validation humaine
+La référence FMF couvre des tr/min acoustiquement estimés à **3 660–10 500**.
+La démo accepte **1 800–10 500** comme échelle indicative de commande. Le ralenti
+YZ250X est réellement enregistré, mais ne possède pas de mesure au compte-tours :
+sa conservation au tempo natif prime sur une hauteur déduite du numéro affiché.
+Les textures de charge restent des indices de montée/retombée, sans mesure de
+couple. Ces deux courts enregistrements ne
+couvrent pas toutes les situations ; des répétitions et des différences de timbre
+entre boucles restent à juger à l’écoute. La YZ250X 2018 et la YZ250/FMF 2023
+ont des prises et échappements différents : leur raccord reste une limite du
+prototype. Celui-ci attend une validation humaine
 avant toute généralisation.
 
 `Assets/Compact.json` donne les empreintes de l’original et du PCM, les fenêtres
@@ -146,13 +171,13 @@ Les archives sont uniquement lues par la préparation.
 ## Vérifier et exporter
 
 ```sh
-silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H4
-Build/YZ250-H4 --check
-Build/YZ250-H4 --render Build/YZ250-H4
-python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H4
+silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H5
+Build/YZ250-H5 --check
+Build/YZ250-H5 --render Build/YZ250-H5
+python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H5
 ```
 
-Les dix WAV stéréo PCM16 utilisent un gain commun de 0,7 :
+Les onze WAV stéréo PCM16 utilisent un gain commun de 0,7 :
 
 | Suffixe | Contenu |
 | --- | --- |
@@ -163,12 +188,18 @@ Les dix WAV stéréo PCM16 utilisent un gain commun de 0,7 :
 | `Micro` | 4 s avec une ouverture des gaz de 80 ms |
 | `Progressive` | 12 s : ouverture progressive des gaz sur 4 s, maintien puis relâchement |
 | `Long` | 20 s : pleins gaz à inertie ×4, maintien puis relâchement |
+| `Nearby` | 10 s à inertie ×4 : ralenti, petit coup de gaz, retour, montée puis retombée |
 
-Les neuf premiers scénarios utilisent l’inertie ×1 ; `Long`
-utilise le réglage ×4 proposé par défaut dans l’interface.
+Les neuf premiers scénarios utilisent l’inertie ×1 ; `Long` et `Nearby`
+utilisent le réglage ×4 proposé par défaut dans l’interface.
 
-Chaque export possède un CSV de régime, de phase, de charge acoustique et de gaz.
+Chaque export possède un CSV de régime, de phase, de charge acoustique, de gaz
+et de poids du chemin de retombée (`coast`).
 Les paliers de l’interface restent continus sans limite de durée.
+
+Pour juger le timbre, écouter un seul état à la fois : commencer par `Idle`,
+puis la fermeture des gaz entre 7,15 et 8,00 s dans `Throttle`. `Nearby` sert
+ensuite à juger les raccords ; il n’est pas une comparaison de timbres isolés.
 
 Les contrôles couvrent 27 points régime/charge, la cadence, la sortie finie sans
 saturation, le freinage par la charge sans plafond artificiel, le maintien et le
@@ -189,6 +220,10 @@ le micro coup de gaz, la taille et les empreintes de la banque et de l’envelop
 de crête et du recalage. Il contrôle l’amélioration de la cohérence des formes
 de pression dans la prise de l’essai G. À 7 000 tr/min, il compare directement
 la forme d’onde rendue à G isolé, à trois charges, pour protéger son timbre.
+Le ralenti rendu est aussi comparé au PCM natif. `--coast-check` vérifie qu’une
+fermeture coupe les gaz sans supprimer la rotation ni les claquements, puis
+que le moteur rejoint le ralenti et réagit à une réouverture. Il teste aussi
+l’indépendance aux découpages de buffers pendant toute la retombée.
 Le résultat est écrit dans `*-Verification.json`. Ces mesures ne remplacent pas
 la validation du caractère sonore. `--check` reproduit aussi, avec un mixer
 hors ligne, l’assèchement de l’ancienne alimentation par l’interface : un blocage
@@ -197,8 +232,8 @@ de 120 ms dépasse son avance de 46 ms.
 Pour vérifier la sortie audio réelle avec l’interface, sans capture d’écran :
 
 ```sh
-Build/YZ250-H4 --live-check Build/YZ250-H4-Live
-python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H4-Live
+Build/YZ250-H5 --live-check Build/YZ250-H5-Live
+python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H5-Live
 ```
 
 Ce test automatique dure huit secondes et bloque volontairement le thread de
@@ -224,7 +259,7 @@ python3 Silex-Examples/Sources/YZ250/PrepareCompact.py \
 
 L’outil écrit `Compact.pcm` et `Compact.json` dans le répertoire de sortie,
 et `BlendEnergy.sx` dans son répertoire parent. Pour une reconstruction de
-contrôle, utiliser par exemple `Build/YZ250-H4-Rebuild/Assets`.
+contrôle, utiliser par exemple `Build/YZ250-H5-Rebuild/Assets`.
 
 Après une nouvelle préparation de la banque, régénérer son enveloppe et les
 cycles recalés :
@@ -242,6 +277,18 @@ python3 Silex-Examples/Sources/YZ250/PrepareRegistered.py \
 ajoutent environ 17 Kio de nombres au programme. `Assets/Registered.json`
 conserve l’empreinte des deux banques, les paramètres et les décalages par cycle ;
 `RegisteredData.sx` contient puissance et crête du PCM recalé.
+
+Après décodage de la nouvelle référence en WAV PCM16 stéréo 44,1 kHz :
+
+```sh
+python3 Silex-Examples/Sources/YZ250/PrepareLowSpeed.py \
+  Build/YZ250X-Source.wav \
+  .archives/EngineSounds/2018_Yamaha_YZ_250x.mp3 \
+  Silex-Examples/Sources/YZ250
+```
+
+`Assets/LowSpeed.json` conserve les empreintes, fenêtres proches, niveaux et
+chemin de hauteur ; `LowSpeedData.sx` contient les bornes de lecture et de crête.
 Python utilise seulement sa bibliothèque standard. Il n’est pas requis à la
 lecture de la démo compilée. L’ancien `Prepare.py` prépare uniquement les assets
 historiques du banc à grains ; il ne reconstruit pas la banque compacte.

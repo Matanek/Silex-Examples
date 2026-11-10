@@ -97,10 +97,11 @@ class Bench {
         if self.driving.value() {
             command = "Accélérateur · gaz $(Math.round(self.voice.current_throttle() * 100.0) as int) %"
             if self.space_held { command += " · ESPACE maintenu" }
+            else if self.voice.current_coast() > 0.1 { command += " · retombée / claquements" }
         }
-        self.status.set("$(command) · $(Math.round(self.voice.current_rpm()) as int) tr/min estimés")
+        self.status.set("$(command) · $(Math.round(self.voice.current_rpm()) as int) tr/min indicatifs")
     }
-    func rpm_label(value:float) str { return "$(Math.round(value) as int) tr/min estimés" }
+    func rpm_label(value:float) str { return "$(Math.round(value) as int) tr/min indicatifs" }
     func inertia_label(value:float) str { return "$(Math.round(value * 10.0) / 10.0) × · durée de montée" }
     func variation_view(reads:UI.Reads) UI.View {
         if reads.read(self.variation) { return text("G seul au palier · dès 6 000 tr/min · charge = niveau sonore du palier") }
@@ -128,8 +129,8 @@ class Bench {
         var volume = UI.Slider(self.volume, 0.0, 1.0, self.changed)
         load.style.height = 28.0; load.style.accent = Color.cyan_400()
         volume.style.height = 28.0; volume.style.accent = Color.cyan_400()
-        var content = UI.Column([text("YZ250 · banque compacte · H4", 28.0),
-            text("Texture enregistrée réelle · attaques initiales + palier G seul · audio 896 Kio"), UI.Reactive(self.status_view),
+        var content = UI.Column([text("YZ250 · ralenti / retombée · H5", 28.0),
+            text("Référence YZ250X proche · palier G conservé · audio 1,25 Mio"), UI.Reactive(self.status_view),
             text("Maintenez ESPACE : démarrage et pleins gaz. Relâchez : retombée du régime."),
             UI.Row([button("Accélérateur", self.drive), button("Banc à régime fixe", self.manual), button("Lecture / arrêt · M", self.toggle)], wrap:true),
             UI.Reactive(self.control_view),
@@ -139,13 +140,14 @@ class Bench {
             text("Aucun changement de rapport automatique ; le régime monte tant qu’Espace est maintenu."),
             UI.Reactive(self.continuity_view),
             text("Charge mécanique · ralentit la montée, sans bloquer le plein régime"), UI.Text(self.load, format:self.percent), load,
-            text("Régime de base · extrapolé sous la plage enregistrée"), UI.Text(self.idle, format:self.rpm_label), idle,
+            text("Régime de base · 1 800 = tempo natif du ralenti enregistré"), UI.Text(self.idle, format:self.rpm_label), idle,
             UI.Row([button("G seul · palier", self.varied), button("Prises initiales · comparer", self.fixed_loop)], wrap:true),
             UI.Reactive(self.variation_view),
             text("Volume"), UI.Text(self.volume, format:self.percent), volume,
             text("Les boucles conservent plusieurs explosions et la matière mécanique du fichier YZ250 / FMF."),
             text("Leur régime interne est stabilisé avant lecture ; les transitions partagent la même cadence."),
-            text("Régime estimé sans compte-tours. Réponse aux gaz simplifiée ; pas de ralenti enregistré."),
+            text("Fermer les gaz active une texture de décélération ; la rotation revient progressivement au ralenti."),
+            text("Commande de régime sans calibration au compte-tours. Ralenti/retombée : YZ250X 2018 ; G : YZ250/FMF 2023."),
             text("Écouter des coups de gaz brefs, un maintien des gaz, puis la retombée. 454 / 500 4T inchangés.")])
         content.style.gap = 14.0; content.style.padding = UI.Insets(22.0)
         content.style.background = Color.bytes(10, 16, 24); content.style.foreground = Color.slate_100()
@@ -197,7 +199,7 @@ public class Session:Canvas.Session {
 }
 public func show() {
     var audio = Audio(); var session = Session(audio)
-    Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:1_000, title:"Silex — YZ250 · banque compacte · H4 · ESPACE = gaz"))
+    Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:1_000, title:"Silex — YZ250 · ralenti / retombée · H5 · ESPACE = gaz"))
 }
 func key_event(key:Keyboard.Key, repeated:bool = false) Events.KeyEvent {
     return Events.KeyEvent(window:Window.Id(value:0 as uint32), keyboard:Keyboard.KeyboardId(value:0 as uint32),
@@ -215,7 +217,7 @@ public func check() {
     for _ in 0...80 { bench.voice.render(&samples[0:1_024]) }
     assert(bench.voice.current_rpm() > 8_000.0, "space did not accelerate")
     assert(bench.handle(Events.Event.key_released(key_event(Keyboard.Key.space))))
-    for _ in 0...150 { bench.voice.render(&samples[0:1_024]) }
+    for _ in 0...320 { bench.voice.render(&samples[0:1_024]) }
     assert(bench.voice.current_rpm() < 1_850.0, "space release did not close throttle")
     bench.handle(Events.Event.key_pressed(key_event(Keyboard.Key.space)))
     for _ in 0...30 { bench.voice.render(&samples[0:1_024]) }
@@ -243,5 +245,5 @@ public func check() {
     assert(presets.key_pressed(Keyboard.Key.tab)); assert(presets.key_pressed(Keyboard.Key.enter)); assert(bench.variation.value())
     assert(presets.key_pressed(Keyboard.Key.tab)); assert(presets.key_pressed(Keyboard.Key.enter)); assert(!bench.variation.value())
     var ui = UI.Session(bench.view()); for width in [400, 760, 1_100] { ui.drawing(width, 820) }
-    print("YZ250 H4 UI passed: space press/repeat/release/focus, auto-start, bench switch, M and layouts")
+    print("YZ250 H5 UI passed: space press/repeat/release/focus, auto-start, bench switch, M and layouts")
 }

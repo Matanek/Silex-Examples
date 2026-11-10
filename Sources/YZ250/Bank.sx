@@ -2,6 +2,7 @@ use STD.Math
 use Module.BlendEnergy
 use Module.PeakBounds
 use Module.Registered
+use Module.LowSpeed
 
 // Original attacks (768 KiB) and one aligned take G, two bandwidths (128 KiB).
 // Both voices share the same continuous crank clock.
@@ -11,13 +12,16 @@ public class Bank {
     let maximum_rpm:float = 10_500.0
     let rpms:float64[] = [3_660.0, 4_500.0, 6_000.0, 7_500.0, 9_000.0, 10_500.0]
     let audio_bytes:int
+    let idle_frames:int
     private var pcm:float32[] = []
     private var energy:BlendEnergy = BlendEnergy()
     private var bounds:PeakBounds = PeakBounds()
     private var registered:Registered = Registered()
+    private var low_speed:LowSpeed = LowSpeed()
     init() {
         let bytes = embed_bytes("Assets/Compact.pcm")
-        self.audio_bytes = bytes.count() + self.registered.audio_bytes
+        self.audio_bytes = bytes.count() + self.registered.audio_bytes + self.low_speed.audio_bytes
+        self.idle_frames = self.low_speed.idle_frames
         assert(bytes.count() == 12 * 32 * 512 * 4)
         for i in 0...bytes.count() / 2 {
             var word = bytes[i * 2] as int + bytes[i * 2 + 1] as int * 256
@@ -59,6 +63,8 @@ public class Bank {
     }
     func registered_peak() float64 { return self.registered.peak() }
     func registered_sample(turns:float64, channel:int, rpm:float64) float64 { return self.registered.sample(turns, channel, rpm) }
+    func idle_sample(position:float64, channel:int, rpm:float64) float64 { return self.low_speed.idle(position, channel, rpm) }
+    func coast_sample(turns:float64, channel:int) float64 { return self.low_speed.coast(turns, channel) }
     func node_peak(index:int) float64 { return self.bounds.peaks[index] }
     private func bound_at(pair:int, rpm:float64, low:float64, high:float64) float64 {
         let r = Math.clamp(rpm * 16.0, 0.0, 16.0)

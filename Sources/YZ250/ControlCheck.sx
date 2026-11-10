@@ -34,5 +34,5 @@ public func check() {
             if Math.abs(value) > peak { peak = Math.abs(value); bad_rpm = voice.current_rpm(); bad_load = voice.current_load() }
         }
     }
-    print("H4 headroom: static=", static_peak, " control-stress peak=", peak, " RPM=", bad_rpm, " load=", bad_load)
+    print("H5 headroom: static=", static_peak, " control-stress peak=", peak, " RPM=", bad_rpm, " load=", bad_load)
 }

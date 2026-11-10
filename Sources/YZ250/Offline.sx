@@ -28,7 +28,7 @@ func wave(path:str, values:@float32[..]) {
 }
 public func render(prefix:str) {
     var bank = Bank(); var samples = zeros(256)
-    for scenario in 0...10 {
+    for scenario in 0...11 {
         var voice = Voice(bank); var rpm:float = 4_500.0; var load:float = 0.7
         var suffix = "Fixed-4500"; var seconds = 8
         if scenario == 1 { rpm = 7_000.0; suffix = "Fixed-7000" }
@@ -40,10 +40,11 @@ public func render(prefix:str) {
         if scenario == 7 { suffix = "Progressive"; seconds = 12 }
         if scenario == 8 { suffix = "Micro"; seconds = 4 }
         if scenario == 9 { suffix = "Long"; seconds = 20; voice.set_inertia(4.0) }
+        if scenario == 10 { suffix = "Nearby"; seconds = 10; voice.set_inertia(4.0) }
         voice.set_state(rpm, load)
-        if scenario == 5 || scenario == 7 || scenario == 8 || scenario == 9 { voice.set_drive(0.0, 0.4) }
+        if scenario == 5 || scenario == 7 || scenario == 8 || scenario == 9 || scenario == 10 { voice.set_drive(0.0, 0.4) }
         voice.reset()
-        var output:float32[] = []; var telemetry = "frame,rpm,turns,load,throttle\n"
+        var output:float32[] = []; var telemetry = "frame,rpm,turns,load,throttle,coast\n"
         let duration = seconds * 44_100
         var frame = 0
         while frame < duration {
@@ -71,6 +72,12 @@ public func render(prefix:str) {
                 if time >= 1.0 && time < 12.0 { throttle = 1.0 }
                 voice.set_drive(throttle, 0.4)
             }
+            if scenario == 10 {
+                var throttle:float = 0.0
+                if time >= 1.0 && time < 1.15 { throttle = 1.0 }
+                if time >= 3.5 && time < 6.0 { throttle = 1.0 }
+                voice.set_drive(throttle, 0.4)
+            }
             var count = 256; if frame + count > duration { count = duration - frame }
             voice.render(&samples[0:count * 2])
             for i in 0...count * 2 {
@@ -79,15 +86,15 @@ public func render(prefix:str) {
                 output.append(samples[i] * 0.7 * fade)
             }
             frame += count
-            telemetry += "$(frame),$(voice.current_rpm()),$(voice.crank_turns()),$(voice.current_load()),$(voice.current_throttle())\n"
+            telemetry += "$(frame),$(voice.current_rpm()),$(voice.crank_turns()),$(voice.current_load()),$(voice.current_throttle()),$(voice.current_coast())\n"
         }
         wave(prefix + "-$(suffix).wav", @output[0:output.count()])
         var encoded = UTF8.bytes(telemetry); File.write_all(prefix + "-$(suffix).csv", @encoded[0:encoded.count()])
-        print("YZ250 H4 export: ", prefix, "-", suffix, ".wav")
+        print("YZ250 H5 export: ", prefix, "-", suffix, ".wav")
     }
 }
 public func check() {
-    var bank = Bank(); assert(bank.audio_bytes == 917_504)
+    var bank = Bank(); assert(bank.audio_bytes == 1_311_156)
     var a = zeros(512); var b = zeros(512); var peak:float = 0.0
     let rpms:float[] = [1_800.0, 2_500.0, 3_660.0, 4_500.0, 6_000.0, 7_000.0, 7_500.0, 9_000.0, 10_500.0]
     let loads:float[] = [0.0, 0.5, 1.0]
@@ -168,7 +175,7 @@ public func check() {
     }
     assert(difference > 1.0 && low.crank_turns() == high.crank_turns(), "load changed pitch or had no sound effect")
     whole.set_drive(0.0, 0.6)
-    for _ in 0...250 { whole.render(&a[0:1_024]) }
+    for _ in 0...400 { whole.render(&a[0:1_024]) }
     assert(whole.current_rpm() < 1_810.0 && whole.current_throttle() < 0.001, "gas release did not return to floor")
     whole.set_drive(0.0, 0.6, false)
     for _ in 0...50 { whole.render(&a[0:1_024]) }
@@ -178,5 +185,5 @@ public func check() {
     match try whole.set_drive(1.01, 0.0) { failure(value) => {}; success => { panic("invalid gas accepted") } }
     match try whole.render(&a[0:3]) { failure(value) => {}; success => { panic("partial frame accepted") } }
     assert(clock == whole.frame())
-    print("YZ250 H4 checks passed: 896 KiB bank, 27 steady points, upper blend energy, accepted attack mix, gas/load/hold/release, phase, split blocks, stop and errors. Peak=", peak)
+    print("YZ250 H5 checks passed: nearby idle/overrun, isolated G, 27 steady points, gas/load/hold/release, phase, split blocks, stop and errors. Peak=", peak)
 }

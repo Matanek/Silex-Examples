@@ -6,9 +6,10 @@ From the `SilexProject/` root:
 silex run Silex-Examples/Sources/YZ250/Main.sx
 ```
 
-The **YZ250 · banque compacte · H4 · ESPACE = gaz** window uses real texture
-from the supplied recording, with **896 KiB** of stereo PCM16: 768 KiB of original
-recordings and 128 KiB for isolated G holds, in two bandwidths. It replaces
+The **YZ250 · ralenti / retombée · H5 · ESPACE = gaz** window uses about
+**1.25 MiB** of stereo PCM16. Idle and closed-gas textures come from the nearby
+opening of **2018_Yamaha_YZ_250x.mp3**; attacks and isolated G keep the previous
+YZ250/FMF reference. It replaces
 the previous A/B/C grain bench at this entry. The spectral P1 experiment remains
 separate and is no longer the proposed listening candidate. Chevrolet 454,
 500 four-stroke and GFX.Audio are unchanged.
@@ -31,21 +32,39 @@ then hold for several seconds and listen to the release. Compare different
 loads and check steady RPM. **Montée longue · ×4** is the initial inertia setting: at default load, full
 throttle takes about four seconds to cover 95% of the RPM range.
 **Réponse vive · ×1** retains a quick response; ×4 provides a prolonged rise. The slider spans ×1 to
-×10. Inertia lengthens acceleration only; release retains its quick response.
+×10. Inertia lengthens acceleration only. Release uses a 0.62 s time constant:
+about 1.86 s to cover 95% of the return to base RPM after closing the throttle.
+Status shows **retombée / claquements** while this distinct texture is active.
 This setting does not simulate a gearbox or add automatic gear changes.
 
-**Base RPM** is now **1,800**, adjustable from 1,800 to 3,500. It is extrapolated
-below the recorded range, without claiming a measured real idle. All ten exports
+**Base RPM** is **1,800** on the control scale, adjustable from 1,800 to 3,500.
+At 1,800, the new idle recording retains its native tempo. This
+number is not a tachometer measurement of that recording. All eleven exports
 use the initial base setting.
 
 **G seul · palier** retains only listening test G's take, above 6,000 RPM once
 speed settles. Load controls its volume without blending other timbres. It
-still slows the rise in throttle mode. **Prises initiales · comparer** restores
-the old blend for holds. RPM and phase remain continuous.
+still slows the rise in throttle mode. **Prises initiales · comparer** disables
+G and the new idle/overrun textures. RPM and phase remain continuous.
 
 Volume does not change engine response.
 
 ## What preserves the reference's character
+
+The new idle take uses **4.06–4.70 s** of the YZ250X file: the idle return
+identified in the first 4.7 seconds. Startup around 1 s and the receding-motor
+section are excluded. PCM retains native timing, with a 20 ms loop join
+and fixed gain. Three offline-prepared bandwidths prevent aliasing while
+pitching up. Its reader follows the RPM control gradually and fades out
+over the first 1,600 RPM above base, joining the existing attacks.
+
+Overrun uses **3.64–4.00 s**, the last nearby blip's throttle closure. Offline
+preparation tracks the second partial to correct internal pitch without
+aligning firing shapes to each other. The take retains 32 cycles with their
+clacks. Closing loaded throttle triggers this path even when acoustic load
+becomes zero; it fades toward idle and when gas reopens. Its level is not
+multiplied by throttle opening. Lengthening the RPM fall while muting the
+engine at closure would not reproduce audible deceleration.
 
 The program reads twelve short loops from the actual PCM of **2023 YZ250 +
 FMF Full Exhaust PURE SOUND.mp3**. Each segment stores **32 revolutions** with their firings, noise and mechanical
@@ -91,7 +110,7 @@ At 7,000 RPM, G retains its original bandwidth.
 
 `PeakBounds.sx` contains a conservative envelope of original mix peaks.
 G uses the maximum peak across its two bandwidths. Both paths are bounded
-separately before their convex transition. Gain respects a
+separately, as are idle and overrun, before their convex transitions. Gain respects a
 0.98 ceiling at every reading phase, including residual
 weights during transitions. Protection uses data peaks and blend weights,
 not instantaneous signal level: peaks are not flattened by a clipper.
@@ -113,19 +132,21 @@ evolution. Sound stays stereo, without automatic normalization or compression.
 ## Size and limits
 
 `Assets/Compact.pcm` contains twelve 64 KiB segments; `Assets/Registered.pcm`
-contains G alone and its filtered view, two 64 KiB segments. The total is
-**917,504 bytes**. These are the only embedded audio data. Loading decodes them
-once to float32: about 1.75 MiB in memory. Earlier `Reference.pcm` and `Grains.bin`
-assets remain historical preparation data; H4 neither embeds nor reads them.
+contains G alone and its filtered view, two 64 KiB segments. `Assets/LowSpeed.pcm`
+adds **393,652 bytes** of idle and overrun. The total is **1,311,156 bytes**.
+These are the only embedded audio data. Loading decodes them once to float32:
+about 2.50 MiB in memory. Earlier `Reference.pcm` and `Grains.bin` assets remain
+historical preparation data; H5 neither embeds nor reads them.
 
-The reference spans acoustically estimated **3,660–10,500 RPM**, without a
-tachometer. The demo accepts **1,800–10,500**: the additional low range transposes
-the recorded texture rather than supplying a new recording.
-Idle was not recorded. Both load textures are rising/falling proxies, not
-measured torque. A thirteen-second recording does not cover every situation;
-repetition and timbre differences between loops remain listening questions.
-The microphone and FMF exhaust are part of the reference. This hybrid prototype
-awaits human listening approval before generalization.
+The FMF reference spans acoustically estimated **3,660–10,500 RPM**. The demo
+accepts **1,800–10,500** as an indicative control scale. The YZ250X idle is an
+actual recording without tachometer measurement: preserving native tempo takes
+precedence over a pitch inferred from the displayed number. Load textures remain
+rising/falling proxies without measured torque. These two short recordings do
+not cover every situation; repetition and timbre differences need listening
+judgment. The 2018 YZ250X and 2023 YZ250/FMF have different recordings and
+exhausts: their join remains a prototype limitation. Listening approval is
+required before generalization.
 
 `Assets/Compact.json` records original/PCM hashes, selected windows, the usable
 phase interval, levels and bank size. Preparation only reads the archives.
@@ -133,13 +154,13 @@ phase interval, levels and bank size. Preparation only reads the archives.
 ## Verify and export
 
 ```sh
-silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H4
-Build/YZ250-H4 --check
-Build/YZ250-H4 --render Build/YZ250-H4
-python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H4
+silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H5
+Build/YZ250-H5 --check
+Build/YZ250-H5 --render Build/YZ250-H5
+python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H5
 ```
 
-The ten stereo PCM16 WAVs use a common 0.7 gain:
+The eleven stereo PCM16 WAVs use a common 0.7 gain:
 
 | Suffix | Content |
 | --- | --- |
@@ -150,12 +171,18 @@ The ten stereo PCM16 WAVs use a common 0.7 gain:
 | `Micro` | 4 s with an 80 ms throttle opening |
 | `Progressive` | 12 s: progressively open throttle over 4 s, hold, then release |
 | `Long` | 20 s: full throttle at inertia ×4, hold, then release |
+| `Nearby` | 10 s at inertia ×4: idle, short blip, return, rise, then overrun |
 
-The first nine scenarios use inertia ×1; `Long` uses
+The first nine scenarios use inertia ×1; `Long` and `Nearby` use
 the ×4 setting proposed by default in the interface.
 
-Every export includes an RPM, phase, acoustic-load and throttle CSV. UI holds
+Every export includes an RPM, phase, acoustic-load, throttle and overrun-weight
+(`coast`) CSV. UI holds
 continue indefinitely.
+
+Judge timbre one state at a time: start with `Idle`, then throttle closure
+between 7.15 and 8.00 s in `Throttle`. Use `Nearby` afterward to judge joins;
+it is not a comparison of isolated timbres.
 
 Checks cover 27 RPM/load points, cadence, finite unclipped output, load slowing
 the rise without an artificial cap, hold/release, block independence, stopping
@@ -172,7 +199,10 @@ release. It protects the three accepted H1 excerpts by hash and checks the
 floor's evenness, progressive throttle, micro-blip, bank size and hashes,
 including peak envelopes and alignment. It checks improved pressure-shape
 coherence in listening test G's recording. At 7,000 RPM it compares the actual
-rendered waveform to isolated G at three loads, protecting its timbre. Results are written to
+rendered waveform to isolated G at three loads, protecting its timbre. Rendered
+idle is also compared to native PCM. `--coast-check` verifies that closing gas
+retains rotation and audible clacks, returns to idle, and responds to reopening.
+It also checks buffer-splitting independence throughout overrun. Results are written to
 `*-Verification.json`. These measurements do not replace listening validation
 of the sound's character. `--check` also reproduces the old GUI-fed queue's
 starvation with an offline mixer: a 120 ms stall exceeds its 46 ms reserve.
@@ -180,8 +210,8 @@ starvation with an offline mixer: a 120 ms stall exceeds its 46 ms reserve.
 To verify actual audio output with the GUI, without screenshots:
 
 ```sh
-Build/YZ250-H4 --live-check Build/YZ250-H4-Live
-python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H4-Live
+Build/YZ250-H5 --live-check Build/YZ250-H5-Live
+python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H5-Live
 ```
 
 This automatic test lasts eight seconds and deliberately blocks the GUI thread
@@ -205,7 +235,7 @@ python3 Silex-Examples/Sources/YZ250/PrepareCompact.py \
 
 The tool writes `Compact.pcm` and `Compact.json` inside the output directory,
 and `BlendEnergy.sx` in its parent. For a verification rebuild, use e.g.
-`Build/YZ250-H4-Rebuild/Assets`.
+`Build/YZ250-H5-Rebuild/Assets`.
 
 After preparing a new bank, regenerate its peak envelope and aligned cycles:
 
@@ -222,6 +252,18 @@ python3 Silex-Examples/Sources/YZ250/PrepareRegistered.py \
 of numbers to the program. `Assets/Registered.json` records both bank hashes,
 parameters and per-cycle shifts; `RegisteredData.sx` contains aligned PCM
 power and peak.
+
+After decoding the new reference to stereo 44.1 kHz PCM16 WAV:
+
+```sh
+python3 Silex-Examples/Sources/YZ250/PrepareLowSpeed.py \
+  Build/YZ250X-Source.wav \
+  .archives/EngineSounds/2018_Yamaha_YZ_250x.mp3 \
+  Silex-Examples/Sources/YZ250
+```
+
+`Assets/LowSpeed.json` records hashes, nearby windows, levels and pitch path;
+`LowSpeedData.sx` contains reading and peak bounds.
 Python uses only its standard library and is not needed to play the compiled
 demo. Earlier `Prepare.py` prepares historical grain-bench assets only; it does
 not rebuild the compact bank.

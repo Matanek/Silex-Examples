@@ -42,7 +42,7 @@ def pitch(values,expected):
 
 def verify(prefix):
     report={}
-    for name,rpm in [('Fixed-4500',4500),('Fixed-7000',7000),('Fixed-9500',9500),('Load-Low',7000),('Load-High',7000),('Idle',1800)]:
+    for name,rpm in [('Fixed-4500',4500),('Fixed-7000',7000),('Fixed-9500',9500),('Load-Low',7000),('Load-High',7000)]:
         values=read(Path(str(prefix)+'-'+name+'.wav'))
         assert len(values)==8*RATE
         estimates=[pitch(values[i:i+16384],rpm) for i in range(RATE,len(values)-16384,RATE//3)]
@@ -65,6 +65,13 @@ def verify(prefix):
     assert max(abs(v/10500-1) for v in hold_pitch)<.02
     report['Throttle']=dict(hold_spectral_rpm_min=min(hold_pitch),hold_spectral_rpm_max=max(hold_pitch),
                             release_rpm_max=max(float(r['rpm']) for r in release))
+    closed=[r for r in rows if 7.15<int(r['frame'])/RATE<7.85]
+    assert min(float(r['coast']) for r in closed)>.98, 'closing gas lost the recorded overrun'
+    after_half=min(rows,key=lambda r:abs(int(r['frame'])/RATE-7.5))
+    assert 5500<float(after_half['rpm'])<6500, 'RPM fall is not progressive'
+    coast_rms=math.sqrt(sum(v*v for v in values[int(7.2*RATE):int(7.9*RATE)])/int(.7*RATE))
+    assert coast_rms>.06,('overrun went quiet',coast_rms)
+    report['Throttle'].update(coast_rms=coast_rms,rpm_half_second_after_release=float(after_half['rpm']))
     progressive=read(Path(str(prefix)+'-Progressive.wav'))
     assert len(progressive)==12*RATE
     with Path(str(prefix)+'-Progressive.csv').open() as f: progressive_rows=list(csv.DictReader(f))
@@ -98,7 +105,6 @@ def verify(prefix):
         levels.append(math.sqrt(sum(v*v for v in values)/len(values)))
     idle_variation=statistics.pstdev(levels)/statistics.mean(levels)
     assert idle_variation<.09,'recorded floor lost its even cadence'
-    report['Idle']['cycle_rms_variation']=idle_variation
     assert hashlib.sha256((directory/'BlendEnergy.sx').read_bytes()).hexdigest()==metadata['blend_energy_sha256']
     bounds=json.loads((directory/'PeakBounds.json').read_text())
     assert bounds['pcm_sha256']==metadata['pcm_sha256']
@@ -123,6 +129,29 @@ def verify(prefix):
         coherence.append(statistics.mean(sum(a*b for a,b in zip(cycle,template))/math.sqrt(sum(a*a for a in cycle)*sum(b*b for b in template)) for cycle in cycles))
     assert coherence[1]>coherence[0]+.05,('recorded firing alignment regressed',coherence)
     report['Recorded-Alignment']=dict(original_coherence=coherence[0],registered_coherence=coherence[1],audio_bytes=len(pcm)+len(aligned))
+    low_meta=json.loads((directory/'Assets/LowSpeed.json').read_text())
+    low_raw=(directory/'Assets/LowSpeed.pcm').read_bytes()
+    assert hashlib.sha256(low_raw).hexdigest()==low_meta['pcm_sha256']
+    assert hashlib.sha256((directory/'LowSpeedData.sx').read_bytes()).hexdigest()==low_meta['source_data_sha256']
+    assert len(low_raw)==low_meta['audio_bytes'] and len(pcm)+len(aligned)+len(low_raw)==1_311_156
+    assert low_meta['stationary_only'] and max(low_meta['idle_source_seconds']+low_meta['coast_source_seconds'])<=4.7
+    idle_words=array.array('h',low_raw)
+    if sys.byteorder!='little':idle_words.byteswap()
+    frames=low_meta['idle_frames']
+    native=[(idle_words[i*2]+idle_words[i*2+1])/65536 for i in range(frames)]
+    actual_idle=read(Path(str(prefix)+'-Idle.wav'))
+    assert len(actual_idle)==8*RATE
+    expected=[native[(frame+1)%frames] for frame in range(2*RATE,7*RATE)]
+    rendered_idle=actual_idle[2*RATE:7*RATE]
+    corr=sum(a*b for a,b in zip(expected,rendered_idle))/math.sqrt(sum(a*a for a in expected)*sum(b*b for b in rendered_idle))
+    assert corr>.99999,('idle was transposed or replaced by the old synthetic floor',corr)
+    report['Idle']=dict(native_reference_correlation=corr,rms=math.sqrt(sum(v*v for v in rendered_idle)/len(rendered_idle)),source_seconds=low_meta['idle_source_seconds'],control_rpm=1800,rpm_calibrated=False)
+    nearby=read(Path(str(prefix)+'-Nearby.wav'))
+    assert len(nearby)==10*RATE
+    with Path(str(prefix)+'-Nearby.csv').open() as f:nearby_rows=list(csv.DictReader(f))
+    falling=[r for r in nearby_rows if 6.2<int(r['frame'])/RATE<7.2]
+    assert min(float(r['coast']) for r in falling)>.5
+    report['Nearby']=dict(seconds=10,coast_min=min(float(r['coast']) for r in falling))
     # A mixture of registered takes passed clock/level tests but lost G's timbre
     # in listening. Protect the actual rendered waveform against that regression.
     words=array.array('h',aligned)
@@ -143,7 +172,7 @@ def verify(prefix):
     assert report['Load-High']['rms']>report['Load-Low']['rms']*1.2
     Path(str(prefix)+'-Verification.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
-    print('H4 audio/bank verification passed; listening approval remains required.')
+    print('H5 audio/bank verification passed; listening approval remains required.')
 
 
 if __name__=='__main__':

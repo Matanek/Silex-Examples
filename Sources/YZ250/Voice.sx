@@ -84,6 +84,7 @@ public class Voice:Synthesis.Generator {
     func current_rpm() float { mutex { return round_float<float>(self.rpm) } }
     func current_load() float { mutex { return round_float<float>(self.load) } }
     func current_throttle() float { mutex { return round_float<float>(self.throttle) } }
+    func current_coast() float { mutex { return self.texture.coast() } }
     func frame() int { mutex { return self.clock } }
     func crank_turns() float64 { mutex { return self.total_turns } }
     func reset() {
@@ -128,7 +129,9 @@ public class Voice:Synthesis.Generator {
                     self.throttle += 0.0015 * (self.target_throttle - self.throttle)
                     let span = self.bank.maximum_rpm as float64 - self.idle_rpm
                     let target = self.idle_rpm + span * self.throttle
-                    var seconds:float64 = 0.24
+                    // Closed gas changes combustion texture immediately, but
+                    // does not remove stored rotation or the audible overrun.
+                    var seconds:float64 = 0.62
                     if target > self.rpm {
                         seconds = 0.18 + 0.35 * self.target_load
                         seconds *= self.inertia
@@ -161,7 +164,7 @@ public class Voice:Synthesis.Generator {
                 let safe_gain = Math.min(self.blend_gain, 0.98 / peak_bound)
                 let safe_registered_gain = Math.min(self.registered_gain, 0.98 / self.bank.registered_peak())
                 let advance = self.rpm / 2_646_000.0
-                self.texture.update(self.rpm, (self.rpm - previous_rpm) * 44_100.0)
+                self.texture.update(self.rpm, (self.rpm - previous_rpm) * 44_100.0, self.idle_rpm, self.driving, self.target_throttle, self.bank.idle_frames)
                 self.turns += advance; self.total_turns += advance
                 if self.turns >= 32.0 { self.turns -= 32.0 }
                 var target:float64 = 0.0; if self.running { target = 1.0 }

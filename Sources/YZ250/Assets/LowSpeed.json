@@ -1,0 +1,521 @@
+{
+  "source": "2018_Yamaha_YZ_250x.mp3",
+  "source_sha256": "e65a67d2a01523719850c6e02271edef9c81925e774303a960e4ed9f03e29285",
+  "decoded_pcm_sha256": "b21d227d610f6c48a1a6ac83c964a20ed635304af931c141365d675f77f55944",
+  "pcm_sha256": "79c46964db9d4009b65fcfcf87b9b9fd6669119add20542065625542a780af14",
+  "source_data_sha256": "c035fd2ac78f68f805dee9a5c3b744f9f7fd4cdc2e24d720debaa876c7f067b4",
+  "audio_bytes": 393652,
+  "idle_source_seconds": [
+    4.06,
+    4.7
+  ],
+  "idle_frames": 27343,
+  "idle_native_timing": true,
+  "idle_nominal_control_rpm": 1800,
+  "rpm_calibrated": false,
+  "idle_views": 3,
+  "idle_view_cutoffs_hz": [
+    20000,
+    9500,
+    6500
+  ],
+  "coast_source_seconds": [
+    3.64,
+    4.003424036281179
+  ],
+  "coast_cycles": 32,
+  "points_per_cycle": 512,
+  "stationary_only": true,
+  "levels": [
+    {
+      "rms": 0.07499990044423582,
+      "peak": 0.689239501953125
+    },
+    {
+      "rms": 0.07441245075490015,
+      "peak": 0.620819091796875
+    },
+    {
+      "rms": 0.07283600929236234,
+      "peak": 0.537811279296875
+    },
+    {
+      "rms": 0.16000002754497733,
+      "peak": 0.801055908203125
+    }
+  ],
+  "pitch_path": [
+    {
+      "seconds": 3.5,
+      "pressure_frequency": 101.77239167590255
+    },
+    {
+      "seconds": 3.51,
+      "pressure_frequency": 101.45353914533983
+    },
+    {
+      "seconds": 3.52,
+      "pressure_frequency": 101.02748217323061
+    },
+    {
+      "seconds": 3.53,
+      "pressure_frequency": 100.51313368806606
+    },
+    {
+      "seconds": 3.54,
+      "pressure_frequency": 99.91291028031112
+    },
+    {
+      "seconds": 3.55,
+      "pressure_frequency": 99.23191157278795
+    },
+    {
+      "seconds": 3.56,
+      "pressure_frequency": 98.50116097202992
+    },
+    {
+      "seconds": 3.57,
+      "pressure_frequency": 97.72469227028215
+    },
+    {
+      "seconds": 3.58,
+      "pressure_frequency": 96.90702469311721
+    },
+    {
+      "seconds": 3.59,
+      "pressure_frequency": 96.04692697074411
+    },
+    {
+      "seconds": 3.6,
+      "pressure_frequency": 95.14823608206895
+    },
+    {
+      "seconds": 3.61,
+      "pressure_frequency": 94.23409336200174
+    },
+    {
+      "seconds": 3.62,
+      "pressure_frequency": 93.28103322981765
+    },
+    {
+      "seconds": 3.63,
+      "pressure_frequency": 92.24260676421633
+    },
+    {
+      "seconds": 3.64,
+      "pressure_frequency": 91.0657245859054
+    },
+    {
+      "seconds": 3.65,
+      "pressure_frequency": 89.7075288185403
+    },
+    {
+      "seconds": 3.66,
+      "pressure_frequency": 88.14328029909218
+    },
+    {
+      "seconds": 3.67,
+      "pressure_frequency": 86.40527387612407
+    },
+    {
+      "seconds": 3.68,
+      "pressure_frequency": 84.63281079790592
+    },
+    {
+      "seconds": 3.69,
+      "pressure_frequency": 83.1864346477322
+    },
+    {
+      "seconds": 3.7,
+      "pressure_frequency": 82.26073954441213
+    },
+    {
+      "seconds": 3.71,
+      "pressure_frequency": 81.93805368197135
+    },
+    {
+      "seconds": 3.72,
+      "pressure_frequency": 82.2523493344868
+    },
+    {
+      "seconds": 3.73,
+      "pressure_frequency": 83.21350886642995
+    },
+    {
+      "seconds": 3.74,
+      "pressure_frequency": 84.79988654901365
+    },
+    {
+      "seconds": 3.75,
+      "pressure_frequency": 86.91601156010789
+    },
+    {
+      "seconds": 3.76,
+      "pressure_frequency": 89.30025825992388
+    },
+    {
+      "seconds": 3.77,
+      "pressure_frequency": 91.8483219683298
+    },
+    {
+      "seconds": 3.78,
+      "pressure_frequency": 94.47146216638899
+    },
+    {
+      "seconds": 3.79,
+      "pressure_frequency": 97.04358815632467
+    },
+    {
+      "seconds": 3.8,
+      "pressure_frequency": 99.26056452609251
+    },
+    {
+      "seconds": 3.81,
+      "pressure_frequency": 100.93146788309764
+    },
+    {
+      "seconds": 3.82,
+      "pressure_frequency": 101.82788140586446
+    },
+    {
+      "seconds": 3.83,
+      "pressure_frequency": 101.91138893321747
+    },
+    {
+      "seconds": 3.84,
+      "pressure_frequency": 101.2872564338832
+    },
+    {
+      "seconds": 3.85,
+      "pressure_frequency": 100.24114317971473
+    },
+    {
+      "seconds": 3.86,
+      "pressure_frequency": 98.88945145542115
+    },
+    {
+      "seconds": 3.87,
+      "pressure_frequency": 97.26035685646187
+    },
+    {
+      "seconds": 3.88,
+      "pressure_frequency": 95.3524373719213
+    },
+    {
+      "seconds": 3.89,
+      "pressure_frequency": 93.19199917288125
+    },
+    {
+      "seconds": 3.9,
+      "pressure_frequency": 90.91075702546155
+    },
+    {
+      "seconds": 3.91,
+      "pressure_frequency": 88.872214532782
+    },
+    {
+      "seconds": 3.92,
+      "pressure_frequency": 87.19710546933293
+    },
+    {
+      "seconds": 3.93,
+      "pressure_frequency": 85.88130557237953
+    },
+    {
+      "seconds": 3.94,
+      "pressure_frequency": 84.87153299531779
+    },
+    {
+      "seconds": 3.95,
+      "pressure_frequency": 84.09199940384485
+    },
+    {
+      "seconds": 3.96,
+      "pressure_frequency": 83.45170845524133
+    },
+    {
+      "seconds": 3.97,
+      "pressure_frequency": 82.89112108447544
+    },
+    {
+      "seconds": 3.98,
+      "pressure_frequency": 82.38245555140104
+    },
+    {
+      "seconds": 3.99,
+      "pressure_frequency": 81.90360891321741
+    },
+    {
+      "seconds": 4.0,
+      "pressure_frequency": 81.44789257124967
+    },
+    {
+      "seconds": 4.01,
+      "pressure_frequency": 81.03851873964754
+    },
+    {
+      "seconds": 4.02,
+      "pressure_frequency": 80.70025905712504
+    },
+    {
+      "seconds": 4.03,
+      "pressure_frequency": 80.43004500003902
+    },
+    {
+      "seconds": 4.04,
+      "pressure_frequency": 80.20782550835524
+    },
+    {
+      "seconds": 4.05,
+      "pressure_frequency": 79.99860667413057
+    },
+    {
+      "seconds": 4.06,
+      "pressure_frequency": 79.78267221821618
+    },
+    {
+      "seconds": 4.07,
+      "pressure_frequency": 79.5555829522141
+    },
+    {
+      "seconds": 4.08,
+      "pressure_frequency": 79.33417305226821
+    },
+    {
+      "seconds": 4.09,
+      "pressure_frequency": 79.1532020729077
+    },
+    {
+      "seconds": 4.1,
+      "pressure_frequency": 79.03304397987503
+    },
+    {
+      "seconds": 4.11,
+      "pressure_frequency": 78.99379425025266
+    },
+    {
+      "seconds": 4.12,
+      "pressure_frequency": 79.04935319106409
+    },
+    {
+      "seconds": 4.13,
+      "pressure_frequency": 79.21405934790967
+    },
+    {
+      "seconds": 4.14,
+      "pressure_frequency": 79.50612070504071
+    },
+    {
+      "seconds": 4.15,
+      "pressure_frequency": 79.94862770246216
+    },
+    {
+      "seconds": 4.16,
+      "pressure_frequency": 80.5678831929274
+    },
+    {
+      "seconds": 4.17,
+      "pressure_frequency": 81.38759974056767
+    },
+    {
+      "seconds": 4.18,
+      "pressure_frequency": 82.41584287091366
+    },
+    {
+      "seconds": 4.19,
+      "pressure_frequency": 83.618956664973
+    },
+    {
+      "seconds": 4.2,
+      "pressure_frequency": 84.87235718272294
+    },
+    {
+      "seconds": 4.21,
+      "pressure_frequency": 85.87084200436323
+    },
+    {
+      "seconds": 4.22,
+      "pressure_frequency": 85.9690344270671
+    },
+    {
+      "seconds": 4.23,
+      "pressure_frequency": 84.98595357674483
+    },
+    {
+      "seconds": 4.24,
+      "pressure_frequency": 83.13331096605086
+    },
+    {
+      "seconds": 4.25,
+      "pressure_frequency": 81.13022627047931
+    },
+    {
+      "seconds": 4.26,
+      "pressure_frequency": 79.29696052717867
+    },
+    {
+      "seconds": 4.27,
+      "pressure_frequency": 77.78229272638083
+    },
+    {
+      "seconds": 4.28,
+      "pressure_frequency": 76.61367602028837
+    },
+    {
+      "seconds": 4.29,
+      "pressure_frequency": 75.76138304419635
+    },
+    {
+      "seconds": 4.3,
+      "pressure_frequency": 75.16880762446044
+    },
+    {
+      "seconds": 4.31,
+      "pressure_frequency": 74.76140013546652
+    },
+    {
+      "seconds": 4.32,
+      "pressure_frequency": 74.47513272333083
+    },
+    {
+      "seconds": 4.33,
+      "pressure_frequency": 74.2468359281503
+    },
+    {
+      "seconds": 4.34,
+      "pressure_frequency": 74.03607398308841
+    },
+    {
+      "seconds": 4.35,
+      "pressure_frequency": 73.8180122295562
+    },
+    {
+      "seconds": 4.36,
+      "pressure_frequency": 73.58154215166857
+    },
+    {
+      "seconds": 4.37,
+      "pressure_frequency": 73.3328393834259
+    },
+    {
+      "seconds": 4.38,
+      "pressure_frequency": 73.07057258166287
+    },
+    {
+      "seconds": 4.39,
+      "pressure_frequency": 72.79423497520077
+    },
+    {
+      "seconds": 4.4,
+      "pressure_frequency": 72.5132684781818
+    },
+    {
+      "seconds": 4.41,
+      "pressure_frequency": 72.26043745583037
+    },
+    {
+      "seconds": 4.42,
+      "pressure_frequency": 72.0431221650634
+    },
+    {
+      "seconds": 4.43,
+      "pressure_frequency": 71.85508053305402
+    },
+    {
+      "seconds": 4.44,
+      "pressure_frequency": 71.68181392642552
+    },
+    {
+      "seconds": 4.45,
+      "pressure_frequency": 71.50178109770118
+    },
+    {
+      "seconds": 4.46,
+      "pressure_frequency": 71.28443283229855
+    },
+    {
+      "seconds": 4.47,
+      "pressure_frequency": 71.00285048157977
+    },
+    {
+      "seconds": 4.48,
+      "pressure_frequency": 70.63131942465544
+    },
+    {
+      "seconds": 4.49,
+      "pressure_frequency": 70.14563780631092
+    },
+    {
+      "seconds": 4.5,
+      "pressure_frequency": 69.52719024701808
+    },
+    {
+      "seconds": 4.51,
+      "pressure_frequency": 68.8086993473034
+    },
+    {
+      "seconds": 4.52,
+      "pressure_frequency": 68.1085254577371
+    },
+    {
+      "seconds": 4.53,
+      "pressure_frequency": 67.70079860767206
+    },
+    {
+      "seconds": 4.54,
+      "pressure_frequency": 67.61084676939699
+    },
+    {
+      "seconds": 4.55,
+      "pressure_frequency": 67.63922409631586
+    },
+    {
+      "seconds": 4.56,
+      "pressure_frequency": 67.68042533407846
+    },
+    {
+      "seconds": 4.57,
+      "pressure_frequency": 67.68211055663406
+    },
+    {
+      "seconds": 4.58,
+      "pressure_frequency": 67.6239136649349
+    },
+    {
+      "seconds": 4.59,
+      "pressure_frequency": 67.50970607890235
+    },
+    {
+      "seconds": 4.6,
+      "pressure_frequency": 67.37112298767191
+    },
+    {
+      "seconds": 4.61,
+      "pressure_frequency": 67.23026715186002
+    },
+    {
+      "seconds": 4.62,
+      "pressure_frequency": 67.09520322815808
+    },
+    {
+      "seconds": 4.63,
+      "pressure_frequency": 66.96800040711764
+    },
+    {
+      "seconds": 4.64,
+      "pressure_frequency": 66.85030950569565
+    },
+    {
+      "seconds": 4.65,
+      "pressure_frequency": 66.74850315644652
+    },
+    {
+      "seconds": 4.66,
+      "pressure_frequency": 66.68025791598076
+    },
+    {
+      "seconds": 4.67,
+      "pressure_frequency": 66.6493151482043
+    }
+  ]
+}

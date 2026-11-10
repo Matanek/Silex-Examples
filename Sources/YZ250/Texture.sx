@@ -7,9 +7,26 @@ public class Texture {
     private var settled:int = 0
     private var amount:float64 = 0.0
     private var enabled:bool = true
+    private var idle_position:float64 = 0.0
+    private var idle_amount:float64 = 0.0
+    private var coast_amount:float64 = 0.0
     func set_enabled(value:bool) { self.enabled = value }
-    func reset() { self.settled = 0; self.amount = 0.0 }
-    func update(rpm:float64, acceleration:float64) {
+    func coast() float { return round_float<float>(self.coast_amount) }
+    func reset() { self.settled = 0; self.amount = 0.0; self.idle_position = 0.0; self.idle_amount = 0.0; self.coast_amount = 0.0 }
+    // Once per audio frame. Native idle cursor and mode envelopes continue
+    // across buffer boundaries; neither an RPM node nor a gas edge resets them.
+    func update(rpm:float64, acceleration:float64, idle_rpm:float64, driving:bool, throttle:float64, idle_frames:int) {
+        self.idle_position += rpm / 1_800.0
+        if self.idle_position >= idle_frames as float64 { self.idle_position -= idle_frames as float64 }
+        var idle:float64 = 0.0; var coast:float64 = 0.0
+        if self.enabled {
+            idle = Math.clamp((idle_rpm + 1_600.0 - rpm) / 1_600.0, 0.0, 1.0)
+            if driving && acceleration < -100.0 && throttle < 0.25 {
+                coast = Math.clamp((rpm - idle_rpm - 200.0) / 1_200.0, 0.0, 1.0) * (1.0 - throttle / 0.25)
+            }
+        }
+        self.idle_amount += 0.0006 * (idle - self.idle_amount)
+        self.coast_amount += 0.002 * (coast - self.coast_amount)
         if Math.abs(acceleration) < 150.0 && rpm >= 6_000.0 { self.settled++ }
         else { self.settled = 0 }
         var desired:float64 = 0.0
@@ -19,7 +36,12 @@ public class Texture {
         self.amount += speed * (desired - self.amount)
     }
     func sample(bank:Bank, turns:float64, channel:int, rpm:float64, original:float64, registered_gain:float64) float64 {
-        if self.amount < 0.000001 { return original }
-        return original * (1.0 - self.amount) + bank.registered_sample(turns, channel, rpm) * self.amount * registered_gain
+        var value = original
+        if self.amount >= 0.000001 {
+            value = value * (1.0 - self.amount) + bank.registered_sample(turns, channel, rpm) * self.amount * registered_gain
+        }
+        if self.idle_amount >= 0.000001 { value = value * (1.0 - self.idle_amount) + bank.idle_sample(self.idle_position, channel, rpm) * self.idle_amount }
+        if self.coast_amount >= 0.000001 { value = value * (1.0 - self.coast_amount) + bank.coast_sample(turns, channel) * self.coast_amount }
+        return value
     }
 }
