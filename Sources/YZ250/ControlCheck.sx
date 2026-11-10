@@ -3,7 +3,7 @@ use Module.Bank
 use Module.Voice
 
 public func check() {
-    var bank = Bank(); var voice = Voice(bank)
+    var bank = Bank(); var voice = Voice(bank, pulses:false)
     var samples:float32[] = []; for _ in 0...512 { samples.append(0.0) }
     // The user-visible failure was missed by the coarse H3 RPM grid.
     voice.set_state(7_980.0, 1.0); voice.set_variation(false); voice.reset()
@@ -14,6 +14,7 @@ public func check() {
     }
     assert(static_peak <= 0.980001, "7980 RPM full-load blend exceeded certified headroom")
     voice.set_variation(true)
+    voice.set_pulses(true)
     var peak:float = 0.0; var state = 17; var bad_rpm:float = 0.0; var bad_load:float = 0.0
     for block in 0...6_000 {
         state = (state * 48_271) % 2_147_483_647
@@ -34,5 +35,5 @@ public func check() {
             if Math.abs(value) > peak { peak = Math.abs(value); bad_rpm = voice.current_rpm(); bad_load = voice.current_load() }
         }
     }
-    print("H5 headroom: static=", static_peak, " control-stress peak=", peak, " RPM=", bad_rpm, " load=", bad_load)
+    print("H6 headroom: static=", static_peak, " control-stress peak=", peak, " RPM=", bad_rpm, " load=", bad_load)
 }

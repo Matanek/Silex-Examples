@@ -6,7 +6,7 @@ From the `SilexProject/` root:
 silex run Silex-Examples/Sources/YZ250/Main.sx
 ```
 
-The **YZ250 · ralenti / retombée · H5 · ESPACE = gaz** window uses about
+The **YZ250 · explosions pilotées · H6 · ESPACE = gaz** window uses about
 **1.25 MiB** of stereo PCM16. Idle and closed-gas textures come from the nearby
 opening of **2018_Yamaha_YZ_250x.mp3**; attacks and isolated G keep the previous
 YZ250/FMF reference. It replaces
@@ -37,26 +37,45 @@ about 1.86 s to cover 95% of the return to base RPM after closing the throttle.
 Status shows **retombée / claquements** while this distinct texture is active.
 This setting does not simulate a gearbox or add automatic gear changes.
 
-**Base RPM** is **1,800** on the control scale, adjustable from 1,800 to 3,500.
-At 1,800, the new idle recording retains its native tempo. This
-number is not a tachometer measurement of that recording. All eleven exports
-use the initial base setting.
+**Return RPM** is **1,800** on the control scale, adjustable from 1,800 to
+3,500. It moves the point at which recorded idle returns; it does not transpose
+that recording. Values remain indicative, without tachometer calibration.
+All eleven exports use the initial setting.
 
-**G seul · palier** retains only listening test G's take, above 6,000 RPM once
-speed settles. Load controls its volume without blending other timbres. It
-still slows the rise in throttle mode. **Prises initiales · comparer** disables
-G and the new idle/overrun textures. RPM and phase remain continuous.
+**Explosions pilotées · H6** is the default. G supplies the pressure body during
+both acceleration and holds; closing gas selects recorded clacks for subsequent
+firings. **Ancienne lecture · H5** compares the old sequence of pitched loops.
+Mode changes are smoothed; both modes keep the same driving controls.
 
 Volume does not change engine response.
 
-## What preserves the reference's character
+## Change firing cadence without sweeping the recorded pressure body
+
+H6 separates firing spacing from recorded pressure duration. Each packet lasts
+756 frames, about 17 ms at 44.1 kHz. Overlapping Hann windows use G's 32 cycles.
+At 7,000 RPM they reconstruct G; elsewhere only packet start times follow RPM.
+Acceleration therefore does not transpose the complete sound band or its
+mechanical resonances.
+
+Closing gas selects overrun material at packet starts, without adding a breath
+loop. Overlap is normalized only when window weights sum to more than one;
+a small packet edge is never amplified. A recorded G residual with its mean
+cycle removed stays very quiet below 6,000 RPM to avoid digital silence between
+widely spaced firings. Its peak is bounded to 0.025 and it vanishes at 6,000.
+
+This experiment addresses the change of character heard while driving H5.
+Waveform checks prove G preservation; the character during throttle gestures
+still needs live listening judgment.
+
+## Retain the recorded references
 
 The new idle take uses **4.06–4.70 s** of the YZ250X file: the idle return
 identified in the first 4.7 seconds. Startup around 1 s and the receding-motor
 section are excluded. PCM retains native timing, with a 20 ms loop join
-and fixed gain. Three offline-prepared bandwidths prevent aliasing while
-pitching up. Its reader follows the RPM control gradually and fades out
-over the first 1,600 RPM above base, joining the existing attacks.
+and fixed gain. Three offline-prepared bandwidths remain available for pitch-up
+in the H5 comparison. In H6, the take keeps native
+tempo, fades out when gas opens, and returns at the end of deceleration within
+150 RPM of the return setting.
 
 Overrun uses **3.64–4.00 s**, the last nearby blip's throttle closure. Offline
 preparation tracks the second partial to correct internal pitch without
@@ -66,7 +85,7 @@ becomes zero; it fades toward idle and when gas reopens. Its level is not
 multiplied by throttle opening. Lengthening the RPM fall while muting the
 engine at closure would not reproduce audible deceleration.
 
-The program reads twelve short loops from the actual PCM of **2023 YZ250 +
+The H5 comparison reads twelve short loops from the actual PCM of **2023 YZ250 +
 FMF Full Exhaust PURE SOUND.mp3**. Each segment stores **32 revolutions** with their firings, noise and mechanical
 texture. The floor uses sixteen more even revolutions, repeated twice. The
 three upper loaded nodes assemble two sixteen-revolution spans from clear RPM
@@ -91,7 +110,7 @@ pitch sweeps that made the earlier mode C unstable.
 Between upper nodes, blending compensates energy lost when weakly correlated
 loops overlap. `BlendEnergy.sx` contains their offline-measured stereo covariance.
 Gain depends on blend weights, never instantaneous audio level: this is not a
-compressor. The low/mid group keeps its H1 blend to preserve the accepted attack.
+compressor. In H5, the low/mid group keeps its H1 blend to preserve the accepted attack.
 
 The original bank stays unchanged. An additional take applies listening test G's
 alignment only to the loaded 6,000-RPM recording. Correlation of the first twelve orders determines a
@@ -100,8 +119,8 @@ that shift to the full stereo PCM. This retains recorded noise and firings.
 Alignment acts on firing placement independently of level and the loop join.
 The playable blend still requires listening validation.
 
-After 0.35 s of steady running above 6,000 RPM, a gradual transition introduces
-G alone. Rises keep the original takes; other takes are not layered with G
+In the H5 comparison, after 0.35 s of steady running above 6,000 RPM, a gradual transition introduces
+G alone. Rises in that mode keep the original takes; other takes are not layered with G
 during holds. Random phrase shifts are disabled to preserve the isolated timbre.
 The 32 cycles keep their recorded differences, but the loop still repeats:
 this prototype does not resolve that point. Above 7,200 RPM, a filtered view of
@@ -136,7 +155,7 @@ contains G alone and its filtered view, two 64 KiB segments. `Assets/LowSpeed.pc
 adds **393,652 bytes** of idle and overrun. The total is **1,311,156 bytes**.
 These are the only embedded audio data. Loading decodes them once to float32:
 about 2.50 MiB in memory. Earlier `Reference.pcm` and `Grains.bin` assets remain
-historical preparation data; H5 neither embeds nor reads them.
+historical preparation data; H6 neither embeds nor reads them.
 
 The FMF reference spans acoustically estimated **3,660–10,500 RPM**. The demo
 accepts **1,800–10,500** as an indicative control scale. The YZ250X idle is an
@@ -154,10 +173,10 @@ phase interval, levels and bank size. Preparation only reads the archives.
 ## Verify and export
 
 ```sh
-silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H5
-Build/YZ250-H5 --check
-Build/YZ250-H5 --render Build/YZ250-H5
-python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H5
+silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H6
+Build/YZ250-H6 --check
+Build/YZ250-H6 --render Build/YZ250-H6
+python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H6
 ```
 
 The eleven stereo PCM16 WAVs use a common 0.7 gain:
@@ -186,7 +205,7 @@ it is not a comparison of isolated timbres.
 
 Checks cover 27 RPM/load points, cadence, finite unclipped output, load slowing
 the rise without an artificial cap, hold/release, block independence, stopping
-and invalid input. Checks also measure rendered energy at upper nodes and their
+and invalid input. The H5 comparison also measures rendered energy at upper nodes and their
 midpoints: H1's roughly 3 dB dip fails this regression. The low/mid group must
 retain its existing blend. Checks include the 7,980 RPM/full-load mix that
 exceeded the audio range, then 6,000 blocks of RPM/load/inertia changes under
@@ -203,15 +222,18 @@ rendered waveform to isolated G at three loads, protecting its timbre. Rendered
 idle is also compared to native PCM. `--coast-check` verifies that closing gas
 retains rotation and audible clacks, returns to idle, and responds to reopening.
 It also checks buffer-splitting independence throughout overrun. Results are written to
-`*-Verification.json`. These measurements do not replace listening validation
+`*-Verification.json`. `--join-check` also compares rendered sound to G just
+46 ms after a rise to 7,000 RPM. It distinguishes immediate timbre preservation
+from a delayed voice change at the hold, and reports H5 correlation as well.
+These measurements do not replace listening validation
 of the sound's character. `--check` also reproduces the old GUI-fed queue's
 starvation with an offline mixer: a 120 ms stall exceeds its 46 ms reserve.
 
 To verify actual audio output with the GUI, without screenshots:
 
 ```sh
-Build/YZ250-H5 --live-check Build/YZ250-H5-Live
-python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H5-Live
+Build/YZ250-H6 --live-check Build/YZ250-H6-Live
+python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H6-Live
 ```
 
 This automatic test lasts eight seconds and deliberately blocks the GUI thread
@@ -235,7 +257,7 @@ python3 Silex-Examples/Sources/YZ250/PrepareCompact.py \
 
 The tool writes `Compact.pcm` and `Compact.json` inside the output directory,
 and `BlendEnergy.sx` in its parent. For a verification rebuild, use e.g.
-`Build/YZ250-H5-Rebuild/Assets`.
+`Build/YZ250-H6-Rebuild/Assets`.
 
 After preparing a new bank, regenerate its peak envelope and aligned cycles:
 

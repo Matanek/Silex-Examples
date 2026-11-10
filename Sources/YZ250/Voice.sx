@@ -5,13 +5,17 @@ use STD.Error
 use STD.Error.Kind
 use Module.Bank
 use Module.Texture
+use Module.Pulses
 
-// Recorded texture with a continuous crank phase. At settled upper RPM, use
-// isolated G alone; a mixture of aligned takes lost its accepted timbre.
+// One continuous firing scheduler with fixed-duration recorded pressure
+// packets. The H5 pitched-loop path remains available for live comparison.
 public class Voice:Synthesis.Generator {
     let format:Processing.Format = Processing.Format(sample_rate:44_100, channels:2)
     private var bank:Bank
     private var texture:Texture = Texture()
+    private var pulses:Pulses = Pulses()
+    private var pulse_mode:bool = true
+    private var pulse_amount:float64 = 1.0
     private var idle_rpm:float64 = 1_800.0
     private var bound:float64 = 1.0
     private var registered_gain:float64 = 1.0
@@ -36,8 +40,9 @@ public class Voice:Synthesis.Generator {
     private var weights:float64[] = []
     private var desired_weights:float64[] = []
 
-    init(bank:Bank) {
+    init(bank:Bank, pulses:bool = true) {
         self.bank = bank; self.rpm = bank.minimum_rpm as float64; self.target_rpm = self.rpm
+        self.pulse_mode = pulses
         for _ in 0...12 { self.weights.append(0.0); self.desired_weights.append(0.0); self.bound_weights.append(0.0) }
         self.reset()
     }
@@ -46,6 +51,7 @@ public class Voice:Synthesis.Generator {
     // hold this lock while drawing or waiting for device capacity.
     func generation() int { mutex { return self.revision } }
     func set_variation(enabled:bool) { mutex { self.texture.set_enabled(enabled) } }
+    func set_pulses(enabled:bool) { mutex { self.pulse_mode = enabled } }
     func set_idle(rpm:float) Result<void,Error> {
         mutex {
             if !Math.is_finite(rpm) || rpm < 1_800.0 || rpm > 3_500.0 {
@@ -84,7 +90,10 @@ public class Voice:Synthesis.Generator {
     func current_rpm() float { mutex { return round_float<float>(self.rpm) } }
     func current_load() float { mutex { return round_float<float>(self.load) } }
     func current_throttle() float { mutex { return round_float<float>(self.throttle) } }
-    func current_coast() float { mutex { return self.texture.coast() } }
+    func current_coast() float { mutex {
+        if self.pulse_mode { return self.pulses.coast() }
+        return self.texture.coast()
+    } }
     func frame() int { mutex { return self.clock } }
     func crank_turns() float64 { mutex { return self.total_turns } }
     func reset() {
@@ -99,6 +108,8 @@ public class Voice:Synthesis.Generator {
             self.blend_gain = self.bank.blend_gain(@self.weights[0:12]); self.target_blend_gain = self.blend_gain
             self.registered_gain = self.bank.registered_gain(@self.weights[0:12], self.blend_gain)
             self.target_registered_gain = self.registered_gain
+            self.pulses.reset(self.rpm, self.idle_rpm, self.registered_gain)
+            self.pulse_amount = 0.0; if self.pulse_mode { self.pulse_amount = 1.0 }
         }
     }
     private func mix_weights() {
@@ -165,17 +176,26 @@ public class Voice:Synthesis.Generator {
                 let safe_registered_gain = Math.min(self.registered_gain, 0.98 / self.bank.registered_peak())
                 let advance = self.rpm / 2_646_000.0
                 self.texture.update(self.rpm, (self.rpm - previous_rpm) * 44_100.0, self.idle_rpm, self.driving, self.target_throttle, self.bank.idle_frames)
+                let closing = self.driving && self.target_throttle < 0.25 && self.rpm > self.idle_rpm + 100.0 && (self.rpm - previous_rpm) * 44_100.0 < -100.0
+                self.pulses.update(self.bank, self.rpm, self.idle_rpm, self.driving, self.target_throttle, closing, safe_registered_gain)
+                var pulse_target:float64 = 0.0; if self.pulse_mode { pulse_target = 1.0 }
+                self.pulse_amount += 0.002 * (pulse_target - self.pulse_amount)
                 self.turns += advance; self.total_turns += advance
                 if self.turns >= 32.0 { self.turns -= 32.0 }
                 var target:float64 = 0.0; if self.running { target = 1.0 }
                 self.gain += 0.003 * (target - self.gain)
                 for channel in 0...2 {
+                    if self.pulse_amount > 0.999999 {
+                        samples[frame * 2 + channel] = round_float<float32>(self.pulses.sample(self.bank, channel) * self.gain)
+                        continue
+                    }
                     var value:float64 = 0.0
                     for i in 0...12 {
                         if self.weights[i] > 0.000001 { value += self.weights[i] * self.bank.sample(i, self.turns, channel) }
                     }
                     let textured = self.texture.sample(self.bank, self.turns, channel, self.rpm, value * safe_gain, safe_registered_gain)
-                    samples[frame * 2 + channel] = round_float<float32>(textured * self.gain)
+                    let pulse = self.pulses.sample(self.bank, channel)
+                    samples[frame * 2 + channel] = round_float<float32>((textured * (1.0 - self.pulse_amount) + pulse * self.pulse_amount) * self.gain)
                 }
                 self.clock++
             }

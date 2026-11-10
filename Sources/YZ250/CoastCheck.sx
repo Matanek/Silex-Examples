@@ -40,5 +40,5 @@ public func check() {
         divided.render(&split[0:74]); divided.render(&split[74:690]); divided.render(&split[690:1_024])
         for i in 0...1_024 { assert(block[i] == split[i], "idle/overrun depends on buffer splitting") }
     }
-    print("H5 overrun passed: gas closes, RPM and recorded clacks persist, reopening, native idle and split blocks. Minimum RMS=", minimum)
+    print("H6 overrun passed: gas closes, RPM and recorded clacks persist, reopening, native idle and split blocks. Minimum RMS=", minimum)
 }

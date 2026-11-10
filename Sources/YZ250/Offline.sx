@@ -90,7 +90,7 @@ public func render(prefix:str) {
         }
         wave(prefix + "-$(suffix).wav", @output[0:output.count()])
         var encoded = UTF8.bytes(telemetry); File.write_all(prefix + "-$(suffix).csv", @encoded[0:encoded.count()])
-        print("YZ250 H5 export: ", prefix, "-", suffix, ".wav")
+        print("YZ250 H6 export: ", prefix, "-", suffix, ".wav")
     }
 }
 public func check() {
@@ -125,7 +125,7 @@ public func check() {
         for fraction in fractions {
             let rpm = bank.rpms[node] * (1.0 - fraction) + bank.rpms[node + 1] * fraction
             let expected = bank.node_power(node * 2 + 1) * (1.0 - fraction) + bank.node_power(node * 2 + 3) * fraction
-            var voice = Voice(bank); voice.set_state(round_float<float>(rpm), 1.0); voice.set_variation(false); voice.reset()
+            var voice = Voice(bank, pulses:false); voice.set_state(round_float<float>(rpm), 1.0); voice.set_variation(false); voice.reset()
             let frames = Math.round(32.0 * 4.0 * 2_646_000.0 / rpm) as int
             var rendered = 0; var energy:float64 = 0.0
             while rendered < frames {
@@ -185,5 +185,5 @@ public func check() {
     match try whole.set_drive(1.01, 0.0) { failure(value) => {}; success => { panic("invalid gas accepted") } }
     match try whole.render(&a[0:3]) { failure(value) => {}; success => { panic("partial frame accepted") } }
     assert(clock == whole.frame())
-    print("YZ250 H5 checks passed: nearby idle/overrun, isolated G, 27 steady points, gas/load/hold/release, phase, split blocks, stop and errors. Peak=", peak)
+    print("YZ250 H6 checks passed: nearby idle/overrun, isolated G, 27 steady points, gas/load/hold/release, phase, split blocks, stop and errors. Peak=", peak)
 }

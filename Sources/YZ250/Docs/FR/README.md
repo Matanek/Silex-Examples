@@ -6,7 +6,7 @@ Depuis la racine `SilexProject/` :
 silex run Silex-Examples/Sources/YZ250/Main.sx
 ```
 
-La fenêtre **YZ250 · ralenti / retombée · H5 · ESPACE = gaz** utilise environ
+La fenêtre **YZ250 · explosions pilotées · H6 · ESPACE = gaz** utilise environ
 **1,25 Mio** de PCM16 stéréo. Le ralenti et la fermeture des gaz proviennent du
 début proche de **2018_Yamaha_YZ_250x.mp3** ; les attaques et le palier G gardent
 la référence YZ250/FMF précédente.
@@ -39,28 +39,47 @@ La retombée utilise une constante de 0,62 s : environ 1,86 s pour parcourir
 **retombée / claquements** pendant cette texture distincte. Ce réglage ne simule pas une boîte de vitesses
 et n’ajoute aucun changement de rapport automatique.
 
-Le **régime de base** vaut **1 800** dans l’échelle de commande, réglable de
-1 800 à 3 500. À 1 800, la nouvelle prise de ralenti conserve son tempo natif.
-Cette valeur n’est pas une mesure de ses tr/min au compte-tours.
-Les onze exports utilisent le réglage de base initial.
+Le **régime de retour** vaut **1 800** dans l’échelle de commande, réglable de
+1 800 à 3 500. Il déplace le point de retour au ralenti enregistré ; il ne
+transpose pas cette prise. Les valeurs restent indicatives, sans calibration
+au compte-tours. Les onze exports utilisent le réglage initial.
 
-**G seul · palier** conserve uniquement la prise de l’essai G, au-dessus de
-6 000 tr/min une fois le régime stabilisé. La charge y règle le niveau sonore,
-sans mélange avec d’autres timbres. Elle continue de ralentir la montée en
-mode accélérateur. **Prises initiales · comparer** désactive G et les nouvelles
-textures de ralenti et de retombée. Le régime et la phase restent continus.
+**Explosions pilotées · H6** est le mode initial. G fournit le corps des
+explosions pendant la montée et le maintien ; fermer les gaz sélectionne les
+claquements enregistrés pour les explosions suivantes. **Ancienne lecture · H5**
+permet de comparer avec l’ancien enchaînement de boucles transposées. Le
+changement de mode est lissé ; les deux modes gardent les mêmes commandes.
 
 Le volume ne change pas la réponse du moteur.
 
-## Ce qui conserve le caractère de la référence
+## Faire varier la cadence sans balayer le corps sonore
+
+H6 sépare l’espacement des explosions de la durée de leur matière enregistrée.
+Chaque paquet dure 756 frames, environ 17 ms à 44,1 kHz. Des fenêtres de Hann
+superposées utilisent les 32 cycles de G. À 7 000 tr/min, elles reconstituent
+G ; ailleurs, seule la date de départ des paquets suit le régime. L’accélération
+ne transpose donc pas toute la bande du son ni ses résonances mécaniques.
+
+La fermeture des gaz choisit le matériau de retombée au départ des paquets,
+sans ajouter une boucle de souffle. Le recouvrement est normalisé seulement
+lorsque la somme des fenêtres dépasse un ; une petite fin de paquet n’est
+jamais amplifiée. Un résidu enregistré de G, dont le cycle moyen est retiré,
+reste très faible sous 6 000 tr/min pour éviter des silences numériques entre
+les explosions espacées. Son pic est borné à 0,025 et il disparaît à 6 000.
+
+Cette expérience répond au changement de caractère entendu en conduite H5.
+Les contrôles de forme d’onde prouvent la conservation de G ; le caractère
+pendant les gestes d’accélérateur doit encore être jugé en direct.
+
+## Conserver les prises de référence
 
 La nouvelle prise de ralenti utilise **4,06–4,70 s** du fichier YZ250X : la fin
 au ralenti identifiée dans les 4,7 premières secondes. Le démarrage autour de
 1 s et la partie où la moto s’éloigne sont exclus. Le PCM garde son temps natif,
 avec un raccord de boucle de 20 ms et un gain fixe. Trois bandes passantes
-préparées hors ligne évitent le repliement pendant la transposition. Son lecteur
-suit progressivement la commande de régime et s’efface sur les premiers
-1 600 tr/min au-dessus de la base, pour rejoindre les attaques existantes.
+préparées hors ligne restent disponibles pour la comparaison H5. En H6, la
+prise garde son tempo natif, s’efface à l’ouverture des gaz et revient à la
+fin de la décélération, dans les 150 tr/min autour du régime de retour.
 
 La retombée utilise **3,64–4,00 s**, à la fermeture du dernier coup de gaz proche.
 La préparation suit la seconde partielle pour corriger la hauteur interne,
@@ -71,7 +90,7 @@ l’approche du ralenti et lors d’une réouverture. Le niveau n’est pas mult
 par l’ouverture des gaz. Allonger seulement les tr/min tout en coupant le son
 à la fermeture ne suffirait pas à reproduire une décélération.
 
-Le programme lit douze courtes boucles issues du PCM réel du fichier **2023
+Le mode de comparaison H5 lit douze courtes boucles issues du PCM réel du fichier **2023
 YZ250 + FMF Full Exhaust PURE SOUND.mp3**. Chaque segment stocke **32 tours** avec leurs explosions, leur bruit et leur
 texture mécanique. Le plancher utilise seize tours plus réguliers, répétés deux
 fois. Les trois étages chargés supérieurs assemblent deux passages de seize
@@ -98,8 +117,8 @@ précédent mode C instable.
 Entre les étages supérieurs, le mélange compense la perte d’énergie provoquée
 par la superposition de boucles peu corrélées. `BlendEnergy.sx` contient leur
 covariance stéréo mesurée hors ligne. Le gain dépend des poids de mélange,
-jamais du niveau audio instantané : ce n’est pas un compresseur. Le groupe
-bas/milieu conserve son mélange H1 pour préserver l’attaque acceptée.
+jamais du niveau audio instantané : ce n’est pas un compresseur. Dans H5, le
+groupe bas/milieu conserve son mélange H1 pour préserver l’attaque acceptée.
 
 La banque initiale reste inchangée. Une prise supplémentaire applique le recalage
 de l’essai G à la seule prise chargée à 6 000 tr/min. La corrélation des douze premiers
@@ -107,10 +126,10 @@ ordres détermine un décalage limité à un quart de tour par cycle ; des fenê
 de deux tours superposées appliquent ce déplacement au PCM stéréo complet.
 Cela conserve le bruit et les explosions enregistrés. Le recalage agit sur le
 placement des explosions, indépendamment du niveau et du raccord de boucle.
-Le mélange pilotable reste à valider à l’écoute.
+Le raccord pilotable reste à valider à l’écoute.
 
-Après 0,35 s de stabilité au-dessus de 6 000 tr/min, une transition progressive
-introduit G seul. Les montées gardent les prises initiales ; les autres prises
+Dans la comparaison H5, après 0,35 s de stabilité au-dessus de 6 000 tr/min, une transition progressive
+introduit G seul. Les montées de ce mode gardent les prises initiales ; les autres prises
 ne sont pas superposées à G au palier. Les déplacements de phrases aléatoires
 sont désactivés pour préserver le timbre isolé. Les 32 cycles conservent leurs
 différences enregistrées, mais la boucle reste répétitive : ce point n’est pas
@@ -150,7 +169,7 @@ ajoute **393 652 octets** de ralenti et de retombée. Le total vaut
 **1 311 156 octets**. Ce sont les seules données audio embarquées. Le chargement
 les décode une fois en float32 : environ 2,50 Mio en mémoire. Les anciens assets
 `Reference.pcm` et `Grains.bin` restent des données historiques de préparation ;
-ils ne sont plus embarqués ni lus par la démo H5.
+ils ne sont plus embarqués ni lus par la démo H6.
 
 La référence FMF couvre des tr/min acoustiquement estimés à **3 660–10 500**.
 La démo accepte **1 800–10 500** comme échelle indicative de commande. Le ralenti
@@ -171,10 +190,10 @@ Les archives sont uniquement lues par la préparation.
 ## Vérifier et exporter
 
 ```sh
-silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H5
-Build/YZ250-H5 --check
-Build/YZ250-H5 --render Build/YZ250-H5
-python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H5
+silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H6
+Build/YZ250-H6 --check
+Build/YZ250-H6 --render Build/YZ250-H6
+python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H6
 ```
 
 Les onze WAV stéréo PCM16 utilisent un gain commun de 0,7 :
@@ -204,7 +223,7 @@ ensuite à juger les raccords ; il n’est pas une comparaison de timbres isolé
 Les contrôles couvrent 27 points régime/charge, la cadence, la sortie finie sans
 saturation, le freinage par la charge sans plafond artificiel, le maintien et le
 relâchement, l’indépendance des blocs, l’arrêt et les entrées invalides.
-Ils mesurent aussi l’énergie réellement rendue aux étages supérieurs et à leurs
+Dans la comparaison H5, ils mesurent aussi l’énergie réellement rendue aux étages supérieurs et à leurs
 points intermédiaires : le creux d’environ 3 dB de H1 fait échouer ce contrôle.
 Le mélange du groupe bas/milieu conserve son réglage. Le contrôle inclut le cas
 7980 tr/min / pleine charge qui dépassait la limite audio, puis 6 000 blocs de
@@ -224,6 +243,9 @@ Le ralenti rendu est aussi comparé au PCM natif. `--coast-check` vérifie qu’
 fermeture coupe les gaz sans supprimer la rotation ni les claquements, puis
 que le moteur rejoint le ralenti et réagit à une réouverture. Il teste aussi
 l’indépendance aux découpages de buffers pendant toute la retombée.
+`--join-check` compare aussi le son rendu à G dès 46 ms après une montée à
+7 000 tr/min. Cela distingue la conservation immédiate du timbre d’un changement
+de voix retardé au palier. Il rapporte aussi la corrélation du chemin H5.
 Le résultat est écrit dans `*-Verification.json`. Ces mesures ne remplacent pas
 la validation du caractère sonore. `--check` reproduit aussi, avec un mixer
 hors ligne, l’assèchement de l’ancienne alimentation par l’interface : un blocage
@@ -232,8 +254,8 @@ de 120 ms dépasse son avance de 46 ms.
 Pour vérifier la sortie audio réelle avec l’interface, sans capture d’écran :
 
 ```sh
-Build/YZ250-H5 --live-check Build/YZ250-H5-Live
-python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H5-Live
+Build/YZ250-H6 --live-check Build/YZ250-H6-Live
+python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H6-Live
 ```
 
 Ce test automatique dure huit secondes et bloque volontairement le thread de
@@ -259,7 +281,7 @@ python3 Silex-Examples/Sources/YZ250/PrepareCompact.py \
 
 L’outil écrit `Compact.pcm` et `Compact.json` dans le répertoire de sortie,
 et `BlendEnergy.sx` dans son répertoire parent. Pour une reconstruction de
-contrôle, utiliser par exemple `Build/YZ250-H5-Rebuild/Assets`.
+contrôle, utiliser par exemple `Build/YZ250-H6-Rebuild/Assets`.
 
 Après une nouvelle préparation de la banque, régénérer son enveloppe et les
 cycles recalés :

@@ -63,8 +63,10 @@ public class Bank {
     }
     func registered_peak() float64 { return self.registered.peak() }
     func registered_sample(turns:float64, channel:int, rpm:float64) float64 { return self.registered.sample(turns, channel, rpm) }
+    func registered_residual(turns:float64, channel:int) float64 { return self.registered.residual(turns, channel) }
     func idle_sample(position:float64, channel:int, rpm:float64) float64 { return self.low_speed.idle(position, channel, rpm) }
     func coast_sample(turns:float64, channel:int) float64 { return self.low_speed.coast(turns, channel) }
+    func coast_peak() float64 { return self.low_speed.coast_peak() }
     func node_peak(index:int) float64 { return self.bounds.peaks[index] }
     private func bound_at(pair:int, rpm:float64, low:float64, high:float64) float64 {
         let r = Math.clamp(rpm * 16.0, 0.0, 16.0)

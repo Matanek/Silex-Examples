@@ -172,7 +172,7 @@ def verify(prefix):
     assert report['Load-High']['rms']>report['Load-Low']['rms']*1.2
     Path(str(prefix)+'-Verification.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
-    print('H5 audio/bank verification passed; listening approval remains required.')
+    print('H6 audio/bank verification passed; listening approval remains required.')
 
 
 if __name__=='__main__':

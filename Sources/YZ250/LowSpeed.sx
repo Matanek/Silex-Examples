@@ -36,4 +36,5 @@ public class LowSpeed {
     func coast(turns:float64, channel:int) float64 {
         return self.sample(self.idle_frames * 3, 16_384, turns * 512.0, channel) * Math.min(1.0, 0.98 / self.data.coast_peak)
     }
+    func coast_peak() float64 { return self.data.coast_peak }
 }

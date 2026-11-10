@@ -41,7 +41,7 @@ public func run(prefix:str) {
     let format = capture.output_format()
     var stress = Stress(audio)
     Viewer.show_until(stress, stress.done, Viewer.CanvasSettings(width:1_100, height:1_000,
-        hidden:true, title:"YZ250 H5 · vérification automatique de continuité · 8 s"))
+        hidden:true, title:"YZ250 H6 · vérification automatique de continuité · 8 s"))
     stress.shutdown(); capture.stop()
     // An empty source queue can still have prefetched output in SDL's mixer.
     // Report that observation; VerifyLive checks actual PCM for audible gaps.
@@ -50,7 +50,7 @@ public func run(prefix:str) {
     File.write_all(prefix + ".f32le", @block.bytes[0:block.bytes.count()])
     let report = "{\"sample_rate\":$(format.sample_rate),\"channels\":$(format.channels),\"frames\":$(block.frames),\"empty_queues\":$(info.empty_queues),\"stalls\":$(stress.stalls),\"dropped_frames\":$(recorded.dropped_frames)}\n"
     var bytes = UTF8.bytes(report); File.write_all(prefix + ".json", @bytes[0:bytes.count()])
-    print("H5 live continuity: ", report)
+    print("H6 live continuity: ", report)
     assert(info.error == "" && stress.stalls >= 5 && recorded.dropped_frames == 0)
     assert(block.frames > format.sample_rate * 6, "native output did not run long enough")
 }
