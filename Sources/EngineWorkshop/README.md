@@ -1,7 +1,7 @@
 # Assemble and listen to an engine
 
-This new demo uses only GFX.Audio's part-based engine generator. The separate
-`EngineAudio` bench remains available for sound comparisons.
+This demo uses only GFX.Audio's part-based engine generator. Compare its sounds
+with the reference simulator in the [EngineLibrary demo](../EngineLibrary/README.md).
 
 From the workspace or Spec group root:
 

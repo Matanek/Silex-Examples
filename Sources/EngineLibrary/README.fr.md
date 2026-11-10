@@ -3,7 +3,6 @@
 Cette démo consomme `GFX.Audio.Engines`. Le package possède le simulateur, les
 profils, les réponses d’échappement, l’aspiration et les traitements de sortie.
 La démo possède uniquement les entrées, le compte-tours et l’alimentation du flux.
-Le banc `EngineAudio` reste autonome pour les comparaisons.
 
 Le package fournit les moteurs standard sur macOS ARM64. Depuis la racine du
 workspace, lancer directement la démo, sans préparation supplémentaire :
@@ -35,14 +34,8 @@ Contrôles sans fenêtre ni sortie sonore :
 ```sh
 silex compile Silex-Examples/Sources/EngineLibrary/Check.sx --debug -o Build/EngineLibrary-Demo-Check
 Build/EngineLibrary-Demo-Check
-silex compile Silex-Examples/Sources/EngineAudio/PackageParity.sx --release -o Build/EngineLibrary-Parity
-Build/EngineLibrary-Parity /chemin/absolu/vers/EngineLibrary
 ```
 
-Le comparateur emploie l’ancien banc comme oracle indépendant, avec son runtime
-habituel sous `Build/EngineReference`. Il exige le PCM et le régime identiques
-sur les huit profils et les changements de commandes. Ce runtime n’est pas une
-dépendance de la nouvelle démo : seul le comparateur historique le nécessite.
 La [documentation du package](../../../Packages/GFX.Audio/Docs/FR/Engines.md)
 précise déploiement, API et limites de qualification.
 

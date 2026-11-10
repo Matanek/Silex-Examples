@@ -1,7 +1,8 @@
 # Composer et écouter un moteur
 
 Cette nouvelle démo emploie exclusivement le générateur par pièces de GFX.Audio.
-Le banc `EngineAudio` reste disponible séparément pour comparer ses sons.
+La [démo EngineLibrary](../EngineLibrary/README.fr.md) permet de comparer ses
+sons à ceux du simulateur de référence.
 
 Depuis la racine du workspace ou du groupe de Spec :
 

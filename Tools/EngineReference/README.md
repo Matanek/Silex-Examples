@@ -70,8 +70,9 @@ also exercises branches with very different signal levels.
 
 ## Run and verify
 
-The [demo](../../Sources/EngineAudio/README.md) provides `--reference`.
-The helper also offers two deterministic offline renders:
+The [EngineLibrary demo](../../Sources/EngineLibrary/README.md) consumes the
+simulator supplied by GFX.Audio. The standalone helper offers two deterministic
+offline renders:
 
 ```sh
 cd Build/EngineReference/Runtime
@@ -85,19 +86,19 @@ Each writes 14 seconds of mono 44.1 kHz audio, a CSV of RPM/controls and a
 derivative, jitter and air noise. This is a defined diagnostic stage, not an
 identification of the video's settings at 4:48–5:00.
 
-From the work root after rendering the demo:
+From the work root, verify the helper:
 
 ```sh
 python3 Silex-Examples/Tools/EngineReference/Verify.py \
   --binary Build/EngineReference/RenderReference \
   --runtime Build/EngineReference/Runtime \
-  --bridge-wave Build/EngineReference/Bridge.wav \
   --report Build/EngineReference/Verification.json
 ```
 
 This checks packets, bit-exact repeated runs, mechanical stages, bounds and
-final silence, rejection of invalid requests and PCM transfer into Silex with
-its gain. `--scalar-binary /path/to/RenderReference` also compares the vectorized
+final silence and rejection of invalid requests. The optional
+`--bridge-wave /path/to/Bridge.wav` also checks a PCM render from the Silex client
+when such a file is supplied. `--scalar-binary /path/to/RenderReference` also compares the vectorized
 FIR against the scalar control. The private `serve` protocol receives one line
 per block: mono frames (1–960), ignition (0/1), pedal, texture, convolution,
 bench RPM and load. Replies contain four little-endian uint32 values (magic

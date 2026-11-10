@@ -73,8 +73,9 @@ synthétique C++ exerce aussi des branches de niveaux très différents.
 
 ## Exécuter et vérifier
 
-La [démo](../../Sources/EngineAudio/README.fr.md) utilise `--reference`.
-Le helper seul propose aussi deux rendus déterministes hors ligne :
+La [démo EngineLibrary](../../Sources/EngineLibrary/README.fr.md) consomme le
+simulateur fourni par GFX.Audio. Le helper autonome propose deux rendus
+déterministes hors ligne :
 
 ```sh
 cd Build/EngineReference/Runtime
@@ -89,19 +90,19 @@ pressions d'échappement. `full` conserve les réglages audio initiaux du profil
 étage de diagnostic défini, pas une identification des réglages du passage
 4:48–5:00 de la vidéo.
 
-Depuis la racine de travail, après le rendu de la démo :
+Depuis la racine de travail, vérifier le helper :
 
 ```sh
 python3 Silex-Examples/Tools/EngineReference/Verify.py \
   --binary Build/EngineReference/RenderReference \
   --runtime Build/EngineReference/Runtime \
-  --bridge-wave Build/EngineReference/Bridge.wav \
   --report Build/EngineReference/Verification.json
 ```
 
 Le contrôle vérifie les paquets, deux rendus identiques, les étapes mécaniques,
-les bornes et le silence final, le rejet des requêtes invalides et la copie PCM
-vers Silex avec son gain. `--scalar-binary /chemin/RenderReference` compare aussi
+les bornes et le silence final, et le rejet des requêtes invalides. L’option
+`--bridge-wave /chemin/Bridge.wav` vérifie aussi un rendu PCM du client Silex
+lorsqu’un tel fichier est fourni. `--scalar-binary /chemin/RenderReference` compare aussi
 la somme vectorisée au contrôle scalaire. Le protocole privé `serve` reçoit une
 ligne par bloc : nombre de frames mono (1–960), contact (0/1), pédale, texture,
 convolution, régime de banc, charge. Il répond par quatre uint32 little-endian

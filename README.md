@@ -30,8 +30,8 @@ melodies composed directly or through MIDI. Select a recipe with `--case` or
 verify its PCM and stream without a device using `--check`.
 
 The [validated engine library demo](Sources/EngineLibrary/README.md) consumes
-GFX.Audio's extracted engine sounds and controls, preserving the original bench
-as an independent PCM comparison witness.
+GFX.Audio's engine sounds and controls, including the simulator, engine profiles
+and optional automatic or manual transmission.
 
 The parts workshop is experimental and its sound model is not the validated
 engine path.
@@ -39,14 +39,7 @@ engine path.
 The [engine-parts workshop](Sources/EngineWorkshop/README.md) builds engine
 sounds through GFX.Audio's public part API: block/head, intake, exhaust,
 silencers, mechanics and optional turbo. Replace parts during playback or isolate
-a sound branch; it runs independently of the original listening bench.
-
-The [vehicle engine audio bench](Sources/EngineAudio/README.md) offers sedan,
-sports car, truck, road/sports motorcycles and motocross profiles, including a
-two-stroke prototype. Its optional `--reference` helper runs engine-sim with
-cranking, coast-down and auto/manual gears in Route mode. It has separate local
-build instructions. The accepted 454 remains the default; listening feedback
-for new profiles and qualification for game integration are still needed.
+a sound branch; compare its sound with the validated engine library demo.
 
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.
