@@ -1,0 +1,148 @@
+{
+  "source": "2023 YZ250 + FMF Full Exhaust PURE SOUND.mp3",
+  "source_sha256": "e67300fec62ff311cbe6210a76d697a84756ca736ae2dafddf4bcd42cd44228b",
+  "decoded_pcm_sha256": "924598c8b0dfaa85f27cc012b56426a73b5dabb27cd91825cc03933e2623af54",
+  "pcm_sha256": "33f6e6b28580d616cff04590dad6b00568aed6cb6ed9e183612b05a66f297c7d",
+  "bytes": 786432,
+  "rpms": [
+    3660,
+    4500,
+    6000,
+    7500,
+    9000,
+    10500
+  ],
+  "cycles_per_loop": 32,
+  "points_per_cycle": 512,
+  "channels": 2,
+  "overlap_cycles": 4,
+  "rpm_calibrated": false,
+  "load_measured": false,
+  "phase_valid_interval_seconds": [
+    0.7107936507936508,
+    13.08891156462585
+  ],
+  "method": "recorded multi-cycle PCM; offline fundamental phase correction; shared crank phase; integer-cycle loop overlap",
+  "entries": [
+    {
+      "rpm": 3660,
+      "load_proxy": 0,
+      "source_start_seconds": 2.439297052154195,
+      "source_end_seconds": 3.0105668934240364,
+      "mean_source_load_proxy": 0.42857142857142855,
+      "bytes": 65536,
+      "rms": 0.042996051783424784,
+      "fundamental_sideband_ratio": 0.026746990867905135
+    },
+    {
+      "rpm": 3660,
+      "load_proxy": 1,
+      "source_start_seconds": 2.7003401360544217,
+      "source_end_seconds": 3.280068027210884,
+      "mean_source_load_proxy": 0.5620689655172414,
+      "bytes": 65536,
+      "rms": 0.054757091295221515,
+      "fundamental_sideband_ratio": 0.07360790815349286
+    },
+    {
+      "rpm": 4500,
+      "load_proxy": 0,
+      "source_start_seconds": 1.9136054421768707,
+      "source_end_seconds": 2.3954875283446713,
+      "mean_source_load_proxy": 0.3416666666666666,
+      "bytes": 65536,
+      "rms": 0.07176579491431066,
+      "fundamental_sideband_ratio": 0.3188706207662349
+    },
+    {
+      "rpm": 4500,
+      "load_proxy": 1,
+      "source_start_seconds": 3.2195238095238095,
+      "source_end_seconds": 3.6676190476190476,
+      "mean_source_load_proxy": 0.9136363636363637,
+      "bytes": 65536,
+      "rms": 0.13688817099442188,
+      "fundamental_sideband_ratio": 0.1621153854963677
+    },
+    {
+      "rpm": 6000,
+      "load_proxy": 0,
+      "source_start_seconds": 1.13140589569161,
+      "source_end_seconds": 1.4865079365079366,
+      "mean_source_load_proxy": 0.21666666666666667,
+      "bytes": 65536,
+      "rms": 0.06023618512979309,
+      "fundamental_sideband_ratio": 0.0033132121809329937
+    },
+    {
+      "rpm": 6000,
+      "load_proxy": 1,
+      "source_start_seconds": 3.5477324263038548,
+      "source_end_seconds": 3.9100680272108845,
+      "mean_source_load_proxy": 0.9166666666666666,
+      "bytes": 65536,
+      "rms": 0.166244174086866,
+      "fundamental_sideband_ratio": 0.03853063749427026
+    },
+    {
+      "rpm": 7500,
+      "load_proxy": 0,
+      "source_start_seconds": 12.740816326530613,
+      "source_end_seconds": 13.022698412698412,
+      "mean_source_load_proxy": 0.14999999999999997,
+      "bytes": 65536,
+      "rms": 0.05285875725854272,
+      "fundamental_sideband_ratio": 0.011744468498980535
+    },
+    {
+      "rpm": 7500,
+      "load_proxy": 1,
+      "source_start_seconds": 11.829024943310658,
+      "source_end_seconds": 12.109637188208616,
+      "mean_source_load_proxy": 0.6928571428571428,
+      "bytes": 65536,
+      "rms": 0.1374044604699823,
+      "fundamental_sideband_ratio": 0.5228275524706381
+    },
+    {
+      "rpm": 9000,
+      "load_proxy": 0,
+      "source_start_seconds": 11.259569160997733,
+      "source_end_seconds": 11.494671201814059,
+      "mean_source_load_proxy": 0.05833333333333333,
+      "bytes": 65536,
+      "rms": 0.06802471799672194,
+      "fundamental_sideband_ratio": 0.03297786750219537
+    },
+    {
+      "rpm": 9000,
+      "load_proxy": 1,
+      "source_start_seconds": 8.879070294784581,
+      "source_end_seconds": 9.109160997732426,
+      "mean_source_load_proxy": 0.5636363636363636,
+      "bytes": 65536,
+      "rms": 0.12152515705308582,
+      "fundamental_sideband_ratio": 0.036919475798426665
+    },
+    {
+      "rpm": 10500,
+      "load_proxy": 0,
+      "source_start_seconds": 12.212721088435375,
+      "source_end_seconds": 12.430793650793651,
+      "mean_source_load_proxy": 0.06363636363636363,
+      "bytes": 65536,
+      "rms": 0.08585159342933986,
+      "fundamental_sideband_ratio": 0.022469416945607893
+    },
+    {
+      "rpm": 10500,
+      "load_proxy": 1,
+      "source_start_seconds": 10.961587301587302,
+      "source_end_seconds": 11.181065759637189,
+      "mean_source_load_proxy": 0.6727272727272727,
+      "bytes": 65536,
+      "rms": 0.17537144168690302,
+      "fundamental_sideband_ratio": 0.0974926212148862
+    }
+  ]
+}

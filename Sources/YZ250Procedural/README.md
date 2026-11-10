@@ -1,5 +1,11 @@
 # YZ250 procedural listening prototype
 
+The spectral reduction lost the character of the supplied recording in user
+listening. Use the current [YZ250 compact-bank prototype](../YZ250/README.md)
+for recorded texture and live Space-key throttle control. This P1 experiment
+remains available for comparison.
+
+
 Generate a single-cylinder two-stroke sound without reading or embedding audio
 samples. The supplied YZ250/FMF recording is used only for offline spectral
 calibration. Test fixed RPM first, then slow/fast sweeps and continuous high-RPM

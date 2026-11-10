@@ -1,5 +1,6 @@
 use STD.File
 use STD.Math
+use STD.Text.UTF8
 use Module.Bank
 use Module.Voice
 
@@ -26,96 +27,97 @@ func wave(path:str, values:@float32[..]) {
     File.write_all(path, @bytes[0:bytes.count()])
 }
 public func render(prefix:str) {
-    var bank = Bank(); var samples = zeros(512)
-    for mode in [0, 1, 2] {
-        var voice = Voice(bank)
-        if mode == 0 { voice.set_mode(Voice.Mode.reference) }
-        if mode == 1 { voice.set_mode(Voice.Mode.reconstruction) }
-        voice.set_state(bank.minimum_rpm, 0.2)
-        if mode == 2 { voice.set_drive(0.0, 0.2); voice.reset() }
-        var output:float32[] = []
-        var duration = bank.frames
-        if mode == 2 { duration = 12 * 44_100 }
+    var bank = Bank(); var samples = zeros(256)
+    for scenario in 0...6 {
+        var voice = Voice(bank); var rpm:float = 4_500.0; var load:float = 0.7
+        var suffix = "Fixed-4500"; var seconds = 8
+        if scenario == 1 { rpm = 7_000.0; suffix = "Fixed-7000" }
+        if scenario == 2 { rpm = 9_500.0; suffix = "Fixed-9500" }
+        if scenario == 3 { rpm = 7_000.0; load = 0.0; suffix = "Load-Low" }
+        if scenario == 4 { rpm = 7_000.0; load = 1.0; suffix = "Load-High" }
+        if scenario == 5 { suffix = "Throttle"; seconds = 12 }
+        voice.set_state(rpm, load)
+        if scenario == 5 { voice.set_drive(0.0, 0.4) }
+        voice.reset()
+        var output:float32[] = []; var telemetry = "frame,rpm,turns,load,throttle\n"
+        let duration = seconds * 44_100
         var frame = 0
         while frame < duration {
             let time = frame as float / 44_100.0
-            if mode == 2 {
-                var throttle:float = 0.0; var load:float = 0.2
-                if time >= 1.2 && time < 4.0 { throttle = 1.0 }
-                if time >= 6.0 { load = 0.85; if time < 9.0 { throttle = 1.0 } }
-                voice.set_drive(throttle, load)
+            if scenario == 5 {
+                var throttle:float = 0.0
+                if time >= 0.5 && time < 0.7 { throttle = 1.0 }
+                if time >= 1.2 && time < 1.5 { throttle = 1.0 }
+                if time >= 2.2 && time < 7.0 { throttle = 1.0 }
+                if time >= 9.0 && time < 10.5 { throttle = 0.6 }
+                voice.set_drive(throttle, 0.4)
             }
-            var count = 512; if frame + count > duration { count = duration - frame }
+            var count = 256; if frame + count > duration { count = duration - frame }
             voice.render(&samples[0:count * 2])
             for i in 0...count * 2 {
                 var fade:float32 = 1.0
-                if mode == 2 && frame + i / 2 > duration - 883 { fade = (duration - 1 - frame - i / 2) as float32 / 882.0 }
+                if frame + i / 2 > duration - 883 { fade = (duration - 1 - frame - i / 2) as float32 / 882.0 }
                 output.append(samples[i] * 0.7 * fade)
             }
             frame += count
+            telemetry += "$(frame),$(voice.current_rpm()),$(voice.crank_turns()),$(voice.current_load()),$(voice.current_throttle())\n"
         }
-        var suffix = "Reference"; if mode == 1 { suffix = "Reconstruction" }
-        if mode == 2 { suffix = "Controlled" }
         wave(prefix + "-$(suffix).wav", @output[0:output.count()])
-        print("YZ250 export: ", prefix, "-", suffix, ".wav")
+        var encoded = UTF8.bytes(telemetry); File.write_all(prefix + "-$(suffix).csv", @encoded[0:encoded.count()])
+        print("YZ250 H1 export: ", prefix, "-", suffix, ".wav")
     }
 }
 public func check() {
-    var bank = Bank(); var original = Voice(bank); var reconstructed = Voice(bank)
-    original.set_mode(Voice.Mode.reference); reconstructed.set_mode(Voice.Mode.reconstruction)
-    original.set_state(bank.minimum_rpm, 0.5); reconstructed.set_state(bank.minimum_rpm, 0.5)
-    var a = zeros(512); var b = zeros(512); var error:float = 0.0
-    var frame = 0
-    while frame < bank.frames {
-        var count = 512; if frame + count > bank.frames { count = bank.frames - frame }
-        original.render(&a[0:count * 2]); reconstructed.render(&b[0:count * 2])
-        for i in 0...count * 2 { error = Math.max(error, Math.abs(a[i] - b[i]) as float) }
-        frame += count
-    }
-    assert(error < 0.000001, "overlap reconstruction lost the original material")
-    print("Reference/reconstruction maximum error: ", error)
-    var low = Voice(bank); var high = Voice(bank)
-    let rpm = bank.minimum_rpm + (bank.maximum_rpm - bank.minimum_rpm) * 0.55
-    low.set_state(rpm, 0.0); high.set_state(rpm, 1.0)
-    var difference:float64 = 0.0; var energy:float64 = 0.0
-    for _ in 0...200 {
-        low.render(&a[0:1_024]); high.render(&b[0:1_024])
-        for i in 0...1_024 {
-            assert(Math.is_finite(a[i]) && Math.is_finite(b[i]) && Math.abs(a[i]) <= 1.0 && Math.abs(b[i]) <= 1.0)
-            difference += (a[i] as float64 - b[i] as float64) * (a[i] as float64 - b[i] as float64)
-            energy += a[i] as float64 * a[i] as float64
+    var bank = Bank(); assert(bank.audio_bytes == 786_432)
+    var a = zeros(512); var b = zeros(512); var peak:float = 0.0
+    let rpms:float[] = [3_660.0, 4_500.0, 6_000.0, 7_000.0, 7_500.0, 9_000.0, 10_500.0]
+    let loads:float[] = [0.0, 0.5, 1.0]
+    for rpm in rpms {
+        for load in loads {
+            var voice = Voice(bank); voice.set_state(rpm, load); voice.reset()
+            var energy:float64 = 0.0
+            for _ in 0...150 {
+                voice.render(&a[0:1_024])
+                for value in a {
+                    assert(Math.is_finite(value) && Math.abs(value) < 1.0, "non-finite or clipped output")
+                    peak = Math.max(peak, Math.abs(value)); energy += value as float64 * value as float64
+                }
+            }
+            let expected = voice.frame() as float64 * rpm as float64 / 2_646_000.0
+            assert(Math.abs(voice.crank_turns() - expected) < 0.000001, "fixed firing cadence drifted")
+            assert(energy > 0.1, "silent point")
         }
     }
-    assert(energy > 0.001 && difference > 0.001, "load did not select different recorded material")
-    assert(Math.abs(low.current_rpm() - high.current_rpm()) < 0.01, "load changed requested RPM")
-    let clock = low.frame()
-    match try low.set_state(Math.sqrt(-1.0), 0.0) { failure(value) => {}; success => { panic("NaN RPM accepted") } }
-    match try low.render(&a[0:3]) { failure(value) => {}; success => { panic("partial stereo frame accepted") } }
-    assert(low.frame() == clock)
-    low.set_state(rpm, 0.0, running:false)
-    for _ in 0...60 { low.render(&a[0:1_024]) }
-    for value in a { assert(Math.abs(value) < 0.000001, "stop retained a loud grain") }
     var whole = Voice(bank); var split = Voice(bank)
-    whole.set_state(rpm, 0.8); split.set_state(rpm, 0.8)
-    for _ in 0...30 {
+    whole.set_drive(1.0, 0.6); split.set_drive(1.0, 0.6); whole.reset(); split.reset()
+    for _ in 0...100 {
         whole.render(&a[0:1_024]); split.render(&b[0:128]); split.render(&b[128:690]); split.render(&b[690:1_024])
-        for i in 0...1_024 { assert(a[i] == b[i], "render depends on block boundaries") }
+        for i in 0...1_024 { assert(a[i] == b[i], "block sizes changed audio") }
     }
     var free = Voice(bank); var loaded = Voice(bank)
-    free.set_drive(1.0, 0.0); loaded.set_drive(1.0, 1.0)
-    free.reset(); loaded.reset()
-    for _ in 0...18 { free.render(&a[0:1_024]); loaded.render(&b[0:1_024]) }
-    assert(free.current_rpm() > bank.minimum_rpm + 1_000.0, "gas did not raise RPM automatically")
-    assert(free.current_rpm() > loaded.current_rpm() + 500.0, "load did not slow the rise")
-    print("Throttle rise: free=", free.current_rpm(), " loaded=", loaded.current_rpm())
-    free.set_drive(0.0, 0.0)
-    for _ in 0...80 { free.render(&a[0:1_024]) }
-    assert(free.current_rpm() < bank.minimum_rpm + 100.0 && free.current_load() < 0.01, "released gas retained revs or loaded material")
-    whole.set_drive(0.8, 0.6); split.set_drive(0.8, 0.6); whole.reset(); split.reset()
-    for _ in 0...30 {
-        whole.render(&a[0:1_024]); split.render(&b[0:128]); split.render(&b[128:690]); split.render(&b[690:1_024])
-        for i in 0...1_024 { assert(a[i] == b[i], "throttle response depends on block boundaries") }
+    free.set_drive(1.0, 0.0); loaded.set_drive(1.0, 1.0); free.reset(); loaded.reset()
+    for _ in 0...30 { free.render(&a[0:1_024]); loaded.render(&b[0:1_024]) }
+    assert(free.current_rpm() > loaded.current_rpm() + 500.0, "load did not slow acceleration")
+    for _ in 0...400 { loaded.render(&b[0:1_024]) }
+    assert(loaded.current_rpm() > 10_490.0, "load incorrectly capped full throttle RPM")
+    var low = Voice(bank); var high = Voice(bank)
+    low.set_state(7_000.0, 0.0); high.set_state(7_000.0, 1.0); low.reset(); high.reset()
+    var difference:float64 = 0.0
+    for _ in 0...80 {
+        low.render(&a[0:1_024]); high.render(&b[0:1_024])
+        for i in 0...1_024 { difference += Math.abs(a[i] as float64 - b[i] as float64) }
     }
-    match try free.set_drive(1.01, 0.5) { failure(value) => {}; success => { panic("invalid throttle accepted") } }
-    print("YZ250 check passed: stereo reconstruction, independent RPM/load, finite output, stop, errors and split rendering")
+    assert(difference > 1.0 && low.crank_turns() == high.crank_turns(), "load changed pitch or had no sound effect")
+    whole.set_drive(0.0, 0.6)
+    for _ in 0...250 { whole.render(&a[0:1_024]) }
+    assert(whole.current_rpm() < 3_670.0 && whole.current_throttle() < 0.001, "gas release did not return to floor")
+    whole.set_drive(0.0, 0.6, false)
+    for _ in 0...50 { whole.render(&a[0:1_024]) }
+    for value in a { assert(Math.abs(value) < 0.000001, "stop did not silence") }
+    let clock = whole.frame()
+    match try whole.set_state(Math.sqrt(-1.0), 0.0) { failure(value) => {}; success => { panic("NaN accepted") } }
+    match try whole.set_drive(1.01, 0.0) { failure(value) => {}; success => { panic("invalid gas accepted") } }
+    match try whole.render(&a[0:3]) { failure(value) => {}; success => { panic("partial frame accepted") } }
+    assert(clock == whole.frame())
+    print("YZ250 H1 checks passed: 768 KiB bank, 21 steady points, gas/load/hold/release, phase, split blocks, stop and errors. Peak=", peak)
 }

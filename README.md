@@ -38,15 +38,13 @@ thermal sound chain: the unchanged Chevrolet 454 reference and 17 vehicle
 variants. Adapt total displacement with the engine stopped, compare processing
 A/B, run an eight-second audition and export profiles or the catalogue.
 
-The [fully procedural YZ250 prototype](Sources/YZ250Procedural/README.md) uses
-only spectral parameters measured from the supplied recording: no sample
-playback. Compare fixed-RPM stability, acoustic load, slow/fast sweeps and
-continuous full-RPM holds before judging the timbre.
+The [YZ250 compact-bank prototype](Sources/YZ250/README.md) retains actual
+recorded texture in a 768 KiB bank. Hold Space for throttle, release it to let
+RPM fall, and compare mechanical loads or steady RPM. Pitch-flattened loops
+share a continuous engine phase. Listening approval remains required.
 
-The earlier isolated [YZ250 listening prototype](Sources/YZ250/README.md) retains the
-supplied stereo recording and offers original/reconstructed playback plus
-RPM/load control using overlapping recorded grains. RPM and load are acoustic
-estimates; listening approval is required before generalizing the model.
+The earlier [spectral YZ250 experiment](Sources/YZ250Procedural/README.md)
+remains separate; the compact-bank prototype is the current listening candidate.
 
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.
