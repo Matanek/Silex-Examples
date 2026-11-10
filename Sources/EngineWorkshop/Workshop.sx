@@ -15,7 +15,7 @@ public class Workshop {
     var profile:UI.State<int?> = UI.State<int?>(0)
     var status:UI.State<str> = UI.State<str>("")
     var readout:UI.State<str> = UI.State<str>("Contact coupé")
-    var notice:UI.State<str> = UI.State<str>("Le Chevrolet 454 conserve exactement la chaîne sonore d’EngineLibrary.")
+    var notice:UI.State<str> = UI.State<str>("Citadines : extérieur feutré · diesel : voix hybride issue de la référence TDI.")
     var comparison:UI.State<str> = UI.State<str>("Écoute B · réglages courants")
     var capacity:Knob = Knob("Cylindrée totale à préparer", 7_438.0, 50.0, 12_000.0, "cm³", logarithmic:true)
     var throttle:Knob = Knob("Accélérateur", 0.0, 0.0, 1.0, "%")
@@ -182,7 +182,7 @@ public class Workshop {
         var character = Widgets.card("Écoute A / B", "Comparaison des traitements · volume et conduite communs", sound)
         var row = UI.Row([setup, bench, character], wrap:true); row.style.gap = 14.0
         var content = UI.Column([Widgets.text("Atelier des véhicules", 30.0, Color.slate_100()),
-            Widgets.text("Le moteur sonore d’EngineLibrary · Chevrolet 454 de référence conservé"), tools,
+            Widgets.text("Citadines feutrées · diesel TDI hybride · Chevrolet 454 conservé"), tools,
             UI.Reactive(self.readout_view), UI.Reactive(self.status_view), UI.Reactive(self.notice_view), row,
             Widgets.text("Le régime et l’effort viennent de la simulation. Les variantes restent à qualifier par l’écoute.", 12.0, Color.slate_400())])
         content.style.gap = 14.0; content.style.padding = UI.Insets(22.0); content.style.background = Color.bytes(8, 13, 20)

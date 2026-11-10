@@ -1,9 +1,16 @@
 # Listen to and adapt the reference engines
 
-EngineWorkshop now uses `GFX.Audio.Engines.Vehicles`, with EngineLibrary’s
-thermal simulator and sound chain. Chevrolet 454 is the initial profile;
+EngineWorkshop uses `GFX.Audio.Engines.Vehicles` and EngineLibrary’s
+thermal simulator. Chevrolet 454 is the initial profile;
 its definition, exhaust responses and output processing are preserved.
 The simplified pulse generator is no longer used by this demo.
+
+City petrol labels now include **extérieur feutré**, and diesel **voix TDI hybride**.
+These labels and the window title's “citadines et TDI hybride” identify the
+timbre correction. Diesel adds short excitations extracted from the supplied
+TDI audio reference, timed by simulated RPM. It does not replay the complete
+montage and its recorded engine is unidentified. Exterior petrol city cars stay
+quieter than sports profiles at the same listening volume.
 
 From the `SilexProject/` root:
 
@@ -88,8 +95,9 @@ about 98 ms excluding the device. UI consumes ready blocks without waiting for
 simulation. `--trace-audio` reports empty-queue observations and the largest
 update interval, not historical device underruns.
 
-Diesel remains a spark-ignition approximation without diesel injection or
-auto-ignition. The sports I4 does not simulate a turbo. Two-strokes retain the
+Diesel mechanics remain a spark-ignition approximation without diesel injection
+or auto-ignition; the recorded voice does not change that physical model.
+The sports I4 does not simulate a turbo. Two-strokes retain the
 simulator’s simplified ports/scavenging without conical expansion chambers.
 Affected profiles display these limits. Variants require listening qualification;
 454 parity protects the sound reference. `Measure.sx` still measures the parts

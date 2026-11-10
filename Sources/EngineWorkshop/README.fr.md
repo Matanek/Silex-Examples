@@ -1,10 +1,18 @@
 # Écouter et adapter les moteurs de référence
 
-EngineWorkshop utilise désormais `GFX.Audio.Engines.Vehicles`, avec le même
-simulateur thermique et la même chaîne sonore qu’EngineLibrary. Le Chevrolet
-454 est le profil initial : sa définition, ses réponses d’échappement et son
+EngineWorkshop utilise `GFX.Audio.Engines.Vehicles` et le simulateur thermique
+d’EngineLibrary. Le Chevrolet 454 est le profil initial : sa définition,
+ses réponses d’échappement et son
 traitement sont conservés. Le générateur simplifié par impulsions n’est plus
 utilisé dans cette démo.
+
+Les citadines essence portent maintenant le libellé **extérieur feutré** et le
+diesel **voix TDI hybride**. Ces mentions et le titre « citadines et TDI hybride »
+identifient la version avec les corrections de timbre. Le diesel ajoute de
+courtes excitations tirées de la référence audio TDI ; leur cadence suit le
+régime simulé. Il ne rejoue pas le montage entier et son modèle enregistré
+n’est pas identifié. Le rendu extérieur des essences reste plus discret que
+celui des sportives au même volume.
 
 Depuis la racine `SilexProject/` :
 
@@ -92,8 +100,9 @@ reste borné à cinq blocs de sortie et quatre calculs de 480 frames, environ
 le calcul. `--trace-audio` rapporte les observations de file vide et l’intervalle
 maximal entre mises à jour, pas un historique des ruptures du périphérique.
 
-Le diesel reste une approximation à allumage commandé, sans injection ni
-auto-inflammation. L’I4 de sportive ne simule pas de turbo. Le 2T conserve les
+La mécanique diesel reste une approximation à allumage commandé, sans injection
+ni auto-inflammation ; sa voix enregistrée ne change pas ce modèle physique.
+L’I4 de sportive ne simule pas de turbo. Le 2T conserve les
 lumières et le balayage simplifiés du simulateur, sans pot de détente à cônes.
 Ces limites sont visibles pour les profils concernés. Les variantes demandent
 une qualification à l’écoute ; la parité du 454 protège la référence sonore.
