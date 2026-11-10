@@ -1,0 +1,134 @@
+use GFX.Audio.Processing
+use GFX.Audio.Synthesis
+use STD.Math
+use STD.Error
+use STD.Error.Kind
+use Module.Bank
+
+public enum Mode { reference; reconstruction; engine }
+struct Grain {
+    var position:float64 = 0.0
+    var step:float64 = 1.0
+    var age:int = 0
+}
+
+// Four overlapping 120 ms stereo grains. Source choice/phase matching runs
+// once per 30 ms hop; windows and PCM are prepared once, outside rendering.
+public class Voice:Synthesis.Generator {
+    let format:Processing.Format = Processing.Format(sample_rate:44_100, channels:2)
+    var mode:Mode = Mode.engine
+    private var bank:Bank
+    private var grains:Grain[] = []
+    private var window:float32[] = []
+    private var clock:int = 0
+    private var next_grain:int = 0
+    private var previous_centre:int = -1
+    private var target_rpm:float
+    private var target_load:float = 0.5
+    private var rpm:float
+    private var load:float = 0.5
+    private var running:bool = false
+    private var gain:float32 = 0.0
+
+    init(bank:Bank) {
+        self.bank = bank
+        self.rpm = bank.minimum_rpm; self.target_rpm = self.rpm
+        for i in 0...5_292 { self.window.append(round_float<float32>(0.5 - 0.5 * Math.cos(2.0 * Math.pi<float64>() * i as float64 / 5_292.0))) }
+        for _ in 0...4 { self.grains.append(Grain()) }
+        self.reset()
+    }
+    func set_state(rpm:float, load:float, running:bool = true) Result<void,Error> {
+        if !Math.is_finite(rpm) || rpm < self.bank.minimum_rpm || rpm > self.bank.maximum_rpm || !Math.is_finite(load) || load < 0.0 || load > 1.0 {
+            return Result<void,Error>.failure(Error(kind:Kind.invalid_input(), operation:"yz250.state", detail:"RPM inside recorded estimated range and finite load in 0..1 required"))
+        }
+        self.target_rpm = rpm; self.target_load = load; self.running = running
+        return Result<void,Error>.success()
+    }
+    func current_rpm() float { return self.rpm }
+    func current_load() float { return self.load }
+    func frame() int { return self.clock }
+    func set_mode(mode:Mode) { self.mode = mode; self.reset() }
+    func reset() {
+        self.clock = 0; self.next_grain = 3; self.previous_centre = -1
+        self.rpm = self.target_rpm; self.load = self.target_load; self.gain = 0.0
+        let index = self.bank.choose(self.rpm, self.load, -1)
+        let centre = self.bank.centres[index]
+        let step = Math.clamp(self.rpm / self.bank.rpms[index], 0.75, 1.33) as float64
+        for i in 0...4 {
+            let age = i * 1_323
+            var position = centre as float64
+            var rate = step
+            if self.mode != Mode.engine { position = 0.0; rate = 1.0 }
+            self.grains[i] = Grain(position:position, step:rate, age:age)
+        }
+    }
+    private func align(start:float64, step:float64, reference:Grain, period:int) float64 {
+        var best:float64 = -2.0; var chosen = start
+        var shift = -period / 2
+        while shift <= period / 2 {
+            var product:float64 = 0.0; var a_energy:float64 = 0.0; var b_energy:float64 = 0.0
+            for i in 0...48 {
+                let offset = i as float64 * 20.0
+                let a = self.bank.sample(reference.position + offset * reference.step, 0) as float64
+                let b = self.bank.sample(start + shift as float64 + offset * step, 0) as float64
+                product += a * b; a_energy += a * a; b_energy += b * b
+            }
+            let score = product / Math.sqrt(Math.max(0.0000000001, a_energy * b_energy))
+            if score > best { best = score; chosen = start + shift as float64 }
+            shift += 8
+        }
+        return chosen
+    }
+    private func spawn() {
+        var grain = Grain(position:self.clock as float64)
+        if self.mode == Mode.engine {
+            let index = self.bank.choose(self.rpm, self.load, self.previous_centre)
+            let centre = self.bank.centres[index]
+            self.previous_centre = centre
+            grain.step = Math.clamp(self.rpm / self.bank.rpms[index], 0.75, 1.33) as float64
+            let start = centre as float64 - 2_646.0 * grain.step
+            let reference = self.grains[(self.next_grain + 1) % 4]
+            let period = Math.round(2_646_000.0 / self.bank.rpms[index]) as int
+            grain.position = self.align(start, grain.step, reference, period)
+        }
+        self.grains[self.next_grain] = grain
+        self.next_grain = (self.next_grain + 3) % 4
+    }
+    func render(samples:&float32[..]) Result<void,Error> {
+        if samples.count() % 2 != 0 { return Result<void,Error>.failure(Error(kind:Kind.invalid_input(), operation:"yz250.render", detail:"complete stereo frames required")) }
+        if !self.running && self.gain < 0.0000001 {
+            self.gain = 0.0
+            for i in 0...samples.count() { samples[i] = 0.0 }
+            return Result<void,Error>.success()
+        }
+        for frame in 0...samples.count() / 2 {
+            self.rpm += 0.002 * (self.target_rpm - self.rpm); self.load += 0.003 * (self.target_load - self.load)
+            var target:float32 = 0.0; if self.running { target = 1.0 }
+            if self.mode != Mode.engine && self.clock >= self.bank.frames { target = 0.0 }
+            self.gain += 0.003 * (target - self.gain)
+            if self.clock > 0 && self.clock % 1_323 == 0 { self.spawn() }
+            for channel in 0...2 {
+                var value:float32 = 0.0; var weight:float32 = 0.0
+                if self.mode == Mode.reference { value = self.bank.original(self.clock, channel) }
+                else {
+                    for i in 0...4 {
+                        let grain = self.grains[i]
+                        if grain.age < 5_292 {
+                            let window = self.window[grain.age]
+                            value += window * self.bank.sample(grain.position, channel); weight += window
+                        }
+                    }
+                    if weight > 0.0 { value /= weight }
+                }
+                var ending:float32 = 1.0
+                if self.mode != Mode.engine && self.clock > self.bank.frames - 883 {
+                    ending = Math.clamp((self.bank.frames - 1 - self.clock) as float / 882.0, 0.0, 1.0) as float32
+                }
+                samples[frame * 2 + channel] = value * self.gain * ending
+            }
+            for i in 0...4 { self.grains[i].position += self.grains[i].step; self.grains[i].age++ }
+            self.clock++
+        }
+        return Result<void,Error>.success()
+    }
+}

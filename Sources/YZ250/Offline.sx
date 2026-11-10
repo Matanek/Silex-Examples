@@ -1,0 +1,106 @@
+use STD.File
+use STD.Math
+use Module.Bank
+use Module.Voice
+
+func zeros(frames:int) float32[] { var values:float32[] = []; for _ in 0...frames * 2 { values.append(0.0) }
+    return values }
+func word(bytes:&uint8[], value:int, count:int) {
+    var remaining = value
+    for _ in 0...count { bytes.append((remaining % 256) as uint8); remaining /= 256 }
+}
+func wave(path:str, values:@float32[..]) {
+    var bytes:uint8[] = [82 as uint8, 73 as uint8, 70 as uint8, 70 as uint8]
+    word(bytes, 36 + values.count() * 2, 4)
+    for value in [87, 65, 86, 69, 102, 109, 116, 32] { bytes.append(value as uint8) }
+    word(bytes, 16, 4); word(bytes, 1, 2); word(bytes, 2, 2); word(bytes, 44_100, 4)
+    word(bytes, 176_400, 4); word(bytes, 4, 2); word(bytes, 16, 2)
+    for value in [100, 97, 116, 97] { bytes.append(value as uint8) }
+    word(bytes, values.count() * 2, 4)
+    for value in values {
+        assert(Math.is_finite(value) && Math.abs(value) <= 1.0)
+        var sample = Math.round(value * 32_767.0) as int
+        if sample < 0 { sample += 65_536 }
+        word(bytes, sample, 2)
+    }
+    File.write_all(path, @bytes[0:bytes.count()])
+}
+public func render(prefix:str) {
+    var bank = Bank(); var samples = zeros(512)
+    for mode in [0, 1, 2] {
+        var voice = Voice(bank)
+        if mode == 0 { voice.set_mode(Voice.Mode.reference) }
+        if mode == 1 { voice.set_mode(Voice.Mode.reconstruction) }
+        voice.set_state(bank.minimum_rpm, 0.2)
+        var output:float32[] = []
+        var duration = bank.frames
+        if mode == 2 { duration = 12 * 44_100 }
+        var frame = 0
+        while frame < duration {
+            let time = frame as float / 44_100.0
+            if mode == 2 {
+                let minimum = bank.minimum_rpm; let span = bank.maximum_rpm - minimum
+                var rpm = minimum + span * 0.25; var load:float = 0.0
+                if time >= 2.0 && time < 5.0 { rpm = minimum + span * (0.25 + 0.75 * (time - 2.0) / 3.0); load = 1.0 }
+                if time >= 5.0 && time < 9.0 { rpm = minimum + span * 0.55; if time < 7.0 { load = 1.0 } }
+                if time >= 9.0 { rpm = minimum + span * 0.55 * (1.0 - (time - 9.0) / 3.0); load = 0.0 }
+                voice.set_state(rpm, load)
+            }
+            var count = 512; if frame + count > duration { count = duration - frame }
+            voice.render(&samples[0:count * 2])
+            for i in 0...count * 2 {
+                var fade:float32 = 1.0
+                if mode == 2 && frame + i / 2 > duration - 883 { fade = (duration - 1 - frame - i / 2) as float32 / 882.0 }
+                output.append(samples[i] * 0.7 * fade)
+            }
+            frame += count
+        }
+        var suffix = "Reference"; if mode == 1 { suffix = "Reconstruction" }
+        if mode == 2 { suffix = "Controlled" }
+        wave(prefix + "-$(suffix).wav", @output[0:output.count()])
+        print("YZ250 export: ", prefix, "-", suffix, ".wav")
+    }
+}
+public func check() {
+    var bank = Bank(); var original = Voice(bank); var reconstructed = Voice(bank)
+    original.set_mode(Voice.Mode.reference); reconstructed.set_mode(Voice.Mode.reconstruction)
+    original.set_state(bank.minimum_rpm, 0.5); reconstructed.set_state(bank.minimum_rpm, 0.5)
+    var a = zeros(512); var b = zeros(512); var error:float = 0.0
+    var frame = 0
+    while frame < bank.frames {
+        var count = 512; if frame + count > bank.frames { count = bank.frames - frame }
+        original.render(&a[0:count * 2]); reconstructed.render(&b[0:count * 2])
+        for i in 0...count * 2 { error = Math.max(error, Math.abs(a[i] - b[i]) as float) }
+        frame += count
+    }
+    assert(error < 0.000001, "overlap reconstruction lost the original material")
+    print("Reference/reconstruction maximum error: ", error)
+    var low = Voice(bank); var high = Voice(bank)
+    let rpm = bank.minimum_rpm + (bank.maximum_rpm - bank.minimum_rpm) * 0.55
+    low.set_state(rpm, 0.0); high.set_state(rpm, 1.0)
+    var difference:float64 = 0.0; var energy:float64 = 0.0
+    for _ in 0...200 {
+        low.render(&a[0:1_024]); high.render(&b[0:1_024])
+        for i in 0...1_024 {
+            assert(Math.is_finite(a[i]) && Math.is_finite(b[i]) && Math.abs(a[i]) <= 1.0 && Math.abs(b[i]) <= 1.0)
+            difference += (a[i] as float64 - b[i] as float64) * (a[i] as float64 - b[i] as float64)
+            energy += a[i] as float64 * a[i] as float64
+        }
+    }
+    assert(energy > 0.001 && difference > 0.001, "load did not select different recorded material")
+    assert(Math.abs(low.current_rpm() - high.current_rpm()) < 0.01, "load changed requested RPM")
+    let clock = low.frame()
+    match try low.set_state(Math.sqrt(-1.0), 0.0) { failure(value) => {}; success => { panic("NaN RPM accepted") } }
+    match try low.render(&a[0:3]) { failure(value) => {}; success => { panic("partial stereo frame accepted") } }
+    assert(low.frame() == clock)
+    low.set_state(rpm, 0.0, running:false)
+    for _ in 0...60 { low.render(&a[0:1_024]) }
+    for value in a { assert(Math.abs(value) < 0.000001, "stop retained a loud grain") }
+    var whole = Voice(bank); var split = Voice(bank)
+    whole.set_state(rpm, 0.8); split.set_state(rpm, 0.8)
+    for _ in 0...30 {
+        whole.render(&a[0:1_024]); split.render(&b[0:128]); split.render(&b[128:690]); split.render(&b[690:1_024])
+        for i in 0...1_024 { assert(a[i] == b[i], "render depends on block boundaries") }
+    }
+    print("YZ250 check passed: stereo reconstruction, independent RPM/load, finite output, stop, errors and split rendering")
+}

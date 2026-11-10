@@ -1,5 +1,9 @@
 # Listen to and adapt the reference engines
 
+To qualify a motocross engine from the supplied YZ250 recording, use the
+[YZ250 listening prototype](../YZ250/README.md). It stays separate from the
+catalogue below and preserves the 454 and 500 four-stroke motocross paths.
+
 EngineWorkshop uses `GFX.Audio.Engines.Vehicles` and EngineLibrary’s
 thermal simulator. Chevrolet 454 is the initial profile;
 its definition, exhaust responses and output processing are preserved.

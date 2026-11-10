@@ -1,0 +1,5210 @@
+{
+  "source": "2023 YZ250 + FMF Full Exhaust PURE SOUND.mp3",
+  "source_sha256": "e67300fec62ff311cbe6210a76d697a84756ca736ae2dafddf4bcd42cd44228b",
+  "decoded_pcm_sha256": "924598c8b0dfaa85f27cc012b56426a73b5dabb27cd91825cc03933e2623af54",
+  "sample_rate": 44100,
+  "channels": 2,
+  "frames": 581632,
+  "duration_seconds": 13.188934240362812,
+  "grain_samples": 5292,
+  "hop_samples": 1323,
+  "rpm_estimated_min": 3660,
+  "rpm_estimated_max": 10500,
+  "rpm_calibrated": false,
+  "load_measured": false,
+  "load_description": "pitch-rise versus pitch-fall proxy; not measured torque",
+  "analysis": [
+    {
+      "frame": 5000,
+      "rms": 0.1047760947640753,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 5882,
+      "rms": 0.10343439633601013,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 6764,
+      "rms": 0.1022281350084924,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 7646,
+      "rms": 0.10233967715591615,
+      "rpm": 5220,
+      "confidence": 0.9876968015506461,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 8528,
+      "rms": 0.10202208692596812,
+      "rpm": 5340,
+      "confidence": 0.9688938910926905,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 9410,
+      "rms": 0.1022309521234089,
+      "rpm": 5340,
+      "confidence": 0.937612543814885,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 10292,
+      "rms": 0.10300313050620312,
+      "rpm": 5340,
+      "confidence": 0.9599245896106068,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 11174,
+      "rms": 0.10510885393837592,
+      "rpm": 5340,
+      "confidence": 0.9760621417914048,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 12056,
+      "rms": 0.06709182009887488,
+      "rpm": 5340,
+      "confidence": 0.9860514140094299,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 12938,
+      "rms": 0.06691692396042927,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 13820,
+      "rms": 0.06841998623151596,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 14702,
+      "rms": 0.06813135555457986,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 15584,
+      "rms": 0.06888357099339334,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 16466,
+      "rms": 0.07117909095841404,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 17348,
+      "rms": 0.08945836494379872,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 18230,
+      "rms": 0.09153926739382226,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 19112,
+      "rms": 0.09109760349750815,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 19994,
+      "rms": 0.08740473467657746,
+      "rpm": 5220,
+      "confidence": 0.9625546186091277,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 20876,
+      "rms": 0.08482396886405057,
+      "rpm": 5220,
+      "confidence": 0.910018588712141,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 21758,
+      "rms": 0.08283795409368115,
+      "rpm": 5220,
+      "confidence": 0.9040094140797362,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 22640,
+      "rms": 0.08437151971291133,
+      "rpm": 5220,
+      "confidence": 0.9536161869683922,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 23522,
+      "rms": 0.10671495526900814,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 24404,
+      "rms": 0.1072361641527029,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 25286,
+      "rms": 0.09339591640896906,
+      "rpm": 5220,
+      "confidence": 0.9961635443105199,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 26168,
+      "rms": 0.09017170850414064,
+      "rpm": 5220,
+      "confidence": 0.8835004918656088,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 27050,
+      "rms": 0.09053449276475233,
+      "rpm": 5340,
+      "confidence": 0.7469977296939881,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 27932,
+      "rms": 0.09306994368745901,
+      "rpm": 5340,
+      "confidence": 0.8235308663467059,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 28814,
+      "rms": 0.09485473681361689,
+      "rpm": 5340,
+      "confidence": 0.9693948513774516,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 29696,
+      "rms": 0.09600773820154268,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 30578,
+      "rms": 0.09635955605701321,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 31460,
+      "rms": 0.07107980431184249,
+      "rpm": 5340,
+      "confidence": 0.9961085753268687,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 32342,
+      "rms": 0.0706463223938614,
+      "rpm": 5340,
+      "confidence": 0.9893841678602247,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 33224,
+      "rms": 0.11183510711833242,
+      "rpm": 5340,
+      "confidence": 0.9869472712634977,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 34106,
+      "rms": 0.11558195942657604,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 34988,
+      "rms": 0.13324625802557635,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 35870,
+      "rms": 0.1687553496803282,
+      "rpm": 5220,
+      "confidence": 0.9862236296312156,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 36752,
+      "rms": 0.17784659625698085,
+      "rpm": 5100,
+      "confidence": 0.9351431064902923,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 37634,
+      "rms": 0.19354724750674115,
+      "rpm": 5100,
+      "confidence": 0.9087546915452346,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 38516,
+      "rms": 0.2102238351069725,
+      "rpm": 5100,
+      "confidence": 0.8905577043365808,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 39398,
+      "rms": 0.2254060022395596,
+      "rpm": 5100,
+      "confidence": 0.8871491031012347,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 40280,
+      "rms": 0.22845583846619408,
+      "rpm": 5100,
+      "confidence": 0.8398210570689059,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 41162,
+      "rms": 0.21467040473523424,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 42044,
+      "rms": 0.21047763376920456,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 42926,
+      "rms": 0.20518092629120763,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 43808,
+      "rms": 0.1732377904743588,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 44690,
+      "rms": 0.16009902659483563,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 45572,
+      "rms": 0.14323378991610325,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 46454,
+      "rms": 0.12223416089212528,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 47336,
+      "rms": 0.08499989961819492,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 48218,
+      "rms": 0.057636974359618245,
+      "rpm": 6780,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 49100,
+      "rms": 0.051321185763006136,
+      "rpm": 6660,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 49982,
+      "rms": 0.04909530274557854,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 50864,
+      "rms": 0.04674261347111681,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 51746,
+      "rms": 0.04479319331180299,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 52628,
+      "rms": 0.04428192193417634,
+      "rpm": 6420,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 53510,
+      "rms": 0.044517249566574664,
+      "rpm": 6300,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 54392,
+      "rms": 0.045840911719695385,
+      "rpm": 6300,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 55274,
+      "rms": 0.04799150871015202,
+      "rpm": 6180,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 56156,
+      "rms": 0.04987143382383285,
+      "rpm": 6180,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 57038,
+      "rms": 0.0522911667783218,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 57920,
+      "rms": 0.054772354323496225,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 58802,
+      "rms": 0.05686272406047194,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 59684,
+      "rms": 0.058406979708839006,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 60566,
+      "rms": 0.058502318178379135,
+      "rpm": 5820,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 61448,
+      "rms": 0.05840043002403594,
+      "rpm": 5820,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 62330,
+      "rms": 0.05901802546475177,
+      "rpm": 5820,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 63212,
+      "rms": 0.059778177098045594,
+      "rpm": 5820,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 64094,
+      "rms": 0.06130826339544498,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 64976,
+      "rms": 0.06151397038087351,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 65858,
+      "rms": 0.0644372595834915,
+      "rpm": 5580,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 66740,
+      "rms": 0.06556856606158294,
+      "rpm": 5580,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 67622,
+      "rms": 0.06739553757462888,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 68504,
+      "rms": 0.06965404401658858,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 69386,
+      "rms": 0.07243286740143931,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 70268,
+      "rms": 0.07396747098055277,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 71150,
+      "rms": 0.07448706988023608,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 72032,
+      "rms": 0.07382053253282747,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 72914,
+      "rms": 0.07258373225078188,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 73796,
+      "rms": 0.06998834366958133,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 74678,
+      "rms": 0.06850470163325814,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 75560,
+      "rms": 0.06767137151157031,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 76442,
+      "rms": 0.06669090431082456,
+      "rpm": 5100,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 77324,
+      "rms": 0.06515972842921026,
+      "rpm": 4980,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 78206,
+      "rms": 0.06333994359709061,
+      "rpm": 4980,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 79088,
+      "rms": 0.062461172246899656,
+      "rpm": 4980,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 79970,
+      "rms": 0.06228689105685132,
+      "rpm": 4980,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 80852,
+      "rms": 0.062034731466586376,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 81734,
+      "rms": 0.0632040061276459,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 82616,
+      "rms": 0.08446920124500433,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 83498,
+      "rms": 0.08742966245950949,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 84380,
+      "rms": 0.08726657210790922,
+      "rpm": 4860,
+      "confidence": 0.9888472919199461,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 85262,
+      "rms": 0.08640222465858657,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 86144,
+      "rms": 0.08588794794173138,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 87026,
+      "rms": 0.08557292742547105,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 87908,
+      "rms": 0.08562643782388475,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 88790,
+      "rms": 0.08583937826532928,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 89672,
+      "rms": 0.0850725725300717,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 90554,
+      "rms": 0.07746274568762274,
+      "rpm": 4740,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 91436,
+      "rms": 0.05782057565420344,
+      "rpm": 4620,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 92318,
+      "rms": 0.05723017025886671,
+      "rpm": 4620,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 93200,
+      "rms": 0.05733319895394883,
+      "rpm": 4620,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 94082,
+      "rms": 0.05601384091067734,
+      "rpm": 4620,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 94964,
+      "rms": 0.05561859576650547,
+      "rpm": 4500,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 95846,
+      "rms": 0.05429872218819118,
+      "rpm": 4380,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 96728,
+      "rms": 0.05324858315157854,
+      "rpm": 4380,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 97610,
+      "rms": 0.051943108968196566,
+      "rpm": 4380,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 98492,
+      "rms": 0.049936654165095316,
+      "rpm": 4380,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 99374,
+      "rms": 0.05001362341660882,
+      "rpm": 4260,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 100256,
+      "rms": 0.04976114570344098,
+      "rpm": 4260,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 101138,
+      "rms": 0.048835842827626236,
+      "rpm": 4260,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 102020,
+      "rms": 0.04859539733451706,
+      "rpm": 4260,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 102902,
+      "rms": 0.04809248700872439,
+      "rpm": 4260,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 103784,
+      "rms": 0.0475093028935621,
+      "rpm": 4140,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 104666,
+      "rms": 0.04687003314039738,
+      "rpm": 4140,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 105548,
+      "rms": 0.0463198419486639,
+      "rpm": 4140,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 106430,
+      "rms": 0.04571587887397275,
+      "rpm": 4140,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 107312,
+      "rms": 0.045385731904694145,
+      "rpm": 4020,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 108194,
+      "rms": 0.04411602072419713,
+      "rpm": 4020,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 109076,
+      "rms": 0.04412637499043582,
+      "rpm": 4020,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 109958,
+      "rms": 0.044243225207889356,
+      "rpm": 4020,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 110840,
+      "rms": 0.043205735090150646,
+      "rpm": 3900,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 111722,
+      "rms": 0.04338888365411074,
+      "rpm": 3900,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 112604,
+      "rms": 0.04310336107447211,
+      "rpm": 3900,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 113486,
+      "rms": 0.04288921272917434,
+      "rpm": 3900,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 114368,
+      "rms": 0.04280762714374869,
+      "rpm": 3900,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 115250,
+      "rms": 0.041972046043947484,
+      "rpm": 3900,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 116132,
+      "rms": 0.04125717391514581,
+      "rpm": 3900,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 117014,
+      "rms": 0.04040975424037197,
+      "rpm": 3780,
+      "confidence": 0.9673686309368482,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 117896,
+      "rms": 0.03849027317891254,
+      "rpm": 3780,
+      "confidence": 0.9842881800270721,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 118778,
+      "rms": 0.03799152912474921,
+      "rpm": 3780,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 119660,
+      "rms": 0.03753675169311437,
+      "rpm": 3780,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 120542,
+      "rms": 0.0377793278429187,
+      "rpm": 3780,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 121424,
+      "rms": 0.04043303492299445,
+      "rpm": 3780,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 122306,
+      "rms": 0.0391684304616652,
+      "rpm": 3780,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 123188,
+      "rms": 0.038604666354509654,
+      "rpm": 3660,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 124070,
+      "rms": 0.039659098083525336,
+      "rpm": 3660,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 124952,
+      "rms": 0.040031865475934604,
+      "rpm": 3660,
+      "confidence": 0.933968321497999,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 125834,
+      "rms": 0.03980347188264415,
+      "rpm": 3660,
+      "confidence": 0.8385380720777087,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 126716,
+      "rms": 0.04082678440184984,
+      "rpm": 3660,
+      "confidence": 0.8506708031607011,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 127598,
+      "rms": 0.041587812159551554,
+      "rpm": 3660,
+      "confidence": 0.8597815805807392,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 128480,
+      "rms": 0.041894603503459374,
+      "rpm": 3660,
+      "confidence": 0.9367755829590804,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 129362,
+      "rms": 0.03917439800485386,
+      "rpm": 3660,
+      "confidence": 0.9493603090184788,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 130244,
+      "rms": 0.039700814571666715,
+      "rpm": 3660,
+      "confidence": 0.943579189462524,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 131126,
+      "rms": 0.040577017525895896,
+      "rpm": 3660,
+      "confidence": 0.9613403741136695,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 132008,
+      "rms": 0.040748542435455254,
+      "rpm": 3660,
+      "confidence": 0.9968009773539022,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 132890,
+      "rms": 0.04373624266398585,
+      "rpm": 3660,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 133772,
+      "rms": 0.04364314906536769,
+      "rpm": 3660,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 134654,
+      "rms": 0.04258562125074913,
+      "rpm": 3660,
+      "confidence": 0.9992794089979664,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 135536,
+      "rms": 0.04952914348995478,
+      "rpm": 3660,
+      "confidence": 0.9593097369368794,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 136418,
+      "rms": 0.05510531132091324,
+      "rpm": 3660,
+      "confidence": 0.9523606516102082,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 137300,
+      "rms": 0.05474232059769811,
+      "rpm": 3660,
+      "confidence": 0.950817655465519,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 138182,
+      "rms": 0.05458720530368585,
+      "rpm": 3780,
+      "confidence": 0.8779889407863819,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 139064,
+      "rms": 0.07855541120999299,
+      "rpm": 3780,
+      "confidence": 0.8955835020442996,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 139946,
+      "rms": 0.08297151332684878,
+      "rpm": 3780,
+      "confidence": 0.9586740220011378,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 140828,
+      "rms": 0.08251196549573514,
+      "rpm": 3780,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 141710,
+      "rms": 0.08177449720668473,
+      "rpm": 3780,
+      "confidence": 1.0,
+      "load": 0.8,
+      "usable": true
+    },
+    {
+      "frame": 142592,
+      "rms": 0.09015970391029385,
+      "rpm": 3780,
+      "confidence": 0.9434141975391557,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 143474,
+      "rms": 0.10754389131792377,
+      "rpm": 3780,
+      "confidence": 0.8171668344275521,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 144356,
+      "rms": 0.10348378754953717,
+      "rpm": 4140,
+      "confidence": 0.9846709481849399,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 145238,
+      "rms": 0.11236553603553924,
+      "rpm": 4380,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 146120,
+      "rms": 0.12884141489719225,
+      "rpm": 4380,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 147002,
+      "rms": 0.12823437372493895,
+      "rpm": 4380,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 147884,
+      "rms": 0.11599372680048259,
+      "rpm": 4380,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 148766,
+      "rms": 0.1275430536502066,
+      "rpm": 4740,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 149648,
+      "rms": 0.1296598852051383,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 150530,
+      "rms": 0.13810793530096674,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 151412,
+      "rms": 0.12380121114127893,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 152294,
+      "rms": 0.13455460170888459,
+      "rpm": 4860,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 153176,
+      "rms": 0.136116969964487,
+      "rpm": 4980,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 154058,
+      "rms": 0.12817283419137585,
+      "rpm": 4980,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 154940,
+      "rms": 0.1295692501007948,
+      "rpm": 4980,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 155822,
+      "rms": 0.13457689539827955,
+      "rpm": 4980,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 156704,
+      "rms": 0.1351228902751594,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 157586,
+      "rms": 0.13624414259825035,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 158468,
+      "rms": 0.1368486914244282,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 159350,
+      "rms": 0.14157530151385445,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.8,
+      "usable": true
+    },
+    {
+      "frame": 160232,
+      "rms": 0.14446527437390516,
+      "rpm": 5580,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 161114,
+      "rms": 0.14611489007425912,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 161996,
+      "rms": 0.1506218547199953,
+      "rpm": 5820,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 162878,
+      "rms": 0.1471851574558209,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 163760,
+      "rms": 0.14989525673843335,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.8,
+      "usable": true
+    },
+    {
+      "frame": 164642,
+      "rms": 0.15037864227516196,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.8,
+      "usable": true
+    },
+    {
+      "frame": 165524,
+      "rms": 0.15282243477721555,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 166406,
+      "rms": 0.15313835385155508,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.8,
+      "usable": true
+    },
+    {
+      "frame": 167288,
+      "rms": 0.15904989193650426,
+      "rpm": 6180,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 168170,
+      "rms": 0.16348780601886448,
+      "rpm": 6180,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 169052,
+      "rms": 0.17284693448638064,
+      "rpm": 6420,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 169934,
+      "rms": 0.17827571066649026,
+      "rpm": 6540,
+      "confidence": 0.9810498567364421,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 170816,
+      "rms": 0.18710535778025444,
+      "rpm": 6660,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 171698,
+      "rms": 0.1949453718274567,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 172580,
+      "rms": 0.2002848503557555,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 173462,
+      "rms": 0.20411547445297948,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 174344,
+      "rms": 0.20576089745596246,
+      "rpm": 8340,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 175226,
+      "rms": 0.19927642801307416,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 176108,
+      "rms": 0.19504348983629866,
+      "rpm": 9420,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 176990,
+      "rms": 0.18083760502622304,
+      "rpm": 9900,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 177872,
+      "rms": 0.17214830220742153,
+      "rpm": 10020,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 178754,
+      "rms": 0.1602710410439821,
+      "rpm": 10020,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 179636,
+      "rms": 0.14787579914517632,
+      "rpm": 10140,
+      "confidence": 1.0,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 180518,
+      "rms": 0.13295446344012446,
+      "rpm": 10140,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 181400,
+      "rms": 0.11818540798024967,
+      "rpm": 10140,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 182282,
+      "rms": 0.10393750664501615,
+      "rpm": 10140,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 183164,
+      "rms": 0.0987776678829973,
+      "rpm": 10020,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 184046,
+      "rms": 0.09355851003365845,
+      "rpm": 9780,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 184928,
+      "rms": 0.08937351759067691,
+      "rpm": 9660,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 185810,
+      "rms": 0.0847380146088233,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 186692,
+      "rms": 0.0800084145593315,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 187574,
+      "rms": 0.0766637450813495,
+      "rpm": 9420,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 188456,
+      "rms": 0.07361761680278182,
+      "rpm": 9420,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 189338,
+      "rms": 0.07219790524700707,
+      "rpm": 9300,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 190220,
+      "rms": 0.07130598371400455,
+      "rpm": 9180,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 191102,
+      "rms": 0.07108590475348192,
+      "rpm": 9180,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 191984,
+      "rms": 0.07112219996999464,
+      "rpm": 9060,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 192866,
+      "rms": 0.07107685734809722,
+      "rpm": 8940,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 193748,
+      "rms": 0.07100384033695452,
+      "rpm": 8940,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 194630,
+      "rms": 0.0703045555699801,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 195512,
+      "rms": 0.06948953941368474,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 196394,
+      "rms": 0.06851621363331876,
+      "rpm": 8580,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 197276,
+      "rms": 0.06785045707988913,
+      "rpm": 8580,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 198158,
+      "rms": 0.06824454586516888,
+      "rpm": 8460,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 199040,
+      "rms": 0.06926988988084161,
+      "rpm": 8460,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 199922,
+      "rms": 0.06980924291663114,
+      "rpm": 8340,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 200804,
+      "rms": 0.07028388161816654,
+      "rpm": 8340,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 201686,
+      "rms": 0.07082307014088171,
+      "rpm": 8220,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 202568,
+      "rms": 0.07096766962318683,
+      "rpm": 8100,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 203450,
+      "rms": 0.07224426031296745,
+      "rpm": 8100,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 204332,
+      "rms": 0.07376544222520837,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 205214,
+      "rms": 0.07560173970490665,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 206096,
+      "rms": 0.07724168316448474,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 206978,
+      "rms": 0.07773673411181582,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 207860,
+      "rms": 0.07799592803337173,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 208742,
+      "rms": 0.0781709573646807,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 209624,
+      "rms": 0.07829491072373594,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 210506,
+      "rms": 0.07779866463494715,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 211388,
+      "rms": 0.0776529542590579,
+      "rpm": 7500,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 212270,
+      "rms": 0.07643323568351187,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 213152,
+      "rms": 0.0750004473487047,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 214034,
+      "rms": 0.07225886747692871,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 214916,
+      "rms": 0.06891797034997996,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 215798,
+      "rms": 0.06582412507491547,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 216680,
+      "rms": 0.06231877801201454,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 217562,
+      "rms": 0.058375398411350685,
+      "rpm": 7020,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 218444,
+      "rms": 0.05495159451881489,
+      "rpm": 7020,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 219326,
+      "rms": 0.051813935870333165,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 220208,
+      "rms": 0.04884398660056445,
+      "rpm": 6780,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 221090,
+      "rms": 0.045730094299771575,
+      "rpm": 6780,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 221972,
+      "rms": 0.04289955540541329,
+      "rpm": 6780,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 222854,
+      "rms": 0.040398678792054325,
+      "rpm": 6660,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 223736,
+      "rms": 0.037783394742980356,
+      "rpm": 6660,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 224618,
+      "rms": 0.0354627619420047,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 225500,
+      "rms": 0.03410501769237059,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 226382,
+      "rms": 0.03281369656371485,
+      "rpm": 6420,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 227264,
+      "rms": 0.03179217230224166,
+      "rpm": 6420,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 228146,
+      "rms": 0.03067048448929395,
+      "rpm": 6300,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 229028,
+      "rms": 0.029791375860591836,
+      "rpm": 6300,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 229910,
+      "rms": 0.029086277161278457,
+      "rpm": 6300,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 230792,
+      "rms": 0.02861849953050042,
+      "rpm": 6180,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 231674,
+      "rms": 0.029283090860569315,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 232556,
+      "rms": 0.03738449431651022,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 233438,
+      "rms": 0.059545068463243755,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 234320,
+      "rms": 0.09018529506737442,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 235202,
+      "rms": 0.11258027988174912,
+      "rpm": 6060,
+      "confidence": 0.9802947538187929,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 236084,
+      "rms": 0.13085700771034184,
+      "rpm": 6060,
+      "confidence": 0.9765634490855941,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 236966,
+      "rms": 0.153558726768173,
+      "rpm": 6300,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 237848,
+      "rms": 0.15848590850538455,
+      "rpm": 6300,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 238730,
+      "rms": 0.15952048286187065,
+      "rpm": 6300,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 239612,
+      "rms": 0.16119582825598086,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 240494,
+      "rms": 0.1618452301405244,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 241376,
+      "rms": 0.15905272933404063,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 242258,
+      "rms": 0.14689875732200527,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 243140,
+      "rms": 0.13202932075987958,
+      "rpm": 8700,
+      "confidence": 0.9739574816669516,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 244022,
+      "rms": 0.11350294208170228,
+      "rpm": 8700,
+      "confidence": 0.9613795188007338,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 244904,
+      "rms": 0.0794271186430963,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 245786,
+      "rms": 0.06555773838909082,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 246668,
+      "rms": 0.06463750471260749,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 247550,
+      "rms": 0.06267858544606249,
+      "rpm": 8580,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 248432,
+      "rms": 0.061613702778985584,
+      "rpm": 8460,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 249314,
+      "rms": 0.06293310767111418,
+      "rpm": 8460,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 250196,
+      "rms": 0.06370128995170261,
+      "rpm": 8340,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 251078,
+      "rms": 0.06468355038217709,
+      "rpm": 8220,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 251960,
+      "rms": 0.06559027406572855,
+      "rpm": 8220,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 252842,
+      "rms": 0.06636711663587931,
+      "rpm": 8100,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 253724,
+      "rms": 0.0680231780329625,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 254606,
+      "rms": 0.06964728308094728,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 255488,
+      "rms": 0.07214793482930458,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 256370,
+      "rms": 0.07439403787835172,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 257252,
+      "rms": 0.07541429514121042,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 258134,
+      "rms": 0.07577759575758453,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 259016,
+      "rms": 0.07588465691379136,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 259898,
+      "rms": 0.07594710116026614,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 260780,
+      "rms": 0.07563777036442629,
+      "rpm": 7500,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 261662,
+      "rms": 0.07535301145390721,
+      "rpm": 7500,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 262544,
+      "rms": 0.07401188153971644,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 263426,
+      "rms": 0.07170209874426875,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 264308,
+      "rms": 0.06820175338418186,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 265190,
+      "rms": 0.0642528463110908,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 266072,
+      "rms": 0.0596704036950561,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 266954,
+      "rms": 0.05568434618216494,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 267836,
+      "rms": 0.051566521081526304,
+      "rpm": 7020,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 268718,
+      "rms": 0.048053629097434866,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 269600,
+      "rms": 0.04467353045006161,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 270482,
+      "rms": 0.04064924735749927,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 271364,
+      "rms": 0.037335485987828494,
+      "rpm": 6780,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 272246,
+      "rms": 0.035667288159376614,
+      "rpm": 6780,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 273128,
+      "rms": 0.033973952925963356,
+      "rpm": 6660,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 274010,
+      "rms": 0.03200576900437772,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 274892,
+      "rms": 0.03088337614918909,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 275774,
+      "rms": 0.02975298370426282,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 276656,
+      "rms": 0.028633073145741754,
+      "rpm": 6420,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 277538,
+      "rms": 0.02732277713749135,
+      "rpm": 6420,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 278420,
+      "rms": 0.02630402678004597,
+      "rpm": 6420,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 279302,
+      "rms": 0.02531097950331552,
+      "rpm": 6300,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 280184,
+      "rms": 0.02442106156685543,
+      "rpm": 6180,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 281066,
+      "rms": 0.023653512872432985,
+      "rpm": 6180,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 281948,
+      "rms": 0.02361219305943879,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 282830,
+      "rms": 0.023456236265925103,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 283712,
+      "rms": 0.023190551780064576,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 284594,
+      "rms": 0.02326425630341324,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 285476,
+      "rms": 0.023269828651051958,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 286358,
+      "rms": 0.023419193015533583,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 287240,
+      "rms": 0.02319850761660614,
+      "rpm": 5820,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 288122,
+      "rms": 0.02334488116254132,
+      "rpm": 5820,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 289004,
+      "rms": 0.02356366378592141,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 289886,
+      "rms": 0.023900228890860558,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 290768,
+      "rms": 0.0244497772129211,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 291650,
+      "rms": 0.024285641544111846,
+      "rpm": 5580,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 292532,
+      "rms": 0.02422025487311544,
+      "rpm": 5580,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 293414,
+      "rms": 0.02429318460906866,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 294296,
+      "rms": 0.0248295782713033,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 295178,
+      "rms": 0.025454411875425808,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 296060,
+      "rms": 0.025823231838239213,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 296942,
+      "rms": 0.026404364479338246,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 297824,
+      "rms": 0.026447193427100446,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 298706,
+      "rms": 0.0275483125473653,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 299588,
+      "rms": 0.027576986196505213,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 300470,
+      "rms": 0.02767971641203534,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 301352,
+      "rms": 0.027611599235674897,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 302234,
+      "rms": 0.02721089337569161,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 303116,
+      "rms": 0.03166137456889215,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 303998,
+      "rms": 0.03363378370146937,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 304880,
+      "rms": 0.03272945656033296,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 305762,
+      "rms": 0.03238949203342632,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 306644,
+      "rms": 0.031326932169741625,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 307526,
+      "rms": 0.031490090977978266,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 308408,
+      "rms": 0.03180161072783557,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 309290,
+      "rms": 0.033717910154218114,
+      "rpm": 5340,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 310172,
+      "rms": 0.04893375102994527,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 311054,
+      "rms": 0.0744596832485859,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 311936,
+      "rms": 0.08838847885267699,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 0.8,
+      "usable": true
+    },
+    {
+      "frame": 312818,
+      "rms": 0.11040604282489637,
+      "rpm": 5220,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 313700,
+      "rms": 0.12169996769152111,
+      "rpm": 5580,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 314582,
+      "rms": 0.12365692296448491,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 315464,
+      "rms": 0.12492848306975675,
+      "rpm": 6420,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 316346,
+      "rms": 0.12695565485099147,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 317228,
+      "rms": 0.12877160878701285,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 318110,
+      "rms": 0.12797168151587426,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 318992,
+      "rms": 0.11939631827204926,
+      "rpm": 7980,
+      "confidence": 0.9492902480290093,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 319874,
+      "rms": 0.10733291586385907,
+      "rpm": 7980,
+      "confidence": 0.9921516726488931,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 320756,
+      "rms": 0.09255976147519497,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 321638,
+      "rms": 0.07452008286625998,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 322520,
+      "rms": 0.07157523370362537,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 323402,
+      "rms": 0.07335005795891976,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 324284,
+      "rms": 0.07403635499296841,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 325166,
+      "rms": 0.07388739551159745,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 326048,
+      "rms": 0.0728058895796276,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 326930,
+      "rms": 0.07214240613688355,
+      "rpm": 7500,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 327812,
+      "rms": 0.07101619904551171,
+      "rpm": 7500,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 328694,
+      "rms": 0.0693745964968143,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 329576,
+      "rms": 0.0670643895056089,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 330458,
+      "rms": 0.0641677604946842,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 331340,
+      "rms": 0.06004852204210364,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 332222,
+      "rms": 0.055935128167099245,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 333104,
+      "rms": 0.051272473548471406,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 333986,
+      "rms": 0.046779678265527244,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 334868,
+      "rms": 0.042623373131665185,
+      "rpm": 7020,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 335750,
+      "rms": 0.03931543668725102,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 336632,
+      "rms": 0.03584725318391786,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 337514,
+      "rms": 0.033264888473401644,
+      "rpm": 6780,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 338396,
+      "rms": 0.031210843413119485,
+      "rpm": 6780,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 339278,
+      "rms": 0.029465752051480023,
+      "rpm": 6660,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 340160,
+      "rms": 0.028278527869994612,
+      "rpm": 6660,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 341042,
+      "rms": 0.0273691644696476,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 341924,
+      "rms": 0.026384577897231552,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 342806,
+      "rms": 0.025616667138858514,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 343688,
+      "rms": 0.024716701381181545,
+      "rpm": 6420,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 344570,
+      "rms": 0.023872832935971103,
+      "rpm": 6420,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 345452,
+      "rms": 0.023310109637014065,
+      "rpm": 6300,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 346334,
+      "rms": 0.022635511847753965,
+      "rpm": 6180,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 347216,
+      "rms": 0.022322766656751925,
+      "rpm": 6180,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 348098,
+      "rms": 0.022372158075025246,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 348980,
+      "rms": 0.022974013892078517,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 349862,
+      "rms": 0.02361257676669648,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 350744,
+      "rms": 0.023960828391001162,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 351626,
+      "rms": 0.024545214004375857,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 352508,
+      "rms": 0.02483335162690302,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 353390,
+      "rms": 0.02498147381418201,
+      "rpm": 5820,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 354272,
+      "rms": 0.02492424066262218,
+      "rpm": 5820,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 355154,
+      "rms": 0.024663760135560195,
+      "rpm": 5820,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 356036,
+      "rms": 0.02429728947581193,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 356918,
+      "rms": 0.0244519174889785,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 357800,
+      "rms": 0.024302046040100694,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 358682,
+      "rms": 0.02380674396703457,
+      "rpm": 5580,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 359564,
+      "rms": 0.023062369493294717,
+      "rpm": 5580,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 360446,
+      "rms": 0.025520790689346873,
+      "rpm": 5580,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 361328,
+      "rms": 0.027424128020762408,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 362210,
+      "rms": 0.027528006709920616,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 363092,
+      "rms": 0.030652074433862583,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 363974,
+      "rms": 0.0364893148545486,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 364856,
+      "rms": 0.03651627585415433,
+      "rpm": 5460,
+      "confidence": 0.9353871310490335,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 365738,
+      "rms": 0.03680342701884801,
+      "rpm": 5460,
+      "confidence": 0.9483506321857245,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 366620,
+      "rms": 0.04179825492182094,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 367502,
+      "rms": 0.045598384101905476,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 368384,
+      "rms": 0.04539247184814978,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 369266,
+      "rms": 0.044658499803071725,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 370148,
+      "rms": 0.05060430778303931,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 371030,
+      "rms": 0.05137097605210231,
+      "rpm": 5460,
+      "confidence": 1.0,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 371912,
+      "rms": 0.048858022602781326,
+      "rpm": 5580,
+      "confidence": 1.0,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 372794,
+      "rms": 0.05205554168948725,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 373676,
+      "rms": 0.05338588434065669,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 374558,
+      "rms": 0.053626417724185714,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 0.8,
+      "usable": true
+    },
+    {
+      "frame": 375440,
+      "rms": 0.050634205774531725,
+      "rpm": 5700,
+      "confidence": 1.0,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 376322,
+      "rms": 0.05191047556666912,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 377204,
+      "rms": 0.051568516263908376,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.8,
+      "usable": true
+    },
+    {
+      "frame": 378086,
+      "rms": 0.04670757618808801,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.8,
+      "usable": true
+    },
+    {
+      "frame": 378968,
+      "rms": 0.04929275895303037,
+      "rpm": 5940,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 379850,
+      "rms": 0.04845979368711559,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 380732,
+      "rms": 0.045442799956339944,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 381614,
+      "rms": 0.04240314533252607,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 382496,
+      "rms": 0.04311193865765935,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 383378,
+      "rms": 0.041154551798651746,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 384260,
+      "rms": 0.042029316420983405,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 385142,
+      "rms": 0.049706157783757574,
+      "rpm": 6060,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 386024,
+      "rms": 0.07654527266357718,
+      "rpm": 6180,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 386906,
+      "rms": 0.09959120102177793,
+      "rpm": 6180,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 387788,
+      "rms": 0.11678418820051327,
+      "rpm": 6540,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 388670,
+      "rms": 0.14014417925604086,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 389552,
+      "rms": 0.15771217281784045,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 390434,
+      "rms": 0.16301332012766953,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 391316,
+      "rms": 0.16463890582001978,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 392198,
+      "rms": 0.16587529059182068,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 393080,
+      "rms": 0.1657142682355594,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 393962,
+      "rms": 0.16117938439828117,
+      "rpm": 9420,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 394844,
+      "rms": 0.1450015691817737,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 395726,
+      "rms": 0.1344743895195092,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 396608,
+      "rms": 0.11308205811661146,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 397490,
+      "rms": 0.08876354868777594,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 398372,
+      "rms": 0.07209387466686662,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 399254,
+      "rms": 0.07016832747382529,
+      "rpm": 9420,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 400136,
+      "rms": 0.06973132634783802,
+      "rpm": 9300,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 401018,
+      "rms": 0.06807649024508157,
+      "rpm": 9180,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 401900,
+      "rms": 0.06752872390561461,
+      "rpm": 9060,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 402782,
+      "rms": 0.0673709567402468,
+      "rpm": 9060,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 403664,
+      "rms": 0.06729252450411248,
+      "rpm": 8940,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 404546,
+      "rms": 0.06669215679587202,
+      "rpm": 8940,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 405428,
+      "rms": 0.06671565648887265,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 406310,
+      "rms": 0.06615558333148873,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 407192,
+      "rms": 0.06573093719887192,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 408074,
+      "rms": 0.0655593597243478,
+      "rpm": 8580,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 408956,
+      "rms": 0.06589565381797269,
+      "rpm": 8580,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 409838,
+      "rms": 0.06672079051687853,
+      "rpm": 8340,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 410720,
+      "rms": 0.06710657559112554,
+      "rpm": 8340,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 411602,
+      "rms": 0.06816076273305145,
+      "rpm": 8220,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 412484,
+      "rms": 0.06892973318707363,
+      "rpm": 8220,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 413366,
+      "rms": 0.0693458846035539,
+      "rpm": 8220,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 414248,
+      "rms": 0.07024169890434312,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 415130,
+      "rms": 0.0717836090276513,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 416012,
+      "rms": 0.07279571393277687,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 416894,
+      "rms": 0.07364937272093687,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 417776,
+      "rms": 0.07516579175723308,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 418658,
+      "rms": 0.07531692463350402,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 419540,
+      "rms": 0.0752810504766705,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 420422,
+      "rms": 0.07533179805782868,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 421304,
+      "rms": 0.07478766905643888,
+      "rpm": 7500,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 422186,
+      "rms": 0.07502817369882615,
+      "rpm": 7500,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 423068,
+      "rms": 0.07335940538067412,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 423950,
+      "rms": 0.07204533319639822,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 424832,
+      "rms": 0.06995760547011647,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 425714,
+      "rms": 0.06693028973097448,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 426596,
+      "rms": 0.06291266217864888,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 427478,
+      "rms": 0.06367876267252405,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 428360,
+      "rms": 0.08857828103925643,
+      "rpm": 7020,
+      "confidence": 1.0,
+      "load": 0.5,
+      "usable": true
+    },
+    {
+      "frame": 429242,
+      "rms": 0.12386625269729033,
+      "rpm": 7020,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 430124,
+      "rms": 0.15229306488185326,
+      "rpm": 7020,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 431006,
+      "rms": 0.16438651317206865,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 431888,
+      "rms": 0.17572435234193137,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 432770,
+      "rms": 0.1848953529918511,
+      "rpm": 7980,
+      "confidence": 0.9956543285725176,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 433652,
+      "rms": 0.19549764975491968,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 434534,
+      "rms": 0.2062636741200545,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 435416,
+      "rms": 0.2078958208215331,
+      "rpm": 9780,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 436298,
+      "rms": 0.2013887650484048,
+      "rpm": 9780,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 437180,
+      "rms": 0.18729076747594708,
+      "rpm": 10260,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 438062,
+      "rms": 0.16074899939500442,
+      "rpm": 10260,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 438944,
+      "rms": 0.14926049526063867,
+      "rpm": 10260,
+      "confidence": 1.0,
+      "load": 0.8,
+      "usable": true
+    },
+    {
+      "frame": 439826,
+      "rms": 0.13917944274603794,
+      "rpm": 10260,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 440708,
+      "rms": 0.12934150240125586,
+      "rpm": 10260,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 441590,
+      "rms": 0.11293748479859067,
+      "rpm": 10140,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 442472,
+      "rms": 0.09208461205261463,
+      "rpm": 10020,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 443354,
+      "rms": 0.08406269979794098,
+      "rpm": 10020,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 444236,
+      "rms": 0.08181160490070082,
+      "rpm": 9780,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 445118,
+      "rms": 0.07912074459790314,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 446000,
+      "rms": 0.07590589733025273,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 446882,
+      "rms": 0.07201635029121407,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 447764,
+      "rms": 0.06890372844636809,
+      "rpm": 9420,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 448646,
+      "rms": 0.06743049252571558,
+      "rpm": 9300,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 449528,
+      "rms": 0.06717448620112904,
+      "rpm": 9180,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 450410,
+      "rms": 0.06718197761311748,
+      "rpm": 9180,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 451292,
+      "rms": 0.06713196405244781,
+      "rpm": 9060,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 452174,
+      "rms": 0.06707553919900894,
+      "rpm": 8940,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 453056,
+      "rms": 0.06642336514041798,
+      "rpm": 8940,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 453938,
+      "rms": 0.06616069160911765,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 454820,
+      "rms": 0.06510964532917203,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 455702,
+      "rms": 0.06427464801481159,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 456584,
+      "rms": 0.06315009494311769,
+      "rpm": 8580,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 457466,
+      "rms": 0.06187435373578083,
+      "rpm": 8580,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 458348,
+      "rms": 0.06178172733159137,
+      "rpm": 8460,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 459230,
+      "rms": 0.061905363214408544,
+      "rpm": 8340,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 460112,
+      "rms": 0.06224010621783515,
+      "rpm": 8220,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 460994,
+      "rms": 0.06303854085516579,
+      "rpm": 8220,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 461876,
+      "rms": 0.06372713473649635,
+      "rpm": 8220,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 462758,
+      "rms": 0.06435209284597296,
+      "rpm": 8100,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 463640,
+      "rms": 0.06535984092537243,
+      "rpm": 8100,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 464522,
+      "rms": 0.06575477919336191,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 465404,
+      "rms": 0.067010862543709,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 466286,
+      "rms": 0.06737078954098524,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 467168,
+      "rms": 0.0670240088008895,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 468050,
+      "rms": 0.06671956174779274,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 468932,
+      "rms": 0.06590353679876777,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 469814,
+      "rms": 0.0642332225147882,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 470696,
+      "rms": 0.06348657427092674,
+      "rpm": 7500,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 471578,
+      "rms": 0.06222988594884116,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 472460,
+      "rms": 0.06066959631979454,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 473342,
+      "rms": 0.05866747526441055,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 474224,
+      "rms": 0.05537503121551417,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 475106,
+      "rms": 0.05222407802090442,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 475988,
+      "rms": 0.04826161419115633,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 476870,
+      "rms": 0.04459399109373528,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 477752,
+      "rms": 0.04339861636145931,
+      "rpm": 7020,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 478634,
+      "rms": 0.06834439272524569,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 0.6,
+      "usable": true
+    },
+    {
+      "frame": 479516,
+      "rms": 0.09585853945557743,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 0.8,
+      "usable": true
+    },
+    {
+      "frame": 480398,
+      "rms": 0.12360573736320934,
+      "rpm": 6900,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 481280,
+      "rms": 0.13630423722882165,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 482162,
+      "rms": 0.1480035130086009,
+      "rpm": 7500,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 483044,
+      "rms": 0.1606035284740056,
+      "rpm": 7500,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 483926,
+      "rms": 0.17538416931095274,
+      "rpm": 8580,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 484808,
+      "rms": 0.1890298677126621,
+      "rpm": 8580,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 485690,
+      "rms": 0.19169142174909493,
+      "rpm": 9900,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 486572,
+      "rms": 0.19096777465522977,
+      "rpm": 9900,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 487454,
+      "rms": 0.18284139870902086,
+      "rpm": 10380,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 488336,
+      "rms": 0.166516132815324,
+      "rpm": 10380,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 489218,
+      "rms": 0.15974525026116718,
+      "rpm": 10380,
+      "confidence": 1.0,
+      "load": 0.7,
+      "usable": true
+    },
+    {
+      "frame": 490100,
+      "rms": 0.1502915096637263,
+      "rpm": 10380,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 490982,
+      "rms": 0.1404752654315108,
+      "rpm": 10380,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 491864,
+      "rms": 0.1264216167300735,
+      "rpm": 10140,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 492746,
+      "rms": 0.10437052605005157,
+      "rpm": 10140,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 493628,
+      "rms": 0.09786979083757222,
+      "rpm": 10020,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 494510,
+      "rms": 0.09326385523164782,
+      "rpm": 10020,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 495392,
+      "rms": 0.08744048667804319,
+      "rpm": 9900,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 496274,
+      "rms": 0.08282056198864497,
+      "rpm": 9660,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 497156,
+      "rms": 0.07790104504675195,
+      "rpm": 9660,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 498038,
+      "rms": 0.07439412260174094,
+      "rpm": 9660,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 498920,
+      "rms": 0.07044404013566608,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 499802,
+      "rms": 0.06642853899054513,
+      "rpm": 9420,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 500684,
+      "rms": 0.06423260236872225,
+      "rpm": 9300,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 501566,
+      "rms": 0.06323659771986984,
+      "rpm": 9180,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 502448,
+      "rms": 0.06236381268941997,
+      "rpm": 9060,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 503330,
+      "rms": 0.061255411832460506,
+      "rpm": 9060,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 504212,
+      "rms": 0.05927550794773009,
+      "rpm": 8940,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 505094,
+      "rms": 0.0581986199836221,
+      "rpm": 8940,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 505976,
+      "rms": 0.05622317978153166,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 506858,
+      "rms": 0.05441418716472697,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 507740,
+      "rms": 0.05300591020389631,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 508622,
+      "rms": 0.051722332598095506,
+      "rpm": 8580,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 509504,
+      "rms": 0.05096578795198343,
+      "rpm": 8460,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 510386,
+      "rms": 0.05097468855940765,
+      "rpm": 8460,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 511268,
+      "rms": 0.05104250898488469,
+      "rpm": 8340,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 512150,
+      "rms": 0.05086970788693447,
+      "rpm": 8220,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 513032,
+      "rms": 0.05109727328789838,
+      "rpm": 8220,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 513914,
+      "rms": 0.05137148496397638,
+      "rpm": 8100,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 514796,
+      "rms": 0.05188666968706601,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 515678,
+      "rms": 0.052547875451456276,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 516560,
+      "rms": 0.052932199085115574,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 517442,
+      "rms": 0.05311620863495136,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 518324,
+      "rms": 0.0531978030034476,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 519206,
+      "rms": 0.052947741502157905,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 520088,
+      "rms": 0.05222099873269191,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 520970,
+      "rms": 0.051489645816528956,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 521852,
+      "rms": 0.050392525218984185,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 522734,
+      "rms": 0.049563327708388595,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 523616,
+      "rms": 0.04851405899952483,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 524498,
+      "rms": 0.04771378347519886,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 525380,
+      "rms": 0.052605027305199795,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 526262,
+      "rms": 0.08022407348991917,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.9,
+      "usable": true
+    },
+    {
+      "frame": 527144,
+      "rms": 0.1098768717026118,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 528026,
+      "rms": 0.1279115375700087,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 528908,
+      "rms": 0.13905770062340708,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 529790,
+      "rms": 0.14862820382841369,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 530672,
+      "rms": 0.16350032160301833,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 531554,
+      "rms": 0.17973383446061653,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 532436,
+      "rms": 0.195587672105264,
+      "rpm": 8580,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 533318,
+      "rms": 0.1971968739284442,
+      "rpm": 9420,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 534200,
+      "rms": 0.1943732503586029,
+      "rpm": 10500,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 535082,
+      "rms": 0.1828425760022514,
+      "rpm": 10500,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 535964,
+      "rms": 0.17108390870502574,
+      "rpm": 10500,
+      "confidence": 1.0,
+      "load": 1.0,
+      "usable": true
+    },
+    {
+      "frame": 536846,
+      "rms": 0.1643657293164642,
+      "rpm": 10500,
+      "confidence": 1.0,
+      "load": 0.4,
+      "usable": true
+    },
+    {
+      "frame": 537728,
+      "rms": 0.1580885051399649,
+      "rpm": 10500,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 538610,
+      "rms": 0.14660506028684234,
+      "rpm": 10500,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 539492,
+      "rms": 0.13164912924875044,
+      "rpm": 10380,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 540374,
+      "rms": 0.10409385692459275,
+      "rpm": 10260,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 541256,
+      "rms": 0.09628990330678981,
+      "rpm": 10140,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 542138,
+      "rms": 0.09000290251685328,
+      "rpm": 10020,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 543020,
+      "rms": 0.0838427054606152,
+      "rpm": 10020,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 543902,
+      "rms": 0.07983520017316914,
+      "rpm": 9660,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 544784,
+      "rms": 0.07593779755153386,
+      "rpm": 9660,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 545666,
+      "rms": 0.072343908328811,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 546548,
+      "rms": 0.06812455512481494,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 547430,
+      "rms": 0.06453200799133058,
+      "rpm": 9540,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 548312,
+      "rms": 0.0613351145473552,
+      "rpm": 9420,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 549194,
+      "rms": 0.05923591247401853,
+      "rpm": 9300,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 550076,
+      "rms": 0.05770573832619728,
+      "rpm": 9060,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 550958,
+      "rms": 0.05648520281728305,
+      "rpm": 9060,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 551840,
+      "rms": 0.055084033922598384,
+      "rpm": 9060,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 552722,
+      "rms": 0.05376017784869615,
+      "rpm": 8940,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 553604,
+      "rms": 0.05239635793102731,
+      "rpm": 8820,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 554486,
+      "rms": 0.050909806552576806,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.0,
+      "usable": true
+    },
+    {
+      "frame": 555368,
+      "rms": 0.04976369558796636,
+      "rpm": 8700,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 556250,
+      "rms": 0.04861441743422383,
+      "rpm": 8580,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 557132,
+      "rms": 0.047647052090722425,
+      "rpm": 8460,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 558014,
+      "rms": 0.04721892309430604,
+      "rpm": 8460,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 558896,
+      "rms": 0.04721646484388945,
+      "rpm": 8340,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 559778,
+      "rms": 0.04717597046511219,
+      "rpm": 8340,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 560660,
+      "rms": 0.046997094858655344,
+      "rpm": 8340,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 561542,
+      "rms": 0.04685293499317853,
+      "rpm": 8220,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 562424,
+      "rms": 0.047628085350828527,
+      "rpm": 8100,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 563306,
+      "rms": 0.04838754670895629,
+      "rpm": 8100,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 564188,
+      "rms": 0.04890298535635012,
+      "rpm": 7980,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 565070,
+      "rms": 0.04982877086228993,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 565952,
+      "rms": 0.05081028221730503,
+      "rpm": 7860,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 566834,
+      "rms": 0.05082641058514799,
+      "rpm": 7740,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 567716,
+      "rms": 0.050734779149580994,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 568598,
+      "rms": 0.05052040256851229,
+      "rpm": 7620,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 569480,
+      "rms": 0.050051570054793715,
+      "rpm": 7500,
+      "confidence": 1.0,
+      "load": 0.09999999999999998,
+      "usable": true
+    },
+    {
+      "frame": 570362,
+      "rms": 0.04921373239816658,
+      "rpm": 7500,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 571244,
+      "rms": 0.04827736648091075,
+      "rpm": 7380,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 572126,
+      "rms": 0.046756708469699974,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 573008,
+      "rms": 0.04493733076863573,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.2,
+      "usable": true
+    },
+    {
+      "frame": 573890,
+      "rms": 0.04201868626973982,
+      "rpm": 7260,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    },
+    {
+      "frame": 574772,
+      "rms": 0.038724889605582805,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.38,
+      "usable": true
+    },
+    {
+      "frame": 575654,
+      "rms": 0.03515176241413435,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.35,
+      "usable": true
+    },
+    {
+      "frame": 576536,
+      "rms": 0.031595670062609854,
+      "rpm": 7140,
+      "confidence": 1.0,
+      "load": 0.3,
+      "usable": true
+    }
+  ]
+}

@@ -38,6 +38,11 @@ thermal sound chain: the unchanged Chevrolet 454 reference and 17 vehicle
 variants. Adapt total displacement with the engine stopped, compare processing
 A/B, run an eight-second audition and export profiles or the catalogue.
 
+The isolated [YZ250 listening prototype](Sources/YZ250/README.md) retains the
+supplied stereo recording and offers original/reconstructed playback plus
+RPM/load control using overlapping recorded grains. RPM and load are acoustic
+estimates; listening approval is required before generalizing the model.
+
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.
 

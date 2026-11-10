@@ -1,5 +1,9 @@
 # Écouter et adapter les moteurs de référence
 
+Pour qualifier un cross depuis l’enregistrement YZ250 fourni, utiliser le
+[prototype d’écoute YZ250](../YZ250/README.fr.md). Ce prototype est isolé du
+catalogue ci-dessous et conserve les parcours 454 et cross 500 4T.
+
 EngineWorkshop utilise `GFX.Audio.Engines.Vehicles` et le simulateur thermique
 d’EngineLibrary. Le Chevrolet 454 est le profil initial : sa définition,
 ses réponses d’échappement et son

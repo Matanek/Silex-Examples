@@ -1,0 +1,65 @@
+use STD.Math
+
+// This recording-specific bank deliberately stays in the listening prototype.
+// No public GFX.Audio API or existing engine definition changes before approval.
+public class Bank {
+    let frames:int
+    let minimum_rpm:float
+    let maximum_rpm:float
+    var centres:int[] = []
+    var rpms:float[] = []
+    var loads:float[] = []
+    private var pcm:float32[] = []
+
+    init() {
+        let bytes = embed_bytes("Assets/Reference.pcm")
+        assert(bytes.count() % 4 == 0)
+        self.frames = bytes.count() / 4
+        for i in 0...bytes.count() / 2 {
+            var word = bytes[i * 2] as int + bytes[i * 2 + 1] as int * 256
+            if word >= 32_768 { word -= 65_536 }
+            self.pcm.append(word as float32 / 32_768.0)
+        }
+        let grains = embed_bytes("Assets/Grains.bin")
+        assert(grains.count() % 12 == 0)
+        var minimum:float = 20_000.0; var maximum:float = 0.0
+        for i in 0...grains.count() / 12 {
+            let offset = i * 12
+            let centre = grains[offset] as int + grains[offset + 1] as int * 256 + grains[offset + 2] as int * 65_536 + grains[offset + 3] as int * 16_777_216
+            let rpm = (grains[offset + 4] as int + grains[offset + 5] as int * 256) as float
+            let load = (grains[offset + 6] as int + grains[offset + 7] as int * 256) as float / 1_000.0
+            assert(centre >= 5_000 && centre < self.frames - 5_000 && rpm > 0.0 && load >= 0.0 && load <= 1.0)
+            self.centres.append(centre); self.rpms.append(rpm); self.loads.append(load)
+            minimum = Math.min(minimum, rpm); maximum = Math.max(maximum, rpm)
+        }
+        self.minimum_rpm = minimum; self.maximum_rpm = maximum
+    }
+    func sample(position:float64, channel:int) float32 {
+        if position < 0.0 || position >= self.frames as float64 { return 0.0 }
+        let index = Math.floor(position) as int
+        if index == self.frames - 1 { return self.pcm[index * 2 + channel] }
+        let fraction = round_float<float32>(position - index as float64)
+        let a = self.pcm[index * 2 + channel]; let b = self.pcm[(index + 1) * 2 + channel]
+        return a + fraction * (b - a)
+    }
+    func original(frame:int, channel:int) float32 {
+        if frame < 0 || frame >= self.frames { return 0.0 }
+        return self.pcm[frame * 2 + channel]
+    }
+    func choose(rpm:float, load:float, previous:int) int {
+        var best:float = 100.0
+        for i in 0...self.centres.count() {
+            let cost = 3.0 * Math.abs(Math.log2(self.rpms[i] / rpm)) + 0.8 * Math.abs(self.loads[i] - load)
+            best = Math.min(best, cost)
+        }
+        var first = -1; var following = -1
+        for i in 0...self.centres.count() {
+            let cost = 3.0 * Math.abs(Math.log2(self.rpms[i] / rpm)) + 0.8 * Math.abs(self.loads[i] - load)
+            if cost > best + 0.12 { continue }
+            if first < 0 { first = i }
+            if following < 0 && self.centres[i] > previous + 441 { following = i }
+        }
+        if following >= 0 { return following }
+        assert(first >= 0); return first
+    }
+}
