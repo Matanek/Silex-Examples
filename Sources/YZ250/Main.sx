@@ -1,13 +1,15 @@
 use STD.Process
 use Module.Offline
 use Module.Session
+use Module.LiveCheck
 
 func main() {
     let arguments = Process.arguments()
     if arguments.count() > 1 {
-        if arguments[1] == "--check" { Offline.check(); Session.check(); return }
+        if arguments[1] == "--check" { Offline.check(); Session.check(); LiveCheck.check(); return }
         if arguments[1] == "--render" && arguments.count() == 3 { Offline.render(arguments[2]); return }
-        panic("Options: --check | --render output-prefix")
+        if arguments[1] == "--live-check" && arguments.count() == 3 { LiveCheck.run(arguments[2]); return }
+        panic("Options: --check | --render output-prefix | --live-check output-prefix")
     }
     Session.show()
 }

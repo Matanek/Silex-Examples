@@ -6,7 +6,7 @@ Depuis la racine `SilexProject/` :
 silex run Silex-Examples/Sources/YZ250/Main.sx
 ```
 
-La fenêtre **YZ250 · banque compacte · H2 · ESPACE = gaz** utilise la matière
+La fenêtre **YZ250 · banque compacte · H3 · ESPACE = gaz** utilise la matière
 réelle de l’enregistrement fourni, avec une banque PCM16 stéréo de **768 Kio**.
 Elle remplace le précédent banc à grains A/B/C à cette entrée. Le prototype
 spectral P1 reste séparé et ne constitue plus la version proposée à l’écoute.
@@ -28,6 +28,13 @@ La perte du focus relâche Espace. La position de gaz au curseur reste conservé
 Le statut affiche le mode, les gaz effectifs et le régime. Commencer par des
 coups de gaz courts, maintenir ensuite les gaz plusieurs secondes, puis écouter
 la retombée. Comparer différentes charges et vérifier le son à régime fixe.
+**Montée longue · ×4** est le réglage initial d’inertie : à la charge par défaut,
+il faut environ quatre secondes de pleins gaz pour parcourir 95 % de la plage.
+**Réponse vive · ×1** retrouve la montée de H2 et son micro coup de gaz.
+Le curseur permet ×1 à ×10. L’inertie allonge uniquement l’accélération ; la
+retombée conserve sa réponse vive. Ce réglage ne simule pas une boîte de vitesses
+et n’ajoute aucun changement de rapport automatique.
+
 Le volume ne change pas la réponse du moteur.
 
 ## Ce qui conserve le caractère de la référence
@@ -47,8 +54,8 @@ boucle. Un filtrage limite les fréquences susceptibles de se replier lors de la
 transposition aux régimes voisins.
 
 H2 conserve à l’identique huit segments de H1, notamment les trois extraits
-chargés du bas/milieu qui donnent le micro coup de gaz accepté. La courbe de
-réponse aux gaz reste inchangée. La préparation sélectionne séparément un
+chargés du bas/milieu qui donnent le micro coup de gaz accepté. Le mode ×1 de H3
+conserve cette réponse aux gaz. La préparation sélectionne séparément un
 plancher plus régulier et des passages hauts de texture montante, en privilégiant
 la même accélération de référence que les extraits acceptés.
 
@@ -64,6 +71,16 @@ covariance stéréo mesurée hors ligne. Le gain dépend des poids de mélange,
 jamais du niveau audio instantané : ce n’est pas un compresseur. Le groupe
 bas/milieu conserve son mélange H1 pour préserver l’attaque acceptée.
 
+H3 conserve intégralement la banque et les mélanges de H2. Un worker dédié
+alimente maintenant le flux audio, indépendamment du rendu de l’interface.
+Le petit tampon de 2 048 frames, environ 46 ms, reste inchangé pour conserver
+la réactivité des commandes. Les commandes partagées et les blocs de rendu sont
+protégés par `mutex` ; l’attente du périphérique se fait hors de cette section.
+L’arrêt de la fenêtre demande la fin du worker puis attend sa terminaison.
+
+Le compteur **Réserve audio** indique les observations d’une file d’entrée vide.
+Le mixer peut encore avoir du son déjà préparé : ce compteur ne prouve donc pas
+une coupure audible. Le test de sortie réelle ci-dessous vérifie le PCM émis.
 Le contrôle du régime et de la charge reste calculé sur l’horloge audio.
 La réponse aux gaz est simplifiée, sans identification de couple ni d’inertie.
 Une forte charge allonge la montée ; elle ne réduit pas la consigne de plein
@@ -76,7 +93,7 @@ stéréo, sans normalisation automatique ni compresseur.
 Cette banque est la seule donnée audio embarquée par `Bank.sx`. Le chargement la
 décode une fois en float32 : environ 1,5 Mio en mémoire. Les anciens assets
 `Reference.pcm` et `Grains.bin` restent des données historiques de préparation ;
-ils ne sont plus embarqués ni lus par la démo H2.
+ils ne sont plus embarqués ni lus par la démo H3.
 
 Les tr/min restent des estimations acoustiques **3 660–10 500** sans compte-tours.
 Le ralenti n’est pas enregistré. Les deux textures de charge sont des indices
@@ -93,13 +110,13 @@ Les archives sont uniquement lues par la préparation.
 ## Vérifier et exporter
 
 ```sh
-silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H2
-Build/YZ250-H2 --check
-Build/YZ250-H2 --render Build/YZ250-H2
-python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H2
+silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H3
+Build/YZ250-H3 --check
+Build/YZ250-H3 --render Build/YZ250-H3
+python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H3
 ```
 
-Les neuf WAV stéréo PCM16 utilisent un gain commun de 0,7 :
+Les dix WAV stéréo PCM16 utilisent un gain commun de 0,7 :
 
 | Suffixe | Contenu |
 | --- | --- |
@@ -109,6 +126,10 @@ Les neuf WAV stéréo PCM16 utilisent un gain commun de 0,7 :
 | `Idle` | 8 s au plancher enregistré, charge nulle |
 | `Micro` | 4 s avec une ouverture des gaz de 80 ms |
 | `Progressive` | 12 s : ouverture progressive des gaz sur 4 s, maintien puis relâchement |
+| `Long` | 20 s : pleins gaz à inertie ×4, maintien puis relâchement |
+
+Les neuf premiers scénarios gardent l’inertie ×1 pour comparer à H2 ; `Long`
+utilise le réglage ×4 proposé par défaut dans l’interface.
 
 Chaque export possède un CSV de régime, de phase, de charge acoustique et de gaz.
 Les paliers de l’interface restent continus sans limite de durée.
@@ -128,7 +149,26 @@ le plein régime et la retombée. Il protège par empreinte les trois extraits
 acceptés de H1, vérifie la régularité du plancher, l’ouverture progressive,
 le micro coup de gaz, la taille et les empreintes de la banque.
 Le résultat est écrit dans `*-Verification.json`. Ces mesures ne remplacent pas
-la validation du caractère sonore.
+la validation du caractère sonore. `--check` reproduit aussi, avec un mixer
+hors ligne, l’assèchement de l’ancienne alimentation par l’interface : un blocage
+de 120 ms dépasse son avance de 46 ms.
+
+Pour vérifier la sortie audio réelle avec l’interface, sans capture d’écran :
+
+```sh
+Build/YZ250-H3 --live-check Build/YZ250-H3-Live
+python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H3-Live
+```
+
+Ce test automatique dure huit secondes et bloque volontairement le thread de
+l’interface six fois pendant 120 ms. Il enregistre la sortie du mixer dans
+`*.f32le` avec son format dans `*.json`. Il exige zéro perte de capture et
+rapporte les observations de file vide. `VerifyLive.py` contrôle aussi le PCM
+réellement capturé,
+sans intervalle silencieux de 5 ms ni effondrement du niveau sur 10 ms hors du
+démarrage et de l’arrêt. Il produit `*-Verification.json`.
+Ce contrôle exige un périphérique audio et exerce le worker, les commandes et
+sa terminaison ; les tests `--check` restent utilisables sans périphérique.
 
 Pour reproduire la banque depuis le décodage original sans gain, PCM16 stéréo
 44,1 kHz :
@@ -143,7 +183,7 @@ python3 Silex-Examples/Sources/YZ250/PrepareCompact.py \
 
 L’outil écrit `Compact.pcm` et `Compact.json` dans le répertoire de sortie,
 et `BlendEnergy.sx` dans son répertoire parent. Pour une reconstruction de
-contrôle, utiliser par exemple `Build/YZ250-H2-Rebuild/Assets`.
+contrôle, utiliser par exemple `Build/YZ250-H3-Rebuild/Assets`.
 
 Python utilise seulement sa bibliothèque standard. Il n’est pas requis à la
 lecture de la démo compilée. L’ancien `Prepare.py` prépare uniquement les assets

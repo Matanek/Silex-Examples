@@ -28,7 +28,7 @@ func wave(path:str, values:@float32[..]) {
 }
 public func render(prefix:str) {
     var bank = Bank(); var samples = zeros(256)
-    for scenario in 0...9 {
+    for scenario in 0...10 {
         var voice = Voice(bank); var rpm:float = 4_500.0; var load:float = 0.7
         var suffix = "Fixed-4500"; var seconds = 8
         if scenario == 1 { rpm = 7_000.0; suffix = "Fixed-7000" }
@@ -39,8 +39,9 @@ public func render(prefix:str) {
         if scenario == 6 { suffix = "Idle"; rpm = 3_660.0; load = 0.0 }
         if scenario == 7 { suffix = "Progressive"; seconds = 12 }
         if scenario == 8 { suffix = "Micro"; seconds = 4 }
+        if scenario == 9 { suffix = "Long"; seconds = 20; voice.set_inertia(4.0) }
         voice.set_state(rpm, load)
-        if scenario == 5 || scenario == 7 || scenario == 8 { voice.set_drive(0.0, 0.4) }
+        if scenario == 5 || scenario == 7 || scenario == 8 || scenario == 9 { voice.set_drive(0.0, 0.4) }
         voice.reset()
         var output:float32[] = []; var telemetry = "frame,rpm,turns,load,throttle\n"
         let duration = seconds * 44_100
@@ -65,6 +66,11 @@ public func render(prefix:str) {
                 if time >= 1.0 && time < 1.08 { throttle = 1.0 }
                 voice.set_drive(throttle, 0.4)
             }
+            if scenario == 9 {
+                var throttle:float = 0.0
+                if time >= 1.0 && time < 12.0 { throttle = 1.0 }
+                voice.set_drive(throttle, 0.4)
+            }
             var count = 256; if frame + count > duration { count = duration - frame }
             voice.render(&samples[0:count * 2])
             for i in 0...count * 2 {
@@ -77,7 +83,7 @@ public func render(prefix:str) {
         }
         wave(prefix + "-$(suffix).wav", @output[0:output.count()])
         var encoded = UTF8.bytes(telemetry); File.write_all(prefix + "-$(suffix).csv", @encoded[0:encoded.count()])
-        print("YZ250 H2 export: ", prefix, "-", suffix, ".wav")
+        print("YZ250 H3 export: ", prefix, "-", suffix, ".wav")
     }
 }
 public func check() {
@@ -140,6 +146,14 @@ public func check() {
     assert(free.current_rpm() > loaded.current_rpm() + 500.0, "load did not slow acceleration")
     for _ in 0...400 { loaded.render(&b[0:1_024]) }
     assert(loaded.current_rpm() > 10_490.0, "load incorrectly capped full throttle RPM")
+    var inertial = Voice(bank); inertial.set_inertia(4.0); inertial.set_drive(1.0, 0.4); inertial.reset()
+    var reached:float64 = 0.0
+    while inertial.frame() < 6 * 44_100 {
+        inertial.render(&a[0:1_024])
+        if reached == 0.0 && inertial.current_rpm() >= 10_158.0 { reached = inertial.frame() as float64 / 44_100.0 }
+    }
+    assert(reached > 3.6 && reached < 4.2, "inertia did not lengthen full-throttle rise")
+    match try inertial.set_inertia(0.0) { failure(value) => {}; success => { panic("invalid inertia accepted") } }
     var low = Voice(bank); var high = Voice(bank)
     low.set_state(7_000.0, 0.0); high.set_state(7_000.0, 1.0); low.reset(); high.reset()
     var difference:float64 = 0.0
@@ -159,5 +173,5 @@ public func check() {
     match try whole.set_drive(1.01, 0.0) { failure(value) => {}; success => { panic("invalid gas accepted") } }
     match try whole.render(&a[0:3]) { failure(value) => {}; success => { panic("partial frame accepted") } }
     assert(clock == whole.frame())
-    print("YZ250 H2 checks passed: 768 KiB bank, 21 steady points, upper blend energy, accepted attack mix, gas/load/hold/release, phase, split blocks, stop and errors. Peak=", peak)
+    print("YZ250 H3 checks passed: 768 KiB bank, 21 steady points, upper blend energy, accepted attack mix, gas/load/hold/release, phase, split blocks, stop and errors. Peak=", peak)
 }

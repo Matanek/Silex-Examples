@@ -77,6 +77,12 @@ def verify(prefix):
     peak_rpm=max(float(r['rpm']) for r in micro_rows)
     assert 4500<peak_rpm<5500
     report['Micro']=dict(peak_rpm=peak_rpm)
+    long=read(Path(str(prefix)+'-Long.wav'))
+    assert len(long)==20*RATE
+    with Path(str(prefix)+'-Long.csv').open() as f: long_rows=list(csv.DictReader(f))
+    reached=next(int(r['frame'])/RATE-1 for r in long_rows if float(r['rpm'])>=10158)
+    assert 3.6<reached<4.2
+    report['Long']=dict(seconds_to_95_percent_rpm=reached)
     directory=Path(__file__).parent
     metadata=json.loads((directory/'Assets/Compact.json').read_text())
     pcm=(directory/'Assets/Compact.pcm').read_bytes()
@@ -98,7 +104,7 @@ def verify(prefix):
     assert report['Load-High']['rms']>report['Load-Low']['rms']*1.2
     Path(str(prefix)+'-Verification.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
-    print('H2 audio/bank verification passed; listening approval remains required.')
+    print('H3 audio/bank verification passed; listening approval remains required.')
 
 
 if __name__=='__main__':

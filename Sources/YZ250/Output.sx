@@ -1,0 +1,77 @@
+use GFX.Audio
+use GFX.Audio.Synthesis
+use STD.Threading
+use STD.Error.Kind
+use Module.Voice
+
+public struct Statistics {
+    let empty_queues:int
+    let frames:int
+    let error:str
+}
+
+// This single worker owns every Audio/StreamProducer operation after startup.
+// GUI stalls cannot suspend its feeding. Voice commands and block generation
+// synchronize through bounded recursive mutex sections; device waits do not.
+public class Output:Threading.Job {
+    private var audio:Audio
+    private var voice:Voice
+    private var quitting:bool = false
+    private var volume:float = 0.7
+    private var empty_queues:int = 0
+    private var frames:int = 0
+    private var error:str = ""
+    init(audio:Audio, voice:Voice) { self.audio = audio; self.voice = voice }
+    func stop() { mutex { self.quitting = true } }
+    func set_volume(value:float) { mutex { self.volume = value } }
+    func statistics() Statistics {
+        mutex { return Statistics(empty_queues:self.empty_queues, frames:self.frames, error:self.error) }
+    }
+    func execute() {
+        var producer:Synthesis.StreamProducer = Synthesis.StreamProducer.create(self.audio, self.voice, 9_223_372_036_854_775_807,
+            block_frames:256, capacity_frames:2_048)
+        var playing = Audio.PlayingSound()
+        var generation = -1; var volume:float = -1.0
+        while true {
+            var quit = false
+            mutex {
+                quit = self.quitting
+                if !quit {
+                    let current = self.voice.generation()
+                    if generation != current {
+                        if playing.is_valid() { self.audio.stop(playing) }
+                        producer = Synthesis.StreamProducer.create(self.audio, self.voice, 9_223_372_036_854_775_807,
+                            block_frames:256, capacity_frames:2_048)
+                        playing = Audio.PlayingSound(); generation = current
+                    }
+                    if self.audio.stream_info(producer.stream()).starved { self.empty_queues++ }
+                    // At most 46 ms of rendered audio; normally two blocks per
+                    // device wakeup. No command waits on a whole UI frame.
+                    for _ in 0...8 {
+                        if self.audio.stream_info(producer.stream()).queued_frames >= 2_048 { break }
+                        match try producer.pump() {
+                            failure(error) => {
+                                if error.kind != Kind.would_block() { self.error = error.detail; quit = true }
+                                break
+                            }
+                            success(count) => { if count == 0 { break } }
+                        }
+                    }
+                    if !playing.is_valid() {
+                        playing = self.audio.play(producer.stream(), Audio.Playback(volume:self.volume))
+                    }
+                    if volume != self.volume { volume = self.volume; self.audio.set_volume(playing, volume) }
+                    self.frames = producer.written_frames()
+                }
+            }
+            if quit { break }
+            // Blocking device backpressure, outside the shared critical section.
+            match try self.audio.wait_writable(producer.stream(), minimum_frames:256) {
+                failure(error) => { mutex { self.error = error.detail }
+                    break }
+                success => {}
+            }
+        }
+        if playing.is_valid() { self.audio.stop(playing) }
+    }
+}

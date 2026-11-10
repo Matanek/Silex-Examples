@@ -41,7 +41,8 @@ A/B, run an eight-second audition and export profiles or the catalogue.
 The [YZ250 compact-bank prototype](Sources/YZ250/README.md) retains actual
 recorded texture in a 768 KiB bank. Hold Space for throttle, release it to let
 RPM fall, and compare mechanical loads or steady RPM. Pitch-flattened loops
-share a continuous engine phase. Listening approval remains required.
+share a continuous engine phase. Audio feeding runs independently of the GUI;
+adjust inertia for longer rises. Listening approval remains required.
 
 The earlier [spectral YZ250 experiment](Sources/YZ250Procedural/README.md)
 remains separate; the compact-bank prototype is the current listening candidate.

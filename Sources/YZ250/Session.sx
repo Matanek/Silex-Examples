@@ -11,6 +11,8 @@ use STD.Error.Kind
 use STD.Math
 use Module.Bank
 use Module.Voice
+use Module.Output
+use STD.Threading
 
 func text(value:str, size:float = 15.0) UI.Text {
     var result = UI.Text(value); result.style.font_size = size; result.style.foreground = Color.slate_200(); return result
@@ -28,6 +30,8 @@ class Bench {
     var throttle:UI.State<float> = UI.State<float>(0.0)
     var driving:UI.State<bool> = UI.State<bool>(true)
     var load:UI.State<float> = UI.State<float>(0.4)
+    var inertia:UI.State<float> = UI.State<float>(4.0)
+    var continuity:UI.State<str> = UI.State<str>("Audio prêt")
     var volume:UI.State<float> = UI.State<float>(0.7)
     var playing:UI.State<bool> = UI.State<bool>(false)
     var status:UI.State<str> = UI.State<str>("À l’arrêt · maintenez Espace pour démarrer et accélérer")
@@ -36,16 +40,21 @@ class Bench {
     private var space_held:bool = false
     init() { self.voice = Voice(self.bank); self.changed(0.0) }
     func changed(value:float) {
+        self.voice.set_inertia(self.inertia.value())
         if self.driving.value() {
             var throttle = self.throttle.value(); if self.space_held { throttle = 1.0 }
             self.voice.set_drive(throttle, self.load.value(), self.playing.value())
         } else { self.voice.set_state(self.rpm.value(), self.load.value(), self.playing.value()) }
     }
     private func start() {
-        let was_playing = self.playing.value(); self.playing.set(true); self.changed(0.0)
-        if !was_playing { self.voice.reset(); self.generation++ }
-        self.update(1.0)
+        mutex {
+            let was_playing = self.playing.value(); self.playing.set(true); self.changed(0.0)
+            if !was_playing { self.voice.reset(); self.generation++ }
+            self.update(1.0)
+        }
     }
+    func quick() { self.inertia.set(1.0); self.changed(0.0) }
+    func long() { self.inertia.set(4.0); self.changed(0.0) }
     func drive() { self.driving.set(true); self.start() }
     func manual() { self.driving.set(false); self.space_held = false; self.start() }
     func gas(held:bool) {
@@ -87,6 +96,8 @@ class Bench {
         self.status.set("$(command) · $(Math.round(self.voice.current_rpm()) as int) tr/min estimés")
     }
     func rpm_label(value:float) str { return "$(Math.round(value) as int) tr/min estimés" }
+    func inertia_label(value:float) str { return "$(Math.round(value * 10.0) / 10.0) × · durée de montée" }
+    func continuity_view(reads:UI.Reads) UI.View { return text(reads.read(self.continuity)) }
     func percent(value:float) str { return "$(Math.round(value * 100.0) as int) %" }
     func status_view(reads:UI.Reads) UI.View { return text(reads.read(self.status), 20.0) }
     func control_view(reads:UI.Reads) UI.View {
@@ -101,14 +112,21 @@ class Bench {
     }
     func view() UI.View {
         var load = UI.Slider(self.load, 0.0, 1.0, self.changed)
+        var inertia = UI.Slider(self.inertia, 1.0, 10.0, self.changed)
+        inertia.style.height = 28.0; inertia.style.accent = Color.cyan_400()
         var volume = UI.Slider(self.volume, 0.0, 1.0, self.changed)
         load.style.height = 28.0; load.style.accent = Color.cyan_400()
         volume.style.height = 28.0; volume.style.accent = Color.cyan_400()
-        var content = UI.Column([text("YZ250 · banque compacte · H2", 28.0),
+        var content = UI.Column([text("YZ250 · banque compacte · H3", 28.0),
             text("Texture enregistrée réelle · 12 boucles · banque audio 768 Kio"), UI.Reactive(self.status_view),
             text("Maintenez ESPACE : démarrage et pleins gaz. Relâchez : retombée du régime."),
             UI.Row([button("Accélérateur", self.drive), button("Banc à régime fixe", self.manual), button("Lecture / arrêt · M", self.toggle)], wrap:true),
             UI.Reactive(self.control_view),
+            text("Inertie de montée · 1 = réponse vive H2 ; 4 = montée prolongée"),
+            UI.Row([button("Réponse vive · ×1", self.quick), button("Montée longue · ×4", self.long)], wrap:true),
+            UI.Text(self.inertia, format:self.inertia_label), inertia,
+            text("Aucun changement de rapport automatique ; le régime monte tant qu’Espace est maintenu."),
+            UI.Reactive(self.continuity_view),
             text("Charge mécanique · ralentit la montée, sans bloquer le plein régime"), UI.Text(self.load, format:self.percent), load,
             text("Volume"), UI.Text(self.volume, format:self.percent), volume,
             text("Les boucles conservent plusieurs explosions et la matière mécanique du fichier YZ250 / FMF."),
@@ -120,43 +138,40 @@ class Bench {
         return UI.ScrollView(content, smooth_scroll:true)
     }
 }
-class Session:Canvas.Session {
+public class Session:Canvas.Session {
     private var bench:Bench
     private var ui:UI.Session
-    private var audio:Audio
-    private var producer:Synthesis.StreamProducer
-    private var playing:Audio.PlayingSound = Audio.PlayingSound()
-    private var generation:int = 0
-    private var volume:float = -1.0
-    init() {
-        self.bench = Bench(); self.ui = UI.Session(self.bench.view()); self.audio = Audio()
-        self.producer = Synthesis.StreamProducer.create(self.audio, self.bench.voice, 9_223_372_036_854_775_807,
-            block_frames:256, capacity_frames:2_048)
+    private var output:Output
+    private var executor:Threading.Executor
+    private var work:Threading.JobHandle<Output>
+    private var joined:bool = false
+    private var last_volume:float = -1.0
+    private var last_empty_queues:int = -1
+    init(audio:Audio) {
+        self.bench = Bench(); self.ui = UI.Session(self.bench.view())
+        self.output = Output(audio, self.bench.voice)
+        self.executor = Threading.Executor(worker_count:1)
+        self.work = self.executor.submit(self.output)
     }
-    private func feed() {
-        if self.generation != self.bench.generation {
-            if self.playing.is_valid() { self.audio.stop(self.playing) }
-            self.producer = Synthesis.StreamProducer.create(self.audio, self.bench.voice, 9_223_372_036_854_775_807,
-                block_frames:256, capacity_frames:2_048)
-            self.playing = Audio.PlayingSound(); self.generation = self.bench.generation
-        }
-        for _ in 0...10 {
-            if self.audio.stream_info(self.producer.stream()).queued_frames >= 2_048 { break }
-            match try self.producer.pump() {
-                failure(error) => { if error.kind != Kind.would_block() { panic(error.detail) }
-                    break }
-                success(count) => { if count == 0 { break } }
-            }
-        }
-        if !self.playing.is_valid() && self.audio.stream_info(self.producer.stream()).queued_frames >= 1_024 {
-            self.playing = self.audio.play(self.producer.stream(), Audio.Playback(volume:self.bench.volume.value()))
-        }
-        if self.playing.is_valid() && self.volume != self.bench.volume.value() {
-            self.volume = self.bench.volume.value(); self.audio.set_volume(self.playing, self.volume)
-        }
+    func gas(held:bool) { self.bench.gas(held) }
+    func statistics() Output.Statistics { return self.output.statistics() }
+    func shutdown() {
+        if self.joined { return }
+        self.output.stop(); var finished = self.work.complete(); self.joined = true
     }
-    func drawing(width:int, height:int) Canvas { self.feed(); return self.ui.drawing(width, height) }
-    func update(delta:float) bool { self.bench.update(delta); self.feed(); return self.ui.update(delta) }
+    func drawing(width:int, height:int) Canvas { return self.ui.drawing(width, height) }
+    func update(delta:float) bool {
+        if self.last_volume != self.bench.volume.value() {
+            self.last_volume = self.bench.volume.value(); self.output.set_volume(self.last_volume)
+        }
+        let info = self.output.statistics()
+        if info.error != "" { panic(info.error) }
+        if self.last_empty_queues != info.empty_queues {
+            self.last_empty_queues = info.empty_queues
+            self.bench.continuity.set("Réserve audio · $(info.empty_queues) passages à vide observés")
+        }
+        self.bench.update(delta); return self.ui.update(delta)
+    }
     func handle(event:@Events.Event) bool {
         if self.bench.handle(event) { return true }
         return self.ui.handle(event)
@@ -164,11 +179,11 @@ class Session:Canvas.Session {
     func accepts_text_input() bool { return self.ui.accepts_text_input() }
     func text_input_target() Canvas.TextInputTarget? { return self.ui.text_input_target() }
     func pointer_cursor() Window.Cursor { return self.ui.pointer_cursor() }
-    drop { if self.playing.is_valid() { self.audio.stop(self.playing) } }
+    drop { self.shutdown() }
 }
 public func show() {
-    var session = Session()
-    Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:820, title:"Silex — YZ250 · banque compacte · H2 · ESPACE = gaz"))
+    var audio = Audio(); var session = Session(audio)
+    Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:1_000, title:"Silex — YZ250 · banque compacte · H3 · ESPACE = gaz"))
 }
 func key_event(key:Keyboard.Key, repeated:bool = false) Events.KeyEvent {
     return Events.KeyEvent(window:Window.Id(value:0 as uint32), keyboard:Keyboard.KeyboardId(value:0 as uint32),
@@ -177,6 +192,7 @@ func key_event(key:Keyboard.Key, repeated:bool = false) Events.KeyEvent {
 }
 public func check() {
     var bench = Bench(); var samples:float32[] = []; for _ in 0...1_024 { samples.append(0.0) }
+    assert(bench.inertia.value() == 4.0); bench.quick()
     assert(bench.handle(Events.Event.key_pressed(key_event(Keyboard.Key.space))))
     assert(bench.playing.value() && bench.driving.value())
     let generation = bench.generation
@@ -201,6 +217,12 @@ public func check() {
     assert(!bench.playing.value())
     assert(bench.handle(Events.Event.key_pressed(key_event(Keyboard.Key.space, true))))
     assert(!bench.playing.value(), "repeat restarted after M stop")
+    var presets = UI.Runtime(bench.view()); presets.drawing(1_100, 1_000)
+    for _ in 0...6 { assert(presets.key_pressed(Keyboard.Key.tab)) }
+    assert(presets.key_pressed(Keyboard.Key.enter)); assert(bench.inertia.value() == 4.0)
+    assert(presets.key_pressed(Keyboard.Key.tab)); assert(presets.key_pressed(Keyboard.Key.end))
+    assert(bench.inertia.value() == 10.0)
+    assert(presets.key_pressed(Keyboard.Key.home)); assert(bench.inertia.value() == 1.0)
     var ui = UI.Session(bench.view()); for width in [400, 760, 1_100] { ui.drawing(width, 820) }
-    print("YZ250 H2 UI passed: space press/repeat/release/focus, auto-start, bench switch, M and layouts")
+    print("YZ250 H3 UI passed: space press/repeat/release/focus, auto-start, bench switch, M and layouts")
 }

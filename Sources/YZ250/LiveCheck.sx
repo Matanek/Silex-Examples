@@ -1,0 +1,73 @@
+use GFX.Audio
+use GFX.Audio.Synthesis
+use Module.Bank
+use Module.Voice
+use GFX.Canvas
+use GFX.Input.Events
+use GFX.Window
+use GFX.Viewer
+use STD.File
+use STD.Text.UTF8
+use STD.Time.Clock
+use Module.Session.Session
+
+class Stress:Canvas.Session {
+    private var session:Session
+    private var clock:Clock = Clock()
+    private var next_stall:float = 1.0
+    var stalls:int = 0
+    init(audio:Audio) { self.session = Session(audio); self.clock.tick(); self.session.gas(true) }
+    func done() bool { return self.clock.get_total_seconds() >= 8.0 }
+    func statistics() Module.Output.Statistics { return self.session.statistics() }
+    func shutdown() { self.session.shutdown() }
+    func drawing(width:int, height:int) Canvas { return self.session.drawing(width, height) }
+    func update(delta:float) bool {
+        let now = self.clock.get_total_seconds()
+        if now >= self.next_stall && self.next_stall <= 6.0 {
+            // Simulate a blocked GUI without holding the shared command lock.
+            var stall = Clock(); stall.tick()
+            while stall.get_total_seconds() < 0.12 {}
+            self.stalls++; self.next_stall += 1.0
+        }
+        return self.session.update(delta)
+    }
+    func handle(event:@Events.Event) bool { return self.session.handle(event) }
+    func accepts_text_input() bool { return self.session.accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.session.text_input_target() }
+    func pointer_cursor() Window.Cursor { return self.session.pointer_cursor() }
+}
+public func run(prefix:str) {
+    var audio = Audio(); var capture:Audio.OutputCapture = audio.capture_output(capacity_frames:960_000)
+    let format = capture.output_format()
+    var stress = Stress(audio)
+    Viewer.show_until(stress, stress.done, Viewer.CanvasSettings(width:1_100, height:1_000,
+        hidden:true, title:"YZ250 H3 · vérification automatique de continuité · 8 s"))
+    stress.shutdown(); capture.stop()
+    // An empty source queue can still have prefetched output in SDL's mixer.
+    // Report that observation; VerifyLive checks actual PCM for audible gaps.
+    let info = stress.statistics(); let recorded = capture.statistics()
+    var block:Audio.CaptureBlock = capture.read_f32le(960_000)
+    File.write_all(prefix + ".f32le", @block.bytes[0:block.bytes.count()])
+    let report = "{\"sample_rate\":$(format.sample_rate),\"channels\":$(format.channels),\"frames\":$(block.frames),\"empty_queues\":$(info.empty_queues),\"stalls\":$(stress.stalls),\"dropped_frames\":$(recorded.dropped_frames)}\n"
+    var bytes = UTF8.bytes(report); File.write_all(prefix + ".json", @bytes[0:bytes.count()])
+    print("H3 live continuity: ", report)
+    assert(info.error == "" && stress.stalls >= 5 && recorded.dropped_frames == 0)
+    assert(block.frames > format.sample_rate * 6, "native output did not run long enough")
+}
+
+// The old GUI-owned queue necessarily empties during a 120 ms frame stall.
+// Reproduce this without hardware; the native check above verifies its fix.
+public func check() {
+    var audio:Audio = Audio.offline(44_100, channels:2)
+    var bank = Bank(); var voice = Voice(bank)
+    voice.set_drive(1.0, 0.4); voice.reset()
+    var producer:Synthesis.StreamProducer = Synthesis.StreamProducer.create(audio, voice, 100_000,
+        block_frames:256, capacity_frames:2_048)
+    for _ in 0...8 { producer.pump() }
+    let playing = audio.play(producer.stream())
+    let output = audio.render(5_292)
+    assert(audio.stream_info(producer.stream()).starved, "old 46 ms queue unexpectedly covered a 120 ms GUI stall")
+    for i in 6_000...10_000 { assert(output[i] == 0.0, "starved queue did not expose a silent gap") }
+    audio.stop(playing)
+    print("Legacy GUI-feed starvation reproduced: 120 ms stall exceeds the 46 ms queue")
+}
