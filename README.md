@@ -38,7 +38,12 @@ thermal sound chain: the unchanged Chevrolet 454 reference and 17 vehicle
 variants. Adapt total displacement with the engine stopped, compare processing
 A/B, run an eight-second audition and export profiles or the catalogue.
 
-The isolated [YZ250 listening prototype](Sources/YZ250/README.md) retains the
+The [fully procedural YZ250 prototype](Sources/YZ250Procedural/README.md) uses
+only spectral parameters measured from the supplied recording: no sample
+playback. Compare fixed-RPM stability, acoustic load, slow/fast sweeps and
+continuous full-RPM holds before judging the timbre.
+
+The earlier isolated [YZ250 listening prototype](Sources/YZ250/README.md) retains the
 supplied stereo recording and offers original/reconstructed playback plus
 RPM/load control using overlapping recorded grains. RPM and load are acoustic
 estimates; listening approval is required before generalizing the model.

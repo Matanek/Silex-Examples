@@ -1,0 +1,150 @@
+use GFX.Audio.Processing
+use GFX.Audio.Synthesis
+use STD.Math
+use STD.Error
+use STD.Error.Kind
+use Module.Calibration
+
+struct Band {
+    var x2:float64 = 0.0
+    var x1:float64 = 0.0
+    var y2:float64 = 0.0
+    var y1:float64 = 0.0
+}
+
+// Acoustic, single-cylinder 2T prototype. One firing per crank revolution.
+// The audio clock alone advances the phase. Randomness never changes RPM.
+public class Voice:Synthesis.Generator {
+    let format:Processing.Format = Processing.Format(sample_rate:44_100, channels:2)
+    private var calibration:Calibration = Calibration()
+    private var amplitudes:float64[] = []
+    private var targets:float64[] = []
+    private var bands:Band[] = []
+    private var rpm:float64 = 6_000.0
+    private var target_rpm:float64 = 6_000.0
+    private var load:float64 = 0.7
+    private var target_load:float64 = 0.7
+    private var phase:float64 = 0.0
+    private var revolutions:int = 0
+    private var clock:int = 0
+    private var ramp_frames:int = 0
+    private var ramp_step:float64 = 0.0
+    private var random:int = 23_025
+    private var strength:float64 = 1.0
+    private var target_strength:float64 = 1.0
+    private var gain:float64 = 0.0
+    private var running:bool = false
+
+    init() {
+        for _ in 0...70 { self.amplitudes.append(0.0); self.targets.append(0.0) }
+        for _ in 0...6 { self.bands.append(Band()) }
+        self.reset()
+    }
+    func set_state(rpm:float, load:float, running:bool = true) Result<void,Error> {
+        if !Math.is_finite(rpm) || rpm < 3_660.0 || rpm > 10_500.0 || !Math.is_finite(load) || load < 0.0 || load > 1.0 {
+            return Result<void,Error>.failure(Error(kind:Kind.invalid_input(), operation:"yz250.procedural.state", detail:"finite RPM in 3660..10500 and load in 0..1 required"))
+        }
+        self.target_rpm = rpm as float64; self.target_load = load as float64
+        self.running = running; self.ramp_frames = 0
+        return Result<void,Error>.success()
+    }
+    // A deterministic listening sweep, followed by an indefinite end-RPM hold.
+    // It is not a torque/inertia model or an accelerator simulation.
+    func ramp(end_rpm:float, seconds:float) Result<void,Error> {
+        if !Math.is_finite(end_rpm) || end_rpm < 3_660.0 || end_rpm > 10_500.0 || !Math.is_finite(seconds) || seconds < 0.1 || seconds > 30.0 {
+            return Result<void,Error>.failure(Error(kind:Kind.invalid_input(), operation:"yz250.procedural.ramp", detail:"RPM in 3660..10500 and duration in 0.1..30 s required"))
+        }
+        self.target_rpm = end_rpm as float64; self.ramp_frames = Math.round(seconds * 44_100.0) as int
+        self.ramp_step = (self.target_rpm - self.rpm) / self.ramp_frames as float64
+        self.running = true
+        return Result<void,Error>.success()
+    }
+    func set_load(load:float) Result<void,Error> {
+        if !Math.is_finite(load) || load < 0.0 || load > 1.0 {
+            return Result<void,Error>.failure(Error(kind:Kind.invalid_input(), operation:"yz250.procedural.load", detail:"finite load in 0..1 required"))
+        }
+        self.target_load = load as float64; return Result<void,Error>.success()
+    }
+    func stop() { self.running = false }
+    func current_rpm() float { return round_float<float>(self.rpm) }
+    func current_load() float { return round_float<float>(self.load) }
+    func turns() float64 { return self.revolutions as float64 + self.phase }
+    func frame() int { return self.clock }
+    func sweeping() bool { return self.ramp_frames > 0 }
+    func reset() {
+        self.rpm = self.target_rpm; self.load = self.target_load
+        self.phase = 0.0; self.revolutions = 0; self.clock = 0; self.ramp_frames = 0
+        self.random = 23_025; self.strength = 1.0; self.target_strength = 1.0; self.gain = 0.0
+        for i in 0...6 { self.bands[i] = Band() }
+        self.parameters()
+        for i in 0...70 { self.amplitudes[i] = self.targets[i] }
+    }
+    private func noise() float64 {
+        self.random = (self.random * 48_271) % 2_147_483_647
+        return self.random as float64 / 1_073_741_823.5 - 1.0
+    }
+    // 70 gains are interpolated every 64 audio frames (~689 Hz), then slewed
+    // per frame. Fixed RPM/load invalidates neither phase nor filter memory.
+    private func parameters() {
+        var node = 0
+        while node < 4 && self.rpm > self.calibration.rpms[node + 1] { node++ }
+        let mix = Math.clamp((self.rpm - self.calibration.rpms[node]) / (self.calibration.rpms[node + 1] - self.calibration.rpms[node]), 0.0, 1.0)
+        for i in 0...70 {
+            let a = self.calibration.nodes[(node * 2) * 70 + i]
+            let b = self.calibration.nodes[(node * 2 + 1) * 70 + i]
+            let c = self.calibration.nodes[(node * 2 + 2) * 70 + i]
+            let d = self.calibration.nodes[(node * 2 + 3) * 70 + i]
+            self.targets[i] = (a + (b - a) * self.load) * (1.0 - mix) + (c + (d - c) * self.load) * mix
+        }
+    }
+    func render(samples:&float32[..]) Result<void,Error> {
+        if samples.count() % 2 != 0 {
+            return Result<void,Error>.failure(Error(kind:Kind.invalid_input(), operation:"yz250.procedural.render", detail:"complete stereo frames required"))
+        }
+        for frame in 0...samples.count() / 2 {
+            if self.ramp_frames > 0 {
+                self.rpm += self.ramp_step; self.ramp_frames--
+                if self.ramp_frames == 0 { self.rpm = self.target_rpm }
+            } else {
+                // Manual RPM changes slew continuously over at most 114 ms.
+                self.rpm += Math.clamp(self.target_rpm - self.rpm, -60_000.0 / 44_100.0, 60_000.0 / 44_100.0)
+            }
+            self.load += 0.0015 * (self.target_load - self.load)
+            if self.clock % 64 == 0 { self.parameters() }
+            for i in 0...70 { self.amplitudes[i] += 0.008 * (self.targets[i] - self.amplitudes[i]) }
+            self.phase += self.rpm / 2_646_000.0
+            if self.phase >= 1.0 {
+                self.phase -= 1.0; self.revolutions++
+                self.target_strength = 1.0 + 0.07 * self.noise()
+            }
+            self.strength += 0.025 * (self.target_strength - self.strength)
+            let angle = self.phase * 2.0 * Math.pi<float64>()
+            let cosine = Math.cos(angle); let sine = Math.sin(angle)
+            var c = cosine; var s = sine; var tonal:float64 = 0.0
+            for order in 0...64 {
+                let frequency = (order + 1) as float64 * self.rpm / 60.0
+                // Smooth attenuation before Nyquist if the model is extended.
+                let bandlimit = Math.clamp((21_000.0 - frequency) / 2_000.0, 0.0, 1.0)
+                tonal += self.amplitudes[order] * bandlimit * (c * self.calibration.cosine[order] - s * self.calibration.sine[order])
+                let following = c * cosine - s * sine
+                s = s * cosine + c * sine; c = following
+            }
+            var stochastic:float64 = 0.0
+            for i in 0...6 {
+                let x = self.noise(); let p = i * 5
+                let y = self.calibration.filters[p] * x + self.calibration.filters[p + 1] * self.bands[i].x2 - self.calibration.filters[p + 2] * self.bands[i].y1 - self.calibration.filters[p + 3] * self.bands[i].y2
+                self.bands[i].x2 = self.bands[i].x1; self.bands[i].x1 = x
+                self.bands[i].y2 = self.bands[i].y1; self.bands[i].y1 = y
+                stochastic += y * self.calibration.filters[p + 4] * self.amplitudes[64 + i]
+            }
+            let burst = (0.3 + 0.7 * Math.exp(-self.phase / self.calibration.burst_width)) / self.calibration.burst_rms
+            var desired:float64 = 0.0; if self.running { desired = 1.0 }
+            self.gain += 0.003 * (desired - self.gain)
+            // Fixed headroom, no per-frame normalization, compressor or clipping.
+            let value = round_float<float32>((tonal + stochastic * burst) * self.strength * self.gain * 0.55)
+            samples[frame * 2] = value; samples[frame * 2 + 1] = value
+            self.clock++
+        }
+        return Result<void,Error>.success()
+    }
+}

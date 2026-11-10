@@ -1,0 +1,121 @@
+use STD.File
+use STD.Text.UTF8
+use STD.Math
+use STD.Error
+use Module.Voice
+
+func zeros(frames:int) float32[] {
+    var values:float32[] = []; for _ in 0...frames * 2 { values.append(0.0) }
+    return values
+}
+func word(bytes:&uint8[], value:int, count:int) {
+    var remaining = value
+    for _ in 0...count { bytes.append((remaining % 256) as uint8); remaining /= 256 }
+}
+func wave(path:str, values:@float32[..]) {
+    var bytes:uint8[] = [82 as uint8, 73 as uint8, 70 as uint8, 70 as uint8]
+    word(bytes, 36 + values.count() * 2, 4)
+    for value in [87, 65, 86, 69, 102, 109, 116, 32] { bytes.append(value as uint8) }
+    word(bytes, 16, 4); word(bytes, 1, 2); word(bytes, 2, 2); word(bytes, 44_100, 4)
+    word(bytes, 176_400, 4); word(bytes, 4, 2); word(bytes, 16, 2)
+    for value in [100, 97, 116, 97] { bytes.append(value as uint8) }
+    word(bytes, values.count() * 2, 4)
+    for value in values {
+        assert(Math.is_finite(value) && Math.abs(value) <= 1.0)
+        var sample = Math.round(value * 32_767.0) as int
+        if sample < 0 { sample += 65_536 }
+        word(bytes, sample, 2)
+    }
+    File.write_all(path, @bytes[0:bytes.count()])
+}
+public func render(prefix:str) {
+    var samples = zeros(512)
+    for scenario in 0...7 {
+        var voice = Voice(); var rpm:float = 7_000.0; var load:float = 0.7
+        var suffix = "Fixed-7000"; var seconds = 8
+        if scenario == 0 { rpm = 4_500.0; suffix = "Fixed-4500" }
+        if scenario == 2 { rpm = 9_500.0; suffix = "Fixed-9500" }
+        if scenario == 3 { load = 0.0; suffix = "Load-Low" }
+        if scenario == 4 { load = 1.0; suffix = "Load-High" }
+        if scenario >= 5 { rpm = 3_660.0; seconds = 12; suffix = "Ramp-Slow"; if scenario == 6 { suffix = "Ramp-Fast" } }
+        voice.set_state(rpm, load); voice.reset()
+        var output:float32[] = []; var telemetry = "frame,rpm,turns,load\n"
+        let duration = seconds * 44_100
+        var frame = 0
+        while frame < duration {
+            if frame == 44_100 && scenario >= 5 {
+                var ramp_seconds:float = 5.0; if scenario == 6 { ramp_seconds = 1.0 }
+                voice.ramp(10_500.0, ramp_seconds)
+            }
+            var count = 512
+            if frame < 44_100 && frame + count > 44_100 { count = 44_100 - frame }
+            if frame + count > duration { count = duration - frame }
+            voice.render(&samples[0:count * 2])
+            for i in 0...count * 2 {
+                var fade:float32 = 1.0
+                if frame + i / 2 > duration - 883 { fade = (duration - 1 - frame - i / 2) as float32 / 882.0 }
+                output.append(samples[i] * 0.7 * fade)
+            }
+            frame += count
+            telemetry += "$(frame),$(voice.current_rpm()),$(voice.turns()),$(voice.current_load())\n"
+        }
+        wave(prefix + "-$(suffix).wav", @output[0:output.count()])
+        var encoded = UTF8.bytes(telemetry); File.write_all(prefix + "-$(suffix).csv", @encoded[0:encoded.count()])
+        print("Procedural YZ250 export: ", prefix, "-", suffix, ".wav")
+    }
+}
+public func check() {
+    var a = zeros(512); var b = zeros(512); var peak:float = 0.0
+    let rpms:float[] = [3_660.0, 4_500.0, 6_000.0, 7_000.0, 9_000.0, 9_500.0, 10_500.0]
+    let loads:float[] = [0.0, 0.5, 1.0]
+    for rpm in rpms {
+        for load in loads {
+            var voice = Voice(); voice.set_state(rpm, load); voice.reset()
+            var energy:float64 = 0.0
+            // 5.8 s per operating point, including low/high-load endpoints.
+            for _ in 0...500 {
+                voice.render(&a[0:1_024])
+                for value in a {
+                    assert(Math.is_finite(value) && Math.abs(value) < 1.0, "non-finite or clipped output")
+                    peak = Math.max(peak, Math.abs(value)); energy += value as float64 * value as float64
+                }
+            }
+            let expected = voice.frame() as float64 * rpm as float64 / 2_646_000.0
+            assert(Math.abs(voice.turns() - expected) < 0.000001, "fixed-RPM firing clock drifted")
+            assert(energy > 1.0, "silent operating point")
+        }
+    }
+    var whole = Voice(); var split = Voice()
+    whole.set_state(3_660.0, 0.8); split.set_state(3_660.0, 0.8); whole.reset(); split.reset()
+    whole.ramp(10_500.0, 1.0); split.ramp(10_500.0, 1.0)
+    var previous:float = 0.0
+    for _ in 0...300 {
+        whole.render(&a[0:1_024]); split.render(&b[0:128]); split.render(&b[128:690]); split.render(&b[690:1_024])
+        for i in 0...1_024 { assert(a[i] == b[i], "block boundaries changed audio") }
+        assert(whole.current_rpm() >= previous, "ramp reversed"); previous = whole.current_rpm()
+    }
+    assert(whole.current_rpm() == 10_500.0 && !whole.sweeping(), "full-RPM hold not reached")
+    let before = whole.turns()
+    for _ in 0...100 { whole.render(&a[0:1_024]) }
+    let expected_hold:float64 = 51_200.0 * 10_500.0 / 2_646_000.0
+    print("End-RPM hold error: ", whole.turns() - before - expected_hold)
+    assert(Math.abs(whole.turns() - before - expected_hold) < 0.000001, "end-RPM hold drifted")
+    var low = Voice(); var high = Voice(); low.set_state(7_000.0, 0.0); high.set_state(7_000.0, 1.0); low.reset(); high.reset()
+    var difference:float64 = 0.0
+    for _ in 0...100 {
+        low.render(&a[0:1_024]); high.render(&b[0:1_024])
+        for i in 0...1_024 { difference += Math.abs(a[i] as float64 - b[i] as float64) }
+    }
+    assert(difference > 1.0 && low.turns() == high.turns(), "load failed to change sound independently of pitch")
+    whole.reset(); split.reset(); whole.render(&a[0:1_024]); split.render(&b[0:1_024])
+    for i in 0...1_024 { assert(a[i] == b[i], "reset is not deterministic") }
+    whole.stop(); for _ in 0...30 { whole.render(&a[0:1_024]) }
+    for value in a { assert(Math.abs(value) < 0.000001, "stop did not fade to silence") }
+    let frame = whole.frame()
+    match try whole.render(&a[0:3]) { failure(value) => {}; success => { panic("partial frame accepted") } }
+    match try whole.set_state(Math.sqrt(-1.0), 0.0) { failure(value) => {}; success => { panic("NaN accepted") } }
+    match try whole.set_load(1.01) { failure(value) => {}; success => { panic("invalid load accepted") } }
+    match try whole.ramp(10_500.0, 0.0) { failure(value) => {}; success => { panic("invalid ramp accepted") } }
+    assert(whole.frame() == frame)
+    print("Procedural YZ250 checks passed: 21 fixed points, firing clock, load, ramp/hold, split blocks, reset, stop, errors. Peak=", peak)
+}

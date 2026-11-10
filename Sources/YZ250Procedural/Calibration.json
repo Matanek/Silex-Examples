@@ -1,0 +1,89 @@
+{
+  "source": "2023 YZ250 + FMF Full Exhaust PURE SOUND.mp3",
+  "source_sha256": "e67300fec62ff311cbe6210a76d697a84756ca736ae2dafddf4bcd42cd44228b",
+  "decoded_pcm_sha256": "924598c8b0dfaa85f27cc012b56426a73b5dabb27cd91825cc03933e2623af54",
+  "pitch_path_sha256": "b346bff79b4858cd307b658474dd54901ea1b649fc3f8d87d7cfc8a94b46acb4",
+  "calibration_sha256": "2d8777a71d32c3fe3cfb0a5b007b891e3f6526ed12a1dd81a9189f9d1eb963e6",
+  "method": "six-cycle order-domain energy; 64 harmonic magnitudes + 6 stochastic bands; shared analytic minimum phase",
+  "rpm_calibrated": false,
+  "load_measured": false,
+  "load_description": "rising/falling pitch proxy, not measured torque",
+  "observations": 109,
+  "source_rms": 0.09625964399597453,
+  "median_crest": 3.0373667471369794,
+  "burst_width_cycles": 0.10839407209979544,
+  "nodes": [
+    {
+      "rpm": 3660,
+      "load_proxy": 0,
+      "effective_observations": 5.133,
+      "rms": 0.05725943329538113
+    },
+    {
+      "rpm": 3660,
+      "load_proxy": 1,
+      "effective_observations": 5.475,
+      "rms": 0.07349164820206891
+    },
+    {
+      "rpm": 4500,
+      "load_proxy": 0,
+      "effective_observations": 11.014,
+      "rms": 0.07903689488862714
+    },
+    {
+      "rpm": 4500,
+      "load_proxy": 1,
+      "effective_observations": 10.526,
+      "rms": 0.09550992589621983
+    },
+    {
+      "rpm": 6000,
+      "load_proxy": 0,
+      "effective_observations": 24.925,
+      "rms": 0.07094225393497232
+    },
+    {
+      "rpm": 6000,
+      "load_proxy": 1,
+      "effective_observations": 21.516,
+      "rms": 0.11548992814567413
+    },
+    {
+      "rpm": 7500,
+      "load_proxy": 0,
+      "effective_observations": 32.048,
+      "rms": 0.07284606573061586
+    },
+    {
+      "rpm": 7500,
+      "load_proxy": 1,
+      "effective_observations": 19.323,
+      "rms": 0.1270022165337656
+    },
+    {
+      "rpm": 9000,
+      "load_proxy": 0,
+      "effective_observations": 27.002,
+      "rms": 0.07961379976583638
+    },
+    {
+      "rpm": 9000,
+      "load_proxy": 1,
+      "effective_observations": 13.89,
+      "rms": 0.13299041576448428
+    },
+    {
+      "rpm": 10500,
+      "load_proxy": 0,
+      "effective_observations": 12.76,
+      "rms": 0.09005532560025033
+    },
+    {
+      "rpm": 10500,
+      "load_proxy": 1,
+      "effective_observations": 7.48,
+      "rms": 0.1447390424410131
+    }
+  ]
+}

@@ -1,5 +1,9 @@
 # Qualify the YZ250 by listening
 
+For the new generator without sample playback, use the
+[fully procedural YZ250 prototype](../YZ250Procedural/README.md).
+This page describes the earlier sample-grain comparison bench.
+
 This isolated prototype uses the supplied **2023 YZ250 + FMF Full Exhaust
 PURE SOUND** recording. It keeps all 13.19 seconds of stereo PCM and lets you
 hold an estimated RPM while changing acoustic load. It adds no catalogue

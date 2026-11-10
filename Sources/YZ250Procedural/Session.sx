@@ -1,0 +1,152 @@
+use GFX.Audio
+use GFX.Audio.Synthesis
+use GFX.Canvas
+use GFX.Color
+use GFX.UI
+use GFX.Viewer
+use GFX.Window
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use STD.Error.Kind
+use STD.Math
+use Module.Voice
+
+func text(value:str, size:float = 16.0) UI.Text {
+    var result = UI.Text(value); result.style.font_size = size; result.style.foreground = Color.slate_200(); return result
+}
+func button(label:str, action:func()) UI.Button {
+    var result = UI.Button(label, action)
+    result.style.height = 42.0; result.style.padding = UI.Insets(horizontal:14.0, vertical:8.0)
+    result.style.background = Color.slate_700(); result.style.foreground = Color.slate_100(); result.style.radius = 7.0
+    return result
+}
+class Bench {
+    var voice:Voice = Voice()
+    var rpm:UI.State<float> = UI.State<float>(6_000.0)
+    var load:UI.State<float> = UI.State<float>(0.7)
+    var volume:UI.State<float> = UI.State<float>(0.7)
+    var playing:UI.State<bool> = UI.State<bool>(false)
+    var status:UI.State<str> = UI.State<str>("À l’arrêt · commencez par un régime fixe")
+    var generation:int = 0
+    private var elapsed:float = 0.0
+    private var scenario:int = 0
+
+    init() { self.voice.set_state(self.rpm.value(), self.load.value(), false); self.voice.reset() }
+    func changed_rpm(value:float) {
+        self.scenario = 0; self.voice.set_state(self.rpm.value(), self.load.value(), self.playing.value()); self.update(1.0)
+    }
+    func changed_load(value:float) { self.voice.set_load(self.load.value()) }
+    func changed_volume(value:float) {}
+    func fixed() { self.scenario = 0; self.start() }
+    func low() { self.rpm.set(4_500.0); self.fixed() }
+    func middle() { self.rpm.set(7_000.0); self.fixed() }
+    func high() { self.rpm.set(9_500.0); self.fixed() }
+    func slow() { self.scenario = 1; self.start() }
+    func fast() { self.scenario = 2; self.start() }
+    private func start() {
+        self.playing.set(true)
+        var begin = self.rpm.value(); if self.scenario != 0 { begin = 3_660.0 }
+        self.voice.set_state(begin, self.load.value()); self.voice.reset()
+        if self.scenario == 1 { self.voice.ramp(10_500.0, 5.0) }
+        if self.scenario == 2 { self.voice.ramp(10_500.0, 1.0) }
+        self.generation++; self.update(1.0)
+    }
+    func stop() { self.playing.set(false); self.voice.stop(); self.update(1.0) }
+    func update(delta:float) {
+        self.elapsed += delta; if self.elapsed < 0.1 { return }
+        self.elapsed = 0.0
+        if !self.playing.value() { self.status.set("À l’arrêt · choisissez une écoute"); return }
+        var label = "Régime fixe"
+        if self.scenario != 0 {
+            label = "Montée lente · 5 s"; if self.scenario == 2 { label = "Montée rapide · 1 s" }
+            if !self.voice.sweeping() { label = "Plein régime maintenu · 10 500 tr/min" }
+        }
+        self.status.set("$(label) · $(Math.round(self.voice.current_rpm()) as int) tr/min estimés")
+    }
+    func rpm_label(value:float) str { return "$(Math.round(value) as int) tr/min estimés" }
+    func percent(value:float) str { return "$(Math.round(value * 100.0) as int) %" }
+    func status_view(reads:UI.Reads) UI.View { return text(reads.read(self.status), 21.0) }
+    func view() UI.View {
+        var rpm = UI.Slider(self.rpm, 3_660.0, 10_500.0, self.changed_rpm)
+        var load = UI.Slider(self.load, 0.0, 1.0, self.changed_load)
+        var volume = UI.Slider(self.volume, 0.0, 1.0, self.changed_volume)
+        rpm.style.height = 28.0; rpm.style.accent = Color.cyan_400()
+        load.style.height = 28.0; load.style.accent = Color.cyan_400()
+        volume.style.height = 28.0; volume.style.accent = Color.cyan_400()
+        var content = UI.Column([text("YZ250 · procédural intégral · P1", 28.0),
+            text("Aucun sample lu · synthèse des explosions, résonances et bruits mécaniques"),
+            UI.Reactive(self.status_view),
+            text("1 · Stabilité à régime fixe", 20.0),
+            UI.Row([button("4 500 tr/min", self.low), button("7 000 tr/min", self.middle), button("9 500 tr/min", self.high)], wrap:true),
+            text("Régime imposé · déplacer ce curseur revient au test fixe"), UI.Text(self.rpm, format:self.rpm_label), rpm,
+            UI.Row([button("Écouter ce régime", self.fixed), button("Arrêt", self.stop)], wrap:true),
+            text("2 · Montées automatiques depuis 3 660 tr/min", 20.0),
+            UI.Row([button("Montée lente · 5 s", self.slow), button("Montée rapide · 1 s", self.fast)], wrap:true),
+            text("Après la montée : maintien continu à 10 500 tr/min, sans boucle ni rupteur artificiel."),
+            text("Charge acoustique · texture de retombée → texture de montée"), UI.Text(self.load, format:self.percent), load,
+            text("Volume"), UI.Text(self.volume, format:self.percent), volume,
+            text("Calibrage : enregistrement YZ250 2023 / échappement FMF fourni."),
+            text("Tr/min estimés, charge non mesurée. Balayages de banc, sans modèle de transmission."),
+            text("Valider d’abord la matière et la stabilité, puis les montées. 454 / 500 4T inchangés.")])
+        content.style.gap = 12.0; content.style.padding = UI.Insets(22.0)
+        content.style.background = Color.bytes(10, 16, 24); content.style.foreground = Color.slate_100()
+        return UI.ScrollView(content, smooth_scroll:true)
+    }
+}
+class Session:Canvas.Session {
+    private var bench:Bench
+    private var ui:UI.Session
+    private var audio:Audio
+    private var producer:Synthesis.StreamProducer
+    private var playing:Audio.PlayingSound = Audio.PlayingSound()
+    private var generation:int = 0
+    private var volume:float = -1.0
+    init() {
+        self.bench = Bench(); self.ui = UI.Session(self.bench.view()); self.audio = Audio()
+        self.producer = Synthesis.StreamProducer.create(self.audio, self.bench.voice, 9_223_372_036_854_775_807,
+            block_frames:256, capacity_frames:2_048)
+    }
+    private func feed() {
+        if self.generation != self.bench.generation {
+            if self.playing.is_valid() { self.audio.stop(self.playing) }
+            self.producer = Synthesis.StreamProducer.create(self.audio, self.bench.voice, 9_223_372_036_854_775_807,
+                block_frames:256, capacity_frames:2_048)
+            self.playing = Audio.PlayingSound(); self.generation = self.bench.generation
+        }
+        for _ in 0...10 {
+            if self.audio.stream_info(self.producer.stream()).queued_frames >= 2_048 { break }
+            match try self.producer.pump() {
+                failure(error) => { if error.kind != Kind.would_block() { panic(error.detail) }
+                    break }
+                success(count) => { if count == 0 { break } }
+            }
+        }
+        if !self.playing.is_valid() && self.audio.stream_info(self.producer.stream()).queued_frames >= 1_024 {
+            self.playing = self.audio.play(self.producer.stream(), Audio.Playback(volume:self.bench.volume.value()))
+        }
+        if self.playing.is_valid() && self.volume != self.bench.volume.value() {
+            self.volume = self.bench.volume.value(); self.audio.set_volume(self.playing, self.volume)
+        }
+    }
+    func drawing(width:int, height:int) Canvas { self.feed(); return self.ui.drawing(width, height) }
+    func update(delta:float) bool { self.bench.update(delta); self.feed(); return self.ui.update(delta) }
+    func handle(event:@Events.Event) bool { return self.ui.handle(event) }
+    func accepts_text_input() bool { return self.ui.accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.ui.text_input_target() }
+    func pointer_cursor() Window.Cursor { return self.ui.pointer_cursor() }
+    drop { if self.playing.is_valid() { self.audio.stop(self.playing) } }
+}
+public func show() {
+    var session = Session()
+    Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:920, title:"Silex — YZ250 · procédural intégral · P1"))
+}
+public func check() {
+    var bench = Bench(); var runtime = UI.Runtime(bench.view()); runtime.drawing(1_100, 920)
+    assert(runtime.key_pressed(Keyboard.Key.tab)); assert(runtime.key_pressed(Keyboard.Key.enter))
+    assert(bench.playing.value() && bench.voice.current_rpm() == 4_500.0)
+    var controls = UI.Runtime(bench.view()); controls.drawing(1_100, 920)
+    for _ in 0...7 { assert(controls.key_pressed(Keyboard.Key.tab)) }
+    assert(controls.key_pressed(Keyboard.Key.enter)); assert(bench.voice.sweeping())
+    var ui = UI.Session(bench.view()); for width in [400, 760, 1_100] { ui.drawing(width, 920) }
+    print("Procedural YZ250 UI: fixed-RPM and ramp buttons, three layouts passed")
+}
