@@ -1,4 +1,5 @@
 use STD.Math
+use Module.BlendEnergy
 
 // Twelve 32-revolution stereo loops: 768 KiB total PCM16. The full recording
 // and the original grain bank are offline provenance, never embedded here.
@@ -8,6 +9,7 @@ public class Bank {
     let rpms:float64[] = [3_660.0, 4_500.0, 6_000.0, 7_500.0, 9_000.0, 10_500.0]
     let audio_bytes:int
     private var pcm:float32[] = []
+    private var energy:BlendEnergy = BlendEnergy()
     init() {
         let bytes = embed_bytes("Assets/Compact.pcm")
         self.audio_bytes = bytes.count()
@@ -17,6 +19,31 @@ public class Bank {
             if word >= 32_768 { word -= 65_536 }
             self.pcm.append(word as float32 / 32_768.0)
         }
+    }
+    // Preserve the expected energy between RPM nodes, while retaining the
+    // existing within-node load blend. Covariance is measured offline from
+    // the stereo PCM; this never follows the instantaneous audio amplitude.
+    func node_power(index:int) float64 { return self.energy.covariance[index * 12 + index] }
+    func blend_gain(weights:@float64[..]) float64 {
+        var measured:float64 = 0.0; var desired:float64 = 0.0
+        for i in 0...12 {
+            if weights[i] < 0.00000001 { continue }
+            for j in 0...12 { measured += weights[i] * weights[j] * self.energy.covariance[i * 12 + j] }
+        }
+        // Keep the accepted low/mid attack's internal blend as one group.
+        // Only crossings into/between upper nodes receive energy correction.
+        for group in 0...4 {
+            var begin = 0; var end = 6
+            if group > 0 { begin = group * 2 + 4; end = begin + 2 }
+            var weight:float64 = 0.0; var power:float64 = 0.0
+            for i in begin...end {
+                weight += weights[i]
+                for j in begin...end { power += weights[i] * weights[j] * self.energy.covariance[i * 12 + j] }
+            }
+            if weight > 0.00000001 { desired += power / weight }
+        }
+        if measured <= 0.000000000001 { return 1.0 }
+        return Math.sqrt(desired / measured)
     }
     func sample(node:int, turns:float64, channel:int) float64 {
         let position = turns * 512.0

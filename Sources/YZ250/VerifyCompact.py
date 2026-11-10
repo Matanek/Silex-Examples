@@ -41,7 +41,7 @@ def pitch(values,expected):
 
 def verify(prefix):
     report={}
-    for name,rpm in [('Fixed-4500',4500),('Fixed-7000',7000),('Fixed-9500',9500),('Load-Low',7000),('Load-High',7000)]:
+    for name,rpm in [('Fixed-4500',4500),('Fixed-7000',7000),('Fixed-9500',9500),('Load-Low',7000),('Load-High',7000),('Idle',3660)]:
         values=read(Path(str(prefix)+'-'+name+'.wav'))
         assert len(values)==8*RATE
         estimates=[pitch(values[i:i+16384],rpm) for i in range(RATE,len(values)-16384,RATE//3)]
@@ -64,16 +64,41 @@ def verify(prefix):
     assert max(abs(v/10500-1) for v in hold_pitch)<.02
     report['Throttle']=dict(hold_spectral_rpm_min=min(hold_pitch),hold_spectral_rpm_max=max(hold_pitch),
                             release_rpm_max=max(float(r['rpm']) for r in release))
+    progressive=read(Path(str(prefix)+'-Progressive.wav'))
+    assert len(progressive)==12*RATE
+    with Path(str(prefix)+'-Progressive.csv').open() as f: progressive_rows=list(csv.DictReader(f))
+    rising=[r for r in progressive_rows if 1<int(r['frame'])/RATE<5]
+    assert all(float(b['rpm'])>=float(a['rpm']) for a,b in zip(rising,rising[1:]))
+    assert float(rising[-1]['rpm'])>9900
+    report['Progressive']=dict(rpm_min=float(rising[0]['rpm']),rpm_max=float(rising[-1]['rpm']))
+    micro=read(Path(str(prefix)+'-Micro.wav'))
+    assert len(micro)==4*RATE
+    with Path(str(prefix)+'-Micro.csv').open() as f: micro_rows=list(csv.DictReader(f))
+    peak_rpm=max(float(r['rpm']) for r in micro_rows)
+    assert 4500<peak_rpm<5500
+    report['Micro']=dict(peak_rpm=peak_rpm)
     directory=Path(__file__).parent
     metadata=json.loads((directory/'Assets/Compact.json').read_text())
     pcm=(directory/'Assets/Compact.pcm').read_bytes()
     assert len(pcm)==786432 and hashlib.sha256(pcm).hexdigest()==metadata['pcm_sha256']
+    # The user accepted H1's micro-blip: protect its low/mid loaded PCM.
+    accepted=b''.join(pcm[n*65536:(n+1)*65536] for n in [1,3,5])
+    assert hashlib.sha256(accepted).hexdigest()=='5b76cd3a81651f3ce69e9828c54faa73ccb312cb68af1f4e64cc7533ba722283'
+    floor=array.array('h',pcm[:65536])
+    levels=[]
+    for cycle in range(32):
+        values=[(floor[i*2]+floor[i*2+1])/65536 for i in range(cycle*512,(cycle+1)*512)]
+        levels.append(math.sqrt(sum(v*v for v in values)/len(values)))
+    idle_variation=statistics.pstdev(levels)/statistics.mean(levels)
+    assert idle_variation<.09,'recorded floor lost its even cadence'
+    report['Idle']['cycle_rms_variation']=idle_variation
+    assert hashlib.sha256((directory/'BlendEnergy.sx').read_bytes()).hexdigest()==metadata['blend_energy_sha256']
     assert 'Reference.pcm' not in (directory/'Bank.sx').read_text()
     assert 'Grains.bin' not in (directory/'Bank.sx').read_text()
     assert report['Load-High']['rms']>report['Load-Low']['rms']*1.2
     Path(str(prefix)+'-Verification.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
-    print('H1 audio/bank verification passed; listening approval remains required.')
+    print('H2 audio/bank verification passed; listening approval remains required.')
 
 
 if __name__=='__main__':

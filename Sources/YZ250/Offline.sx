@@ -28,7 +28,7 @@ func wave(path:str, values:@float32[..]) {
 }
 public func render(prefix:str) {
     var bank = Bank(); var samples = zeros(256)
-    for scenario in 0...6 {
+    for scenario in 0...9 {
         var voice = Voice(bank); var rpm:float = 4_500.0; var load:float = 0.7
         var suffix = "Fixed-4500"; var seconds = 8
         if scenario == 1 { rpm = 7_000.0; suffix = "Fixed-7000" }
@@ -36,8 +36,11 @@ public func render(prefix:str) {
         if scenario == 3 { rpm = 7_000.0; load = 0.0; suffix = "Load-Low" }
         if scenario == 4 { rpm = 7_000.0; load = 1.0; suffix = "Load-High" }
         if scenario == 5 { suffix = "Throttle"; seconds = 12 }
+        if scenario == 6 { suffix = "Idle"; rpm = 3_660.0; load = 0.0 }
+        if scenario == 7 { suffix = "Progressive"; seconds = 12 }
+        if scenario == 8 { suffix = "Micro"; seconds = 4 }
         voice.set_state(rpm, load)
-        if scenario == 5 { voice.set_drive(0.0, 0.4) }
+        if scenario == 5 || scenario == 7 || scenario == 8 { voice.set_drive(0.0, 0.4) }
         voice.reset()
         var output:float32[] = []; var telemetry = "frame,rpm,turns,load,throttle\n"
         let duration = seconds * 44_100
@@ -52,6 +55,16 @@ public func render(prefix:str) {
                 if time >= 9.0 && time < 10.5 { throttle = 0.6 }
                 voice.set_drive(throttle, 0.4)
             }
+            if scenario == 7 {
+                var throttle = Math.clamp((time - 1.0) / 4.0, 0.0, 1.0)
+                if time >= 8.0 { throttle = 0.0 }
+                voice.set_drive(throttle, 0.4)
+            }
+            if scenario == 8 {
+                var throttle:float = 0.0
+                if time >= 1.0 && time < 1.08 { throttle = 1.0 }
+                voice.set_drive(throttle, 0.4)
+            }
             var count = 256; if frame + count > duration { count = duration - frame }
             voice.render(&samples[0:count * 2])
             for i in 0...count * 2 {
@@ -64,7 +77,7 @@ public func render(prefix:str) {
         }
         wave(prefix + "-$(suffix).wav", @output[0:output.count()])
         var encoded = UTF8.bytes(telemetry); File.write_all(prefix + "-$(suffix).csv", @encoded[0:encoded.count()])
-        print("YZ250 H1 export: ", prefix, "-", suffix, ".wav")
+        print("YZ250 H2 export: ", prefix, "-", suffix, ".wav")
     }
 }
 public func check() {
@@ -86,6 +99,33 @@ public func check() {
             let expected = voice.frame() as float64 * rpm as float64 / 2_646_000.0
             assert(Math.abs(voice.crank_turns() - expected) < 0.000001, "fixed firing cadence drifted")
             assert(energy > 0.1, "silent point")
+        }
+    }
+    var accepted_weights:float64[] = []
+    for _ in 0...12 { accepted_weights.append(0.0) }
+    accepted_weights[3] = 0.5; accepted_weights[5] = 0.5
+    assert(Math.abs(bank.blend_gain(@accepted_weights[0:12]) - 1.0) < 0.000001, "accepted low/mid attack blend changed")
+    // Regress the audible H1 dip using actual rendered energy at upper RPM
+    // nodes and their midpoints. Old linear fades lost ~3 dB at these points.
+    let fractions:float64[] = [0.0, 0.5, 1.0]
+    for node in 2...5 {
+        for fraction in fractions {
+            let rpm = bank.rpms[node] * (1.0 - fraction) + bank.rpms[node + 1] * fraction
+            let expected = bank.node_power(node * 2 + 1) * (1.0 - fraction) + bank.node_power(node * 2 + 3) * fraction
+            var voice = Voice(bank); voice.set_state(round_float<float>(rpm), 1.0); voice.reset()
+            let frames = Math.round(32.0 * 4.0 * 2_646_000.0 / rpm) as int
+            var rendered = 0; var energy:float64 = 0.0
+            while rendered < frames {
+                var count = frames - rendered; if count > 512 { count = 512 }
+                voice.render(&a[0:count * 2])
+                for i in 0...count * 2 {
+                    assert(Math.is_finite(a[i]) && Math.abs(a[i]) < 1.0, "RPM blend clipped")
+                    peak = Math.max(peak, Math.abs(a[i])); energy += a[i] as float64 * a[i] as float64
+                }
+                rendered += count
+            }
+            let ratio = energy / (frames as float64 * 2.0) / expected
+            assert(ratio > 0.92 && ratio < 1.08, "RPM blend lost expected recorded energy")
         }
     }
     var whole = Voice(bank); var split = Voice(bank)
@@ -119,5 +159,5 @@ public func check() {
     match try whole.set_drive(1.01, 0.0) { failure(value) => {}; success => { panic("invalid gas accepted") } }
     match try whole.render(&a[0:3]) { failure(value) => {}; success => { panic("partial frame accepted") } }
     assert(clock == whole.frame())
-    print("YZ250 H1 checks passed: 768 KiB bank, 21 steady points, gas/load/hold/release, phase, split blocks, stop and errors. Peak=", peak)
+    print("YZ250 H2 checks passed: 768 KiB bank, 21 steady points, upper blend energy, accepted attack mix, gas/load/hold/release, phase, split blocks, stop and errors. Peak=", peak)
 }

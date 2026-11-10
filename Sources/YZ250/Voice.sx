@@ -19,6 +19,8 @@ public class Voice:Synthesis.Generator {
     private var load:float64 = 0.5
     private var running:bool = false
     private var gain:float64 = 0.0
+    private var blend_gain:float64 = 1.0
+    private var target_blend_gain:float64 = 1.0
     private var driving:bool = false
     private var target_throttle:float64 = 0.0
     private var throttle:float64 = 0.0
@@ -56,6 +58,7 @@ public class Voice:Synthesis.Generator {
         if self.driving { self.rpm = self.bank.minimum_rpm as float64; self.load = 0.0 }
         self.mix_weights()
         for i in 0...12 { self.weights[i] = self.desired_weights[i] }
+        self.blend_gain = self.bank.blend_gain(@self.weights[0:12]); self.target_blend_gain = self.blend_gain
     }
     private func mix_weights() {
         var node = 0
@@ -95,7 +98,10 @@ public class Voice:Synthesis.Generator {
             }
             // Weights updated at 689 Hz and slewed per audio frame. Loop
             // positions remain synchronized even while a loop has zero gain.
-            if self.clock % 64 == 0 { self.mix_weights() }
+            if self.clock % 64 == 0 {
+                self.mix_weights(); self.target_blend_gain = self.bank.blend_gain(@self.weights[0:12])
+            }
+            self.blend_gain += 0.008 * (self.target_blend_gain - self.blend_gain)
             for i in 0...12 { self.weights[i] += 0.008 * (self.desired_weights[i] - self.weights[i]) }
             let advance = self.rpm / 2_646_000.0
             self.turns += advance; self.total_turns += advance
@@ -107,7 +113,7 @@ public class Voice:Synthesis.Generator {
                 for i in 0...12 {
                     if self.weights[i] > 0.000001 { value += self.weights[i] * self.bank.sample(i, self.turns, channel) }
                 }
-                samples[frame * 2 + channel] = round_float<float32>(value * self.gain)
+                samples[frame * 2 + channel] = round_float<float32>(value * self.gain * self.blend_gain)
             }
             self.clock++
         }

@@ -6,7 +6,7 @@ From the `SilexProject/` root:
 silex run Silex-Examples/Sources/YZ250/Main.sx
 ```
 
-The **YZ250 · banque compacte · H1 · ESPACE = gaz** window uses real texture
+The **YZ250 · banque compacte · H2 · ESPACE = gaz** window uses real texture
 from the supplied recording, in a **768 KiB** stereo PCM16 bank. It replaces
 the previous A/B/C grain bench at this entry. The spectral P1 experiment remains
 separate and is no longer the proposed listening candidate. Chevrolet 454,
@@ -32,8 +32,10 @@ loads and check steady RPM. Volume does not change engine response.
 ## What preserves the reference's character
 
 The program reads twelve short loops from the actual PCM of **2023 YZ250 +
-FMF Full Exhaust PURE SOUND.mp3**. Each retains **32 revolutions** with their
-firings, noise and mechanical texture. They are neither reduced to one cycle
+FMF Full Exhaust PURE SOUND.mp3**. Each segment stores **32 revolutions** with their firings, noise and mechanical
+texture. The floor uses sixteen more even revolutions, repeated twice. The
+three upper loaded nodes assemble two sixteen-revolution spans from clear RPM
+rises. They are neither reduced to one cycle
 nor reconstructed from a few harmonics.
 
 Offline preparation corrects pitch within each excerpt. It tracks fundamental
@@ -42,10 +44,20 @@ becomes ambiguous, then resamples PCM by engine revolutions. Four extra
 revolutions provide the loop join. Filtering limits frequencies that could
 alias during transposition to neighboring RPM nodes.
 
+H2 retains eight H1 segments unchanged, including the three low/mid loaded
+excerpts responsible for the accepted micro-blip. Throttle response is unchanged.
+Preparation separately selects a steadier floor and rising upper textures,
+preferring the same reference acceleration as the accepted material.
+
 The bank spans six estimated RPMs and two textures: falling and rising RPM.
 Neighboring loops blend gradually on a shared engine phase. Their position
 stays continuous even at zero gain. This removes repeated excerpt selection
 and internal pitch sweeps that made the earlier mode C unstable.
+
+Between upper nodes, blending compensates energy lost when weakly correlated
+loops overlap. `BlendEnergy.sx` contains their offline-measured stereo covariance.
+Gain depends on blend weights, never instantaneous audio level: this is not a
+compressor. The low/mid group keeps its H1 blend to preserve the accepted attack.
 
 RPM and load control run on the audio clock. Throttle response is simplified,
 without identified torque or inertia. High load lengthens acceleration without
@@ -57,7 +69,7 @@ evolution. Sound stays stereo, without automatic normalization or compression.
 `Assets/Compact.pcm` contains twelve 64 KiB segments, **786,432 bytes total**.
 This bank is the only audio data embedded by `Bank.sx`. Loading decodes it once
 to float32: about 1.5 MiB in memory. Earlier `Reference.pcm` and `Grains.bin`
-assets remain historical preparation data; H1 neither embeds nor reads them.
+assets remain historical preparation data; H2 neither embeds nor reads them.
 
 RPM remains an acoustic estimate of **3,660–10,500**, without a tachometer.
 Idle was not recorded. Both load textures are rising/falling proxies, not
@@ -72,31 +84,37 @@ phase interval, levels and bank size. Preparation only reads the archives.
 ## Verify and export
 
 ```sh
-silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H1
-Build/YZ250-H1 --check
-Build/YZ250-H1 --render Build/YZ250-H1
-python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H1
+silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H2
+Build/YZ250-H2 --check
+Build/YZ250-H2 --render Build/YZ250-H2
+python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H2
 ```
 
-The six stereo PCM16 WAVs use a common 0.7 gain:
+The nine stereo PCM16 WAVs use a common 0.7 gain:
 
 | Suffix | Content |
 | --- | --- |
 | `Fixed-4500`, `Fixed-7000`, `Fixed-9500` | 8 s at steady RPM, load texture 0.7 |
 | `Load-Low`, `Load-High` | 8 s at 7,000 RPM, load 0 then 1 |
 | `Throttle` | 12 s: two blips, full-throttle rise and hold, release, then partial throttle |
+| `Idle` | 8 s at the recorded floor, zero load |
+| `Micro` | 4 s with an 80 ms throttle opening |
+| `Progressive` | 12 s: progressively open throttle over 4 s, hold, then release |
 
 Every export includes an RPM, phase, acoustic-load and throttle CSV. UI holds
 continue indefinitely.
 
 Checks cover 21 RPM/load points, cadence, finite unclipped output, load slowing
 the rise without an artificial cap, hold/release, block independence, stopping
-and invalid input. They also follow keyboard event → throttle: Space press,
+and invalid input. Checks also measure rendered energy at upper nodes and their
+midpoints: H1's roughly 3 dB dip fails this regression. The low/mid group must
+retain its existing blend. They also follow keyboard event → throttle: Space press,
 repeat, release, loss of focus, M stop and switching from the bench. The UI
 runtime checks buttons and three layout widths without opening an audio device.
 
 `VerifyCompact.py` measures pitch and level variation in the WAVs, full RPM and
-release; it checks bank size and hash. Results are written to
+release. It protects the three accepted H1 excerpts by hash and checks the
+floor's evenness, progressive throttle, micro-blip, bank size and hashes. Results are written to
 `*-Verification.json`. These measurements do not replace listening validation
 of the sound's character.
 
@@ -110,6 +128,10 @@ python3 Silex-Examples/Sources/YZ250/PrepareCompact.py \
   '.archives/EngineSounds/2023 YZ250 + FMF Full Exhaust PURE SOUND.mp3' \
   Silex-Examples/Sources/YZ250/Assets
 ```
+
+The tool writes `Compact.pcm` and `Compact.json` inside the output directory,
+and `BlendEnergy.sx` in its parent. For a verification rebuild, use e.g.
+`Build/YZ250-H2-Rebuild/Assets`.
 
 Python uses only its standard library and is not needed to play the compiled
 demo. Earlier `Prepare.py` prepares historical grain-bench assets only; it does

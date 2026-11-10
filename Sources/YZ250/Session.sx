@@ -104,7 +104,7 @@ class Bench {
         var volume = UI.Slider(self.volume, 0.0, 1.0, self.changed)
         load.style.height = 28.0; load.style.accent = Color.cyan_400()
         volume.style.height = 28.0; volume.style.accent = Color.cyan_400()
-        var content = UI.Column([text("YZ250 · banque compacte · H1", 28.0),
+        var content = UI.Column([text("YZ250 · banque compacte · H2", 28.0),
             text("Texture enregistrée réelle · 12 boucles · banque audio 768 Kio"), UI.Reactive(self.status_view),
             text("Maintenez ESPACE : démarrage et pleins gaz. Relâchez : retombée du régime."),
             UI.Row([button("Accélérateur", self.drive), button("Banc à régime fixe", self.manual), button("Lecture / arrêt · M", self.toggle)], wrap:true),
@@ -168,7 +168,7 @@ class Session:Canvas.Session {
 }
 public func show() {
     var session = Session()
-    Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:820, title:"Silex — YZ250 · banque compacte · H1 · ESPACE = gaz"))
+    Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:820, title:"Silex — YZ250 · banque compacte · H2 · ESPACE = gaz"))
 }
 func key_event(key:Keyboard.Key, repeated:bool = false) Events.KeyEvent {
     return Events.KeyEvent(window:Window.Id(value:0 as uint32), keyboard:Keyboard.KeyboardId(value:0 as uint32),
@@ -202,5 +202,5 @@ public func check() {
     assert(bench.handle(Events.Event.key_pressed(key_event(Keyboard.Key.space, true))))
     assert(!bench.playing.value(), "repeat restarted after M stop")
     var ui = UI.Session(bench.view()); for width in [400, 760, 1_100] { ui.drawing(width, 820) }
-    print("YZ250 H1 UI passed: space press/repeat/release/focus, auto-start, bench switch, M and layouts")
+    print("YZ250 H2 UI passed: space press/repeat/release/focus, auto-start, bench switch, M and layouts")
 }

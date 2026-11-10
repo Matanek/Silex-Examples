@@ -2,7 +2,7 @@
   "source": "2023 YZ250 + FMF Full Exhaust PURE SOUND.mp3",
   "source_sha256": "e67300fec62ff311cbe6210a76d697a84756ca736ae2dafddf4bcd42cd44228b",
   "decoded_pcm_sha256": "924598c8b0dfaa85f27cc012b56426a73b5dabb27cd91825cc03933e2623af54",
-  "pcm_sha256": "33f6e6b28580d616cff04590dad6b00568aed6cb6ed9e183612b05a66f297c7d",
+  "pcm_sha256": "0db7b0f40cc906875d480d6b68815dab604b34c8dd44f44005e848c50d553f48",
   "bytes": 786432,
   "rpms": [
     3660,
@@ -22,24 +22,39 @@
     0.7107936507936508,
     13.08891156462585
   ],
-  "method": "recorded multi-cycle PCM; offline fundamental phase correction; shared crank phase; integer-cycle loop overlap",
+  "blend_energy_sha256": "f460742ca7138555136105c7aaa29b0d67b25aadc9a7449e2a2b21de2a60f2c2",
+  "method": "recorded multi-cycle PCM; refined coast floor and upper rising spans; offline fundamental phase correction; shared crank phase; integer-cycle loop overlap",
   "entries": [
     {
       "rpm": 3660,
       "load_proxy": 0,
-      "source_start_seconds": 2.439297052154195,
-      "source_end_seconds": 3.0105668934240364,
-      "mean_source_load_proxy": 0.42857142857142855,
+      "source_spans": [
+        {
+          "start_seconds": 2.424739229024943,
+          "end_seconds": 2.732267573696145,
+          "mean_load_proxy": 0.4
+        }
+      ],
+      "recorded_cycles_per_span": 16,
+      "refined_idle": true,
+      "refined_loaded": false,
       "bytes": 65536,
-      "rms": 0.042996051783424784,
-      "fundamental_sideband_ratio": 0.026746990867905135
+      "rms": 0.045785626425929045,
+      "fundamental_sideband_ratio": 0.05441207833274429
     },
     {
       "rpm": 3660,
       "load_proxy": 1,
-      "source_start_seconds": 2.7003401360544217,
-      "source_end_seconds": 3.280068027210884,
-      "mean_source_load_proxy": 0.5620689655172414,
+      "source_spans": [
+        {
+          "start_seconds": 2.7003401360544217,
+          "end_seconds": 3.280068027210884,
+          "mean_load_proxy": 0.5620689655172414
+        }
+      ],
+      "recorded_cycles_per_span": 32,
+      "refined_idle": false,
+      "refined_loaded": false,
       "bytes": 65536,
       "rms": 0.054757091295221515,
       "fundamental_sideband_ratio": 0.07360790815349286
@@ -47,9 +62,16 @@
     {
       "rpm": 4500,
       "load_proxy": 0,
-      "source_start_seconds": 1.9136054421768707,
-      "source_end_seconds": 2.3954875283446713,
-      "mean_source_load_proxy": 0.3416666666666666,
+      "source_spans": [
+        {
+          "start_seconds": 1.9136054421768707,
+          "end_seconds": 2.3954875283446713,
+          "mean_load_proxy": 0.3416666666666666
+        }
+      ],
+      "recorded_cycles_per_span": 32,
+      "refined_idle": false,
+      "refined_loaded": false,
       "bytes": 65536,
       "rms": 0.07176579491431066,
       "fundamental_sideband_ratio": 0.3188706207662349
@@ -57,9 +79,16 @@
     {
       "rpm": 4500,
       "load_proxy": 1,
-      "source_start_seconds": 3.2195238095238095,
-      "source_end_seconds": 3.6676190476190476,
-      "mean_source_load_proxy": 0.9136363636363637,
+      "source_spans": [
+        {
+          "start_seconds": 3.2195238095238095,
+          "end_seconds": 3.6676190476190476,
+          "mean_load_proxy": 0.9136363636363637
+        }
+      ],
+      "recorded_cycles_per_span": 32,
+      "refined_idle": false,
+      "refined_loaded": false,
       "bytes": 65536,
       "rms": 0.13688817099442188,
       "fundamental_sideband_ratio": 0.1621153854963677
@@ -67,9 +96,16 @@
     {
       "rpm": 6000,
       "load_proxy": 0,
-      "source_start_seconds": 1.13140589569161,
-      "source_end_seconds": 1.4865079365079366,
-      "mean_source_load_proxy": 0.21666666666666667,
+      "source_spans": [
+        {
+          "start_seconds": 1.13140589569161,
+          "end_seconds": 1.4865079365079366,
+          "mean_load_proxy": 0.21666666666666667
+        }
+      ],
+      "recorded_cycles_per_span": 32,
+      "refined_idle": false,
+      "refined_loaded": false,
       "bytes": 65536,
       "rms": 0.06023618512979309,
       "fundamental_sideband_ratio": 0.0033132121809329937
@@ -77,9 +113,16 @@
     {
       "rpm": 6000,
       "load_proxy": 1,
-      "source_start_seconds": 3.5477324263038548,
-      "source_end_seconds": 3.9100680272108845,
-      "mean_source_load_proxy": 0.9166666666666666,
+      "source_spans": [
+        {
+          "start_seconds": 3.5477324263038548,
+          "end_seconds": 3.9100680272108845,
+          "mean_load_proxy": 0.9166666666666666
+        }
+      ],
+      "recorded_cycles_per_span": 32,
+      "refined_idle": false,
+      "refined_loaded": false,
       "bytes": 65536,
       "rms": 0.166244174086866,
       "fundamental_sideband_ratio": 0.03853063749427026
@@ -87,9 +130,16 @@
     {
       "rpm": 7500,
       "load_proxy": 0,
-      "source_start_seconds": 12.740816326530613,
-      "source_end_seconds": 13.022698412698412,
-      "mean_source_load_proxy": 0.14999999999999997,
+      "source_spans": [
+        {
+          "start_seconds": 12.740816326530613,
+          "end_seconds": 13.022698412698412,
+          "mean_load_proxy": 0.14999999999999997
+        }
+      ],
+      "recorded_cycles_per_span": 32,
+      "refined_idle": false,
+      "refined_loaded": false,
       "bytes": 65536,
       "rms": 0.05285875725854272,
       "fundamental_sideband_ratio": 0.011744468498980535
@@ -97,19 +147,38 @@
     {
       "rpm": 7500,
       "load_proxy": 1,
-      "source_start_seconds": 11.829024943310658,
-      "source_end_seconds": 12.109637188208616,
-      "mean_source_load_proxy": 0.6928571428571428,
+      "source_spans": [
+        {
+          "start_seconds": 3.827142857142857,
+          "end_seconds": 3.9923809523809526,
+          "mean_load_proxy": 1.0
+        },
+        {
+          "start_seconds": 8.8078231292517,
+          "end_seconds": 8.957278911564625,
+          "mean_load_proxy": 1.0
+        }
+      ],
+      "recorded_cycles_per_span": 16,
+      "refined_idle": false,
+      "refined_loaded": true,
       "bytes": 65536,
-      "rms": 0.1374044604699823,
-      "fundamental_sideband_ratio": 0.5228275524706381
+      "rms": 0.21885770061180237,
+      "fundamental_sideband_ratio": 0.038800181622985916
     },
     {
       "rpm": 9000,
       "load_proxy": 0,
-      "source_start_seconds": 11.259569160997733,
-      "source_end_seconds": 11.494671201814059,
-      "mean_source_load_proxy": 0.05833333333333333,
+      "source_spans": [
+        {
+          "start_seconds": 11.259569160997733,
+          "end_seconds": 11.494671201814059,
+          "mean_load_proxy": 0.05833333333333333
+        }
+      ],
+      "recorded_cycles_per_span": 32,
+      "refined_idle": false,
+      "refined_loaded": false,
       "bytes": 65536,
       "rms": 0.06802471799672194,
       "fundamental_sideband_ratio": 0.03297786750219537
@@ -117,19 +186,38 @@
     {
       "rpm": 9000,
       "load_proxy": 1,
-      "source_start_seconds": 8.879070294784581,
-      "source_end_seconds": 9.109160997732426,
-      "mean_source_load_proxy": 0.5636363636363636,
+      "source_spans": [
+        {
+          "start_seconds": 3.9272108843537414,
+          "end_seconds": 4.058163265306122,
+          "mean_load_proxy": 1.0
+        },
+        {
+          "start_seconds": 9.82671201814059,
+          "end_seconds": 9.952312925170068,
+          "mean_load_proxy": 0.9833333333333334
+        }
+      ],
+      "recorded_cycles_per_span": 16,
+      "refined_idle": false,
+      "refined_loaded": true,
       "bytes": 65536,
-      "rms": 0.12152515705308582,
-      "fundamental_sideband_ratio": 0.036919475798426665
+      "rms": 0.21644929928522813,
+      "fundamental_sideband_ratio": 0.048515036445306595
     },
     {
       "rpm": 10500,
       "load_proxy": 0,
-      "source_start_seconds": 12.212721088435375,
-      "source_end_seconds": 12.430793650793651,
-      "mean_source_load_proxy": 0.06363636363636363,
+      "source_spans": [
+        {
+          "start_seconds": 12.212721088435375,
+          "end_seconds": 12.430793650793651,
+          "mean_load_proxy": 0.06363636363636363
+        }
+      ],
+      "recorded_cycles_per_span": 32,
+      "refined_idle": false,
+      "refined_loaded": false,
       "bytes": 65536,
       "rms": 0.08585159342933986,
       "fundamental_sideband_ratio": 0.022469416945607893
@@ -137,12 +225,24 @@
     {
       "rpm": 10500,
       "load_proxy": 1,
-      "source_start_seconds": 10.961587301587302,
-      "source_end_seconds": 11.181065759637189,
-      "mean_source_load_proxy": 0.6727272727272727,
+      "source_spans": [
+        {
+          "start_seconds": 3.9725850340136053,
+          "end_seconds": 4.093106575963719,
+          "mean_load_proxy": 0.9500000000000001
+        },
+        {
+          "start_seconds": 10.990362811791384,
+          "end_seconds": 11.11111111111111,
+          "mean_load_proxy": 0.9333333333333332
+        }
+      ],
+      "recorded_cycles_per_span": 16,
+      "refined_idle": false,
+      "refined_loaded": true,
       "bytes": 65536,
-      "rms": 0.17537144168690302,
-      "fundamental_sideband_ratio": 0.0974926212148862
+      "rms": 0.19615854567601024,
+      "fundamental_sideband_ratio": 0.03650342484289232
     }
   ]
 }

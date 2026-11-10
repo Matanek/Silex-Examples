@@ -1,8 +1,9 @@
 # Drive the YZ250 with a compact sound bank
 
-The current **H1** prototype uses actual recorded stereo texture in a **768 KiB**
+The current **H2** prototype uses actual recorded stereo texture in a **768 KiB**
 bank. Hold **Space** to start and open the throttle; release it to close the
-throttle. RPM responds automatically. Load slows acceleration without capping
+throttle. RPM responds automatically. H2 refines the recorded floor and upper rising
+textures while retaining the accepted low/mid loaded material. Load slows acceleration without capping
 full-throttle RPM. A fixed-RPM bench is also available.
 
 From the `SilexProject/` root:
@@ -11,7 +12,7 @@ From the `SilexProject/` root:
 silex run Silex-Examples/Sources/YZ250/Main.sx
 ```
 
-Look for **YZ250 · banque compacte · H1 · ESPACE = gaz**. This entry replaces
+Look for **YZ250 · banque compacte · H2 · ESPACE = gaz**. This entry replaces
 the earlier A/B/C grain bench. The spectral procedural P1 experiment remains
 separate. Chevrolet 454 and 500 four-stroke sounds are unchanged.
 
