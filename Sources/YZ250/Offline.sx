@@ -32,6 +32,7 @@ public func render(prefix:str) {
         if mode == 0 { voice.set_mode(Voice.Mode.reference) }
         if mode == 1 { voice.set_mode(Voice.Mode.reconstruction) }
         voice.set_state(bank.minimum_rpm, 0.2)
+        if mode == 2 { voice.set_drive(0.0, 0.2); voice.reset() }
         var output:float32[] = []
         var duration = bank.frames
         if mode == 2 { duration = 12 * 44_100 }
@@ -39,12 +40,10 @@ public func render(prefix:str) {
         while frame < duration {
             let time = frame as float / 44_100.0
             if mode == 2 {
-                let minimum = bank.minimum_rpm; let span = bank.maximum_rpm - minimum
-                var rpm = minimum + span * 0.25; var load:float = 0.0
-                if time >= 2.0 && time < 5.0 { rpm = minimum + span * (0.25 + 0.75 * (time - 2.0) / 3.0); load = 1.0 }
-                if time >= 5.0 && time < 9.0 { rpm = minimum + span * 0.55; if time < 7.0 { load = 1.0 } }
-                if time >= 9.0 { rpm = minimum + span * 0.55 * (1.0 - (time - 9.0) / 3.0); load = 0.0 }
-                voice.set_state(rpm, load)
+                var throttle:float = 0.0; var load:float = 0.2
+                if time >= 1.2 && time < 4.0 { throttle = 1.0 }
+                if time >= 6.0 { load = 0.85; if time < 9.0 { throttle = 1.0 } }
+                voice.set_drive(throttle, load)
             }
             var count = 512; if frame + count > duration { count = duration - frame }
             voice.render(&samples[0:count * 2])
@@ -102,5 +101,21 @@ public func check() {
         whole.render(&a[0:1_024]); split.render(&b[0:128]); split.render(&b[128:690]); split.render(&b[690:1_024])
         for i in 0...1_024 { assert(a[i] == b[i], "render depends on block boundaries") }
     }
+    var free = Voice(bank); var loaded = Voice(bank)
+    free.set_drive(1.0, 0.0); loaded.set_drive(1.0, 1.0)
+    free.reset(); loaded.reset()
+    for _ in 0...18 { free.render(&a[0:1_024]); loaded.render(&b[0:1_024]) }
+    assert(free.current_rpm() > bank.minimum_rpm + 1_000.0, "gas did not raise RPM automatically")
+    assert(free.current_rpm() > loaded.current_rpm() + 500.0, "load did not slow the rise")
+    print("Throttle rise: free=", free.current_rpm(), " loaded=", loaded.current_rpm())
+    free.set_drive(0.0, 0.0)
+    for _ in 0...80 { free.render(&a[0:1_024]) }
+    assert(free.current_rpm() < bank.minimum_rpm + 100.0 && free.current_load() < 0.01, "released gas retained revs or loaded material")
+    whole.set_drive(0.8, 0.6); split.set_drive(0.8, 0.6); whole.reset(); split.reset()
+    for _ in 0...30 {
+        whole.render(&a[0:1_024]); split.render(&b[0:128]); split.render(&b[128:690]); split.render(&b[690:1_024])
+        for i in 0...1_024 { assert(a[i] == b[i], "throttle response depends on block boundaries") }
+    }
+    match try free.set_drive(1.01, 0.5) { failure(value) => {}; success => { panic("invalid throttle accepted") } }
     print("YZ250 check passed: stereo reconstruction, independent RPM/load, finite output, stop, errors and split rendering")
 }

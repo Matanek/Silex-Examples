@@ -29,6 +29,9 @@ public class Voice:Synthesis.Generator {
     private var load:float = 0.5
     private var running:bool = false
     private var gain:float32 = 0.0
+    private var driving:bool = false
+    private var target_throttle:float = 0.0
+    private var throttle:float = 0.0
 
     init(bank:Bank) {
         self.bank = bank
@@ -41,16 +44,27 @@ public class Voice:Synthesis.Generator {
         if !Math.is_finite(rpm) || rpm < self.bank.minimum_rpm || rpm > self.bank.maximum_rpm || !Math.is_finite(load) || load < 0.0 || load > 1.0 {
             return Result<void,Error>.failure(Error(kind:Kind.invalid_input(), operation:"yz250.state", detail:"RPM inside recorded estimated range and finite load in 0..1 required"))
         }
+        self.driving = false
         self.target_rpm = rpm; self.target_load = load; self.running = running
+        return Result<void,Error>.success()
+    }
+    func set_drive(throttle:float, load:float, running:bool = true) Result<void,Error> {
+        if !Math.is_finite(throttle) || throttle < 0.0 || throttle > 1.0 || !Math.is_finite(load) || load < 0.0 || load > 1.0 {
+            return Result<void,Error>.failure(Error(kind:Kind.invalid_input(), operation:"yz250.drive", detail:"finite throttle and load in 0..1 required"))
+        }
+        self.driving = true; self.target_throttle = throttle; self.target_load = load; self.running = running
         return Result<void,Error>.success()
     }
     func current_rpm() float { return self.rpm }
     func current_load() float { return self.load }
+    func current_throttle() float { return self.throttle }
     func frame() int { return self.clock }
     func set_mode(mode:Mode) { self.mode = mode; self.reset() }
     func reset() {
         self.clock = 0; self.next_grain = 3; self.previous_centre = -1
         self.rpm = self.target_rpm; self.load = self.target_load; self.gain = 0.0
+        self.throttle = 0.0
+        if self.driving { self.rpm = self.bank.minimum_rpm; self.load = 0.0 }
         let index = self.bank.choose(self.rpm, self.load, -1)
         let centre = self.bank.centres[index]
         let step = Math.clamp(self.rpm / self.bank.rpms[index], 0.75, 1.33) as float64
@@ -102,7 +116,22 @@ public class Voice:Synthesis.Generator {
             return Result<void,Error>.success()
         }
         for frame in 0...samples.count() / 2 {
-            self.rpm += 0.002 * (self.target_rpm - self.rpm); self.load += 0.003 * (self.target_load - self.load)
+            if self.driving {
+                // Listening-driver response, not an identified torque model.
+                // Integrate on the audio clock so rendering/UI block sizes do
+                // not alter a throttle rise, release or load response.
+                self.throttle += 0.0015 * (self.target_throttle - self.throttle)
+                let span = self.bank.maximum_rpm - self.bank.minimum_rpm
+                let target = self.bank.minimum_rpm + span * self.throttle * (1.0 - 0.2 * self.target_load)
+                var seconds:float = 0.12
+                if target > self.rpm { seconds = 0.18 + 0.25 * self.target_load }
+                let acceleration = (target - self.rpm) / seconds
+                self.rpm += acceleration / 44_100.0
+                let acoustic_load = Math.clamp(self.throttle * (0.55 + 0.45 * self.target_load) + acceleration / 20_000.0, 0.0, 1.0)
+                self.load += 0.003 * (acoustic_load - self.load)
+            } else {
+                self.rpm += 0.002 * (self.target_rpm - self.rpm); self.load += 0.003 * (self.target_load - self.load)
+            }
             var target:float32 = 0.0; if self.running { target = 1.0 }
             if self.mode != Mode.engine && self.clock >= self.bank.frames { target = 0.0 }
             self.gain += 0.003 * (target - self.gain)

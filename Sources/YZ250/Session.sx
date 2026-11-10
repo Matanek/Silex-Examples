@@ -25,6 +25,8 @@ class Bench {
     var bank:Bank
     var voice:Voice
     var rpm:UI.State<float>
+    var throttle:UI.State<float> = UI.State<float>(0.0)
+    var driving:UI.State<bool> = UI.State<bool>(true)
     var load:UI.State<float> = UI.State<float>(0.5)
     var volume:UI.State<float> = UI.State<float>(0.7)
     var playing:UI.State<bool> = UI.State<bool>(false)
@@ -32,17 +34,27 @@ class Bench {
     var status:UI.State<str> = UI.State<str>("À l’arrêt · choisissez une écoute")
     var generation:int = 0
     private var elapsed:float = 0.0
+    private var space_held:bool = false
 
     init() {
         self.bank = Bank(); self.voice = Voice(self.bank)
         self.rpm = UI.State<float>(self.bank.minimum_rpm + (self.bank.maximum_rpm - self.bank.minimum_rpm) * 0.35)
         self.changed(0.0)
     }
-    func changed(value:float) { self.voice.set_state(self.rpm.value(), self.load.value(), self.playing.value()) }
+    func changed(value:float) {
+        if self.driving.value() {
+            var throttle = self.throttle.value(); if self.space_held { throttle = 1.0 }
+            self.voice.set_drive(throttle, self.load.value(), self.playing.value())
+        } else { self.voice.set_state(self.rpm.value(), self.load.value(), self.playing.value()) }
+    }
+    func drive() { self.driving.set(true); self.changed(0.0); self.update(1.0) }
+    func manual() { self.driving.set(false); self.space_held = false; self.changed(0.0); self.update(1.0) }
+    func gas(held:bool) { self.space_held = held; self.changed(0.0) }
     func reference() { self.choose(0) }
     func reconstruction() { self.choose(1) }
     func controlled() { self.choose(2) }
     private func choose(value:int) {
+        self.space_held = false
         self.mode.set(value); self.playing.set(true); self.changed(0.0)
         var mode = Voice.Mode.reference
         if value == 1 { mode = Voice.Mode.reconstruction }
@@ -50,6 +62,7 @@ class Bench {
         self.voice.set_mode(mode); self.generation++; self.update(1.0)
     }
     func toggle() {
+        self.space_held = false
         self.playing.set(!self.playing.value()); self.changed(0.0)
         if self.playing.value() { self.voice.reset(); self.generation++ }
         self.update(1.0)
@@ -63,7 +76,9 @@ class Bench {
         }
         if !self.playing.value() { self.status.set("À l’arrêt · M pour reprendre"); return }
         if self.mode.value() == 2 {
-            self.status.set("C · Moteur piloté · $(Math.round(self.voice.current_rpm()) as int) tr/min estimés · charge $(Math.round(self.voice.current_load() * 100.0) as int) %")
+            var command = "Banc · régime imposé"
+            if self.driving.value() { command = "Accélérateur · gaz $(Math.round(self.voice.current_throttle() * 100.0) as int) %" }
+            self.status.set("C · $(command) · $(Math.round(self.voice.current_rpm()) as int) tr/min estimés")
         } else {
             var label = "A · Référence originale"; if self.mode.value() == 1 { label = "B · Reconstruction à vitesse d’origine" }
             let seconds = Math.round(Math.min(self.voice.frame() as float / 44_100.0, self.bank.frames as float / 44_100.0) * 10.0) / 10.0
@@ -73,25 +88,35 @@ class Bench {
     func rpm_label(value:float) str { return "$(Math.round(value) as int) tr/min estimés" }
     func percent(value:float) str { return "$(Math.round(value * 100.0) as int) %" }
     func status_view(reads:UI.Reads) UI.View { return text(reads.read(self.status), 20.0) }
+    func control_view(reads:UI.Reads) UI.View {
+        if reads.read(self.driving) {
+            var slider = UI.Slider(self.throttle, 0.0, 1.0, self.changed)
+            slider.style.height = 28.0; slider.style.accent = Color.cyan_400()
+            return UI.Column([text("Accélérateur · Espace maintenu : pleins gaz"), UI.Text(self.throttle, format:self.percent), slider])
+        }
+        var slider = UI.Slider(self.rpm, self.bank.minimum_rpm, self.bank.maximum_rpm, self.changed)
+        slider.style.height = 28.0; slider.style.accent = Color.cyan_400()
+        return UI.Column([text("Banc · régime imposé"), UI.Text(self.rpm, format:self.rpm_label), slider])
+    }
     func view() UI.View {
         var buttons = UI.Row([button("A · Référence", self.reference), button("B · Reconstruction", self.reconstruction),
             button("C · Moteur piloté", self.controlled), button("Lecture / arrêt · M", self.toggle)], wrap:true)
         buttons.style.gap = 10.0
-        var rpm = UI.Slider(self.rpm, self.bank.minimum_rpm, self.bank.maximum_rpm, self.changed)
         var load = UI.Slider(self.load, 0.0, 1.0, self.changed)
         var volume = UI.Slider(self.volume, 0.0, 1.0, self.changed)
-        rpm.style.height = 28.0; rpm.style.accent = Color.cyan_400()
         load.style.height = 28.0; load.style.accent = Color.cyan_400()
         volume.style.height = 28.0; volume.style.accent = Color.cyan_400()
         var content = UI.Column([text("YZ250 · prototype d’écoute", 28.0),
             text("2023 YZ250 + FMF Full Exhaust PURE SOUND · 13,19 s stéréo"), buttons, UI.Reactive(self.status_view),
             text("A / B : comparer la matière originale et sa reconstruction."),
-            text("C : tenir un régime et varier la charge acoustique indépendamment."),
-            text("Régime · commande C"), UI.Text(self.rpm, format:self.rpm_label), rpm,
-            text("Charge · relâché ↔ en charge · commande C"), UI.Text(self.load, format:self.percent), load,
+            text("C : donner des gaz, relâcher et écouter la montée / descente en régime."),
+            UI.Row([button("Accélérateur", self.drive), button("Banc à régime imposé", self.manual)], wrap:true),
+            UI.Reactive(self.control_view),
+            text("Charge · freine la montée en mode accélérateur"), UI.Text(self.load, format:self.percent), load,
             text("Volume commun A / B / C"), UI.Text(self.volume, format:self.percent), volume,
             text("Régime estimé par analyse sonore, sans compte-tours de référence."),
             text("Charge estimée depuis les montées et descentes en régime, sans mesure de couple."),
+            text("Réponse aux gaz simplifiée ; régime plancher limité au bas de l’enregistrement."),
             text("Les bruits et variations du fichier sont conservés ; la fidélité reste à valider à l’écoute.")])
         content.style.gap = 12.0; content.style.padding = UI.Insets(22.0)
         content.style.background = Color.bytes(10, 16, 24); content.style.foreground = Color.slate_100()
@@ -137,9 +162,16 @@ class Session:Canvas.Session {
     func update(delta:float) bool { self.bench.update(delta); self.feed(); return self.ui.update(delta) }
     func handle(event:@Events.Event) bool {
         match event {
+            window_focus_lost(value) => { self.bench.gas(false) }
             key_pressed(value) => {
                 let m = value.keycode == 109 as uint32 || value.keycode == 77 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.m)
                 if m && !value.repeated && !value.modifiers.control && !value.modifiers.alt && !value.modifiers.system { self.bench.toggle(); return true }
+                if value.key == Keyboard.Key.space && self.bench.mode.value() == 2 && self.bench.driving.value() && !value.modifiers.control && !value.modifiers.alt && !value.modifiers.system {
+                    self.bench.gas(true); return true
+                }
+            }
+            key_released(value) => {
+                if value.key == Keyboard.Key.space && self.bench.mode.value() == 2 && self.bench.driving.value() { self.bench.gas(false); return true }
             }
             else => {}
         }
@@ -152,12 +184,22 @@ class Session:Canvas.Session {
 }
 public func show() {
     var session = Session()
-    Viewer.show(session, Viewer.CanvasSettings(width:1_060, height:840, title:"Silex — YZ250 · prototype d’écoute A/B/C"))
+    Viewer.show(session, Viewer.CanvasSettings(width:1_060, height:840, title:"Silex — YZ250 · accélérateur et banc A/B/C"))
 }
 public func check() {
     var bench = Bench(); var runtime = UI.Runtime(bench.view()); runtime.drawing(1_060, 840)
     assert(runtime.key_pressed(Keyboard.Key.tab)); assert(runtime.key_pressed(Keyboard.Key.tab)); assert(runtime.key_pressed(Keyboard.Key.enter))
     assert(bench.mode.value() == 1 && bench.playing.value())
+    var controls = UI.Runtime(bench.view()); controls.drawing(1_060, 840)
+    for _ in 0...3 { assert(controls.key_pressed(Keyboard.Key.tab)) }
+    assert(controls.key_pressed(Keyboard.Key.enter))
+    assert(bench.mode.value() == 2 && bench.driving.value())
+    for _ in 0...4 { assert(controls.key_pressed(Keyboard.Key.tab)) }
+    assert(controls.key_pressed(Keyboard.Key.end)); assert(bench.throttle.value() == 1.0 as float)
+    assert(controls.key_pressed(Keyboard.Key.home)); assert(bench.throttle.value() == 0.0 as float)
+    var manual = UI.Runtime(bench.view()); manual.drawing(1_060, 840)
+    for _ in 0...6 { assert(manual.key_pressed(Keyboard.Key.tab)) }
+    assert(manual.key_pressed(Keyboard.Key.enter)); assert(!bench.driving.value())
     var ui = UI.Session(bench.view()); for width in [400, 760, 1_060] { ui.drawing(width, 840) }
     print("YZ250 UI check passed: reference/reconstruction buttons and three layouts")
 }

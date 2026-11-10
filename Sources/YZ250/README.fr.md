@@ -17,18 +17,28 @@ silex run Silex-Examples/Sources/YZ250/Main.sx
 - **B · Reconstruction** : écouter le même parcours à travers le recouvrement
   des grains, toujours à vitesse d’origine. Cette comparaison vérifie que le
   traitement conserve la matière avant de juger le pilotage.
-- **C · Moteur piloté** : tenir un régime avec le premier curseur et choisir
-  les passages d’accélération ou de relâchement avec la charge.
+- **C · Moteur piloté** : donner des gaz avec l’accélérateur ; le régime monte
+  automatiquement, puis redescend au relâchement.
+
+En C, **Accélérateur** est le mode par défaut. Maintenir **Espace** donne les
+pleins gaz ; le relâcher revient à la position du curseur. La charge freine la
+montée et réduit le régime atteint. Les gaz et la charge déterminent aussi le
+choix des passages enregistrés ; le relâchement privilégie les portions de
+descente en régime. Une perte de focus relâche Espace.
+
+**Banc à régime imposé** retrouve le premier comportement : choisir directement
+le régime, puis modifier uniquement la charge acoustique pour comparer le timbre.
 
 Chaque bouton lance l’écoute correspondante. **M** ou « Lecture / arrêt »
-bascule la lecture ; une reprise redémarre le parcours. Les curseurs de régime
-et charge agissent sur C ; le volume est commun aux trois écoutes. A et B
+bascule la lecture ; une reprise redémarre le parcours. Les commandes de gaz,
+de banc et de charge agissent sur C ; le volume est commun aux trois écoutes. A et B
 s’arrêtent à la fin du fichier, tandis que C peut être tenu indéfiniment.
 
 Commencer par A puis B : la mécanique, les coups de gaz, les irrégularités et
 la stéréo doivent rester reconnaissables. Passer ensuite en C, choisir un
-régime intermédiaire et déplacer seulement la charge, puis faire varier le
-régime à charge constante. Juger les attaques, la matière mécanique, les
+régime en donnant puis relâchant les gaz. Comparer une montée à faible charge
+avec une montée à forte charge. Utiliser le banc pour tenir un régime et
+déplacer seulement la charge. Juger les attaques, la matière mécanique, les
 raccords, les éventuels effets de boucle et la réponse aux commandes. Le test
 automatisé ne décide pas si le résultat est réaliste.
 
@@ -39,8 +49,14 @@ d’un monocylindre deux temps. Aucun compte-tours n’accompagne l’enregistre
 le calibrage absolu et les éventuelles ambiguïtés harmoniques restent à vérifier.
 Le prototype n’invente pas de ralenti en dessous de la plage analysée.
 
-La charge 0..1 choisit principalement entre les portions dont le régime baisse
-et celles dont il monte. Ce n’est pas une mesure de couple ni une simulation
+Le mode accélérateur ajoute une réponse de régime simplifiée pour l’écoute,
+sans courbe de couple ni inertie mesurées. Gaz relâchés, il revient au plancher
+enregistré ; le bouton d’arrêt coupe la lecture. Cette réponse est intégrée sur
+l’horloge audio et ne dépend pas de la fréquence des images de l’interface.
+
+Sur le banc, la charge 0..1 choisit principalement entre les portions dont le
+régime baisse et celles dont il monte. En mode accélérateur, ce choix dépend
+aussi des gaz et de l’évolution du régime. Ce n’est pas une mesure de couple ni une simulation
 thermodynamique. Un fichier unique ne fournit pas une grille complète de tous
 les régimes sous toutes les charges. La prise de son et l’échappement FMF font
 partie du timbre capturé ; il n’existe pas encore de rendu d’habitacle ou de
@@ -63,13 +79,15 @@ Build/YZ250-Prototype --render Build/YZ250
 
 L’export crée `YZ250-Reference.wav`, `YZ250-Reconstruction.wav` et
 `YZ250-Controlled.wav`, à 44 100 Hz stéréo PCM16 et au même gain de 0,7.
-Le troisième fichier dure 12 s : régime tenu, montée, charge puis relâchement
-à régime identique, et descente. Un bref fondu ferme les exports.
+Le troisième fichier dure 12 s : deux coups de gaz, le premier à faible charge,
+le second à forte charge, chacun suivi d’un relâchement. Un bref fondu ferme
+les exports.
 
 `--check` compare A et B sur le fichier entier, vérifie la sélection de matière
 par la charge à régime constant, les sorties finies, l’arrêt, les commandes
 invalides, l’indépendance vis-à-vis des tailles de blocs et les boutons/layouts
-sans périphérique audio.
+sans périphérique audio. Il vérifie aussi la montée automatique aux gaz, l’effet
+de la charge, le retour au plancher après relâchement et le passage au banc.
 
 `Assets/Analysis.json` conserve le hash du MP3 d’origine, le hash du PCM, les
 estimations et leurs limites. Le prototype lit uniquement ses assets embarqués.

@@ -17,17 +17,26 @@ silex run Silex-Examples/Sources/YZ250/Main.sx
 - **B · Reconstruction**: play the same trajectory through overlapping grains,
   still at original speed. This checks preservation of the material before
   evaluating control.
-- **C · Moteur piloté**: hold RPM with the first slider and select acceleration
-  or release material through the load control.
+- **C · Moteur piloté**: open the throttle; RPM rises automatically and falls
+  when throttle is released.
+
+In C, **Accélérateur** is the default. Hold **Space** for full throttle; releasing
+it returns to the slider position. Load slows the rise and lowers the resulting
+RPM. Throttle and load also select recorded material; release favors falling-RPM
+portions. Losing focus releases Space.
+
+**Banc à régime imposé** retains the earlier behavior: choose RPM directly,
+then change acoustic load alone to compare timbre.
 
 Each button starts its listening mode. **M** or “Lecture / arrêt” toggles
-playback; resuming restarts the trajectory. RPM/load sliders control C; volume
+playback; resuming restarts the trajectory. Throttle, bench and load control C; volume
 is common to all three modes. A and B stop at the recording's end, while C can
 be held indefinitely. The interface is French.
 
 Start with A then B: mechanical texture, throttle bursts, irregularities and
-stereo should remain recognizable. Then choose an intermediate RPM in C and
-change only load, followed by RPM changes at constant load. Listen for attacks,
+stereo should remain recognizable. Then open and release the throttle in C.
+Compare a rise at low load with one at high load. Use the bench to hold RPM
+and change only load. Listen for attacks,
 mechanical body, joins, looping artifacts and control response. Automated
 checks do not decide whether the result is realistic.
 
@@ -38,7 +47,13 @@ two-stroke. No tachometer accompanies the recording: absolute calibration and
 possible harmonic ambiguities remain to be verified. The prototype does not
 invent idle below the analyzed range.
 
-Load 0..1 mainly selects falling-RPM versus rising-RPM portions. It is neither
+Throttle mode adds a simplified listening-driver response without measured
+torque or inertia. Released throttle returns to the recorded floor; stopping
+cuts playback. This response runs on the audio clock and is independent of UI
+frame frequency.
+
+On the bench, load 0..1 mainly selects falling-RPM versus rising-RPM portions.
+In throttle mode, that choice also follows throttle and RPM evolution. It is neither
 a torque measurement nor a thermodynamic simulation. One recording cannot
 provide a complete grid of all RPM/load combinations. Microphone placement and
 the FMF exhaust are baked into its timbre; there is no cabin or independent
@@ -61,12 +76,14 @@ Build/YZ250-Prototype --render Build/YZ250
 
 Export creates `YZ250-Reference.wav`, `YZ250-Reconstruction.wav` and
 `YZ250-Controlled.wav` at 44,100 Hz stereo PCM16 with a common 0.7 gain. The third
-file lasts 12 seconds: held RPM, acceleration, load/release at identical RPM,
-then deceleration. A short fade closes each export.
+file lasts 12 seconds: two throttle bursts, first at low load, then at high load,
+each followed by release. A short fade closes each export.
 
 `--check` compares A/B over the complete recording, checks load-dependent
 material at constant RPM, finite output, stopping, invalid controls, independence
 from block sizes, and buttons/layouts without an audio device.
+It also checks automatic throttle rise, the load effect, return to the recorded
+floor after release, and switching to the bench.
 
 `Assets/Analysis.json` records the original MP3 hash, PCM hash, estimates and
 their limits. The prototype reads only embedded assets. The archived MP3 stays
