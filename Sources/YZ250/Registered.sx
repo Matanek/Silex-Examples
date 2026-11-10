@@ -1,0 +1,36 @@
+use STD.Math
+use Module.RegisteredData
+
+// One aligned 6000-RPM take, the material heard in isolated test G.
+// Do not reintroduce neighboring recordings into this settled-RPM voice.
+public class Registered {
+    let audio_bytes:int
+    private var pcm:float32[] = []
+    private var data:RegisteredData = RegisteredData()
+    init() {
+        let bytes = embed_bytes("Assets/Registered.pcm")
+        self.audio_bytes = bytes.count()
+        assert(bytes.count() == 2 * 32 * 512 * 4)
+        for i in 0...bytes.count() / 2 {
+            var word = bytes[i * 2] as int + bytes[i * 2 + 1] as int * 256
+            if word >= 32_768 { word -= 65_536 }
+            self.pcm.append(word as float32 / 32_768.0)
+        }
+    }
+    func peak() float64 { return self.data.peak }
+    func gain(desired_power:float64) float64 {
+        return Math.sqrt(desired_power / self.data.power)
+    }
+    private func at(view:int, index:int, fraction:float64, channel:int) float64 {
+        let a = self.pcm[(view * 16_384 + index) * 2 + channel] as float64
+        let b = self.pcm[(view * 16_384 + (index + 1) % 16_384) * 2 + channel] as float64
+        return a + fraction * (b - a)
+    }
+    func sample(turns:float64, channel:int, rpm:float64) float64 {
+        let position = turns * 512.0
+        let index = Math.floor(position) as int
+        let fraction = position - index as float64
+        let mix = Math.clamp((rpm - 7_200.0) / 300.0, 0.0, 1.0)
+        return self.at(0, index, fraction, channel) * (1.0 - mix) + self.at(1, index, fraction, channel) * mix
+    }
+}

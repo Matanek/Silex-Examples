@@ -36,7 +36,7 @@ public func render(prefix:str) {
         if scenario == 3 { rpm = 7_000.0; load = 0.0; suffix = "Load-Low" }
         if scenario == 4 { rpm = 7_000.0; load = 1.0; suffix = "Load-High" }
         if scenario == 5 { suffix = "Throttle"; seconds = 12 }
-        if scenario == 6 { suffix = "Idle"; rpm = 3_660.0; load = 0.0 }
+        if scenario == 6 { suffix = "Idle"; rpm = 1_800.0; load = 0.0 }
         if scenario == 7 { suffix = "Progressive"; seconds = 12 }
         if scenario == 8 { suffix = "Micro"; seconds = 4 }
         if scenario == 9 { suffix = "Long"; seconds = 20; voice.set_inertia(4.0) }
@@ -83,13 +83,13 @@ public func render(prefix:str) {
         }
         wave(prefix + "-$(suffix).wav", @output[0:output.count()])
         var encoded = UTF8.bytes(telemetry); File.write_all(prefix + "-$(suffix).csv", @encoded[0:encoded.count()])
-        print("YZ250 H3 export: ", prefix, "-", suffix, ".wav")
+        print("YZ250 H4 export: ", prefix, "-", suffix, ".wav")
     }
 }
 public func check() {
-    var bank = Bank(); assert(bank.audio_bytes == 786_432)
+    var bank = Bank(); assert(bank.audio_bytes == 917_504)
     var a = zeros(512); var b = zeros(512); var peak:float = 0.0
-    let rpms:float[] = [3_660.0, 4_500.0, 6_000.0, 7_000.0, 7_500.0, 9_000.0, 10_500.0]
+    let rpms:float[] = [1_800.0, 2_500.0, 3_660.0, 4_500.0, 6_000.0, 7_000.0, 7_500.0, 9_000.0, 10_500.0]
     let loads:float[] = [0.0, 0.5, 1.0]
     for rpm in rpms {
         for load in loads {
@@ -118,7 +118,7 @@ public func check() {
         for fraction in fractions {
             let rpm = bank.rpms[node] * (1.0 - fraction) + bank.rpms[node + 1] * fraction
             let expected = bank.node_power(node * 2 + 1) * (1.0 - fraction) + bank.node_power(node * 2 + 3) * fraction
-            var voice = Voice(bank); voice.set_state(round_float<float>(rpm), 1.0); voice.reset()
+            var voice = Voice(bank); voice.set_state(round_float<float>(rpm), 1.0); voice.set_variation(false); voice.reset()
             let frames = Math.round(32.0 * 4.0 * 2_646_000.0 / rpm) as int
             var rendered = 0; var energy:float64 = 0.0
             while rendered < frames {
@@ -140,6 +140,11 @@ public func check() {
         whole.render(&a[0:1_024]); split.render(&b[0:128]); split.render(&b[128:690]); split.render(&b[690:1_024])
         for i in 0...1_024 { assert(a[i] == b[i], "block sizes changed audio") }
     }
+    whole.set_state(7_000.0, 1.0); split.set_state(7_000.0, 1.0); whole.reset(); split.reset()
+    for _ in 0...200 {
+        whole.render(&a[0:1_024]); split.render(&b[0:128]); split.render(&b[128:690]); split.render(&b[690:1_024])
+        for i in 0...1_024 { assert(a[i] == b[i], "registered phrase joins depend on block sizes") }
+    }
     var free = Voice(bank); var loaded = Voice(bank)
     free.set_drive(1.0, 0.0); loaded.set_drive(1.0, 1.0); free.reset(); loaded.reset()
     for _ in 0...30 { free.render(&a[0:1_024]); loaded.render(&b[0:1_024]) }
@@ -150,7 +155,7 @@ public func check() {
     var reached:float64 = 0.0
     while inertial.frame() < 6 * 44_100 {
         inertial.render(&a[0:1_024])
-        if reached == 0.0 && inertial.current_rpm() >= 10_158.0 { reached = inertial.frame() as float64 / 44_100.0 }
+        if reached == 0.0 && inertial.current_rpm() >= 10_065.0 { reached = inertial.frame() as float64 / 44_100.0 }
     }
     assert(reached > 3.6 && reached < 4.2, "inertia did not lengthen full-throttle rise")
     match try inertial.set_inertia(0.0) { failure(value) => {}; success => { panic("invalid inertia accepted") } }
@@ -164,7 +169,7 @@ public func check() {
     assert(difference > 1.0 && low.crank_turns() == high.crank_turns(), "load changed pitch or had no sound effect")
     whole.set_drive(0.0, 0.6)
     for _ in 0...250 { whole.render(&a[0:1_024]) }
-    assert(whole.current_rpm() < 3_670.0 && whole.current_throttle() < 0.001, "gas release did not return to floor")
+    assert(whole.current_rpm() < 1_810.0 && whole.current_throttle() < 0.001, "gas release did not return to floor")
     whole.set_drive(0.0, 0.6, false)
     for _ in 0...50 { whole.render(&a[0:1_024]) }
     for value in a { assert(Math.abs(value) < 0.000001, "stop did not silence") }
@@ -173,5 +178,5 @@ public func check() {
     match try whole.set_drive(1.01, 0.0) { failure(value) => {}; success => { panic("invalid gas accepted") } }
     match try whole.render(&a[0:3]) { failure(value) => {}; success => { panic("partial frame accepted") } }
     assert(clock == whole.frame())
-    print("YZ250 H3 checks passed: 768 KiB bank, 21 steady points, upper blend energy, accepted attack mix, gas/load/hold/release, phase, split blocks, stop and errors. Peak=", peak)
+    print("YZ250 H4 checks passed: 896 KiB bank, 27 steady points, upper blend energy, accepted attack mix, gas/load/hold/release, phase, split blocks, stop and errors. Peak=", peak)
 }

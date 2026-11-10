@@ -11,6 +11,7 @@ import sys
 import wave
 sys.dont_write_bytecode = True
 from PrepareCompact import fft
+from PrepareRegistered import pressure
 
 RATE=44100
 
@@ -41,7 +42,7 @@ def pitch(values,expected):
 
 def verify(prefix):
     report={}
-    for name,rpm in [('Fixed-4500',4500),('Fixed-7000',7000),('Fixed-9500',9500),('Load-Low',7000),('Load-High',7000),('Idle',3660)]:
+    for name,rpm in [('Fixed-4500',4500),('Fixed-7000',7000),('Fixed-9500',9500),('Load-Low',7000),('Load-High',7000),('Idle',1800)]:
         values=read(Path(str(prefix)+'-'+name+'.wav'))
         assert len(values)==8*RATE
         estimates=[pitch(values[i:i+16384],rpm) for i in range(RATE,len(values)-16384,RATE//3)]
@@ -69,18 +70,18 @@ def verify(prefix):
     with Path(str(prefix)+'-Progressive.csv').open() as f: progressive_rows=list(csv.DictReader(f))
     rising=[r for r in progressive_rows if 1<int(r['frame'])/RATE<5]
     assert all(float(b['rpm'])>=float(a['rpm']) for a,b in zip(rising,rising[1:]))
-    assert float(rising[-1]['rpm'])>9900
+    assert (float(rising[-1]['rpm'])-1800)/(10500-1800)>.90
     report['Progressive']=dict(rpm_min=float(rising[0]['rpm']),rpm_max=float(rising[-1]['rpm']))
     micro=read(Path(str(prefix)+'-Micro.wav'))
     assert len(micro)==4*RATE
     with Path(str(prefix)+'-Micro.csv').open() as f: micro_rows=list(csv.DictReader(f))
     peak_rpm=max(float(r['rpm']) for r in micro_rows)
-    assert 4500<peak_rpm<5500
+    assert 3300<peak_rpm<4200
     report['Micro']=dict(peak_rpm=peak_rpm)
     long=read(Path(str(prefix)+'-Long.wav'))
     assert len(long)==20*RATE
     with Path(str(prefix)+'-Long.csv').open() as f: long_rows=list(csv.DictReader(f))
-    reached=next(int(r['frame'])/RATE-1 for r in long_rows if float(r['rpm'])>=10158)
+    reached=next(int(r['frame'])/RATE-1 for r in long_rows if float(r['rpm'])>=10065)
     assert 3.6<reached<4.2
     report['Long']=dict(seconds_to_95_percent_rpm=reached)
     directory=Path(__file__).parent
@@ -99,12 +100,50 @@ def verify(prefix):
     assert idle_variation<.09,'recorded floor lost its even cadence'
     report['Idle']['cycle_rms_variation']=idle_variation
     assert hashlib.sha256((directory/'BlendEnergy.sx').read_bytes()).hexdigest()==metadata['blend_energy_sha256']
+    bounds=json.loads((directory/'PeakBounds.json').read_text())
+    assert bounds['pcm_sha256']==metadata['pcm_sha256']
+    assert hashlib.sha256((directory/'PeakBounds.sx').read_bytes()).hexdigest()==bounds['source_sha256']
+    registered=json.loads((directory/'Assets/Registered.json').read_text())
+    aligned=(directory/'Assets/Registered.pcm').read_bytes()
+    assert len(aligned)+len(pcm)==917_504
+    assert registered['original_sha256']==metadata['pcm_sha256']
+    assert hashlib.sha256(aligned).hexdigest()==registered['pcm_sha256']
+    assert hashlib.sha256((directory/'RegisteredData.sx').read_bytes()).hexdigest()==registered['source_sha256']
+    # G's improvement comes from pressure-shape alignment, not level/EQ.
+    # Guard that independently of the exact playback clock and PCM hashes.
+    blocks=[]
+    for raw,node in [(pcm,5),(aligned,0)]:
+        words=array.array('h',raw)
+        if sys.byteorder!='little':words.byteswap()
+        mono=[(words[(node*16384+i)*2]+words[(node*16384+i)*2+1])/65536 for i in range(16384)]
+        blocks.append([pressure(mono[i*512:(i+1)*512]) for i in range(32)])
+    template=[sum(block[i] for block in blocks[0])/32 for i in range(512)]
+    coherence=[]
+    for cycles in blocks:
+        coherence.append(statistics.mean(sum(a*b for a,b in zip(cycle,template))/math.sqrt(sum(a*a for a in cycle)*sum(b*b for b in template)) for cycle in cycles))
+    assert coherence[1]>coherence[0]+.05,('recorded firing alignment regressed',coherence)
+    report['Recorded-Alignment']=dict(original_coherence=coherence[0],registered_coherence=coherence[1],audio_bytes=len(pcm)+len(aligned))
+    # A mixture of registered takes passed clock/level tests but lost G's timbre
+    # in listening. Protect the actual rendered waveform against that regression.
+    words=array.array('h',aligned)
+    if sys.byteorder!='little':words.byteswap()
+    source=[(words[i*2]+words[i*2+1])/65536 for i in range(16384)]
+    reference=[]
+    for frame in range(2*RATE,6*RATE):
+        position=((frame+1)*7000/2646000*512)%16384
+        index=int(position);fraction=position-index
+        reference.append(source[index]*(1-fraction)+source[(index+1)%16384]*fraction)
+    for name in ['Fixed-7000','Load-Low','Load-High']:
+        rendered=read(Path(str(prefix)+'-'+name+'.wav'))[2*RATE:6*RATE]
+        corr=sum(a*b for a,b in zip(reference,rendered))/math.sqrt(sum(a*a for a in reference)*sum(b*b for b in rendered))
+        assert corr>.99999,(name,'playable hold no longer preserves isolated G',corr)
+        report[name]['correlation_to_isolated_g']=corr
     assert 'Reference.pcm' not in (directory/'Bank.sx').read_text()
     assert 'Grains.bin' not in (directory/'Bank.sx').read_text()
     assert report['Load-High']['rms']>report['Load-Low']['rms']*1.2
     Path(str(prefix)+'-Verification.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
-    print('H3 audio/bank verification passed; listening approval remains required.')
+    print('H4 audio/bank verification passed; listening approval remains required.')
 
 
 if __name__=='__main__':

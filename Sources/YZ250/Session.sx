@@ -30,7 +30,9 @@ class Bench {
     var throttle:UI.State<float> = UI.State<float>(0.0)
     var driving:UI.State<bool> = UI.State<bool>(true)
     var load:UI.State<float> = UI.State<float>(0.4)
+    var idle:UI.State<float> = UI.State<float>(1_800.0)
     var inertia:UI.State<float> = UI.State<float>(4.0)
+    var variation:UI.State<bool> = UI.State<bool>(true)
     var continuity:UI.State<str> = UI.State<str>("Audio prêt")
     var volume:UI.State<float> = UI.State<float>(0.7)
     var playing:UI.State<bool> = UI.State<bool>(false)
@@ -40,6 +42,7 @@ class Bench {
     private var space_held:bool = false
     init() { self.voice = Voice(self.bank); self.changed(0.0) }
     func changed(value:float) {
+        self.voice.set_idle(self.idle.value())
         self.voice.set_inertia(self.inertia.value())
         if self.driving.value() {
             var throttle = self.throttle.value(); if self.space_held { throttle = 1.0 }
@@ -53,6 +56,8 @@ class Bench {
             self.update(1.0)
         }
     }
+    func varied() { self.variation.set(true); self.voice.set_variation(true) }
+    func fixed_loop() { self.variation.set(false); self.voice.set_variation(false) }
     func quick() { self.inertia.set(1.0); self.changed(0.0) }
     func long() { self.inertia.set(4.0); self.changed(0.0) }
     func drive() { self.driving.set(true); self.start() }
@@ -97,6 +102,10 @@ class Bench {
     }
     func rpm_label(value:float) str { return "$(Math.round(value) as int) tr/min estimés" }
     func inertia_label(value:float) str { return "$(Math.round(value * 10.0) / 10.0) × · durée de montée" }
+    func variation_view(reads:UI.Reads) UI.View {
+        if reads.read(self.variation) { return text("G seul au palier · dès 6 000 tr/min · charge = niveau sonore du palier") }
+        return text("Prises initiales · comparaison avec le mélange de boucles")
+    }
     func continuity_view(reads:UI.Reads) UI.View { return text(reads.read(self.continuity)) }
     func percent(value:float) str { return "$(Math.round(value * 100.0) as int) %" }
     func status_view(reads:UI.Reads) UI.View { return text(reads.read(self.status), 20.0) }
@@ -112,13 +121,15 @@ class Bench {
     }
     func view() UI.View {
         var load = UI.Slider(self.load, 0.0, 1.0, self.changed)
+        var idle = UI.Slider(self.idle, 1_800.0, 3_500.0, self.changed)
+        idle.style.height = 28.0; idle.style.accent = Color.cyan_400()
         var inertia = UI.Slider(self.inertia, 1.0, 10.0, self.changed)
         inertia.style.height = 28.0; inertia.style.accent = Color.cyan_400()
         var volume = UI.Slider(self.volume, 0.0, 1.0, self.changed)
         load.style.height = 28.0; load.style.accent = Color.cyan_400()
         volume.style.height = 28.0; volume.style.accent = Color.cyan_400()
-        var content = UI.Column([text("YZ250 · banque compacte · H3", 28.0),
-            text("Texture enregistrée réelle · 12 boucles · banque audio 768 Kio"), UI.Reactive(self.status_view),
+        var content = UI.Column([text("YZ250 · banque compacte · H4", 28.0),
+            text("Texture enregistrée réelle · attaques initiales + palier G seul · audio 896 Kio"), UI.Reactive(self.status_view),
             text("Maintenez ESPACE : démarrage et pleins gaz. Relâchez : retombée du régime."),
             UI.Row([button("Accélérateur", self.drive), button("Banc à régime fixe", self.manual), button("Lecture / arrêt · M", self.toggle)], wrap:true),
             UI.Reactive(self.control_view),
@@ -128,6 +139,9 @@ class Bench {
             text("Aucun changement de rapport automatique ; le régime monte tant qu’Espace est maintenu."),
             UI.Reactive(self.continuity_view),
             text("Charge mécanique · ralentit la montée, sans bloquer le plein régime"), UI.Text(self.load, format:self.percent), load,
+            text("Régime de base · extrapolé sous la plage enregistrée"), UI.Text(self.idle, format:self.rpm_label), idle,
+            UI.Row([button("G seul · palier", self.varied), button("Prises initiales · comparer", self.fixed_loop)], wrap:true),
+            UI.Reactive(self.variation_view),
             text("Volume"), UI.Text(self.volume, format:self.percent), volume,
             text("Les boucles conservent plusieurs explosions et la matière mécanique du fichier YZ250 / FMF."),
             text("Leur régime interne est stabilisé avant lecture ; les transitions partagent la même cadence."),
@@ -183,7 +197,7 @@ public class Session:Canvas.Session {
 }
 public func show() {
     var audio = Audio(); var session = Session(audio)
-    Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:1_000, title:"Silex — YZ250 · banque compacte · H3 · ESPACE = gaz"))
+    Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:1_000, title:"Silex — YZ250 · banque compacte · H4 · ESPACE = gaz"))
 }
 func key_event(key:Keyboard.Key, repeated:bool = false) Events.KeyEvent {
     return Events.KeyEvent(window:Window.Id(value:0 as uint32), keyboard:Keyboard.KeyboardId(value:0 as uint32),
@@ -192,7 +206,7 @@ func key_event(key:Keyboard.Key, repeated:bool = false) Events.KeyEvent {
 }
 public func check() {
     var bench = Bench(); var samples:float32[] = []; for _ in 0...1_024 { samples.append(0.0) }
-    assert(bench.inertia.value() == 4.0); bench.quick()
+    assert(bench.inertia.value() == 4.0 && bench.idle.value() == 1_800.0); bench.quick()
     assert(bench.handle(Events.Event.key_pressed(key_event(Keyboard.Key.space))))
     assert(bench.playing.value() && bench.driving.value())
     let generation = bench.generation
@@ -202,7 +216,7 @@ public func check() {
     assert(bench.voice.current_rpm() > 8_000.0, "space did not accelerate")
     assert(bench.handle(Events.Event.key_released(key_event(Keyboard.Key.space))))
     for _ in 0...150 { bench.voice.render(&samples[0:1_024]) }
-    assert(bench.voice.current_rpm() < 3_700.0, "space release did not close throttle")
+    assert(bench.voice.current_rpm() < 1_850.0, "space release did not close throttle")
     bench.handle(Events.Event.key_pressed(key_event(Keyboard.Key.space)))
     for _ in 0...30 { bench.voice.render(&samples[0:1_024]) }
     bench.handle(Events.Event.window_focus_lost(Events.WindowEvent(window:Window.Id(value:0 as uint32), timestamp:Events.Timestamp(nanoseconds:0 as uint))))
@@ -223,6 +237,11 @@ public func check() {
     assert(presets.key_pressed(Keyboard.Key.tab)); assert(presets.key_pressed(Keyboard.Key.end))
     assert(bench.inertia.value() == 10.0)
     assert(presets.key_pressed(Keyboard.Key.home)); assert(bench.inertia.value() == 1.0)
+    assert(presets.key_pressed(Keyboard.Key.tab)); assert(presets.key_pressed(Keyboard.Key.tab))
+    assert(presets.key_pressed(Keyboard.Key.end)); assert(bench.idle.value() == 3_500.0)
+    assert(presets.key_pressed(Keyboard.Key.home)); assert(bench.idle.value() == 1_800.0)
+    assert(presets.key_pressed(Keyboard.Key.tab)); assert(presets.key_pressed(Keyboard.Key.enter)); assert(bench.variation.value())
+    assert(presets.key_pressed(Keyboard.Key.tab)); assert(presets.key_pressed(Keyboard.Key.enter)); assert(!bench.variation.value())
     var ui = UI.Session(bench.view()); for width in [400, 760, 1_100] { ui.drawing(width, 820) }
-    print("YZ250 H3 UI passed: space press/repeat/release/focus, auto-start, bench switch, M and layouts")
+    print("YZ250 H4 UI passed: space press/repeat/release/focus, auto-start, bench switch, M and layouts")
 }

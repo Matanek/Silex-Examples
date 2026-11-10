@@ -4,12 +4,19 @@ use STD.Math
 use STD.Error
 use STD.Error.Kind
 use Module.Bank
+use Module.Texture
 
-// Recorded texture, a shared continuous crank phase and four adjacent loop
-// gains. No grain selection, internal pitch sweep or reset at RPM crossings.
+// Recorded texture with a continuous crank phase. At settled upper RPM, use
+// isolated G alone; a mixture of aligned takes lost its accepted timbre.
 public class Voice:Synthesis.Generator {
     let format:Processing.Format = Processing.Format(sample_rate:44_100, channels:2)
     private var bank:Bank
+    private var texture:Texture = Texture()
+    private var idle_rpm:float64 = 1_800.0
+    private var bound:float64 = 1.0
+    private var registered_gain:float64 = 1.0
+    private var target_registered_gain:float64 = 1.0
+    private var bound_weights:float64[] = []
     private var clock:int = 0
     private var revision:int = 0
     private var inertia:float64 = 1.0
@@ -31,13 +38,22 @@ public class Voice:Synthesis.Generator {
 
     init(bank:Bank) {
         self.bank = bank; self.rpm = bank.minimum_rpm as float64; self.target_rpm = self.rpm
-        for _ in 0...12 { self.weights.append(0.0); self.desired_weights.append(0.0) }
+        for _ in 0...12 { self.weights.append(0.0); self.desired_weights.append(0.0); self.bound_weights.append(0.0) }
         self.reset()
     }
     // Public state/render calls share Silex's recursive critical section.
     // The audio worker renders bounded 256-frame blocks; UI commands never
     // hold this lock while drawing or waiting for device capacity.
     func generation() int { mutex { return self.revision } }
+    func set_variation(enabled:bool) { mutex { self.texture.set_enabled(enabled) } }
+    func set_idle(rpm:float) Result<void,Error> {
+        mutex {
+            if !Math.is_finite(rpm) || rpm < 1_800.0 || rpm > 3_500.0 {
+                return Result<void,Error>.failure(Error(kind:Kind.invalid_input(), operation:"yz250.idle", detail:"base RPM in 1800..3500 required"))
+            }
+            self.idle_rpm = rpm as float64; return Result<void,Error>.success()
+        }
+    }
     func set_inertia(value:float) Result<void,Error> {
         mutex {
             if !Math.is_finite(value) || value < 1.0 || value > 10.0 {
@@ -49,7 +65,7 @@ public class Voice:Synthesis.Generator {
     func set_state(rpm:float, load:float, running:bool = true) Result<void,Error> {
         mutex {
             if !Math.is_finite(rpm) || rpm < self.bank.minimum_rpm || rpm > self.bank.maximum_rpm || !Math.is_finite(load) || load < 0.0 || load > 1.0 {
-                return Result<void,Error>.failure(Error(kind:Kind.invalid_input(), operation:"yz250.state", detail:"RPM inside recorded estimated range and finite load in 0..1 required"))
+                return Result<void,Error>.failure(Error(kind:Kind.invalid_input(), operation:"yz250.state", detail:"RPM in 1800..10500 and finite load in 0..1 required"))
             }
             self.driving = false
             self.target_rpm = rpm; self.target_load = load; self.running = running
@@ -72,12 +88,16 @@ public class Voice:Synthesis.Generator {
     func crank_turns() float64 { mutex { return self.total_turns } }
     func reset() {
         mutex {
-            self.revision++; self.clock = 0; self.turns = 0.0; self.total_turns = 0.0; self.gain = 0.0
+            self.texture.reset(); self.revision++; self.clock = 0; self.turns = 0.0; self.total_turns = 0.0; self.gain = 0.0
             self.rpm = self.target_rpm; self.load = self.target_load; self.throttle = 0.0
-            if self.driving { self.rpm = self.bank.minimum_rpm as float64; self.load = 0.0 }
+            if self.driving { self.rpm = self.idle_rpm; self.load = 0.0 }
             self.mix_weights()
             for i in 0...12 { self.weights[i] = self.desired_weights[i] }
+            self.bound = self.bank.peak_bound(@self.weights[0:12])
+            for i in 0...12 { self.bound_weights[i] = self.weights[i] }
             self.blend_gain = self.bank.blend_gain(@self.weights[0:12]); self.target_blend_gain = self.blend_gain
+            self.registered_gain = self.bank.registered_gain(@self.weights[0:12], self.blend_gain)
+            self.target_registered_gain = self.registered_gain
         }
     }
     private func mix_weights() {
@@ -101,17 +121,18 @@ public class Voice:Synthesis.Generator {
                 return Result<void,Error>.success()
             }
             for frame in 0...samples.count() / 2 {
+                let previous_rpm = self.rpm
                 if self.driving {
                     // Listening response, without measured torque/inertia. Load
                     // slows acceleration; full throttle still reaches full RPM.
                     self.throttle += 0.0015 * (self.target_throttle - self.throttle)
-                    let span = (self.bank.maximum_rpm - self.bank.minimum_rpm) as float64
-                    let target = self.bank.minimum_rpm as float64 + span * self.throttle
+                    let span = self.bank.maximum_rpm as float64 - self.idle_rpm
+                    let target = self.idle_rpm + span * self.throttle
                     var seconds:float64 = 0.24
                     if target > self.rpm {
-                    seconds = 0.18 + 0.35 * self.target_load
-                    seconds *= self.inertia
-                }
+                        seconds = 0.18 + 0.35 * self.target_load
+                        seconds *= self.inertia
+                    }
                     let acceleration = (target - self.rpm) / seconds
                     self.rpm += acceleration / 44_100.0
                     let acoustic_load = Math.clamp(self.throttle * (0.85 + 0.15 * self.target_load) + acceleration / 30_000.0, 0.0, 1.0)
@@ -124,10 +145,23 @@ public class Voice:Synthesis.Generator {
                 // positions remain synchronized even while a loop has zero gain.
                 if self.clock % 64 == 0 {
                     self.mix_weights(); self.target_blend_gain = self.bank.blend_gain(@self.weights[0:12])
+                    self.bound = self.bank.peak_bound(@self.weights[0:12])
+                    self.target_registered_gain = self.bank.registered_gain(@self.weights[0:12], self.target_blend_gain)
+                    for i in 0...12 { self.bound_weights[i] = self.weights[i] }
                 }
                 self.blend_gain += 0.008 * (self.target_blend_gain - self.blend_gain)
+                self.registered_gain += 0.008 * (self.target_registered_gain - self.registered_gain)
                 for i in 0...12 { self.weights[i] += 0.008 * (self.desired_weights[i] - self.weights[i]) }
+                var peak_bound = self.bound
+                for i in 0...12 {
+                    peak_bound += Math.abs(self.weights[i] - self.bound_weights[i]) * self.bank.node_peak(i)
+                    // Omitting a tiny residual also removes its cancellation.
+                    if self.weights[i] <= 0.000001 { peak_bound += self.weights[i] * self.bank.node_peak(i) }
+                }
+                let safe_gain = Math.min(self.blend_gain, 0.98 / peak_bound)
+                let safe_registered_gain = Math.min(self.registered_gain, 0.98 / self.bank.registered_peak())
                 let advance = self.rpm / 2_646_000.0
+                self.texture.update(self.rpm, (self.rpm - previous_rpm) * 44_100.0)
                 self.turns += advance; self.total_turns += advance
                 if self.turns >= 32.0 { self.turns -= 32.0 }
                 var target:float64 = 0.0; if self.running { target = 1.0 }
@@ -137,7 +171,8 @@ public class Voice:Synthesis.Generator {
                     for i in 0...12 {
                         if self.weights[i] > 0.000001 { value += self.weights[i] * self.bank.sample(i, self.turns, channel) }
                     }
-                    samples[frame * 2 + channel] = round_float<float32>(value * self.gain * self.blend_gain)
+                    let textured = self.texture.sample(self.bank, self.turns, channel, self.rpm, value * safe_gain, safe_registered_gain)
+                    samples[frame * 2 + channel] = round_float<float32>(textured * self.gain)
                 }
                 self.clock++
             }

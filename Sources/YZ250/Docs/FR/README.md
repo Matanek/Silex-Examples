@@ -6,8 +6,9 @@ Depuis la racine `SilexProject/` :
 silex run Silex-Examples/Sources/YZ250/Main.sx
 ```
 
-La fenêtre **YZ250 · banque compacte · H3 · ESPACE = gaz** utilise la matière
-réelle de l’enregistrement fourni, avec une banque PCM16 stéréo de **768 Kio**.
+La fenêtre **YZ250 · banque compacte · H4 · ESPACE = gaz** utilise la matière
+réelle de l’enregistrement fourni, avec **896 Kio** de PCM16 stéréo : 768 Kio
+de prises initiales et 128 Kio pour le palier G seul, en deux bandes passantes.
 Elle remplace le précédent banc à grains A/B/C à cette entrée. Le prototype
 spectral P1 reste séparé et ne constitue plus la version proposée à l’écoute.
 Le Chevrolet 454, la 500 4T et GFX.Audio sont inchangés.
@@ -30,10 +31,20 @@ coups de gaz courts, maintenir ensuite les gaz plusieurs secondes, puis écouter
 la retombée. Comparer différentes charges et vérifier le son à régime fixe.
 **Montée longue · ×4** est le réglage initial d’inertie : à la charge par défaut,
 il faut environ quatre secondes de pleins gaz pour parcourir 95 % de la plage.
-**Réponse vive · ×1** retrouve la montée de H2 et son micro coup de gaz.
+**Réponse vive · ×1** garde une réaction brève ; ×4 permet une montée prolongée.
 Le curseur permet ×1 à ×10. L’inertie allonge uniquement l’accélération ; la
 retombée conserve sa réponse vive. Ce réglage ne simule pas une boîte de vitesses
 et n’ajoute aucun changement de rapport automatique.
+
+Le **régime de base** vaut maintenant **1 800 tr/min**, réglable de 1 800 à
+3 500. Il est extrapolé sous la plage enregistrée, sans prétendre reproduire un
+ralenti réel mesuré. Les dix exports utilisent le réglage de base initial.
+
+**G seul · palier** conserve uniquement la prise de l’essai G, au-dessus de
+6 000 tr/min une fois le régime stabilisé. La charge y règle le niveau sonore,
+sans mélange avec d’autres timbres. Elle continue de ralentir la montée en
+mode accélérateur. **Prises initiales · comparer** réactive l’ancien mélange
+au palier. Le régime et la phase restent continus.
 
 Le volume ne change pas la réponse du moteur.
 
@@ -43,7 +54,7 @@ Le programme lit douze courtes boucles issues du PCM réel du fichier **2023
 YZ250 + FMF Full Exhaust PURE SOUND.mp3**. Chaque segment stocke **32 tours** avec leurs explosions, leur bruit et leur
 texture mécanique. Le plancher utilise seize tours plus réguliers, répétés deux
 fois. Les trois étages chargés supérieurs assemblent deux passages de seize
-tours pris pendant des montées franches. Elles ne sont pas
+tours pris pendant des montées franches. Ces boucles ne sont pas
 réduites à un cycle ou reconstruites à partir de quelques harmoniques.
 
 La préparation hors ligne corrige la hauteur à l’intérieur de chaque extrait.
@@ -53,17 +64,15 @@ selon les tours du moteur. Quatre tours supplémentaires servent au raccord de
 boucle. Un filtrage limite les fréquences susceptibles de se replier lors de la
 transposition aux régimes voisins.
 
-H2 conserve à l’identique huit segments de H1, notamment les trois extraits
-chargés du bas/milieu qui donnent le micro coup de gaz accepté. Le mode ×1 de H3
-conserve cette réponse aux gaz. La préparation sélectionne séparément un
-plancher plus régulier et des passages hauts de texture montante, en privilégiant
-la même accélération de référence que les extraits acceptés.
+Les trois extraits chargés du bas et du milieu restent conservés à l’identique.
+La préparation sélectionne séparément un plancher plus régulier et des passages
+hauts de texture montante, en privilégiant la même accélération de référence.
 
 La banque couvre six régimes estimés et deux textures : retombée et montée en
 régime. Les boucles voisines sont mélangées progressivement sur une phase moteur
-commune. Leur position reste continue même quand leur volume est nul. Cela
-supprime la sélection répétée d’extraits et les changements de hauteur internes
-qui rendaient le précédent mode C instable.
+commune. Leur position reste continue même quand leur volume est nul. Cette
+phase commune évite les variations de hauteur internes qui rendaient le
+précédent mode C instable.
 
 Entre les étages supérieurs, le mélange compense la perte d’énergie provoquée
 par la superposition de boucles peu corrélées. `BlendEnergy.sx` contient leur
@@ -71,8 +80,32 @@ covariance stéréo mesurée hors ligne. Le gain dépend des poids de mélange,
 jamais du niveau audio instantané : ce n’est pas un compresseur. Le groupe
 bas/milieu conserve son mélange H1 pour préserver l’attaque acceptée.
 
-H3 conserve intégralement la banque et les mélanges de H2. Un worker dédié
-alimente maintenant le flux audio, indépendamment du rendu de l’interface.
+La banque initiale reste inchangée. Une prise supplémentaire applique le recalage
+de l’essai G à la seule prise chargée à 6 000 tr/min. La corrélation des douze premiers
+ordres détermine un décalage limité à un quart de tour par cycle ; des fenêtres
+de deux tours superposées appliquent ce déplacement au PCM stéréo complet.
+Cela conserve le bruit et les explosions enregistrés. Le recalage agit sur le
+placement des explosions, indépendamment du niveau et du raccord de boucle.
+Le mélange pilotable reste à valider à l’écoute.
+
+Après 0,35 s de stabilité au-dessus de 6 000 tr/min, une transition progressive
+introduit G seul. Les montées gardent les prises initiales ; les autres prises
+ne sont pas superposées à G au palier. Les déplacements de phrases aléatoires
+sont désactivés pour préserver le timbre isolé. Les 32 cycles conservent leurs
+différences enregistrées, mais la boucle reste répétitive : ce point n’est pas
+résolu par ce prototype. Au-delà de 7 200 tr/min, une vue filtrée de la même prise
+est introduite progressivement, entièrement à 7 500, pour éviter le repliement
+jusqu’à 10 500 tr/min. À 7 000 tr/min, G garde sa bande passante initiale.
+
+`PeakBounds.sx` contient une enveloppe conservatrice des crêtes des mélanges initiaux.
+La prise G utilise la crête maximale de ses deux bandes passantes.
+Les deux chemins sont bornés séparément avant leur transition convexe.
+Le gain respecte un plafond de 0,98 pour toutes les phases de lecture, y compris
+les poids résiduels pendant les transitions. La protection
+utilise les crêtes des données et les poids de mélange, pas le niveau instantané
+du signal : les pics ne sont pas coupés par un écrêteur.
+
+Un worker dédié alimente maintenant le flux audio, indépendamment du rendu de l’interface.
 Le petit tampon de 2 048 frames, environ 46 ms, reste inchangé pour conserver
 la réactivité des commandes. Les commandes partagées et les blocs de rendu sont
 protégés par `mutex` ; l’attente du périphérique se fait hors de cette section.
@@ -89,13 +122,16 @@ stéréo, sans normalisation automatique ni compresseur.
 
 ## Taille et limites
 
-`Assets/Compact.pcm` contient douze segments de 64 Kio, **786 432 octets au total**.
-Cette banque est la seule donnée audio embarquée par `Bank.sx`. Le chargement la
-décode une fois en float32 : environ 1,5 Mio en mémoire. Les anciens assets
+`Assets/Compact.pcm` contient douze segments de 64 Kio ; `Assets/Registered.pcm`
+contient G seul et sa vue filtrée, deux segments de 64 Kio. Le total vaut
+**917 504 octets**. Ce sont les seules données audio embarquées. Le chargement
+les décode une fois en float32 : environ 1,75 Mio en mémoire. Les anciens assets
 `Reference.pcm` et `Grains.bin` restent des données historiques de préparation ;
-ils ne sont plus embarqués ni lus par la démo H3.
+ils ne sont plus embarqués ni lus par la démo H4.
 
-Les tr/min restent des estimations acoustiques **3 660–10 500** sans compte-tours.
+La référence couvre des tr/min acoustiquement estimés à **3 660–10 500**, sans
+compte-tours. La démo accepte **1 800–10 500** : le bas supplémentaire est une
+transposition de la texture enregistrée, pas une nouvelle prise de son.
 Le ralenti n’est pas enregistré. Les deux textures de charge sont des indices
 de montée/retombée, pas des mesures de couple. Une source de treize secondes ne
 couvre pas toutes les situations ; des répétitions et des différences de timbre
@@ -110,10 +146,10 @@ Les archives sont uniquement lues par la préparation.
 ## Vérifier et exporter
 
 ```sh
-silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H3
-Build/YZ250-H3 --check
-Build/YZ250-H3 --render Build/YZ250-H3
-python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H3
+silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H4
+Build/YZ250-H4 --check
+Build/YZ250-H4 --render Build/YZ250-H4
+python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H4
 ```
 
 Les dix WAV stéréo PCM16 utilisent un gain commun de 0,7 :
@@ -123,23 +159,25 @@ Les dix WAV stéréo PCM16 utilisent un gain commun de 0,7 :
 | `Fixed-4500`, `Fixed-7000`, `Fixed-9500` | 8 s à régime fixe, texture de charge 0,7 |
 | `Load-Low`, `Load-High` | 8 s à 7 000 tr/min, charge 0 puis 1 |
 | `Throttle` | 12 s : deux coups de gaz, montée et maintien à fond, retombée puis gaz partiels |
-| `Idle` | 8 s au plancher enregistré, charge nulle |
+| `Idle` | 8 s au régime de base de 1 800 tr/min, charge nulle |
 | `Micro` | 4 s avec une ouverture des gaz de 80 ms |
 | `Progressive` | 12 s : ouverture progressive des gaz sur 4 s, maintien puis relâchement |
 | `Long` | 20 s : pleins gaz à inertie ×4, maintien puis relâchement |
 
-Les neuf premiers scénarios gardent l’inertie ×1 pour comparer à H2 ; `Long`
+Les neuf premiers scénarios utilisent l’inertie ×1 ; `Long`
 utilise le réglage ×4 proposé par défaut dans l’interface.
 
 Chaque export possède un CSV de régime, de phase, de charge acoustique et de gaz.
 Les paliers de l’interface restent continus sans limite de durée.
 
-Les contrôles couvrent 21 points régime/charge, la cadence, la sortie finie sans
+Les contrôles couvrent 27 points régime/charge, la cadence, la sortie finie sans
 saturation, le freinage par la charge sans plafond artificiel, le maintien et le
 relâchement, l’indépendance des blocs, l’arrêt et les entrées invalides.
 Ils mesurent aussi l’énergie réellement rendue aux étages supérieurs et à leurs
 points intermédiaires : le creux d’environ 3 dB de H1 fait échouer ce contrôle.
-Le mélange du groupe bas/milieu doit rester inchangé.
+Le mélange du groupe bas/milieu conserve son réglage. Le contrôle inclut le cas
+7980 tr/min / pleine charge qui dépassait la limite audio, puis 6 000 blocs de
+changements de régime, charge et inertie avec un plafond strict de 0,98.
 Ils suivent aussi le chemin événement clavier → accélérateur : appui Espace,
 auto-répétition, relâchement, perte du focus, arrêt M et retour du banc. Le runtime
 UI vérifie les boutons et trois largeurs sans ouvrir de périphérique audio.
@@ -147,7 +185,10 @@ UI vérifie les boutons et trois largeurs sans ouvrir de périphérique audio.
 `VerifyCompact.py` mesure la hauteur et les variations de niveau dans les WAV,
 le plein régime et la retombée. Il protège par empreinte les trois extraits
 acceptés de H1, vérifie la régularité du plancher, l’ouverture progressive,
-le micro coup de gaz, la taille et les empreintes de la banque.
+le micro coup de gaz, la taille et les empreintes de la banque et de l’enveloppe
+de crête et du recalage. Il contrôle l’amélioration de la cohérence des formes
+de pression dans la prise de l’essai G. À 7 000 tr/min, il compare directement
+la forme d’onde rendue à G isolé, à trois charges, pour protéger son timbre.
 Le résultat est écrit dans `*-Verification.json`. Ces mesures ne remplacent pas
 la validation du caractère sonore. `--check` reproduit aussi, avec un mixer
 hors ligne, l’assèchement de l’ancienne alimentation par l’interface : un blocage
@@ -156,8 +197,8 @@ de 120 ms dépasse son avance de 46 ms.
 Pour vérifier la sortie audio réelle avec l’interface, sans capture d’écran :
 
 ```sh
-Build/YZ250-H3 --live-check Build/YZ250-H3-Live
-python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H3-Live
+Build/YZ250-H4 --live-check Build/YZ250-H4-Live
+python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H4-Live
 ```
 
 Ce test automatique dure huit secondes et bloque volontairement le thread de
@@ -183,8 +224,24 @@ python3 Silex-Examples/Sources/YZ250/PrepareCompact.py \
 
 L’outil écrit `Compact.pcm` et `Compact.json` dans le répertoire de sortie,
 et `BlendEnergy.sx` dans son répertoire parent. Pour une reconstruction de
-contrôle, utiliser par exemple `Build/YZ250-H3-Rebuild/Assets`.
+contrôle, utiliser par exemple `Build/YZ250-H4-Rebuild/Assets`.
 
+Après une nouvelle préparation de la banque, régénérer son enveloppe et les
+cycles recalés :
+
+```sh
+python3 Silex-Examples/Sources/YZ250/PrepareBounds.py \
+  Silex-Examples/Sources/YZ250/Assets/Compact.pcm \
+  Silex-Examples/Sources/YZ250
+python3 Silex-Examples/Sources/YZ250/PrepareRegistered.py \
+  Silex-Examples/Sources/YZ250/Assets/Compact.pcm \
+  Silex-Examples/Sources/YZ250
+```
+
+`PeakBounds.json` lie les paramètres au PCM par empreinte. Les données de crête
+ajoutent environ 17 Kio de nombres au programme. `Assets/Registered.json`
+conserve l’empreinte des deux banques, les paramètres et les décalages par cycle ;
+`RegisteredData.sx` contient puissance et crête du PCM recalé.
 Python utilise seulement sa bibliothèque standard. Il n’est pas requis à la
 lecture de la démo compilée. L’ancien `Prepare.py` prépare uniquement les assets
 historiques du banc à grains ; il ne reconstruit pas la banque compacte.

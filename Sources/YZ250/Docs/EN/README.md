@@ -6,8 +6,9 @@ From the `SilexProject/` root:
 silex run Silex-Examples/Sources/YZ250/Main.sx
 ```
 
-The **YZ250 · banque compacte · H3 · ESPACE = gaz** window uses real texture
-from the supplied recording, in a **768 KiB** stereo PCM16 bank. It replaces
+The **YZ250 · banque compacte · H4 · ESPACE = gaz** window uses real texture
+from the supplied recording, with **896 KiB** of stereo PCM16: 768 KiB of original
+recordings and 128 KiB for isolated G holds, in two bandwidths. It replaces
 the previous A/B/C grain bench at this entry. The spectral P1 experiment remains
 separate and is no longer the proposed listening candidate. Chevrolet 454,
 500 four-stroke and GFX.Audio are unchanged.
@@ -29,9 +30,18 @@ Status displays mode, actual throttle and RPM. Start with short throttle blips,
 then hold for several seconds and listen to the release. Compare different
 loads and check steady RPM. **Montée longue · ×4** is the initial inertia setting: at default load, full
 throttle takes about four seconds to cover 95% of the RPM range.
-**Réponse vive · ×1** restores H2's rise and micro-blip. The slider spans ×1 to
+**Réponse vive · ×1** retains a quick response; ×4 provides a prolonged rise. The slider spans ×1 to
 ×10. Inertia lengthens acceleration only; release retains its quick response.
 This setting does not simulate a gearbox or add automatic gear changes.
+
+**Base RPM** is now **1,800**, adjustable from 1,800 to 3,500. It is extrapolated
+below the recorded range, without claiming a measured real idle. All ten exports
+use the initial base setting.
+
+**G seul · palier** retains only listening test G's take, above 6,000 RPM once
+speed settles. Load controls its volume without blending other timbres. It
+still slows the rise in throttle mode. **Prises initiales · comparer** restores
+the old blend for holds. RPM and phase remain continuous.
 
 Volume does not change engine response.
 
@@ -50,24 +60,43 @@ becomes ambiguous, then resamples PCM by engine revolutions. Four extra
 revolutions provide the loop join. Filtering limits frequencies that could
 alias during transposition to neighboring RPM nodes.
 
-H2 retains eight H1 segments unchanged, including the three low/mid loaded
-excerpts responsible for the accepted micro-blip. H3’s ×1 mode preserves that
-throttle response.
-Preparation separately selects a steadier floor and rising upper textures,
-preferring the same reference acceleration as the accepted material.
+The three low/mid loaded excerpts remain unchanged. Preparation separately
+selects a steadier floor and rising upper textures, preferring the same reference
+acceleration as the accepted material.
 
 The bank spans six estimated RPMs and two textures: falling and rising RPM.
 Neighboring loops blend gradually on a shared engine phase. Their position
-stays continuous even at zero gain. This removes repeated excerpt selection
-and internal pitch sweeps that made the earlier mode C unstable.
+stays continuous even at zero gain. This common phase avoids the internal
+pitch sweeps that made the earlier mode C unstable.
 
 Between upper nodes, blending compensates energy lost when weakly correlated
 loops overlap. `BlendEnergy.sx` contains their offline-measured stereo covariance.
 Gain depends on blend weights, never instantaneous audio level: this is not a
 compressor. The low/mid group keeps its H1 blend to preserve the accepted attack.
 
-H3 retains H2's complete bank and blend behavior. A dedicated worker now
-feeds audio independently of GUI rendering. The small 2,048-frame queue,
+The original bank stays unchanged. An additional take applies listening test G's
+alignment only to the loaded 6,000-RPM recording. Correlation of the first twelve orders determines a
+shift of at most a quarter turn per cycle; overlapping two-turn windows apply
+that shift to the full stereo PCM. This retains recorded noise and firings.
+Alignment acts on firing placement independently of level and the loop join.
+The playable blend still requires listening validation.
+
+After 0.35 s of steady running above 6,000 RPM, a gradual transition introduces
+G alone. Rises keep the original takes; other takes are not layered with G
+during holds. Random phrase shifts are disabled to preserve the isolated timbre.
+The 32 cycles keep their recorded differences, but the loop still repeats:
+this prototype does not resolve that point. Above 7,200 RPM, a filtered view of
+the same take fades in, fully at 7,500, to prevent aliasing up to 10,500 RPM.
+At 7,000 RPM, G retains its original bandwidth.
+
+`PeakBounds.sx` contains a conservative envelope of original mix peaks.
+G uses the maximum peak across its two bandwidths. Both paths are bounded
+separately before their convex transition. Gain respects a
+0.98 ceiling at every reading phase, including residual
+weights during transitions. Protection uses data peaks and blend weights,
+not instantaneous signal level: peaks are not flattened by a clipper.
+
+A dedicated worker feeds audio independently of GUI rendering. The small 2,048-frame queue,
 about 46 ms, stays unchanged to retain command responsiveness. Shared commands
 and render blocks are protected by `mutex`; device backpressure waits happen
 outside that critical section. Closing the window requests worker shutdown
@@ -83,12 +112,15 @@ evolution. Sound stays stereo, without automatic normalization or compression.
 
 ## Size and limits
 
-`Assets/Compact.pcm` contains twelve 64 KiB segments, **786,432 bytes total**.
-This bank is the only audio data embedded by `Bank.sx`. Loading decodes it once
-to float32: about 1.5 MiB in memory. Earlier `Reference.pcm` and `Grains.bin`
-assets remain historical preparation data; H3 neither embeds nor reads them.
+`Assets/Compact.pcm` contains twelve 64 KiB segments; `Assets/Registered.pcm`
+contains G alone and its filtered view, two 64 KiB segments. The total is
+**917,504 bytes**. These are the only embedded audio data. Loading decodes them
+once to float32: about 1.75 MiB in memory. Earlier `Reference.pcm` and `Grains.bin`
+assets remain historical preparation data; H4 neither embeds nor reads them.
 
-RPM remains an acoustic estimate of **3,660–10,500**, without a tachometer.
+The reference spans acoustically estimated **3,660–10,500 RPM**, without a
+tachometer. The demo accepts **1,800–10,500**: the additional low range transposes
+the recorded texture rather than supplying a new recording.
 Idle was not recorded. Both load textures are rising/falling proxies, not
 measured torque. A thirteen-second recording does not cover every situation;
 repetition and timbre differences between loops remain listening questions.
@@ -101,10 +133,10 @@ phase interval, levels and bank size. Preparation only reads the archives.
 ## Verify and export
 
 ```sh
-silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H3
-Build/YZ250-H3 --check
-Build/YZ250-H3 --render Build/YZ250-H3
-python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H3
+silex compile Silex-Examples/Sources/YZ250/Main.sx --debug -o Build/YZ250-H4
+Build/YZ250-H4 --check
+Build/YZ250-H4 --render Build/YZ250-H4
+python3 Silex-Examples/Sources/YZ250/VerifyCompact.py Build/YZ250-H4
 ```
 
 The ten stereo PCM16 WAVs use a common 0.7 gain:
@@ -114,28 +146,33 @@ The ten stereo PCM16 WAVs use a common 0.7 gain:
 | `Fixed-4500`, `Fixed-7000`, `Fixed-9500` | 8 s at steady RPM, load texture 0.7 |
 | `Load-Low`, `Load-High` | 8 s at 7,000 RPM, load 0 then 1 |
 | `Throttle` | 12 s: two blips, full-throttle rise and hold, release, then partial throttle |
-| `Idle` | 8 s at the recorded floor, zero load |
+| `Idle` | 8 s at the 1,800 RPM base setting, zero load |
 | `Micro` | 4 s with an 80 ms throttle opening |
 | `Progressive` | 12 s: progressively open throttle over 4 s, hold, then release |
 | `Long` | 20 s: full throttle at inertia ×4, hold, then release |
 
-The first nine scenarios keep inertia ×1 for comparison with H2; `Long` uses
+The first nine scenarios use inertia ×1; `Long` uses
 the ×4 setting proposed by default in the interface.
 
 Every export includes an RPM, phase, acoustic-load and throttle CSV. UI holds
 continue indefinitely.
 
-Checks cover 21 RPM/load points, cadence, finite unclipped output, load slowing
+Checks cover 27 RPM/load points, cadence, finite unclipped output, load slowing
 the rise without an artificial cap, hold/release, block independence, stopping
 and invalid input. Checks also measure rendered energy at upper nodes and their
 midpoints: H1's roughly 3 dB dip fails this regression. The low/mid group must
-retain its existing blend. They also follow keyboard event → throttle: Space press,
+retain its existing blend. Checks include the 7,980 RPM/full-load mix that
+exceeded the audio range, then 6,000 blocks of RPM/load/inertia changes under
+a strict 0.98 ceiling. They also follow keyboard event → throttle: Space press,
 repeat, release, loss of focus, M stop and switching from the bench. The UI
 runtime checks buttons and three layout widths without opening an audio device.
 
 `VerifyCompact.py` measures pitch and level variation in the WAVs, full RPM and
 release. It protects the three accepted H1 excerpts by hash and checks the
-floor's evenness, progressive throttle, micro-blip, bank size and hashes. Results are written to
+floor's evenness, progressive throttle, micro-blip, bank size and hashes,
+including peak envelopes and alignment. It checks improved pressure-shape
+coherence in listening test G's recording. At 7,000 RPM it compares the actual
+rendered waveform to isolated G at three loads, protecting its timbre. Results are written to
 `*-Verification.json`. These measurements do not replace listening validation
 of the sound's character. `--check` also reproduces the old GUI-fed queue's
 starvation with an offline mixer: a 120 ms stall exceeds its 46 ms reserve.
@@ -143,8 +180,8 @@ starvation with an offline mixer: a 120 ms stall exceeds its 46 ms reserve.
 To verify actual audio output with the GUI, without screenshots:
 
 ```sh
-Build/YZ250-H3 --live-check Build/YZ250-H3-Live
-python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H3-Live
+Build/YZ250-H4 --live-check Build/YZ250-H4-Live
+python3 Silex-Examples/Sources/YZ250/VerifyLive.py Build/YZ250-H4-Live
 ```
 
 This automatic test lasts eight seconds and deliberately blocks the GUI thread
@@ -168,8 +205,23 @@ python3 Silex-Examples/Sources/YZ250/PrepareCompact.py \
 
 The tool writes `Compact.pcm` and `Compact.json` inside the output directory,
 and `BlendEnergy.sx` in its parent. For a verification rebuild, use e.g.
-`Build/YZ250-H3-Rebuild/Assets`.
+`Build/YZ250-H4-Rebuild/Assets`.
 
+After preparing a new bank, regenerate its peak envelope and aligned cycles:
+
+```sh
+python3 Silex-Examples/Sources/YZ250/PrepareBounds.py \
+  Silex-Examples/Sources/YZ250/Assets/Compact.pcm \
+  Silex-Examples/Sources/YZ250
+python3 Silex-Examples/Sources/YZ250/PrepareRegistered.py \
+  Silex-Examples/Sources/YZ250/Assets/Compact.pcm \
+  Silex-Examples/Sources/YZ250
+```
+
+`PeakBounds.json` links parameters to PCM by hash. Peak data adds about 17 KiB
+of numbers to the program. `Assets/Registered.json` records both bank hashes,
+parameters and per-cycle shifts; `RegisteredData.sx` contains aligned PCM
+power and peak.
 Python uses only its standard library and is not needed to play the compiled
 demo. Earlier `Prepare.py` prepares historical grain-bench assets only; it does
 not rebuild the compact bank.

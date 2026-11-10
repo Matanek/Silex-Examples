@@ -1,0 +1,25 @@
+use STD.Math
+use Module.Bank
+
+// Introduce isolated G at settled RPM, without mixing other takes or adding
+// phase jumps. Preserve the original attack path while RPM is changing.
+public class Texture {
+    private var settled:int = 0
+    private var amount:float64 = 0.0
+    private var enabled:bool = true
+    func set_enabled(value:bool) { self.enabled = value }
+    func reset() { self.settled = 0; self.amount = 0.0 }
+    func update(rpm:float64, acceleration:float64) {
+        if Math.abs(acceleration) < 150.0 && rpm >= 6_000.0 { self.settled++ }
+        else { self.settled = 0 }
+        var desired:float64 = 0.0
+        if self.enabled && self.settled > 15_435 { desired = 1.0 }
+        var speed:float64 = 0.002
+        if desired > self.amount { speed = 0.0003 }
+        self.amount += speed * (desired - self.amount)
+    }
+    func sample(bank:Bank, turns:float64, channel:int, rpm:float64, original:float64, registered_gain:float64) float64 {
+        if self.amount < 0.000001 { return original }
+        return original * (1.0 - self.amount) + bank.registered_sample(turns, channel, rpm) * self.amount * registered_gain
+    }
+}
