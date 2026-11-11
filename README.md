@@ -29,20 +29,15 @@ beeps, impacts, a laser, an explosion, a changing engine, an 8-bit sound and
 melodies composed directly or through MIDI. Select a recipe with `--case` or
 verify its PCM and stream without a device using `--check`.
 
-The [validated engine library demo](Sources/EngineLibrary/README.md) consumes
-GFX.Audio's engine sounds and controls, including the simulator, engine profiles
-and optional automatic or manual transmission.
+The [EngineLibrary demo](Sources/EngineLibrary/README.md) is the listening
+bench for the standard `GFX.Audio.Engines` library. It includes the Chevrolet
+454 reference and the procedural 250 two-stroke with a calculated expansion
+chamber. Use the same entry point to export two fixed-RPM loads.
 
-The [vehicle workshop](Sources/EngineWorkshop/README.md) now uses this same
-thermal sound chain: the unchanged Chevrolet 454 reference and 17 vehicle
-variants. Adapt total displacement with the engine stopped, compare processing
-A/B, run an eight-second audition and export profiles or the catalogue.
-
-The [KTM 250 SX / YZ250 bench](Sources/YZ250/README.md) compares a recorded
-KTM throttle blip with its E/G mix and lets you test the rise, hold and fall
-with Space. The same entry also provides the Yamaha fixed-RPM and load bench.
-The [spectral YZ250 experiment](Sources/YZ250Procedural/README.md) remains
-available separately.
+[EngineWorkshop](Sources/EngineWorkshop/README.md),
+[YZ250](Sources/YZ250/README.md) and
+[YZ250Procedural](Sources/YZ250Procedural/README.md) record earlier experiments
+with vehicle variants, sample playback and spectral synthesis.
 
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.

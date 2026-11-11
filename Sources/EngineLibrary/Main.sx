@@ -1,8 +1,13 @@
 use STD.Process
 use Module.Session
+use Module.FixedCross
 
 func main() {
     let arguments = Process.arguments()
+    if arguments.count() > 1 && arguments[1] == "--cross2-wav" {
+        assert(arguments.count() == 3, "Usage: EngineLibrary --cross2-wav output-prefix")
+        FixedCross.render(arguments[2]); return
+    }
     var directory:str? = null
     if arguments.count() > 1 { directory = arguments[1] }
     Session.show(directory)

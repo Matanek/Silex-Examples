@@ -14,6 +14,18 @@ silex run Silex-Examples/Sources/EngineLibrary/Main.sx
 Une bibliothèque personnalisée reste optionnelle : après compilation, passer
 son chemin absolu comme premier argument du binaire.
 
+Sélectionner **Moto cross / mono 250 · 2T · pot calculé** pour écouter le 250
+procédural. Pour comparer deux charges à 5 940 tr/min avec la bibliothèque
+standard, compiler le même point d’entrée et exporter deux WAV :
+
+```sh
+silex compile Silex-Examples/Sources/EngineLibrary/Main.sx --debug -o Build/EngineLibrary
+Build/EngineLibrary --cross2-wav Build/250-2T
+```
+
+`250-2T-15.wav` et `250-2T-75.wav` durent deux secondes chacun et utilisent le
+même réglage de volume. Le régime est imposé via `Engines.Library.driven_engine`.
+
 **M** démarre ou coupe le moteur ; **Espace** maintenu donne des gaz. Le relâchement
 et la perte de focus les ferment. Espace reste réservé aux gaz après un clic
 sur un bouton ; Entrée active le contrôle focalisé. Couper le contact n’attend pas l’arrêt moteur.

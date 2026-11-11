@@ -14,6 +14,7 @@ func main() {
     bench.choose(1); assert(bench.profile().key == "454", "running profile replacement must be rejected")
     bench.toggle_running(); bench.choose(6); assert(bench.profile().key == "cross4")
     assert(bench.source.controls().intake == bench.profile().intake)
+    bench.choose(7); assert(bench.profile().key == "cross2")
     var ui = UI.Session(bench.view())
     for width in [400, 760, 1_100] { ui.drawing(width, 800) }
     bench.focused = true; bench.choose(0); bench.road_changed(true)

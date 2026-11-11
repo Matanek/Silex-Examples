@@ -1,0 +1,68 @@
+use GFX.Audio.Engines
+use STD.File
+use STD.Math
+
+func word(bytes:&uint8[], value:int, width:int) {
+    var rest = value
+    for _ in 0...width {
+        bytes.append((rest % 256) as uint8)
+        rest /= 256
+    }
+}
+
+func wave_header(bytes:&uint8[], frames:int) {
+    for byte in [82, 73, 70, 70] { bytes.append(byte as uint8) }
+    word(bytes, 36 + frames * 4, 4)
+    for byte in [87, 65, 86, 69, 102, 109, 116, 32] { bytes.append(byte as uint8) }
+    word(bytes, 16, 4); word(bytes, 1, 2); word(bytes, 2, 2)
+    word(bytes, 44_100, 4); word(bytes, 176_400, 4); word(bytes, 4, 2); word(bytes, 16, 2)
+    for byte in [100, 97, 116, 97] { bytes.append(byte as uint8) }
+    word(bytes, frames * 4, 4)
+}
+
+func render_load(library:Engines.Library, path:str, effort:float) {
+    var source = library.driven_engine("cross2")
+    let rpm:float = 5_940.0
+    source.set_state(Engines.OperatingState(rpm:rpm, load:effort))
+    var samples:float32[] = []
+    for _ in 0...960 { samples.append(0.0) }
+    for _ in 0...92 { source.render(&samples[0:960]) }
+
+    let frames = 88_200
+    var bytes:uint8[] = []
+    wave_header(bytes, frames)
+    var power:float64 = 0.0
+    var peak:float32 = 0.0
+    var position = 0
+    while position < frames {
+        var count = 480
+        if frames - position < count { count = frames - position }
+        source.render(&samples[0:count * 2])
+        assert(Math.abs(source.current_rpm() - rpm) < 1.0, "cross2 failed to hold RPM")
+        for i in 0...count * 2 {
+            let frame = position + i / 2
+            let sample = samples[i]
+            assert(Math.is_finite(sample) && Math.abs(sample) < 1.0, "cross2 produced an invalid sample")
+            let level = sample as float64
+            power += level * level
+            peak = Math.max(peak, Math.abs(sample))
+            var fade:float32 = 1.0
+            if frame < 220 { fade = frame as float32 / 220.0 }
+            if frame >= frames - 220 { fade = (frames - frame - 1) as float32 / 220.0 }
+            var pcm = Math.round(sample * fade * 32_767.0) as int
+            if pcm < 0 { pcm += 65_536 }
+            word(bytes, pcm, 2)
+        }
+        position += count
+    }
+    assert(power > 0.001, "cross2 produced no usable audio")
+    File.write_all(path, @bytes[0:bytes.count()])
+    print(path, " · ", source.current_rpm(), " tr/min · charge ", effort,
+        " · RMS ", Math.sqrt(power / (frames * 2) as float64), " · crête ", peak)
+}
+
+public func render(prefix:str) {
+    var library = Engines.Library.open()
+    render_load(library, prefix + "-15.wav", 0.15)
+    render_load(library, prefix + "-75.wav", 0.75)
+}
