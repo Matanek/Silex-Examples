@@ -6,18 +6,6 @@ This demo consumes `GFX.Audio.Engines`. The package owns simulation, profiles,
 exhaust responses, intake and output processing. The demo owns input, the
 instrument display and stream feeding.
 
-Select **Moto cross / mono 250 · 2T · pot calculé** to hear the procedural
-250 two-stroke. To compare two loads at 5,940 RPM through the standard library,
-compile the same entry point and export two WAV files:
-
-```sh
-silex compile Silex-Examples/Sources/EngineLibrary/Main.sx --debug -o Build/EngineLibrary
-Build/EngineLibrary --cross2-wav Build/250-2T
-```
-
-`250-2T-15.wav` and `250-2T-75.wav` each last two seconds at the same output
-volume setting. `Engines.Library.driven_engine` supplies the fixed-RPM path.
-
 The package supplies the standard engines on macOS ARM64. From the workspace
 root, launch the demo directly without additional preparation:
 
