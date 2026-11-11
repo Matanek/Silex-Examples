@@ -1,0 +1,30 @@
+{
+  "reference": "2 Stroke Sound - KTM 250 SX.mp3",
+  "input_sha256": {
+    "H-Mix-E-G.wav": "6ca08a4a730475570438310750be55d0219b7ac8d06517328fcbe9b16f37e53d",
+    "A-Source.wav": "3ab49c17b5e15ba1889d517451be608e797634b846470acebc361a3751f896c9",
+    "Decoded.wav": "da57b85063ca790b94dd35b66ede1a26c44832e752ae75ff6524a52898ce4cf5"
+  },
+  "pcm_sha256": "3fd44806357234e12e85111cb28e25c18ad41723b135c8acc735cb63b9fe0238",
+  "sample_rate": 44100,
+  "mix_frames": 95914,
+  "original_frames": 74970,
+  "ride_frames": [
+    9261,
+    58088
+  ],
+  "crossfade_frames": 441,
+  "hold_begin": 49421,
+  "hold_correlation": 0.8592112001524441,
+  "hold_level_difference_db": 0.13001186813008117,
+  "idle_frames": [
+    170884,
+    210972
+  ],
+  "idle_source_seconds": [
+    6.390975056689342,
+    7.31
+  ],
+  "idle_correlation": 0.8021751437939393,
+  "idle_level_difference_db": 1.357220685765697
+}

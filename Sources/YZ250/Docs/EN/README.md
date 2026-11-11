@@ -3,7 +3,8 @@
 From the `SilexProject/` root:
 
 ```sh
-silex run Silex-Examples/Sources/YZ250/Main.sx
+silex compile Silex-Examples/Sources/YZ250/Main.sx --release -o Build/YZ250-KTM
+Build/YZ250-KTM --yz250
 ```
 
 The **YZ250 · explosions pilotées · H6 · ESPACE = gaz** window uses about
@@ -42,7 +43,7 @@ This setting does not simulate a gearbox or add automatic gear changes.
 that recording. Values remain indicative, without tachometer calibration.
 All eleven exports use the initial setting.
 
-**Explosions pilotées · H6** is the default. G supplies the pressure body during
+**Explosions pilotées · H6** is the default in the Yamaha bench. G supplies the pressure body during
 both acceleration and holds; closing gas selects recorded clacks for subsequent
 firings. **Ancienne lecture · H5** compares the old sequence of pitched loops.
 Mode changes are smoothed; both modes keep the same driving controls.

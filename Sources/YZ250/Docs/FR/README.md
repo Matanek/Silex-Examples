@@ -3,7 +3,8 @@
 Depuis la racine `SilexProject/` :
 
 ```sh
-silex run Silex-Examples/Sources/YZ250/Main.sx
+silex compile Silex-Examples/Sources/YZ250/Main.sx --release -o Build/YZ250-KTM
+Build/YZ250-KTM --yz250
 ```
 
 La fenêtre **YZ250 · explosions pilotées · H6 · ESPACE = gaz** utilise environ
@@ -44,7 +45,7 @@ Le **régime de retour** vaut **1 800** dans l’échelle de commande, réglable
 transpose pas cette prise. Les valeurs restent indicatives, sans calibration
 au compte-tours. Les onze exports utilisent le réglage initial.
 
-**Explosions pilotées · H6** est le mode initial. G fournit le corps des
+**Explosions pilotées · H6** est le mode initial du banc Yamaha. G fournit le corps des
 explosions pendant la montée et le maintien ; fermer les gaz sélectionne les
 claquements enregistrés pour les explosions suivantes. **Ancienne lecture · H5**
 permet de comparer avec l’ancien enchaînement de boucles transposées. Le

@@ -2,7 +2,6 @@ use GFX.Audio
 use GFX.Audio.Synthesis
 use STD.Threading
 use STD.Error.Kind
-use Module.Voice
 
 public struct Statistics {
     let empty_queues:int
@@ -15,20 +14,23 @@ public struct Statistics {
 // synchronize through bounded recursive mutex sections; device waits do not.
 public class Output:Threading.Job {
     private var audio:Audio
-    private var voice:Voice
+    private var source:Synthesis.Generator
+    private let generation:func() int
     private var quitting:bool = false
     private var volume:float = 0.7
     private var empty_queues:int = 0
     private var frames:int = 0
     private var error:str = ""
-    init(audio:Audio, voice:Voice) { self.audio = audio; self.voice = voice }
+    init(audio:Audio, source:Synthesis.Generator, generation:func() int) {
+        self.audio = audio; self.source = source; self.generation = generation
+    }
     func stop() { mutex { self.quitting = true } }
     func set_volume(value:float) { mutex { self.volume = value } }
     func statistics() Statistics {
         mutex { return Statistics(empty_queues:self.empty_queues, frames:self.frames, error:self.error) }
     }
     func execute() {
-        var producer:Synthesis.StreamProducer = Synthesis.StreamProducer.create(self.audio, self.voice, 9_223_372_036_854_775_807,
+        var producer:Synthesis.StreamProducer = Synthesis.StreamProducer.create(self.audio, self.source, 9_223_372_036_854_775_807,
             block_frames:256, capacity_frames:2_048)
         var playing = Audio.PlayingSound()
         var generation = -1; var volume:float = -1.0
@@ -37,10 +39,10 @@ public class Output:Threading.Job {
             mutex {
                 quit = self.quitting
                 if !quit {
-                    let current = self.voice.generation()
+                    let current = self.generation()
                     if generation != current {
                         if playing.is_valid() { self.audio.stop(playing) }
-                        producer = Synthesis.StreamProducer.create(self.audio, self.voice, 9_223_372_036_854_775_807,
+                        producer = Synthesis.StreamProducer.create(self.audio, self.source, 9_223_372_036_854_775_807,
                             block_frames:256, capacity_frames:2_048)
                         playing = Audio.PlayingSound(); generation = current
                     }

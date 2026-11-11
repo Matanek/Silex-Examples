@@ -14,10 +14,10 @@ use Module.Voice
 use Module.Output
 use STD.Threading
 
-func text(value:str, size:float = 15.0) UI.Text {
+public func text(value:str, size:float = 15.0) UI.Text {
     var result = UI.Text(value); result.style.font_size = size; result.style.foreground = Color.slate_200(); return result
 }
-func button(label:str, action:func()) UI.Button {
+public func button(label:str, action:func()) UI.Button {
     var result = UI.Button(label, action)
     result.style.height = 40.0; result.style.padding = UI.Insets(horizontal:14.0, vertical:8.0)
     result.style.background = Color.slate_700(); result.style.foreground = Color.slate_100(); result.style.radius = 7.0
@@ -165,7 +165,7 @@ public class Session:Canvas.Session {
     private var last_empty_queues:int = -1
     init(audio:Audio) {
         self.bench = Bench(); self.ui = UI.Session(self.bench.view())
-        self.output = Output(audio, self.bench.voice)
+        self.output = Output(audio, self.bench.voice, self.bench.voice.generation)
         self.executor = Threading.Executor(worker_count:1)
         self.work = self.executor.submit(self.output)
     }
@@ -201,7 +201,7 @@ public func show() {
     var audio = Audio(); var session = Session(audio)
     Viewer.show(session, Viewer.CanvasSettings(width:1_100, height:1_000, title:"Silex — YZ250 · explosions pilotées · H6 · ESPACE = gaz"))
 }
-func key_event(key:Keyboard.Key, repeated:bool = false) Events.KeyEvent {
+public func key_event(key:Keyboard.Key, repeated:bool = false) Events.KeyEvent {
     return Events.KeyEvent(window:Window.Id(value:0 as uint32), keyboard:Keyboard.KeyboardId(value:0 as uint32),
         key:key, keycode:0 as uint32, raw:0 as uint16, repeated:repeated,
         modifiers:Keyboard.Modifiers(), timestamp:Events.Timestamp(nanoseconds:0 as uint))

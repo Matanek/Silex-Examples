@@ -38,14 +38,11 @@ thermal sound chain: the unchanged Chevrolet 454 reference and 17 vehicle
 variants. Adapt total displacement with the engine stopped, compare processing
 A/B, run an eight-second audition and export profiles or the catalogue.
 
-The [YZ250 compact-bank prototype](Sources/YZ250/README.md) retains actual
-recorded texture in a 768 KiB bank. Hold Space for throttle, release it to let
-RPM fall, and compare mechanical loads or steady RPM. Pitch-flattened loops
-share a continuous engine phase. Audio feeding runs independently of the GUI;
-adjust inertia for longer rises. Listening approval remains required.
-
-The earlier [spectral YZ250 experiment](Sources/YZ250Procedural/README.md)
-remains separate; the compact-bank prototype is the current listening candidate.
+The [KTM 250 SX / YZ250 bench](Sources/YZ250/README.md) compares a recorded
+KTM throttle blip with its E/G mix and lets you test the rise, hold and fall
+with Space. The same entry also provides the Yamaha fixed-RPM and load bench.
+The [spectral YZ250 experiment](Sources/YZ250Procedural/README.md) remains
+available separately.
 
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.

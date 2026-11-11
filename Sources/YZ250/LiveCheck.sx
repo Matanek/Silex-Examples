@@ -4,25 +4,43 @@ use Module.Bank
 use Module.Voice
 use GFX.Canvas
 use GFX.Input.Events
+use GFX.Input.Keyboard
 use GFX.Window
 use GFX.Viewer
 use STD.File
 use STD.Text.UTF8
 use STD.Time.Clock
 use Module.Session.Session
+use Module.Session.key_event
+use Module.KtmSession.KtmSession
 
 class Stress:Canvas.Session {
-    private var session:Session
+    private var session:Canvas.Session
     private var clock:Clock = Clock()
     private var next_stall:float = 1.0
+    private var check_release:bool
+    private var released:bool = false
+    private var reopened:bool = false
     var stalls:int = 0
-    init(audio:Audio) { self.session = Session(audio); self.clock.tick(); self.session.gas(true) }
+    init(session:Canvas.Session, check_release:bool) {
+        self.session = session; self.check_release = check_release
+        self.clock.tick()
+        self.session.handle(Events.Event.key_pressed(key_event(Keyboard.Key.space)))
+    }
     func done() bool { return self.clock.get_total_seconds() >= 8.0 }
-    func statistics() Module.Output.Statistics { return self.session.statistics() }
-    func shutdown() { self.session.shutdown() }
     func drawing(width:int, height:int) Canvas { return self.session.drawing(width, height) }
     func update(delta:float) bool {
         let now = self.clock.get_total_seconds()
+        if self.check_release {
+            if now >= 4.0 && !self.released {
+                self.session.handle(Events.Event.key_released(key_event(Keyboard.Key.space)))
+                self.released = true
+            }
+            if now >= 6.5 && !self.reopened {
+                self.session.handle(Events.Event.key_pressed(key_event(Keyboard.Key.space)))
+                self.reopened = true
+            }
+        }
         if now >= self.next_stall && self.next_stall <= 6.0 {
             // Simulate a blocked GUI without holding the shared command lock.
             var stall = Clock(); stall.tick()
@@ -36,21 +54,32 @@ class Stress:Canvas.Session {
     func text_input_target() Canvas.TextInputTarget? { return self.session.text_input_target() }
     func pointer_cursor() Window.Cursor { return self.session.pointer_cursor() }
 }
-public func run(prefix:str) {
-    var audio = Audio(); var capture:Audio.OutputCapture = audio.capture_output(capacity_frames:960_000)
+public func run(prefix:str, ktm:bool = false) {
+    var audio = Audio()
+    if ktm {
+        var session = KtmSession(audio)
+        capture_run(audio, session, session.shutdown, session.statistics, prefix, true)
+    } else {
+        var session = Session(audio)
+        capture_run(audio, session, session.shutdown, session.statistics, prefix, false)
+    }
+}
+func capture_run(audio:Audio, session:Canvas.Session, shutdown:func(), statistics:func() Module.Output.Statistics,
+    prefix:str, ktm:bool) {
+    var capture:Audio.OutputCapture = audio.capture_output(capacity_frames:960_000)
     let format = capture.output_format()
-    var stress = Stress(audio)
+    var stress = Stress(session, ktm)
     Viewer.show_until(stress, stress.done, Viewer.CanvasSettings(width:1_100, height:1_000,
-        hidden:true, title:"YZ250 H6 · vérification automatique de continuité · 8 s"))
-    stress.shutdown(); capture.stop()
+        hidden:true, title:"Vérification automatique de continuité · 8 s"))
+    shutdown(); capture.stop()
     // An empty source queue can still have prefetched output in SDL's mixer.
     // Report that observation; VerifyLive checks actual PCM for audible gaps.
-    let info = stress.statistics(); let recorded = capture.statistics()
+    let info = statistics(); let recorded = capture.statistics()
     var block:Audio.CaptureBlock = capture.read_f32le(960_000)
     File.write_all(prefix + ".f32le", @block.bytes[0:block.bytes.count()])
     let report = "{\"sample_rate\":$(format.sample_rate),\"channels\":$(format.channels),\"frames\":$(block.frames),\"empty_queues\":$(info.empty_queues),\"stalls\":$(stress.stalls),\"dropped_frames\":$(recorded.dropped_frames)}\n"
     var bytes = UTF8.bytes(report); File.write_all(prefix + ".json", @bytes[0:bytes.count()])
-    print("H6 live continuity: ", report)
+    print("Live continuity: ", report)
     assert(info.error == "" && stress.stalls >= 5 && recorded.dropped_frames == 0)
     assert(block.frames > format.sample_rate * 6, "native output did not run long enough")
 }
