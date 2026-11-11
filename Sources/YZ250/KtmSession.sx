@@ -6,6 +6,7 @@ use GFX.Input.Keyboard
 use GFX.UI
 use GFX.Viewer
 use GFX.Window
+use STD.Math
 use STD.Threading
 use Module.KtmVoice
 use Module.Output
@@ -19,7 +20,9 @@ public class KtmSession:Canvas.Session {
     private var executor:Threading.Executor
     private var work:Threading.JobHandle<Output>
     private var status:UI.State<str> = UI.State<str>("À l’arrêt")
+    private var throttle:UI.State<float> = UI.State<float>(0.0)
     private var volume:UI.State<float> = UI.State<float>(0.7)
+    private var space_held:bool = false
     private var joined:bool = false
 
     init(audio:Audio) {
@@ -35,22 +38,36 @@ public class KtmSession:Canvas.Session {
     }
     drop { self.shutdown() }
 
-    private func listen_original() { self.voice.listen_original() }
-    private func listen_mix() { self.voice.listen_mix() }
-    private func listen_idle() { self.voice.listen_idle() }
-    private func stop() { self.voice.stop() }
-    func gas(held:bool) { self.voice.gas(held) }
+    private func clear_throttle() {
+        self.space_held = false; self.throttle.set(0.0); self.voice.set_throttle(0.0)
+    }
+    private func listen_original() { self.clear_throttle(); self.voice.listen_original() }
+    private func listen_mix() { self.clear_throttle(); self.voice.listen_mix() }
+    private func listen_idle() { self.clear_throttle(); self.voice.listen_idle() }
+    private func stop() { self.clear_throttle(); self.voice.stop() }
+    func gas(held:bool) {
+        self.space_held = held
+        self.set_throttle(self.throttle.value())
+    }
     func statistics() Output.Statistics { return self.output.statistics() }
+    private func set_throttle(value:float) {
+        if self.space_held { self.voice.set_throttle(1.0) }
+        else { self.voice.set_throttle(value) }
+    }
     private func set_volume(value:float) { self.output.set_volume(value) }
     private func status_view(reads:UI.Reads) UI.View { return text(reads.read(self.status)) }
+    private func percent(value:float) str { return "$(Math.round(value * 100.0) as int) %" }
     private func view() UI.View {
+        var throttle = UI.Slider(self.throttle, 0.0, 1.0, self.set_throttle)
+        throttle.style.height = 28.0; throttle.style.accent = Color.cyan_400()
         var volume = UI.Slider(self.volume, 0.0, 1.0, self.set_volume)
         volume.style.height = 28.0; volume.style.accent = Color.cyan_400()
         var content = UI.Column([text("KTM 250 SX · mix E/G", 28.0),
-            text("Maintenez Espace pour accélérer et tenir le régime. Relâchez pour la retombée."),
+            text("Espace ouvre les gaz en grand. Relâcher revient à la position du curseur."),
             UI.Reactive(self.status_view),
             UI.Row([button("Ralenti", self.listen_idle), button("Prise originale", self.listen_original), button("Mix E/G intégral", self.listen_mix),
                 button("Arrêter · M", self.stop)], wrap:true),
+            text("Ouverture des gaz"), UI.Text(self.throttle, format:self.percent), throttle,
             text("Volume"), volume])
         content.style.gap = 14.0; content.style.padding = UI.Insets(22.0)
         content.style.background = Color.bytes(10, 16, 24); content.style.foreground = Color.slate_100()
@@ -66,7 +83,7 @@ public class KtmSession:Canvas.Session {
     }
     func handle(event:@Events.Event) bool {
         match event {
-            window_focus_lost(value) => { self.gas(false) }
+            window_focus_lost(value) => { self.clear_throttle() }
             key_pressed(value) => {
                 if !value.modifiers.control && !value.modifiers.alt && !value.modifiers.system {
                     if value.key == Keyboard.Key.space {

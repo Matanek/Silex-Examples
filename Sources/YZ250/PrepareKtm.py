@@ -47,6 +47,79 @@ def best_join(samples, outgoing, first, last):
     return best[1:]
 
 
+def shorten_opening(samples, seconds):
+    """Skip recorded time at correlated stereo overlaps; play all spans at 1×."""
+    hop = round(.043 * RATE)
+    overlap = round(.017 * RATE)
+    search = round(.032 * RATE)
+    frames = len(samples) // 2
+    tail = round(.055 * RATE) + JOIN
+    steps = round((seconds * RATE - tail + JOIN) / hop)
+    last_target = frames - tail
+    result = array.array('h')
+    joins = []
+    previous = 0
+    for step in range(1, steps + 1):
+        target = round(last_target * step / steps)
+        outgoing = previous + hop
+        # Compare on a sparse stereo window, then render at full resolution.
+        a = samples[2 * outgoing:2 * (outgoing + overlap):8]
+        a_right = samples[2 * outgoing + 1:2 * (outgoing + overlap):8]
+        first = max(outgoing, target - search)
+        last = min(target + search, frames - hop - overlap)
+        best = None
+        for incoming in range(first, last + 1, 4):
+            b = samples[2 * incoming:2 * (incoming + overlap):8]
+            b_right = samples[2 * incoming + 1:2 * (incoming + overlap):8]
+            corr, db = join_metrics(a + a_right, b + b_right)
+            candidate = (corr - .23 * abs(db) - .16 * abs(incoming - target) / search, incoming)
+            if best is None or candidate > best:
+                best = candidate
+        incoming = best[1]
+        if step == 1:
+            result.extend(samples[:2 * hop])
+        else:
+            result.extend(samples[2 * (previous + overlap):2 * outgoing])
+        a = samples[2 * outgoing:2 * (outgoing + overlap)]
+        b = samples[2 * incoming:2 * (incoming + overlap)]
+        aa = sum(v * v for v in a)
+        bb = sum(v * v for v in b)
+        ab = sum(x * y for x, y in zip(a, b))
+        for i in range(overlap):
+            mix = .5 - .5 * math.cos(math.pi * i / (overlap - 1))
+            keep = 1 - mix
+            # A plain crossfade can lose 3 dB between poorly correlated spans.
+            # Match the expected overlap power with a smooth, bounded gain.
+            power = keep * keep * aa + mix * mix * bb + 2 * keep * mix * ab
+            gain = min(1.45, math.sqrt((keep * aa + mix * bb) / power))
+            for channel in (0, 1):
+                index = 2 * i + channel
+                result.append(round(gain * (keep * a[index] + mix * b[index])))
+        joins.append([outgoing, incoming])
+        previous = incoming
+    result.extend(samples[2 * (previous + overlap):])
+    assert result[:2 * hop] == samples[:2 * hop]
+    assert result[-2 * JOIN:] == samples[-2 * JOIN:]
+    return result, joins
+
+
+def partial_hold(samples, earliest, latest):
+    best = None
+    for outgoing in range(round(earliest * RATE), round(latest * RATE), round(.003 * RATE)):
+        a = samples[2 * outgoing:2 * (outgoing + JOIN)]
+        for duration in range(round(.11 * RATE), round(.18 * RATE), 4):
+            incoming = outgoing - duration
+            b = samples[2 * incoming:2 * (incoming + JOIN)]
+            corr, db = join_metrics(a[::4] + a[1::4], b[::4] + b[1::4])
+            candidate = (corr - .20 * abs(db), incoming, outgoing)
+            if best is None or candidate > best:
+                best = candidate
+    _, incoming, outgoing = best
+    corr, db = join_metrics(samples[2 * outgoing:2 * (outgoing + JOIN)],
+                            samples[2 * incoming:2 * (incoming + JOIN)])
+    return incoming, outgoing, corr, db
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('comparison', type=Path, help='folder with A-Source.wav, H-Mix-E-G.wav and Decoded.wav')
@@ -72,11 +145,17 @@ def main():
     ))
     opening_corr, opening_db = join_metrics(opening[-2 * JOIN:], mix[2 * RISE:2 * (RISE + JOIN)])
     assert opening_corr > .5 and abs(opening_db) < .5
+    progressive, progressive_joins = shorten_opening(opening, .98)
+    quick, quick_joins = shorten_opening(opening, .42)
+    low_start, low_end, low_corr, low_db = partial_hold(progressive, .37, .43)
+    mid_start, mid_end, mid_corr, mid_db = partial_hold(progressive, .67, .73)
     frames = len(mix) // 2
     idle_offset = frames + len(original) // 2
     opening_offset = idle_offset + len(idle) // 2
-    opening_join = opening_offset + len(opening) // 2 - JOIN
-    packed = mix + original + idle + opening
+    opening_join = opening_offset + len(progressive) // 2 - JOIN
+    quick_offset = opening_join + JOIN
+    quick_join = quick_offset + len(quick) // 2 - JOIN
+    packed = mix + original + idle + progressive + quick
     assert max(map(abs, packed)) < 32768
     if sys.byteorder != 'little':
         packed.byteswap()
@@ -95,6 +174,16 @@ def main():
         idle_correlation=idle_corr, idle_level_difference_db=idle_db,
         opening_frames=[opening_offset, opening_join],
         opening_source_seconds=[OPENING_START / RATE, (OPENING_JOIN + JOIN) / RATE],
+        progressive_opening_seconds=(opening_join - opening_offset) / RATE,
+        quick_frames=[quick_offset, quick_join],
+        quick_opening_seconds=(quick_join - quick_offset) / RATE,
+        opening_splices_from_start_frames=dict(progressive=progressive_joins, quick=quick_joins),
+        partial_hold=[
+            dict(frames=[opening_offset + low_start, opening_offset + low_end],
+                 correlation=low_corr, level_difference_db=low_db),
+            dict(frames=[opening_offset + mid_start, opening_offset + mid_end],
+                 correlation=mid_corr, level_difference_db=mid_db),
+        ],
         opening_to_mix_seconds=[OPENING_JOIN / RATE, RISE / RATE],
         opening_correlation=opening_corr, opening_level_difference_db=opening_db,
     )
@@ -102,7 +191,10 @@ def main():
     constants = dict(mix_frames=frames, original_begin=frames, idle_begin=idle_offset,
                      idle_end=idle_offset + idle_end - idle_start, join_frames=JOIN,
                      rise_begin=RISE, coast_begin=COAST, hold_begin=hold_start,
-                     opening_begin=opening_offset, opening_join=opening_join)
+                     opening_begin=opening_offset, opening_join=opening_join,
+                     quick_begin=quick_offset, quick_join=quick_join,
+                     low_begin=opening_offset + low_start, low_end=opening_offset + low_end,
+                     mid_begin=opening_offset + mid_start, mid_end=opening_offset + mid_end)
     declarations = ''.join(f'    let {name}:int = {value}\n' for name, value in constants.items())
     (args.output.parent / 'KtmData.sx').write_text(
         '// Generated by PrepareKtm.py from Assets/Ktm.json inputs.\n'

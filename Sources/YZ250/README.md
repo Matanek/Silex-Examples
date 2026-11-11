@@ -10,24 +10,27 @@ silex run Silex-Examples/Sources/YZ250/Main.sx
 - **Mix E/G intégral** plays clip H, with E's texture through 1.08 s followed
   by G's sustain. Both buttons use the same volume.
 - **Ralenti** starts the idle loop from 6.39–7.31 s of the recording.
-- **Space** opens the throttle. The opening uses 12.92–14.81 s at its recorded
-  speed, then joins H's rise. Holding Space extends the plateau. Releasing
-  during the opening returns to idle. After the join, release selects a nearby
-  cadence in the recorded fall.
+- **Space** gives a quick throttle blip. The opening takes about 0.40 s
+  before joining H. Releasing Space returns to the slider position.
+- **Ouverture des gaz** adjusts throttle. The gentle recording supplies two
+  partial-throttle plateaus. At 90% or more, the rise continues into H.
+  Returning the slider to zero closes the throttle.
 - **M** stops playback. Losing focus releases the throttle.
 
-A long live hold repeats about 0.19 s of the plateau. The KTM mode embeds
-1.12 MiB of stereo PCM. Use `Build/YZ250-KTM --yz250` to launch the Yamaha bench with fixed
-RPM and load controls. [Yamaha bench guide](Docs/EN/README.md).
+Both openings use 12.92–14.81 s of the recording. The joins shorten the rise
+while each span plays at its original speed. The gentle opening takes about
+1 s before joining H if the throttle permits it. This bench uses acoustic
+thresholds and loops. A game would supply RPM and its rate of change from its
+physics, with load informing texture selection. Use `Build/YZ250-KTM --yz250`
+for the Yamaha bench. [Yamaha bench guide](Docs/EN/README.md).
 
 ```sh
 silex compile Silex-Examples/Sources/YZ250/Main.sx --release -o Build/YZ250-KTM
 Build/YZ250-KTM --ktm-check
 ```
 
-The check compares generator output with both embedded clips and the recorded
-opening between joins, sample by sample. It also exercises release, sustain
-and reopening. `PrepareKtm.py`
+The check compares generator output with both embedded clips and exercises
+the quick opening, both partial plateaus, release and reopening. `PrepareKtm.py`
 packs `A-Source.wav`, `H-Mix-E-G.wav` and `Decoded.wav` from the comparison
 folder. [Assets/Ktm.json](Assets/Ktm.json) records hashes and audio windows.
 

@@ -17,7 +17,9 @@ public class KtmVoice:Synthesis.Generator {
     private var attack:int = 0
     private var revision:int = 0
     private var running:bool = false
-    private var held:bool = false
+    private var pressure:float = 0.0
+    private var full:bool = false
+    private var low:bool = false
     private var coasting:bool = false
 
     // Corresponding firing cadences on the rising and falling sides of H.
@@ -27,7 +29,7 @@ public class KtmVoice:Synthesis.Generator {
 
     init() {
         let bytes = embed_bytes("Assets/Ktm.pcm")
-        assert(bytes.count() == (KtmData.opening_join + KtmData.join_frames) * 4)
+        assert(bytes.count() == (KtmData.quick_join + KtmData.join_frames) * 4)
         for i in 0...bytes.count() / 2 {
             var word = bytes[i * 2] as int + bytes[i * 2 + 1] as int * 256
             if word >= 32_768 { word -= 65_536 }
@@ -35,16 +37,19 @@ public class KtmVoice:Synthesis.Generator {
         }
     }
     func generation() int { mutex { return self.revision } }
-    func gas(held:bool) {
+    func set_throttle(value:float) {
         mutex {
-            self.held = held
-            if held && (!self.running || self.playback != Playback.ride) { self.start_idle() }
+            self.pressure = 0.0
+            if Math.is_finite(value) && value > 0.03 { self.pressure = Math.min(1.0, value) }
+            self.full = self.pressure >= 0.90 || (self.full && self.pressure >= 0.84)
+            self.low = self.pressure < 0.36 || (self.low && self.pressure < 0.41)
+            if self.pressure > 0.0 && (!self.running || self.playback != Playback.ride) { self.start_idle() }
         }
     }
-    func listen_idle() { mutex { self.held = false; self.start_idle() } }
+    func listen_idle() { mutex { self.set_throttle(0.0); self.start_idle() } }
     func listen_original() { mutex { self.start(Playback.original, KtmData.original_begin) } }
     func listen_mix() { mutex { self.start(Playback.mix, 0) } }
-    func stop() { mutex { self.running = false; self.held = false; self.revision++ } }
+    func stop() { mutex { self.running = false; self.set_throttle(0.0); self.revision++ } }
     func reset() {
         mutex {
             if self.playback == Playback.mix { self.start(Playback.mix, 0) }
@@ -57,7 +62,14 @@ public class KtmVoice:Synthesis.Generator {
             if !self.running { return "À l’arrêt" }
             if self.playback == Playback.original { return "Prise originale · lecture" }
             if self.playback == Playback.mix { return "Mix E/G · lecture" }
-            if self.cursor >= KtmData.opening_begin { return "Ouverture des gaz" }
+            if self.cursor >= KtmData.quick_begin { return "Ouverture franche" }
+            if self.cursor >= KtmData.opening_begin {
+                if !self.full && self.cursor >= self.partial_begin() {
+                    if self.low { return "Gaz partiels · bas" }
+                    return "Gaz partiels · intermédiaire"
+                }
+                return "Ouverture progressive"
+            }
             if self.cursor >= KtmData.idle_begin { return "Ralenti" }
             if self.cursor >= KtmData.coast_begin { return "Retombée" }
             if self.cursor >= self.rise[self.rise.count() - 1] { return "Maintien" }
@@ -118,33 +130,66 @@ public class KtmVoice:Synthesis.Generator {
         }
         return KtmData.hold_begin
     }
+    private func partial_begin() int {
+        if self.low { return KtmData.low_begin }
+        return KtmData.mid_begin
+    }
+    private func partial_end() int {
+        if self.low { return KtmData.low_end }
+        return KtmData.mid_end
+    }
+    private func return_to_idle() {
+        self.join(self.aligned(KtmData.idle_begin, KtmData.idle_begin, KtmData.idle_end, radius:1_323))
+    }
+    private func opening() {
+        if self.pressure == 0.0 { self.return_to_idle(); return }
+        if self.cursor >= KtmData.quick_begin {
+            if !self.full {
+                let quick = self.cursor - KtmData.quick_begin
+                let length = KtmData.quick_join - KtmData.quick_begin
+                let position = KtmData.opening_begin + quick * (KtmData.opening_join - KtmData.opening_begin) / length
+                var target = position
+                if target > self.partial_end() - KtmData.join_frames { target = self.partial_begin() }
+                self.join(self.aligned(target, KtmData.opening_begin, self.partial_end() - KtmData.join_frames))
+            } else if self.cursor == KtmData.quick_join { self.join(KtmData.rise_begin) }
+        } else if !self.full && self.cursor >= self.partial_end() {
+            var begin = self.partial_begin()
+            if self.cursor != self.partial_end() {
+                begin = self.aligned(begin, begin - 180, begin + 180)
+            }
+            self.join(begin)
+        } else if self.cursor == KtmData.opening_join {
+            self.join(KtmData.rise_begin)
+        }
+    }
     private func drive() {
         if self.cursor >= KtmData.opening_begin {
-            if !self.held {
-                self.join(self.aligned(KtmData.idle_begin, KtmData.idle_begin, KtmData.idle_end, radius:1_323))
-            } else if self.cursor == KtmData.opening_join {
-                self.join(KtmData.rise_begin)
-            }
+            self.opening()
         } else if self.cursor >= KtmData.idle_begin {
             self.coasting = false
-            if self.held {
-                let start = KtmData.opening_begin
+            if self.pressure > 0.0 {
+                var start = KtmData.opening_begin
+                if self.full { start = KtmData.quick_begin }
                 self.join(self.aligned(start, start, start + 1_323, radius:1_323))
             }
             else if self.cursor == KtmData.idle_end { self.join(KtmData.idle_begin) }
         } else if self.cursor >= KtmData.coast_begin {
-            if self.held && !self.coasting {
+            if self.full && !self.coasting {
                 self.join(KtmData.hold_begin)
-            } else if self.held && self.cursor < KtmData.mix_frames - KtmData.join_frames {
+            } else if self.full && self.cursor < KtmData.mix_frames - KtmData.join_frames {
                 self.join(self.aligned(self.match_rise(), KtmData.rise_begin, KtmData.coast_begin - KtmData.join_frames))
                 self.coasting = false
             } else if self.cursor == KtmData.mix_frames - KtmData.join_frames {
-                self.join(KtmData.idle_begin)
+                if self.pressure > 0.0 { self.join(self.partial_begin()) }
+                else { self.join(KtmData.idle_begin) }
             } else {
                 self.coasting = true
             }
-        } else if !self.held && self.cursor < KtmData.coast_begin - KtmData.join_frames {
-            if self.cursor < self.rise[0] { self.join(KtmData.idle_begin) }
+        } else if !self.full && self.cursor < KtmData.coast_begin - KtmData.join_frames {
+            if self.cursor < self.rise[0] {
+                if self.pressure > 0.0 { self.join(self.partial_begin()) }
+                else { self.join(KtmData.idle_begin) }
+            }
             else {
                 self.join(self.aligned(self.match_fall(), KtmData.coast_begin, KtmData.mix_frames - 2 * KtmData.join_frames))
                 self.coasting = true

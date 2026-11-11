@@ -43,31 +43,55 @@ func advance(voice:KtmVoice, frames:int) {
     }
 }
 
-func check_opening(voice:KtmVoice) {
+func check_quick_opening(voice:KtmVoice) {
     let bytes = embed_bytes("Assets/Ktm.pcm")
     voice.listen_idle()
     advance(voice, 2_048)
     assert(voice.status() == "Ralenti")
-    voice.gas(true)
+    voice.set_throttle(1.0)
     advance(voice, KtmData.join_frames)
-    assert(voice.status() == "Ouverture des gaz")
+    assert(voice.status() == "Ouverture franche")
     var probe:float32[] = []
     for _ in 0...32 { probe.append(0.0) }
     voice.render(&probe[0:32])
-    let first = KtmData.opening_begin + KtmData.join_frames
+    let first = KtmData.quick_begin + KtmData.join_frames
     for frame in first...first + 1_324 {
         var matches = true
         for i in 0...32 {
             if probe[i] != sample(@bytes[0:bytes.count()], frame * 2 + i) { matches = false; break }
         }
         if matches {
-            check_clip(voice, frame + 16, KtmData.opening_join)
+            check_clip(voice, frame + 16, KtmData.quick_join)
             advance(voice, KtmData.join_frames)
             check_clip(voice, KtmData.rise_begin + KtmData.join_frames, KtmData.coast_begin)
             return
         }
     }
-    assert(false, "throttle did not use the recorded opening")
+    assert(false, "full throttle did not use the short opening")
+}
+
+func check_partial_opening(voice:KtmVoice) {
+    voice.listen_idle()
+    advance(voice, 2_048)
+    voice.set_throttle(0.25)
+    advance(voice, 6_000)
+    assert(voice.status() == "Ouverture progressive")
+    advance(voice, 88_200)
+    assert(voice.status() == "Gaz partiels · bas", "low throttle entered the free rev")
+    voice.set_throttle(0.65)
+    advance(voice, 44_100)
+    assert(voice.status() == "Gaz partiels · intermédiaire", "partial throttle did not reach the next plateau")
+    voice.set_throttle(1.0)
+    advance(voice, 44_100)
+    assert(voice.status() == "Maintien", "full throttle did not continue from the partial plateau")
+    voice.set_throttle(0.25)
+    advance(voice, 1_024)
+    assert(voice.status() == "Retombée")
+    advance(voice, 88_200)
+    assert(voice.status() == "Gaz partiels · bas")
+    voice.set_throttle(0.0)
+    advance(voice, 1_024)
+    assert(voice.status() == "Ralenti")
 }
 
 public func check() {
@@ -76,38 +100,39 @@ public func check() {
     assert(voice.status() == "À l’arrêt")
     voice.listen_mix(); check_clip(voice, 0, KtmData.mix_frames)
     assert(voice.status() == "À l’arrêt")
-    check_opening(voice)
+    check_quick_opening(voice)
+    check_partial_opening(voice)
     voice.stop()
 
-    voice.gas(true)
+    voice.set_throttle(1.0)
     advance(voice, 6_000)
-    assert(voice.status() == "Ouverture des gaz")
-    voice.gas(false)
+    assert(voice.status() == "Ouverture franche")
+    voice.set_throttle(0.0)
     advance(voice, 1_024)
     assert(voice.status() == "Ralenti", "brief press played the rest of the opening")
 
-    voice.gas(true)
-    advance(voice, 92_000)
+    voice.set_throttle(1.0)
+    advance(voice, 25_000)
     assert(voice.status() == "Montée")
-    voice.gas(false)
+    voice.set_throttle(0.0)
     advance(voice, 1_024)
     assert(voice.status() == "Retombée", "short press kept climbing")
-    voice.gas(true)
+    voice.set_throttle(1.0)
     advance(voice, 1_024)
     assert(voice.status() == "Montée", "reopening during fall did not accelerate")
     advance(voice, 220_500)
     assert(voice.status() == "Maintien", "held gas did not sustain the plateau")
-    voice.gas(false)
+    voice.set_throttle(0.0)
     advance(voice, 2_048)
     assert(voice.status() == "Retombée")
     advance(voice, 132_300)
     assert(voice.status() == "Ralenti")
 
     for block in 0...500 {
-        if block % 7 == 0 { voice.gas(block % 3 == 0) }
+        if block % 7 == 0 { voice.set_throttle((block % 5) as float * 0.25) }
         advance(voice, 513)
     }
     voice.stop()
     assert(voice.status() == "À l’arrêt")
-    print("KTM E/G: source, mix and recorded opening sample-exact outside joins; brief press, release, reopening, hold and idle passed")
+    print("KTM E/G: source and mix sample-exact; quick opening, two partial plateaus, release and reopening passed")
 }

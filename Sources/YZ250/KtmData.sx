@@ -9,5 +9,11 @@ public static struct KtmData {
     let coast_begin:int = 58088
     let hold_begin:int = 49421
     let opening_begin:int = 211413
-    let opening_join:int = 294370
+    let opening_join:int = 255838
+    let quick_begin:int = 256279
+    let quick_join:int = 273872
+    let low_begin:int = 222447
+    let low_end:int = 230370
+    let mid_begin:int = 236481
+    let mid_end:int = 242676
 }
