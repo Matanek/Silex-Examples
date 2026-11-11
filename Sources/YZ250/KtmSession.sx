@@ -37,6 +37,7 @@ public class KtmSession:Canvas.Session {
 
     private func listen_original() { self.voice.listen_original() }
     private func listen_mix() { self.voice.listen_mix() }
+    private func listen_idle() { self.voice.listen_idle() }
     private func stop() { self.voice.stop() }
     func gas(held:bool) { self.voice.gas(held) }
     func statistics() Output.Statistics { return self.output.statistics() }
@@ -48,7 +49,7 @@ public class KtmSession:Canvas.Session {
         var content = UI.Column([text("KTM 250 SX · mix E/G", 28.0),
             text("Maintenez Espace pour accélérer et tenir le régime. Relâchez pour la retombée."),
             UI.Reactive(self.status_view),
-            UI.Row([button("Prise originale", self.listen_original), button("Mix E/G intégral", self.listen_mix),
+            UI.Row([button("Ralenti", self.listen_idle), button("Prise originale", self.listen_original), button("Mix E/G intégral", self.listen_mix),
                 button("Arrêter · M", self.stop)], wrap:true),
             text("Volume"), volume])
         content.style.gap = 14.0; content.style.padding = UI.Insets(22.0)

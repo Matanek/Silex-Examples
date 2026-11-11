@@ -12,11 +12,15 @@ func check_clip(voice:KtmVoice, first:int, end:int) {
     let bytes = embed_bytes("Assets/Ktm.pcm")
     var output:float32[] = []
     for _ in 0...512 { output.append(0.0) }
-    for frame in first...end {
-        if (frame - first) % 256 == 0 { voice.render(&output[0:512]) }
-        let index = ((frame - first) % 256) * 2
-        assert(output[index] == sample(@bytes[0:bytes.count()], frame * 2))
-        assert(output[index + 1] == sample(@bytes[0:bytes.count()], frame * 2 + 1))
+    var frame = first
+    while frame < end {
+        var count = 256
+        if end - frame < count { count = end - frame }
+        voice.render(&output[0:count * 2])
+        for index in 0...count * 2 {
+            assert(output[index] == sample(@bytes[0:bytes.count()], frame * 2 + index))
+        }
+        frame += count
     }
 }
 
@@ -39,19 +43,51 @@ func advance(voice:KtmVoice, frames:int) {
     }
 }
 
+func check_opening(voice:KtmVoice) {
+    let bytes = embed_bytes("Assets/Ktm.pcm")
+    voice.listen_idle()
+    advance(voice, 2_048)
+    assert(voice.status() == "Ralenti")
+    voice.gas(true)
+    advance(voice, KtmData.join_frames)
+    assert(voice.status() == "Ouverture des gaz")
+    var probe:float32[] = []
+    for _ in 0...32 { probe.append(0.0) }
+    voice.render(&probe[0:32])
+    let first = KtmData.opening_begin + KtmData.join_frames
+    for frame in first...first + 1_324 {
+        var matches = true
+        for i in 0...32 {
+            if probe[i] != sample(@bytes[0:bytes.count()], frame * 2 + i) { matches = false; break }
+        }
+        if matches {
+            check_clip(voice, frame + 16, KtmData.opening_join)
+            advance(voice, KtmData.join_frames)
+            check_clip(voice, KtmData.rise_begin + KtmData.join_frames, KtmData.coast_begin)
+            return
+        }
+    }
+    assert(false, "throttle did not use the recorded opening")
+}
+
 public func check() {
     var voice = KtmVoice()
     voice.listen_original(); check_clip(voice, KtmData.original_begin, KtmData.idle_begin)
     assert(voice.status() == "À l’arrêt")
     voice.listen_mix(); check_clip(voice, 0, KtmData.mix_frames)
     assert(voice.status() == "À l’arrêt")
-    voice.gas(true)
-    advance(voice, KtmData.join_frames)
-    check_clip(voice, KtmData.rise_begin + KtmData.join_frames, KtmData.coast_begin)
+    check_opening(voice)
     voice.stop()
 
     voice.gas(true)
-    advance(voice, 8_000)
+    advance(voice, 6_000)
+    assert(voice.status() == "Ouverture des gaz")
+    voice.gas(false)
+    advance(voice, 1_024)
+    assert(voice.status() == "Ralenti", "brief press played the rest of the opening")
+
+    voice.gas(true)
+    advance(voice, 92_000)
     assert(voice.status() == "Montée")
     voice.gas(false)
     advance(voice, 1_024)
@@ -73,5 +109,5 @@ public func check() {
     }
     voice.stop()
     assert(voice.status() == "À l’arrêt")
-    print("KTM E/G: source, mix and full-throttle rise sample-exact; early release, reopen, sustained gas and idle passed")
+    print("KTM E/G: source, mix and recorded opening sample-exact outside joins; brief press, release, reopening, hold and idle passed")
 }

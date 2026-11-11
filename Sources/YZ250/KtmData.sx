@@ -5,7 +5,9 @@ public static struct KtmData {
     let idle_begin:int = 170884
     let idle_end:int = 210972
     let join_frames:int = 441
-    let rise_begin:int = 9261
+    let rise_begin:int = 10429
     let coast_begin:int = 58088
     let hold_begin:int = 49421
+    let opening_begin:int = 211413
+    let opening_join:int = 294370
 }

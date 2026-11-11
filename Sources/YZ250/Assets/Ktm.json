@@ -5,12 +5,12 @@
     "A-Source.wav": "3ab49c17b5e15ba1889d517451be608e797634b846470acebc361a3751f896c9",
     "Decoded.wav": "da57b85063ca790b94dd35b66ede1a26c44832e752ae75ff6524a52898ce4cf5"
   },
-  "pcm_sha256": "3fd44806357234e12e85111cb28e25c18ad41723b135c8acc735cb63b9fe0238",
+  "pcm_sha256": "d8a32ab4a52f41d5943d78e07563b8f6e64f94dd9823ad29ecedd6053a490dc6",
   "sample_rate": 44100,
   "mix_frames": 95914,
   "original_frames": 74970,
   "ride_frames": [
-    9261,
+    10429,
     58088
   ],
   "crossfade_frames": 441,
@@ -26,5 +26,19 @@
     7.31
   ],
   "idle_correlation": 0.8021751437939393,
-  "idle_level_difference_db": 1.357220685765697
+  "idle_level_difference_db": 1.357220685765697,
+  "opening_frames": [
+    211413,
+    294370
+  ],
+  "opening_source_seconds": [
+    12.92,
+    14.811111111111112
+  ],
+  "opening_to_mix_seconds": [
+    14.801111111111112,
+    0.23648526077097506
+  ],
+  "opening_correlation": 0.571704378158771,
+  "opening_level_difference_db": 0.2366082946842124
 }

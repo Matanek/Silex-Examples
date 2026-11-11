@@ -27,7 +27,7 @@ public class KtmVoice:Synthesis.Generator {
 
     init() {
         let bytes = embed_bytes("Assets/Ktm.pcm")
-        assert(bytes.count() == (KtmData.idle_end + KtmData.join_frames) * 4)
+        assert(bytes.count() == (KtmData.opening_join + KtmData.join_frames) * 4)
         for i in 0...bytes.count() / 2 {
             var word = bytes[i * 2] as int + bytes[i * 2 + 1] as int * 256
             if word >= 32_768 { word -= 65_536 }
@@ -38,12 +38,10 @@ public class KtmVoice:Synthesis.Generator {
     func gas(held:bool) {
         mutex {
             self.held = held
-            if held && (!self.running || self.playback != Playback.ride) {
-                self.start(Playback.ride, KtmData.idle_begin)
-                self.attack = KtmData.join_frames
-            }
+            if held && (!self.running || self.playback != Playback.ride) { self.start_idle() }
         }
     }
+    func listen_idle() { mutex { self.held = false; self.start_idle() } }
     func listen_original() { mutex { self.start(Playback.original, KtmData.original_begin) } }
     func listen_mix() { mutex { self.start(Playback.mix, 0) } }
     func stop() { mutex { self.running = false; self.held = false; self.revision++ } }
@@ -59,11 +57,16 @@ public class KtmVoice:Synthesis.Generator {
             if !self.running { return "À l’arrêt" }
             if self.playback == Playback.original { return "Prise originale · lecture" }
             if self.playback == Playback.mix { return "Mix E/G · lecture" }
+            if self.cursor >= KtmData.opening_begin { return "Ouverture des gaz" }
             if self.cursor >= KtmData.idle_begin { return "Ralenti" }
             if self.cursor >= KtmData.coast_begin { return "Retombée" }
             if self.cursor >= self.rise[self.rise.count() - 1] { return "Maintien" }
             return "Montée"
         }
+    }
+    private func start_idle() {
+        self.start(Playback.ride, KtmData.idle_begin)
+        self.attack = KtmData.join_frames
     }
     private func start(playback:Playback, position:int) {
         self.playback = playback; self.cursor = position
@@ -72,9 +75,9 @@ public class KtmVoice:Synthesis.Generator {
     }
     private func join(position:int) { self.incoming = position; self.overlap = 0 }
 
-    private func aligned(position:int, lower:int, upper:int) int {
+    private func aligned(position:int, lower:int, upper:int, radius:int = 180) int {
         var best = position; var best_score:float = -2.0
-        var from = position - 180; var last = position + 180
+        var from = position - radius; var last = position + radius
         if from < lower { from = lower }
         if last > upper { last = upper }
         while from <= last {
@@ -116,9 +119,18 @@ public class KtmVoice:Synthesis.Generator {
         return KtmData.hold_begin
     }
     private func drive() {
-        if self.cursor >= KtmData.idle_begin {
+        if self.cursor >= KtmData.opening_begin {
+            if !self.held {
+                self.join(self.aligned(KtmData.idle_begin, KtmData.idle_begin, KtmData.idle_end, radius:1_323))
+            } else if self.cursor == KtmData.opening_join {
+                self.join(KtmData.rise_begin)
+            }
+        } else if self.cursor >= KtmData.idle_begin {
             self.coasting = false
-            if self.held { self.join(KtmData.rise_begin) }
+            if self.held {
+                let start = KtmData.opening_begin
+                self.join(self.aligned(start, start, start + 1_323, radius:1_323))
+            }
             else if self.cursor == KtmData.idle_end { self.join(KtmData.idle_begin) }
         } else if self.cursor >= KtmData.coast_begin {
             if self.held && !self.coasting {
