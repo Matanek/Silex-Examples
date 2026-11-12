@@ -33,6 +33,9 @@ et d’échappement. Pour affecter un cylindre, saisir le numéro de sortie à
 partir de 1. Avec zéro sortie configurée, la sortie 1 utilise une résonance
 commune. Les nombres acceptent la virgule ou le point. **Appliquer** revient
 au banc et une modification du moteur demande de remettre le contact.
+Dans **Mécanique**, **Rupteur (tr/min)** fixe le seuil et **Coupure (ms)**
+règle le délai de reprise après le dépassement. Le compte-tours adapte
+son échelle au seuil choisi.
 
 **Chevrolet 454** charge les valeurs d’un V8 7,44 L, consultables dans l’éditeur.
 Pour le reconstruire, partir de **En V** et **8 cylindres** puis saisir les

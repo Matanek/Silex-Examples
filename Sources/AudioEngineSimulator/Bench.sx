@@ -27,6 +27,7 @@ class Session:Canvas.Session {
     private var editor_ui:UI.Session? = null
     private var displacement_preview:EngineConfig.Setup? = null
     private var load_scale:float32
+    private var rev_limit:float
     private var engine:EngineSimulation.Simulator
     private var audio:Audio
     private var stream:Audio.Stream
@@ -57,7 +58,9 @@ class Session:Canvas.Session {
     private var largest_rpm:float = 0.0
 
     init(offline:bool = false, smoke:bool = false) {
-        self.engine = EngineSimulation.Simulator.create(self.setup.assembly())
+        let assembly = self.setup.assembly()
+        self.engine = EngineSimulation.Simulator.create(assembly)
+        self.rev_limit = assembly.rev_limit_rpm as float
         self.load_scale = self.setup.load_scale()
         self.smoke = smoke
         if offline { self.audio = Audio.offline(sample_rate:48_000, channels:1) } else { self.audio = Audio() }
@@ -76,7 +79,8 @@ class Session:Canvas.Session {
 
     private func configure(setup:EngineConfig.Setup) str? {
         if setup.same(self.setup) { return null }
-        var next = try EngineSimulation.Simulator.create(setup.assembly()) else error { return error.detail }
+        let assembly = setup.assembly()
+        var next = try EngineSimulation.Simulator.create(assembly) else error { return error.detail }
         if self.playing.is_valid() { self.audio.stop(self.playing) }
         self.audio.release(self.stream)
         self.stream = self.audio.stream(sample_rate:48_000, channels:1, capacity_frames:self.stream_capacity)
@@ -88,6 +92,7 @@ class Session:Canvas.Session {
         self.idle_speed = 0.0
         self.charge = 0.0
         self.engine = next
+        self.rev_limit = assembly.rev_limit_rpm as float
         self.load_scale = setup.load_scale()
         self.setup = setup
         self.equipment = EngineEquipment.Selection()
@@ -250,6 +255,7 @@ class Session:Canvas.Session {
         let equipment = self.equipment
         let clock = self.engine.frame()
         let rpm = self.engine.rpm() as float
+        let rev_limit = self.rev_limit
         let powered = self.powered
         let starting = self.starting()
         let key_turn = self.key_turn
@@ -264,7 +270,7 @@ class Session:Canvas.Session {
             Dashboard.panel(painter, layout.overhead)
             EngineViews.profile(painter, layout.profile, setup, cylinders, clock)
             EngineViews.overhead(painter, layout.overhead, setup, cylinders, clock)
-            Dashboard.instruments(painter, measuring, layout, powered, starting, key_turn, opening, progressive, rpm)
+            Dashboard.instruments(painter, measuring, layout, powered, starting, key_turn, opening, progressive, rpm, rev_limit)
             EngineEquipment.draw(painter, measuring, layout.equipment, equipment, setup.cylinders > 1)
         })
         return self.picture

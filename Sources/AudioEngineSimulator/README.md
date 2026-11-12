@@ -32,6 +32,9 @@ and exhaust. Assign cylinders to outlets numbered from 1. With zero
 configured outlets, outlet 1 uses a common resonance. Numbers accept
 a comma or a decimal point. **Appliquer** returns to the bench, and a
 changed engine waits for the ignition to be switched on again.
+Under **Mécanique**, **Rupteur (tr/min)** sets the threshold and **Coupure
+(ms)** sets the delay before ignition resumes below it. The tachometer
+adapts its scale to the selected threshold.
 
 **Chevrolet 454** loads a 7.44 L V8 whose values appear in the editor. To recreate it,
 start from **En V** and **8 cylindres** and enter the

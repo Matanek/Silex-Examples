@@ -20,7 +20,7 @@ public func centered_label(painter:&Canvas.Painter, measuring:Canvas, frame:Canv
 }
 
 public func instruments(painter:&Canvas.Painter, measuring:Canvas, layout:PanelLayout.Layout, powered:bool, starting:bool,
-    key_turn:float, opening:float, progressive:bool, rpm:float) {
+    key_turn:float, opening:float, progressive:bool, rpm:float, rev_limit:float) {
     let frame = layout.controls
     panel(painter, frame)
     let key = layout.key
@@ -49,7 +49,7 @@ public func instruments(painter:&Canvas.Painter, measuring:Canvas, layout:PanelL
         Canvas.TextStyle(size:key_text * 0.70, color:Color.bytes(154, 171, 190),
             alignment:Canvas.TextAlignment.center), clip:key)
 
-    tachometer(painter, layout.tachometer, rpm)
+    tachometer(painter, layout.tachometer, rpm, rev_limit)
     pedal(painter, layout.pedal, opening)
     pedal_mode(painter, measuring, layout.pedal_mode, progressive)
 }
@@ -90,14 +90,16 @@ func pedal(painter:&Canvas.Painter, frame:Canvas.Rect, opening:float) {
     }
 }
 
-func tachometer(painter:&Canvas.Painter, frame:Canvas.Rect, rpm:float) {
+func tachometer(painter:&Canvas.Painter, frame:Canvas.Rect, rpm:float, rev_limit:float) {
     let radius = Math.min(frame.size.y * 0.34, frame.size.x * 0.41)
     let center = frame.position.add(Math.Vec2(frame.size.x * 0.5, frame.size.y * 0.40))
     let angle_start:float = 0.75 * Math.pi()
     let angle_range:float = 1.5 * Math.pi()
+    let scale_rpm = Math.ceil((rev_limit + 500.0) / 1_000.0) * 1_000.0
+    let cut_fraction = rev_limit / scale_rpm
     painter.stroke(Canvas.Arc(center, radius, angle_start, angle_range),
         Canvas.Stroke(Color.bytes(82, 99, 118), 1.5))
-    painter.stroke(Canvas.Arc(center, radius, angle_start + 0.86 * angle_range, 0.14 * angle_range),
+    painter.stroke(Canvas.Arc(center, radius, angle_start + cut_fraction * angle_range, (1.0 - cut_fraction) * angle_range),
         Canvas.Stroke(Color.bytes(240, 106, 117), 2.2))
     for i in 0...8 {
         let a = angle_start + i as float * angle_range / 7.0
@@ -105,7 +107,7 @@ func tachometer(painter:&Canvas.Painter, frame:Canvas.Rect, rpm:float) {
         painter.stroke(Canvas.Line(center.add(axis.multiply(radius * 0.84)), center.add(axis.multiply(radius))),
             Canvas.Stroke(Color.bytes(160, 176, 195), 1.2))
     }
-    let angle = angle_start + Math.clamp(rpm / 7_000.0, 0.0, 1.0) * angle_range
+    let angle = angle_start + Math.clamp(rpm / scale_rpm, 0.0, 1.0) * angle_range
     let needle = center.add(Math.Vec2(Math.cos(angle), Math.sin(angle)).multiply(radius * 0.78))
     painter.stroke(Canvas.Line(center, needle), Canvas.Stroke(Color.bytes(255, 194, 99), 2.2))
     painter.fill(Canvas.Circle(center, radius * 0.095), Canvas.Fill.solid(Color.bytes(255, 194, 99)))

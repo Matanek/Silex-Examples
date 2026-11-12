@@ -97,6 +97,7 @@ public struct Setup {
 
 public func same_assembly(first:EngineSimulation.Assembly, second:EngineSimulation.Assembly) bool {
     if first.inertia_kg_m2 != second.inertia_kg_m2 || first.starter_nm != second.starter_nm ||
+        first.rev_limit_rpm != second.rev_limit_rpm || first.rev_limit_cut_ms != second.rev_limit_cut_ms ||
         first.cylinders.count() != second.cylinders.count() || first.exhausts.count() != second.exhausts.count() {
         return false
     }
@@ -121,7 +122,7 @@ public func chevrolet_454() Setup {
     var quieter = outlet
     quieter.outlet_level = 0.1
     return Setup().tuned(EngineSimulation.Assembly(cylinders:cylinders, exhausts:[outlet, quieter],
-        inertia_kg_m2:0.65, starter_nm:271.0))
+        inertia_kg_m2:0.65, starter_nm:271.0, rev_limit_rpm:7_000.0, rev_limit_cut_ms:500.0))
 }
 
 public func counts(vee:bool) int[] {
