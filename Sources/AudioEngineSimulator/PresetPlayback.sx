@@ -4,7 +4,7 @@ use GFX.Input.Events
 use GFX.Input.Keyboard
 use GFX.Window
 use STD.Error.Kind
-use Package.EngineWorkshop.Workshop.Workshop
+use Module.PresetSession.PresetSession
 use Module.Accelerator
 
 struct Combustion {
@@ -51,10 +51,9 @@ public class CombustionDisplay {
     }
 }
 
-// Match EngineWorkshop's stereo queue and controls while leaving its session independent.
 // Read only ready native blocks; never wait for the simulator in a UI frame.
 public class PresetPlayback:Canvas.Session {
-    private var workshop:Workshop
+    private var presets:PresetSession
     private var panel:Canvas.Session
     private var audio:Audio
     private var stream:Audio.Stream
@@ -65,34 +64,34 @@ public class PresetPlayback:Canvas.Session {
     private var generation:int = 0
     private var combustion:CombustionDisplay
     private var pedal:Accelerator.Pedal = Accelerator.Pedal(sample_rate:44_100)
-    init(workshop:Workshop, panel:Canvas.Session, audio:Audio, combustion:CombustionDisplay) {
-        self.workshop = workshop
+    init(presets:PresetSession, panel:Canvas.Session, audio:Audio, combustion:CombustionDisplay) {
+        self.presets = presets
         self.panel = panel
         self.audio = audio
         self.combustion = combustion
         self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
         for _ in 0...960 { self.samples.append(0.0) }
-        self.workshop.source.enqueue()
+        self.presets.source.enqueue()
     }
     private func feed() {
-        if self.generation != self.workshop.generation {
+        if self.generation != self.presets.generation {
             if self.playing.is_valid() { self.audio.stop(self.playing) }
             self.audio.release(self.stream)
             self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
             self.playing = Audio.PlayingSound(); self.pending = false; self.offset = 0
-            self.generation = self.workshop.generation
+            self.generation = self.presets.generation
             self.combustion.reset()
             self.pedal = Accelerator.Pedal(sample_rate:44_100)
-            self.workshop.source.enqueue()
+            self.presets.source.enqueue()
         }
         var count = 0
         while count < 8 {
             if self.audio.stream_info(self.stream).queued_frames >= 2_400 { break }
             if !self.pending {
-                let previous = self.workshop.source.frame()
-                if !self.workshop.source.render_ready(&self.samples[0:960]) { break }
-                for cylinder in 0...self.workshop.selected().cylinders {
-                    if let frame = self.workshop.source.last_combustion_frame(cylinder) {
+                let previous = self.presets.source.frame()
+                if !self.presets.source.render_ready(&self.samples[0:960]) { break }
+                for cylinder in 0...self.presets.selected().cylinders {
+                    if let frame = self.presets.source.last_combustion_frame(cylinder) {
                         if frame > previous { self.combustion.append(cylinder, frame) }
                     }
                 }
@@ -106,8 +105,8 @@ public class PresetPlayback:Canvas.Session {
                     if self.offset == 480 {
                         self.pending = false
                         // Send the travel at the start of the next audio block.
-                        self.workshop.set_keyboard_opening(self.pedal.opening() as float)
-                        self.workshop.source.enqueue()
+                        self.presets.set_keyboard_opening(self.pedal.opening() as float)
+                        self.presets.source.enqueue()
                         self.pedal.advance(480)
                     }
                     if frames == 0 { break }
@@ -122,18 +121,18 @@ public class PresetPlayback:Canvas.Session {
     }
     func drawing(width:int, height:int) Canvas { self.feed(); return self.panel.drawing(width, height) }
     func update(delta:float) bool {
-        self.workshop.update(delta); self.feed(); return self.panel.update(delta)
+        self.presets.update(delta); self.feed(); return self.panel.update(delta)
     }
     func handle(event:@Events.Event) bool {
         match event {
-            window_focus_lost(value) => { self.pedal.pressed = false; self.workshop.set_braking(false) }
+            window_focus_lost(value) => { self.pedal.pressed = false; self.presets.set_braking(false) }
             key_pressed(value) => {
                 if !self.panel.accepts_text_input() && !value.modifiers.control && !value.modifiers.alt && !value.modifiers.system {
                     let m = value.keycode == 109 as uint32 || value.keycode == 77 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.m)
-                    if m { if !value.repeated { self.workshop.toggle_running() }
+                    if m { if !value.repeated { self.presets.toggle_running() }
                         return true }
                     if value.key == Keyboard.Key.s {
-                        if !value.repeated { self.workshop.set_braking(true) }
+                        if !value.repeated { self.presets.set_braking(true) }
                         return true
                     }
                     if value.key == Keyboard.Key.space {
@@ -144,12 +143,12 @@ public class PresetPlayback:Canvas.Session {
             }
             key_released(value) => {
                 if value.key == Keyboard.Key.space { self.pedal.pressed = false; return true }
-                if value.key == Keyboard.Key.s { self.workshop.set_braking(false); return true }
+                if value.key == Keyboard.Key.s { self.presets.set_braking(false); return true }
             }
             else => {}
         }
         let handled = self.panel.handle(event)
-        if self.generation != self.workshop.generation { self.feed() }
+        if self.generation != self.presets.generation { self.feed() }
         return handled
     }
     func accepts_text_input() bool { return self.panel.accepts_text_input() }

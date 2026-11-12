@@ -23,8 +23,9 @@ En rétrogradant, les roues peuvent entraîner le moteur au-delà du
 rupteur et ralentir le véhicule par frein moteur. Au point mort, le curseur
 **Charge du banc** permet de remettre le moteur en charge.
 
-`--check-references` vérifie les vues et les commandes et compare le son,
-le régime et le démarreur des neuf presets à ceux d’EngineWorkshop.
+La démo et ses exports utilisent directement les presets de GFX.Audio.
+`--check-references` vérifie les vues et les commandes et compare le PCM,
+le régime, le démarreur et les combustions au moteur GFX.Audio en rotation libre.
 `--render-reference <id> <wav>` exporte le même essai en WAV stéréo à 44,1 kHz.
 
 ## Simulateur de pièces

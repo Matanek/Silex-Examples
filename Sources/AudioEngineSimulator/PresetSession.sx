@@ -1,0 +1,156 @@
+use GFX.Audio.Engines
+use GFX.Audio.Engines.Vehicles
+use STD.Math
+
+public func catalogue() Vehicles.Profile[] {
+    let keys = ["454", "sport-turbo-i4", "sport-flat6", "sport-v8", "sport-v10", "sport-v12",
+        "cross-500-4t", "race-i4", "custom-1800"]
+    let profiles = Vehicles.catalogue()
+    var selected:Vehicles.Profile[] = []
+    for key in keys {
+        for profile in profiles {
+            if profile.key == key { selected.append(profile); break }
+        }
+    }
+    assert(selected.count() == keys.count(), "a reference preset is missing")
+    return selected
+}
+
+public class PresetSession {
+    var source:Engines.Engine
+    let catalogue:Vehicles.Profile[]
+    var selected_index:int
+    var generation:int = 0
+    var running:bool = false
+    var audition:bool = false
+    var requested_gear:int = 0
+    var throttle:float = 0.0
+    var load:float = 0.2
+    var volume:float = 0.7
+    private var braking:bool = false
+    private var keyboard_opening:float = 0.0
+    private var audition_time:float = 0.0
+
+    init(index:int = 0) {
+        let profiles = catalogue()
+        self.catalogue = profiles
+        self.selected_index = index
+        self.source = Vehicles.create(profiles[index].key, transmission:Engines.Transmission.manual)
+    }
+
+    func selected() Vehicles.Profile { return self.catalogue[self.selected_index] }
+
+    func choose_profile(index:int) {
+        let profile = self.catalogue[index]
+        var source = try Vehicles.create(profile.key, transmission:Engines.Transmission.manual) else error {
+            panic(error.detail)
+        }
+        self.source = source
+        self.selected_index = index
+        self.generation++
+        self.running = false
+        self.audition = false
+        self.requested_gear = 0
+        self.braking = false
+        self.keyboard_opening = 0.0
+        self.throttle = 0.0
+        self.load = 0.2
+        self.sync()
+    }
+
+    func toggle_running() {
+        self.running = !self.running
+        self.audition = false
+        self.sync()
+    }
+
+    func set_throttle(opening:float) {
+        self.throttle = opening
+        self.audition = false
+        self.sync()
+    }
+
+    func set_load(value:float) {
+        self.load = value
+        self.audition = false
+        self.sync()
+    }
+
+    func set_volume(value:float) {
+        self.volume = value
+        self.sync()
+    }
+
+    func select_gear(gear:int) {
+        if gear < 0 || gear > self.source.gearing.ratios.count() { return }
+        self.source.request_gear(gear)
+        self.requested_gear = gear
+        self.audition = false
+        self.sync()
+    }
+
+    func shift_gear(step:int) { self.select_gear(self.requested_gear + step) }
+
+    func set_braking(active:bool) {
+        if active { self.audition = false }
+        self.braking = active
+        self.sync()
+    }
+
+    func set_keyboard_opening(opening:float) {
+        if self.keyboard_opening == opening { return }
+        self.keyboard_opening = opening
+        self.sync()
+    }
+
+    func audition_cycle() {
+        self.requested_gear = 0
+        self.braking = false
+        self.running = true
+        self.audition = true
+        self.audition_time = 0.0
+        self.sync()
+    }
+
+    func update(delta:float) {
+        if self.audition {
+            self.audition_time += delta
+            if self.audition_time >= 8.0 { self.audition = false }
+        }
+        self.sync()
+    }
+
+    // Spread the useful free-revving range over the slider while retaining full throttle.
+    private func pedal(value:float) float {
+        if value >= 1.0 { return 1.0 }
+        var useful:float = 1.0
+        let key = self.selected().key
+        if key == "custom-1800" { useful = 0.16 }
+        if key == "sport-v8" { useful = 0.3 }
+        if useful == 1.0 { return value }
+        if value <= 0.9 { let position = value / 0.9; return useful * position * position }
+        return useful + (1.0 - useful) * ((value - 0.9) / 0.1)
+    }
+
+    private func sync() {
+        var controls = self.source.controls()
+        controls.running = self.running
+        controls.gear = self.requested_gear
+        controls.braking = self.braking
+        controls.load = self.load
+        controls.volume = self.volume
+        controls.throttle = null
+        if self.throttle > 0.0 { controls.throttle = self.pedal(self.throttle) }
+        if self.keyboard_opening > 0.0 {
+            controls.throttle = Math.mix(controls.throttle ?? 0.0, 1.0, self.keyboard_opening)
+        }
+        if self.audition {
+            let time = self.audition_time
+            controls.throttle = 0.0
+            controls.load = 0.1
+            if time >= 2.0 && time < 4.0 { controls.throttle = self.pedal((time - 2.0) / 2.0) }
+            if time >= 4.0 && time < 6.0 { controls.throttle = 1.0; controls.load = 0.7 }
+        }
+        try self.source.set_controls(controls) else error { panic(error.detail) }
+    }
+}

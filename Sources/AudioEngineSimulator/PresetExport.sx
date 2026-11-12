@@ -1,0 +1,36 @@
+use Module.PresetSession
+use Module.Wave
+
+public func render(path:str, key:str) {
+    let profiles = PresetSession.catalogue()
+    for index, profile in profiles.indexed() {
+        if profile.key != key { continue }
+        var vehicle = PresetSession(index)
+        vehicle.audition_cycle()
+        let rate = vehicle.source.format.sample_rate
+        let end = 10 * rate
+        let fade_frames = rate / 5
+        var samples:float32[] = []
+        for _ in 0...960 { samples.append(0.0) }
+        var output:float32[] = []
+        var frame = 0
+        while frame < end {
+            var frames = 480
+            if frame + frames > end { frames = end - frame }
+            if frame >= 8 * rate && vehicle.running { vehicle.toggle_running() }
+            vehicle.update(frames as float / rate as float)
+            try vehicle.source.render(&samples[0:frames * 2]) else error { panic(error.detail) }
+            for sample in 0...frames * 2 {
+                let remaining = end - 1 - frame - sample / 2
+                var fade:float = 1.0
+                if remaining < fade_frames { fade = remaining as float / fade_frames as float }
+                output.append(samples[sample] * fade)
+            }
+            frame += frames
+        }
+        Wave.write(path, rate, @output[0:output.count()], channels:2)
+        print(profile.name, " · WAV stéréo : ", path)
+        return
+    }
+    panic("Preset inconnu : $(key)")
+}

@@ -7,7 +7,7 @@ use Module.Bench
 use Module.EngineConfig
 use Module.Mixer
 use Module.PresetBench
-use Package.EngineWorkshop.Offline
+use Module.PresetExport
 use Module.ReferenceChecks
 
 func main() {
@@ -18,7 +18,7 @@ func main() {
     if arguments.count() == 2 && arguments[1] == "--check-references" { ReferenceChecks.run(); PresetBench.check(); return }
     if arguments.count() == 2 && arguments[1] == "--smoke" { Bench.show(smoke:true); return }
     if arguments.count() == 4 && arguments[1] == "--render-reference" {
-        Offline.render(arguments[3], arguments[2], reference_only:true)
+        PresetExport.render(arguments[3], arguments[2])
         return
     }
     if arguments.count() == 3 && arguments[1] == "--render-454" {

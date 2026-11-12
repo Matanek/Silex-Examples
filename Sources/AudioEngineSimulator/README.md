@@ -21,8 +21,9 @@ speed. A downshift can drive the engine past the ignition cut-off and
 slow the vehicle through engine braking.
 In neutral, **Charge du banc** applies the bench load.
 
-`--check-references` checks the views and controls and compares the PCM, RPM
-and starter state of all nine presets with EngineWorkshop.
+The demo and its exports use the GFX.Audio presets directly.
+`--check-references` checks the views and controls and compares PCM, RPM,
+starter state and firing events with the GFX.Audio engine in neutral.
 `--render-reference <id> <wav>` exports the same audition as 44.1 kHz stereo WAV.
 
 ## Parts-based simulator

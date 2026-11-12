@@ -1,52 +1,42 @@
 use GFX.Audio.Engines
-use GFX.UI
-use GFX.Input.Keyboard
-use Package.EngineWorkshop.Workshop.Workshop
+use GFX.Audio.Engines.Vehicles
+use Module.PresetSession
 
 public func run() {
-    let keys = ["454", "sport-turbo-i4", "sport-flat6", "sport-v8", "sport-v10", "sport-v12",
-        "cross-500-4t", "race-i4", "custom-1800"]
-    var selected = Workshop(reference_only:true)
-    assert(selected.catalogue.count() == keys.count())
-    var runtime = UI.Runtime(selected.view())
-    runtime.drawing(900, 700)
-    assert(runtime.key_pressed(Keyboard.Key.tab))
-    assert(runtime.key_pressed(Keyboard.Key.down))
-    assert(runtime.key_pressed(Keyboard.Key.end))
-    assert(runtime.key_pressed(Keyboard.Key.enter))
-    assert(selected.selected().key == "custom-1800")
-
     var a:float32[] = []
     var b:float32[] = []
     for _ in 0...960 { a.append(0.0); b.append(0.0) }
-    for index, key in keys.indexed() {
-        var demo = Workshop(reference_only:true, transmission:Engines.Transmission.manual)
-        var original = Workshop()
-        demo.choose_profile(index)
-        for i, profile in original.catalogue.indexed() {
-            if profile.key == key { original.choose_profile(i); break }
-        }
-        assert(demo.selected().key == key && original.selected().key == key)
-        demo.toggle_running(); original.toggle_running()
+    for index, profile in PresetSession.catalogue().indexed() {
+        let key = profile.key
+        var demo = PresetSession(index)
+        var reference = Vehicles.create(key)
+        var input = reference.controls()
+        demo.toggle_running()
+        input.running = true
         for block in 0...200 {
             if block == 60 {
-                demo.throttle.set(0.5); original.throttle.set(0.5)
-                demo.load.set(0.4); original.load.set(0.4)
+                demo.set_throttle(0.5)
+                demo.set_load(0.4)
+                input.throttle = 0.5
+                input.load = 0.4
+                let travel:float = 0.5 / 0.9
+                if key == "sport-v8" { input.throttle = 0.3 * travel * travel }
+                if key == "custom-1800" { input.throttle = 0.16 * travel * travel }
             }
-            if block == 100 { demo.accelerating = true; original.accelerating = true }
+            if block == 100 { demo.set_throttle(1.0); input.throttle = 1.0 }
             if block == 140 {
-                demo.accelerating = false; original.accelerating = false
-                demo.throttle.set(0.0); original.throttle.set(0.0)
+                demo.set_throttle(0.0)
+                input.throttle = null
             }
-            if block == 170 { demo.toggle_running(); original.toggle_running() }
+            if block == 170 { demo.toggle_running(); input.running = false }
             demo.update(480.0 / 44_100.0)
-            original.update(480.0 / 44_100.0)
+            try reference.set_controls(input) else error { panic(error.detail) }
             try demo.source.render(&a[0:960]) else error { panic(key + " · simulation at block $(block): $(error.detail)") }
-            try original.source.render(&b[0:960]) else error { panic(key + " · reference at block $(block): $(error.detail)") }
-            assert(demo.source.current_rpm() == original.source.current_rpm(), key + " · RPM differs at block $(block): $(demo.source.current_rpm()) / $(original.source.current_rpm())")
-            assert(demo.source.is_starting() == original.source.is_starting(), key + " · starter differs")
-            for cylinder in 0...demo.selected().cylinders {
-                assert(demo.source.last_combustion_frame(cylinder) == original.source.last_combustion_frame(cylinder))
+            try reference.render(&b[0:960]) else error { panic(key + " · reference at block $(block): $(error.detail)") }
+            assert(demo.source.current_rpm() == reference.current_rpm(), key + " · RPM differs at block $(block): $(demo.source.current_rpm()) / $(reference.current_rpm())")
+            assert(demo.source.is_starting() == reference.is_starting(), key + " · starter differs")
+            for cylinder in 0...profile.cylinders {
+                assert(demo.source.last_combustion_frame(cylinder) == reference.last_combustion_frame(cylinder))
             }
             for i in 0...960 {
                 if a[i] != b[i] { panic(key + " · PCM differs at block $(block), sample $(i): $(a[i]) / $(b[i])") }

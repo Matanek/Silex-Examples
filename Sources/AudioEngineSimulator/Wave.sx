@@ -9,17 +9,17 @@ func little_endian(bytes:&uint8[], value:int, width:int) {
     }
 }
 
-public func write(path:str, rate:int, samples:@float32[..]) {
-    // Mono RIFF/WAVE PCM16.
+public func write(path:str, rate:int, samples:@float32[..], channels:int = 1) {
+    let block_bytes = channels * 2
     var bytes:uint8[] = [82 as uint8, 73 as uint8, 70 as uint8, 70 as uint8]
     little_endian(bytes, 36 + samples.count() * 2, 4)
     for byte in [87, 65, 86, 69, 102, 109, 116, 32] { bytes.append(byte as uint8) }
     little_endian(bytes, 16, 4)
     little_endian(bytes, 1, 2)
-    little_endian(bytes, 1, 2)
+    little_endian(bytes, channels, 2)
     little_endian(bytes, rate, 4)
-    little_endian(bytes, rate * 2, 4)
-    little_endian(bytes, 2, 2)
+    little_endian(bytes, rate * block_bytes, 4)
+    little_endian(bytes, block_bytes, 2)
     little_endian(bytes, 16, 2)
     for byte in [100, 97, 116, 97] { bytes.append(byte as uint8) }
     little_endian(bytes, samples.count() * 2, 4)
