@@ -11,8 +11,9 @@ public struct Layout {
     let tachometer:Canvas.Rect
     let key:Canvas.Rect
     let pedal:Canvas.Rect
+    let gearbox:Canvas.Rect
 
-    init(width:int, height:int) {
+    init(width:int, height:int, with_gearbox:bool = false) {
         let w = width as float
         let h = height as float
         let margin = Math.clamp(Math.min(w, h) * 0.028, 2.0, 22.0)
@@ -56,9 +57,15 @@ public struct Layout {
         let lower_height = control_height * 0.44
         let lower_y = control_y + control_height - lower_height
         self.tachometer = rect(right_x, control_y, right_width, control_height - lower_height)
-        let side = Math.min(lower_height * 0.92, right_width * 0.45)
+        var side = Math.min(lower_height * 0.92, right_width * 0.45)
         let inset = Math.min(8.0, right_width * 0.036)
-        let pedal_x = right_x + right_width - inset - side
+        var pedal_x = right_x + right_width - inset - side
+        if with_gearbox {
+            side = Math.min(side, (right_width - 4.0 * inset) / 3.0)
+            let gearbox_x = right_x + right_width - inset - side
+            self.gearbox = rect(gearbox_x, lower_y + (lower_height - side) * 0.5, side, side)
+            pedal_x = gearbox_x - inset - side
+        } else { self.gearbox = rect(0.0, 0.0, 0.0, 0.0) }
         self.pedal = rect(pedal_x, lower_y + (lower_height - side) * 0.5, side, side)
         self.key = rect(right_x, lower_y, pedal_x - right_x, lower_height)
     }

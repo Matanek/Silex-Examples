@@ -15,6 +15,11 @@ Le curseur **Accélérateur** permet de doser l’ouverture. Le bouton **Essai 8
 d’EngineWorkshop. Choisir un autre moteur coupe automatiquement le contact.
 Tourner la clé ou appuyer sur **M** pour démarrer le moteur sélectionné.
 
+Cliquer sur un rapport de la grille à côté de la pédale pour l’engager.
+**↑** et **↓** changent de rapport, **N** ramène au point mort. Le rapport
+engagé et la vitesse s’affichent sur la grille. Au point mort, le curseur
+**Charge du banc** permet de remettre le moteur en charge.
+
 `--check-references` vérifie les vues et les commandes et compare le son,
 le régime et le démarreur des neuf presets à ceux d’EngineWorkshop.
 `--render-reference <id> <wav>` exporte le même essai en WAV stéréo à 44,1 kHz.

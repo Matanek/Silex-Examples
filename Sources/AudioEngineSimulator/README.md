@@ -14,6 +14,10 @@ position in 0.3 s. The **Accélérateur** slider sets the throttle opening. Clic
 preset switches off the ignition. Click the key or press **M** to start
 the selected engine.
 
+Click a gear on the gate beside the pedal to select it. **Up** and **Down**
+shift, and **N** selects neutral. The gate shows the engaged gear and speed.
+In neutral, **Charge du banc** applies the bench load.
+
 `--check-references` checks the views and controls and compares the PCM, RPM
 and starter state of all nine presets with EngineWorkshop.
 `--render-reference <id> <wav>` exports the same audition as 44.1 kHz stereo WAV.

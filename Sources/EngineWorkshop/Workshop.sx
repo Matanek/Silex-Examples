@@ -11,6 +11,8 @@ public class Workshop {
     var source:Engines.Engine
     let catalogue:Vehicles.Profile[]
     private let reference_only:bool
+    private let transmission:Engines.Transmission?
+    var requested_gear:int = 0
     var generation:int = 0
     var running:UI.State<bool> = UI.State<bool>(false)
     var profile:UI.State<int?> = UI.State<int?>(0)
@@ -37,10 +39,11 @@ public class Workshop {
     private var audition_time:float = 0.0
     private var display_time:float = 0.0
 
-    init(reference_only:bool = false) {
+    init(reference_only:bool = false, transmission:Engines.Transmission? = null) {
         self.reference_only = reference_only
+        self.transmission = transmission
         self.catalogue = workshop_catalogue(reference_only)
-        self.source = Vehicles.create("454")
+        self.source = Vehicles.create("454", transmission:transmission)
         self.active_capacity = self.catalogue[0].displacement_cc
         self.capacity.set(self.active_capacity)
         self.intake.set(self.source.profile.intake)
@@ -72,7 +75,7 @@ public class Workshop {
         self.install(self.selected_index, self.capacity.value())
     }
     private func install(index:int, capacity:float, stop_current:bool = false) {
-        match try Vehicles.create(self.catalogue[index].key, displacement_cc:capacity) {
+        match try Vehicles.create(self.catalogue[index].key, displacement_cc:capacity, transmission:self.transmission) {
             failure(error) => {
                 self.profile.set(self.selected_index); self.notice.set("Cylindrée refusée : $(error.detail)")
             }
@@ -81,6 +84,7 @@ public class Workshop {
                 self.selected_index = index; self.profile.set(index); self.capacity.set(capacity)
                 self.source = source; self.active_capacity = capacity; self.generation++
                 self.keyboard_opening = 0.0
+                self.requested_gear = 0
                 self.accelerating = false; self.audition = false; self.reference_active = false
                 // Profile idle is metadata; this command engages the dyno.
                 // Keep the reference bench's free-idle default for every model.
@@ -108,7 +112,15 @@ public class Workshop {
         var label = "Écoute B · réglages courants"; if self.reference_active { label = "Écoute A · réglages mémorisés" }
         self.comparison.set(label); self.sync()
     }
+    func select_gear(gear:int) {
+        if self.transmission == null || gear < 0 || gear > self.source.gearing.ratios.count() { return }
+        self.requested_gear = gear
+        self.audition = false
+        self.sync()
+    }
+
     func audition_cycle() {
+        self.requested_gear = 0
         self.running.set(true); self.audition = true; self.audition_time = 0.0
         self.notice.set("Essai 8 s · démarrage, gaz progressifs, charge, relâchement")
         self.sync()
@@ -136,6 +148,7 @@ public class Workshop {
     func sync() {
         var controls = self.source.controls()
         controls.running = self.running.value(); controls.accelerating = self.accelerating
+        controls.gear = self.requested_gear
         controls.throttle = null
         if !self.accelerating && self.throttle.value() > 0.0 { controls.throttle = self.pedal(self.throttle.value()) }
         if self.keyboard_opening > 0.0 {

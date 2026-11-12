@@ -1,5 +1,6 @@
 use GFX.Audio
 use GFX.Audio.EngineSimulation
+use GFX.Audio.Engines
 use GFX.Canvas
 use GFX.Color
 use GFX.Input.Events
@@ -26,7 +27,7 @@ class PresetPanel:Canvas.Session {
     private var combustion:CombustionDisplay
     private var grouped_banks:bool = false
     private var first_bank_on_right:bool = false
-    private var layout:PanelLayout.Layout = PanelLayout.Layout(1_120, 740)
+    private var layout:PanelLayout.Layout = PanelLayout.Layout(1_120, 740, with_gearbox:true)
     private var measuring:Canvas = Canvas()
     private var picture:Canvas = Canvas()
     private var generation:int = -1
@@ -104,7 +105,7 @@ class PresetPanel:Canvas.Session {
 
     func drawing(width:int, height:int) Canvas {
         if width < 80 || height < 80 { return Canvas() }
-        self.layout = PanelLayout.Layout(width, height)
+        self.layout = PanelLayout.Layout(width, height, with_gearbox:true)
         self.refresh_geometry()
         let layout = self.layout
         let setup = self.setup
@@ -120,6 +121,9 @@ class PresetPanel:Canvas.Session {
         let key_turn = self.key_turn
         let rpm = self.rpm
         let redline = self.workshop.selected().redline_rpm
+        let transmission = self.workshop.source.drive_state()!
+        let gears = self.workshop.source.gearing.ratios.count()
+        let requested_gear = self.workshop.requested_gear
         var measuring = self.measuring
         self.picture.clear()
         self.picture.paint(func(painter:&Canvas.Painter) {
@@ -129,6 +133,7 @@ class PresetPanel:Canvas.Session {
             EngineViews.profile(painter, layout.profile, setup, states, combustion_clock, bank_angle:bank_angle)
             EngineViews.overhead(painter, layout.overhead, setup, states, combustion_clock)
             Dashboard.instruments(painter, layout, powered, starting, key_turn, opening, rpm, redline)
+            draw_gearbox(painter, measuring, layout.gearbox, transmission, gears, requested_gear)
             let frame = layout.equipment
             Dashboard.panel(painter, frame)
             let view = PanelLayout.Viewport(frame, 160.0, 129.0)
@@ -170,6 +175,12 @@ class PresetPanel:Canvas.Session {
             mouse_button_pressed(value) => {
                 if value.button != Pointer.MouseButton.left { return false }
                 if contains(self.layout.key, value.position) { self.workshop.toggle_running(); return true }
+                for gear in 0...self.workshop.source.gearing.ratios.count() + 1 {
+                    if contains(gear_button(self.layout.gearbox, gear), value.position) {
+                        self.workshop.select_gear(gear)
+                        return true
+                    }
+                }
                 let presets = PanelLayout.Viewport(self.layout.setup, 162.0, 345.0)
                 for i in 0...self.labels.count() {
                     if contains(preset_row(presets, i), value.position) {
@@ -201,6 +212,18 @@ class PresetPanel:Canvas.Session {
                     if let index = self.drag {
                         self.drag = null; self.change_control(index, value.position.x); return true
                     }
+                }
+            }
+            key_pressed(value) => {
+                if value.modifiers.control || value.modifiers.alt || value.modifiers.system { return false }
+                match value.key {
+                    n => { if !value.repeated { self.workshop.select_gear(0) }
+                        return true }
+                    up => { if !value.repeated { self.workshop.select_gear(self.workshop.requested_gear + 1) }
+                        return true }
+                    down => { if !value.repeated { self.workshop.select_gear(self.workshop.requested_gear - 1) }
+                        return true }
+                    else => {}
                 }
             }
             window_focus_lost(value) => { self.drag = null }
@@ -296,7 +319,51 @@ class PresetPanel:Canvas.Session {
         }
         assert(cutaway && overhead && pedal && liners == 6)
         assert(self.layout.profile.position.y + self.layout.profile.size.y < self.layout.overhead.position.y)
+        let pedal_frame = self.layout.pedal
+        let gearbox = self.layout.gearbox
+        assert(gearbox.position.x > pedal_frame.position.x + pedal_frame.size.x && gearbox.position.y == pedal_frame.position.y)
+        assert(contains(gearbox, gear_button(gearbox, 0).position))
+        assert(contains(gearbox, gear_button(gearbox, self.workshop.source.gearing.ratios.count()).position))
     }
+}
+
+func gear_button(frame:Canvas.Rect, gear:int) Canvas.Rect {
+    let view = PanelLayout.Viewport(frame, 92.0, 100.0)
+    var position = view.point(32.0, 28.0)
+    if gear > 0 {
+        position = view.point(32.0 * ((gear - 1) / 2) as float, 56.0 * ((gear - 1) % 2) as float)
+    }
+    return PanelLayout.rect(position.x, position.y, 28.0 * view.scale, 24.0 * view.scale)
+}
+
+func draw_gearbox(painter:&Canvas.Painter, measuring:Canvas, frame:Canvas.Rect,
+    state:Engines.DriveState, gears:int, requested:int) {
+    Dashboard.panel(painter, frame)
+    let view = PanelLayout.Viewport(frame, 92.0, 100.0)
+    let gate = Canvas.Stroke(Color.bytes(64, 82, 102), 2.0 * view.scale)
+    painter.stroke(Canvas.Line(view.point(14.0, 40.0), view.point(78.0, 40.0)), gate)
+    for pair in 0...(gears + 1) / 2 {
+        let x = 14.0 + pair as float * 32.0
+        var end = 68.0
+        if pair * 2 + 2 > gears { end = 40.0 }
+        painter.stroke(Canvas.Line(view.point(x, 12.0), view.point(x, end)), gate)
+    }
+    for gear in 0...gears + 1 {
+        let target = gear_button(frame, gear)
+        var label = "N"
+        if gear > 0 { label = "$(gear)" }
+        button(painter, measuring, target, label, gear == state.gear, 14.0 * view.scale)
+        if gear == requested && gear != state.gear {
+            painter.stroke(Canvas.Rect(target.position, target.size, radius:target.size.y * 0.20),
+                Canvas.Stroke(Color.bytes(255, 194, 99), view.scale))
+        }
+    }
+    var status = "$(Math.round(state.speed_kmh) as int) km/h"
+    if state.shift_refused { status = "Rapport refusé" }
+    let position = view.point(0.0, 83.0)
+    let label = PanelLayout.rect(position.x, position.y, 92.0 * view.scale, 17.0 * view.scale)
+    Dashboard.centered_label(painter, measuring, label, status, Canvas.TextStyle(size:11.0 * view.scale,
+        color:Color.bytes(176, 195, 213)))
 }
 
 func slider_y(index:int) float { return 29.0 + 43.0 * index as float }
@@ -335,7 +402,7 @@ func contains(frame:Canvas.Rect, point:Math.Vec2) bool {
 }
 
 public func show() {
-    var workshop = Workshop(reference_only:true)
+    var workshop = Workshop(reference_only:true, transmission:Engines.Transmission.manual)
     var combustion = CombustionDisplay()
     var session = PresetPlayback(workshop, PresetPanel(workshop, combustion), Audio(), combustion)
     Viewer.show(session, Viewer.CanvasSettings(width:1_120, height:740, title:"AudioEngineSimulator",
@@ -343,7 +410,7 @@ public func show() {
 }
 
 public func check() {
-    var workshop = Workshop(reference_only:true)
+    var workshop = Workshop(reference_only:true, transmission:Engines.Transmission.manual)
     var combustion = CombustionDisplay()
     var panel = PresetPanel(workshop, combustion)
     var audio = Audio.offline(sample_rate:44_100, channels:2)
@@ -353,7 +420,7 @@ public func check() {
     panel.check_slider(0, 0.0)
     panel.check_slider(1, 0.2)
     panel.check_slider(2, 0.7)
-    let layout = PanelLayout.Layout(1_120, 740)
+    let layout = PanelLayout.Layout(1_120, 740, with_gearbox:true)
     let presets = PanelLayout.Viewport(layout.setup, 162.0, 345.0)
     for i, profile in workshop.catalogue.indexed() {
         let row = preset_row(presets, i)
@@ -370,10 +437,10 @@ public func check() {
     panel.check_views(1_120, 740)
     panel.check_views(420, 700)
     session.drawing(420, 700)
-    let key = PanelLayout.Layout(420, 700).key
+    let key = PanelLayout.Layout(420, 700, with_gearbox:true).key
     assert(session.handle(Events.Event.mouse_button_pressed(click(key.position.add(key.size.multiply(0.5))))))
     assert(workshop.running.value())
-    let controls = PanelLayout.Viewport(PanelLayout.Layout(420, 700).equipment, 160.0, 129.0)
+    let controls = PanelLayout.Viewport(PanelLayout.Layout(420, 700, with_gearbox:true).equipment, 160.0, 129.0)
     let throttle = controls.point(160.0 * 0.9, slider_y(0))
     let load = controls.point(160.0 * 0.4, slider_y(1))
     let volume = controls.point(160.0, slider_y(2))
@@ -413,7 +480,7 @@ public func check() {
         audio.render(480)
     }
     assert(Math.abs((workshop.source.controls().throttle ?? 0.0) - 0.16) < 0.0001)
-    let narrow_presets = PanelLayout.Viewport(PanelLayout.Layout(420, 700).setup, 162.0, 345.0)
+    let narrow_presets = PanelLayout.Viewport(PanelLayout.Layout(420, 700, with_gearbox:true).setup, 162.0, 345.0)
     let audition = preset_row(narrow_presets, preset_labels().count())
     let chevrolet = preset_row(narrow_presets, 0)
     assert(session.handle(Events.Event.mouse_button_pressed(click(audition.position.add(audition.size.multiply(0.5))))))
@@ -437,7 +504,27 @@ public func check() {
     let ignition = combustion.last_combustion_frame(0)
     assert(ignition != null, "no native combustion reached the offline audio playhead")
     assert(ignition! <= combustion.frame())
-    print("Banc des presets · combustions, cylindres, curseurs et redémarrage vérifiés")
+    let gearbox = PanelLayout.Layout(420, 700, with_gearbox:true).gearbox
+    let first = gear_button(gearbox, 1)
+    let neutral = gear_button(gearbox, 0)
+    assert(workshop.source.drive_state()!.gear == 0)
+    assert(session.handle(Events.Event.mouse_button_pressed(click(first.position.add(first.size.multiply(0.5))))))
+    assert(workshop.source.controls().gear == 1)
+    timeout.restart()
+    while workshop.source.drive_state()!.gear != 1 && timeout.get_elapsed_seconds() < 5.0 {
+        session.update(480.0 / 44_100.0)
+        audio.render(480)
+    }
+    assert(workshop.source.drive_state()!.gear == 1)
+    assert(session.handle(Events.Event.mouse_button_pressed(click(neutral.position.add(neutral.size.multiply(0.5))))))
+    assert(workshop.source.controls().gear == 0)
+    timeout.restart()
+    while workshop.source.drive_state()!.gear != 0 && timeout.get_elapsed_seconds() < 5.0 {
+        session.update(480.0 / 44_100.0)
+        audio.render(480)
+    }
+    assert(workshop.source.drive_state()!.gear == 0)
+    print("Banc des presets · combustions, curseurs, boîte et redémarrage vérifiés")
 }
 
 func click(position:Math.Vec2, down:bool = true) Events.MouseButtonEvent {

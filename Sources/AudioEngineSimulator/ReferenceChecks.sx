@@ -1,3 +1,4 @@
+use GFX.Audio.Engines
 use GFX.UI
 use GFX.Input.Keyboard
 use Package.EngineWorkshop.Workshop.Workshop
@@ -19,7 +20,7 @@ public func run() {
     var b:float32[] = []
     for _ in 0...960 { a.append(0.0); b.append(0.0) }
     for index, key in keys.indexed() {
-        var demo = Workshop(reference_only:true)
+        var demo = Workshop(reference_only:true, transmission:Engines.Transmission.manual)
         var original = Workshop()
         demo.choose_profile(index)
         for i, profile in original.catalogue.indexed() {
@@ -42,7 +43,7 @@ public func run() {
             original.update(480.0 / 44_100.0)
             demo.source.render(&a[0:960])
             original.source.render(&b[0:960])
-            assert(demo.source.current_rpm() == original.source.current_rpm(), key + " · RPM differs")
+            assert(demo.source.current_rpm() == original.source.current_rpm(), key + " · RPM differs at block $(block): $(demo.source.current_rpm()) / $(original.source.current_rpm())")
             assert(demo.source.is_starting() == original.source.is_starting(), key + " · starter differs")
             for cylinder in 0...demo.selected().cylinders {
                 assert(demo.source.last_combustion_frame(cylinder) == original.source.last_combustion_frame(cylinder))
@@ -53,6 +54,7 @@ public func run() {
             if let frame = demo.source.last_combustion_frame(cylinder) { assert(frame <= demo.source.frame()) }
             else { panic(key + " · aucune combustion pour le cylindre $(cylinder)") }
         }
-        print(key, " · PCM, régime, démarreur et combustions identiques")
+        assert(demo.source.drive_state()!.gear == 0)
+        print(key, " · PCM, régime, démarreur et combustions identiques au point mort")
     }
 }

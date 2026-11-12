@@ -30,12 +30,15 @@ func wave(path:str, samples:@float32[..]) {
     File.write_all(path, @bytes[0:bytes.count()])
 }
 public func render(path:str, profile:str = "454", catalogue:bool = false, reference_only:bool = false) {
+    var transmission:Engines.Transmission? = null
+    if reference_only { transmission = Engines.Transmission.manual }
     var listing = Workshop(reference_only:reference_only); var output:float32[] = []
     var samples = zeros(960); var found = false
     for i in 0...listing.catalogue.count() {
         if !catalogue && listing.catalogue[i].key != profile { continue }
         found = true
-        var vehicle = Workshop(reference_only:reference_only); vehicle.choose_profile(i); vehicle.audition_cycle()
+        var vehicle = Workshop(reference_only:reference_only, transmission:transmission)
+        vehicle.choose_profile(i); vehicle.audition_cycle()
         print(output.count() / 88_200, " s: ", listing.catalogue[i].key, " / ", listing.name(i))
         var frame = 0
         while frame < 441_000 {
