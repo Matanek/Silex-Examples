@@ -16,8 +16,8 @@ the selected engine.
 
 Click a gear on the gate beside the pedal to select it. **Up** and **Down**
 shift, and **N** selects neutral. The gate shows the engaged gear and speed.
-Hold **S** to brake. After a refused downshift, slow down and select the
-gear again.
+Hold **S** to brake. With the pedal released, a downshift waits for the
+speed shown on the gate. Selecting another gear replaces the pending request.
 In neutral, **Charge du banc** applies the bench load.
 
 `--check-references` checks the views and controls and compares the PCM, RPM

@@ -359,7 +359,12 @@ func draw_gearbox(painter:&Canvas.Painter, measuring:Canvas, frame:Canvas.Rect,
         }
     }
     var status = "$(Math.round(state.speed_kmh) as int) km/h"
-    if state.shift_refused { status = "Rapport refusé" }
+    if state.shift_refused {
+        status = "Ralentir"
+        if let limit = state.shift_speed_limit_kmh {
+            status = "≤ $(Math.floor(limit) as int) km/h"
+        }
+    }
     let position = view.point(0.0, 83.0)
     let label = PanelLayout.rect(position.x, position.y, 92.0 * view.scale, 17.0 * view.scale)
     Dashboard.centered_label(painter, measuring, label, status, Canvas.TextStyle(size:11.0 * view.scale,
