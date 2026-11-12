@@ -1,0 +1,148 @@
+use GFX.Audio.EngineSimulation
+use GFX.Audio.Synthesis.EngineParts
+use STD.Math
+
+public struct Setup {
+    var vee:bool = true
+    var cylinders:int = 8
+    var displacement:int = 5_212
+    var tuning:EngineSimulation.Assembly? = null
+
+    func select(vee:bool, count:int) Setup {
+        if self.vee == vee && self.cylinders == count { return self }
+        var total = self.displacement
+        if total < count * 50 { total = count * 50 }
+        if total > count * 3_000 { total = count * 3_000 }
+        return Setup(vee:vee, cylinders:count, displacement:total)
+    }
+
+    func travel() float {
+        return Math.log(self.displacement as float / (50 * self.cylinders) as float) / Math.log(60.0)
+    }
+
+    func at_travel(position:float) Setup {
+        let cc = Math.round((50 * self.cylinders) as float * Math.pow(60.0, Math.clamp(position, 0.0, 1.0))) as int
+        if cc == self.displacement { return self }
+        return Setup(vee:self.vee, cylinders:self.cylinders, displacement:cc)
+    }
+
+    func rows() int {
+        if self.vee { return self.cylinders / 2 }
+        return self.cylinders
+    }
+
+    func bank_angle() float {
+        if !self.vee { return 0.0 }
+        match self.cylinders {
+            6 => { return 60.0 }
+            10 => { return 72.0 }
+            12 => { return 60.0 }
+            16 => { return 60.0 }
+            else => { return 90.0 }
+        }
+    }
+
+    func stroke_mm() float32 {
+        if let tuning = self.tuning { return tuning.cylinders[0].stroke_mm }
+        return 90.0 * self.cylinder_scale()
+    }
+
+    func load_scale() float32 {
+        return self.displacement as float32 / 5_212.0 * Math.max(1.0, self.cylinder_scale())
+    }
+
+    func starter_frames() int { return Math.round(24_000.0 * Math.max(1.0, self.cylinder_scale())) as int }
+
+    func assembly() EngineSimulation.Assembly {
+        if let tuning = self.tuning { return tuning }
+        let scale = self.cylinder_scale()
+        let size = self.displacement as float32 / 5_212.0
+        let volume = self.displacement as float32 / self.cylinders as float32 / 651.5
+        var cylinders:EngineSimulation.Cylinder[] = []
+        for phase in firing_angles(self.vee, self.cylinders) {
+            cylinders.append(EngineSimulation.Cylinder(bore_mm:96.0 * scale, stroke_mm:90.0 * scale,
+                rod_mm:148.0 * scale, piston_kg:0.48 * Math.pow(volume, 0.8), chamber_cc:76.0 * volume,
+                firing_degrees:phase))
+        }
+        var starter_nm = 195.0 * Math.pow(size, 0.85) * Math.max(1.0, Math.pow(volume, 0.35))
+        // A stationary single has no momentum to cross compression. The default
+        // geometry peaks at about 0.26 Nm per cc before friction and drag.
+        if self.cylinders == 1 { starter_nm = 0.32 * self.displacement as float32 }
+        return EngineSimulation.Assembly(cylinders:cylinders,
+            inertia_kg_m2:Math.max(0.024, 0.72 * Math.pow(size, 0.78) * Math.max(1.0, Math.sqrt(volume))),
+            starter_nm:starter_nm)
+    }
+
+    func tuned(value:EngineSimulation.Assembly) Setup {
+        let cylinder = value.cylinders[0]
+        let cc = Math.pi<float32>() * cylinder.bore_mm * cylinder.bore_mm * cylinder.stroke_mm / 4_000.0
+        return Setup(vee:self.vee, cylinders:self.cylinders,
+            displacement:Math.round(cc * self.cylinders as float32) as int, tuning:value)
+    }
+
+    func same(other:Setup) bool {
+        if self.vee != other.vee || self.cylinders != other.cylinders || self.displacement != other.displacement {
+            return false
+        }
+        if self.tuning == null && other.tuning == null { return true }
+        return same_assembly(self.assembly(), other.assembly())
+    }
+
+    private func cylinder_scale() float32 {
+        let volume = self.displacement as float32 / self.cylinders as float32
+        let reference = Math.pi<float32>() * 96.0 * 96.0 * 90.0 / 4_000.0
+        return Math.pow(volume / reference, 1.0 / 3.0)
+    }
+}
+
+public func same_assembly(first:EngineSimulation.Assembly, second:EngineSimulation.Assembly) bool {
+    if first.inertia_kg_m2 != second.inertia_kg_m2 || first.starter_nm != second.starter_nm ||
+        first.cylinders.count() != second.cylinders.count() || first.exhausts.count() != second.exhausts.count() {
+        return false
+    }
+    for i in 0...first.cylinders.count() {
+        if first.cylinders[i] != second.cylinders[i] { return false }
+    }
+    for i in 0...first.exhausts.count() {
+        if first.exhausts[i] != second.exhausts[i] { return false }
+    }
+    return true
+}
+
+public func chevrolet_454() Setup {
+    var cylinders:EngineSimulation.Cylinder[] = []
+    for index, phase in firing_angles(true, 8).indexed() {
+        cylinders.append(EngineSimulation.Cylinder(bore_mm:107.95, stroke_mm:101.6,
+            rod_mm:155.829, piston_kg:0.88, chamber_cc:118.0, firing_degrees:phase, exhaust_index:index % 2))
+    }
+    let outlet = EngineParts.Exhaust(header:EngineParts.Pipe(length_mm:254.0, diameter_mm:45.0),
+        pipe:EngineParts.Pipe(length_mm:1_180.0, diameter_mm:50.0),
+        silencer:EngineParts.Silencer(volume_litres:1.65, absorption:0.15, baffles:2))
+    var quieter = outlet
+    quieter.outlet_level = 0.1
+    return Setup().tuned(EngineSimulation.Assembly(cylinders:cylinders, exhausts:[outlet, quieter],
+        inertia_kg_m2:0.65, starter_nm:271.0))
+}
+
+public func counts(vee:bool) int[] {
+    if vee { return [2, 4, 6, 8, 10, 12, 16] }
+    return [1, 2, 3, 4, 5, 6]
+}
+
+func firing_angles(vee:bool, count:int) float32[] {
+    if !vee {
+        match count {
+            1 => { return [0.0] }
+            2 => { return [0.0, 360.0] }
+            3 => { return [0.0, 480.0, 240.0] }
+            4 => { return [0.0, 540.0, 180.0, 360.0] }
+            5 => { return [0.0, 144.0, 576.0, 288.0, 432.0] }
+            else => { return [0.0, 480.0, 240.0, 600.0, 120.0, 360.0] }
+        }
+    }
+    if count == 2 { return [0.0, 270.0] }
+    if count == 8 { return [0.0, 630.0, 270.0, 180.0, 450.0, 360.0, 540.0, 90.0] }
+    var result:float32[] = []
+    for i in 0...count { result.append(i as float32 * 720.0 / count as float32) }
+    return result
+}

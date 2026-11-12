@@ -1,0 +1,841 @@
+use GFX.Audio
+use GFX.Audio.EngineSimulation
+use GFX.Canvas
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.Input.Pointer
+use GFX.UI
+use GFX.Viewer
+use GFX.Window
+use STD.Error.Kind
+use STD.Math
+use Module.Accelerator
+use Module.Dashboard
+use Module.EngineConfig
+use Module.EngineEditor
+use Module.EngineEquipment
+use Module.EngineSetup
+use Module.EngineViews
+use Module.Mixer
+use Module.PanelLayout
+
+class Session:Canvas.Session {
+    private let stream_capacity:int = 3_840
+    private var setup:EngineConfig.Setup = EngineConfig.Setup()
+    private var equipment:EngineEquipment.Selection = EngineEquipment.Selection()
+    private var editor:EngineEditor.Editor? = null
+    private var editor_ui:UI.Session? = null
+    private var displacement_preview:EngineConfig.Setup? = null
+    private var load_scale:float32
+    private var engine:EngineSimulation.Simulator
+    private var audio:Audio
+    private var stream:Audio.Stream
+    private var playing:Audio.PlayingSound = Audio.PlayingSound()
+    private var samples:float32[] = []
+    private var sources:EngineSimulation.Sources[] = []
+    private var levels:Mixer.Levels = Mixer.Levels()
+    private var applied_levels:Mixer.Levels = Mixer.Levels()
+    private var mix_drag:int? = null
+    private var offset:int = 240
+    private var picture:Canvas = Canvas()
+    private var text_measurer:Canvas = Canvas()
+    private var setup_frame:Canvas.Rect = PanelLayout.rect(0.0, 0.0, 0.0, 0.0)
+    private var mix_frame:Canvas.Rect = PanelLayout.rect(0.0, 0.0, 0.0, 0.0)
+    private var equipment_frame:Canvas.Rect = PanelLayout.rect(0.0, 0.0, 0.0, 0.0)
+    private var key:Canvas.Rect = PanelLayout.rect(0.0, 0.0, 0.0, 0.0)
+    private var pedal_mode:Canvas.Rect = PanelLayout.rect(0.0, 0.0, 0.0, 0.0)
+    private var powered:bool = false
+    private var key_turn:float = 0.0
+    private var pedal:Accelerator.Pedal = Accelerator.Pedal()
+    private var idle_speed:float32 = 0.0
+    private var charge:float32 = 0.0
+    private var starter_until:int = 0
+    private var elapsed:float = 0.0
+    private var smoke:bool
+    private var smoke_started:bool = false
+    private var frame_count:int = 0
+    private var largest_rpm:float = 0.0
+
+    init(offline:bool = false, smoke:bool = false) {
+        self.engine = EngineSimulation.Simulator.create(self.setup.assembly())
+        self.load_scale = self.setup.load_scale()
+        self.smoke = smoke
+        if offline { self.audio = Audio.offline(sample_rate:48_000, channels:1) } else { self.audio = Audio() }
+        self.stream = self.audio.stream(sample_rate:48_000, channels:1, capacity_frames:self.stream_capacity)
+        for _ in 0...240 {
+            self.samples.append(0.0)
+            self.sources.append(EngineSimulation.Sources())
+        }
+    }
+
+    private func starting() bool { return self.powered && self.engine.frame() < self.starter_until }
+    private func toggle() {
+        self.powered = !self.powered
+        if self.powered { self.starter_until = self.engine.frame() + self.setup.starter_frames() }
+    }
+
+    private func configure(setup:EngineConfig.Setup) str? {
+        if setup.same(self.setup) { return null }
+        var next = try EngineSimulation.Simulator.create(setup.assembly()) else error { return error.detail }
+        if self.playing.is_valid() { self.audio.stop(self.playing) }
+        self.audio.release(self.stream)
+        self.stream = self.audio.stream(sample_rate:48_000, channels:1, capacity_frames:self.stream_capacity)
+        self.playing = Audio.PlayingSound()
+        self.offset = 240
+        self.applied_levels = self.levels
+        self.powered = false
+        self.pedal.pressed = false
+        self.idle_speed = 0.0
+        self.charge = 0.0
+        self.engine = next
+        self.load_scale = setup.load_scale()
+        self.setup = setup
+        self.equipment = EngineEquipment.Selection()
+        return null
+    }
+
+    private func close_editor() {
+        self.editor_ui = null
+        self.editor = null
+    }
+
+    private func displacement_at(x:float) EngineConfig.Setup {
+        let track = EngineSetup.slider(self.setup_frame)
+        return self.setup.at_travel((x - track.position.x) / track.size.x)
+    }
+
+    private func select_at(point:Math.Vec2) bool {
+        if !contains(self.setup_frame, point) { return false }
+        if contains(EngineSetup.chevrolet(self.setup_frame), point) {
+            self.configure(EngineConfig.chevrolet_454())
+            return true
+        }
+        if contains(EngineSetup.advanced(self.setup_frame), point) {
+            self.pedal.pressed = false
+            self.displacement_preview = null
+            self.mix_drag = null
+            var editor = EngineEditor.Editor(self.setup)
+            self.editor_ui = UI.Session(UI.Reactive(editor.view))
+            self.editor = editor
+            return true
+        }
+        if contains(EngineSetup.topology(self.setup_frame, false), point) {
+            var count = self.setup.cylinders
+            if count > 6 { count = 6 }
+            self.configure(self.setup.select(false, count))
+            return true
+        }
+        if contains(EngineSetup.topology(self.setup_frame, true), point) {
+            let count = self.setup.cylinders + self.setup.cylinders % 2
+            self.configure(self.setup.select(true, count))
+            return true
+        }
+        for i, count in EngineConfig.counts(self.setup.vee).indexed() {
+            if contains(EngineSetup.cylinder(self.setup_frame, i), point) {
+                self.configure(self.setup.select(self.setup.vee, count))
+                return true
+            }
+        }
+        if contains(EngineSetup.slider(self.setup_frame), point) {
+            self.displacement_preview = self.displacement_at(point.x)
+            return true
+        }
+        return false
+    }
+
+    private func set_mix(index:int, x:float) {
+        let track = Mixer.slider(self.mix_frame, index)
+        if track.size.x > 0.0 {
+            self.levels.gain[index] = Math.clamp((x - track.position.x) / track.size.x, 0.0, 1.0) as float32
+        }
+    }
+
+    private func select_mix(point:Math.Vec2) bool {
+        if !contains(self.mix_frame, point) { return false }
+        for i in 0...self.levels.gain.count() {
+            let track = Mixer.slider(self.mix_frame, i)
+            if point.y >= track.position.y && point.y < track.position.y + track.size.y {
+                self.mix_drag = i
+                self.set_mix(i, point.x)
+                return true
+            }
+        }
+        return false
+    }
+
+    private func select_equipment(point:Math.Vec2) bool {
+        if let choice = EngineEquipment.select(self.equipment_frame, point, self.equipment, self.setup.cylinders > 1) {
+            if choice != self.equipment {
+                let (paths, routing) = choice.exhaust(self.setup.assembly())
+                try self.engine.set_exhaust(paths, routing) else error { panic(error.detail) }
+                self.equipment = choice
+            }
+            return true
+        }
+        return false
+    }
+
+    private func feed() {
+        let playback_reserve = 3_120 // 65 ms of audio at 48 kHz.
+        for _ in 0...self.stream_capacity / 240 {
+            if self.audio.stream_info(self.stream).queued_frames >= playback_reserve { break }
+            if self.offset == 240 {
+                let starter = self.starting()
+                let rpm = self.engine.rpm()
+                let load = bench_load(rpm, self.load_scale, starter, self.pedal.opening())
+                var idle_trim:float32 = 0.0
+                if self.setup.cylinders == 1 {
+                    // Smooth the speed between firings over about 100 ms.
+                    self.idle_speed += 0.05 * (rpm - self.idle_speed)
+                    idle_trim = Math.clamp((900.0 - self.idle_speed) * 0.00024, 0.0, 0.20)
+                }
+                var target:float32 = 0.0
+                if self.powered { target = self.pedal.throttle(idle_trim) }
+                // Manifold filling follows pedal travel with a time constant of about 25 ms.
+                self.charge += 0.18 * (target - self.charge)
+                self.engine.set_controls(EngineSimulation.Controls(starter:starter, ignition:self.powered,
+                    throttle:self.charge, load_nm:load))
+                self.engine.render_sources(&self.sources[0:240])
+                self.levels.write(self.applied_levels, @self.sources[0:240], &self.samples[0:240])
+                self.applied_levels = self.levels
+                self.pedal.advance(240)
+                self.offset = 0
+            }
+            match try self.audio.write(self.stream, @self.samples[self.offset:240]) {
+                failure(error) => {
+                    if error.kind != Kind.would_block() { panic(error.detail) }
+                    break
+                }
+                success(count) => {
+                    self.offset += count
+                    if count == 0 { break }
+                }
+            }
+        }
+        if !self.playing.is_valid() && self.audio.stream_info(self.stream).queued_frames >= playback_reserve {
+            self.playing = self.audio.play(self.stream)
+        }
+    }
+
+    func update(delta:float) bool {
+        if self.smoke && !self.smoke_started { self.toggle(); self.smoke_started = true }
+        self.elapsed += delta
+        if self.smoke && self.elapsed > 0.62 { self.pedal.pressed = true }
+        let previous_turn = self.key_turn
+        let previous_opening = self.pedal.opening()
+        if self.powered { self.key_turn = Math.min(1.0, self.key_turn + delta / 0.16) }
+        else { self.key_turn = Math.max(0.0, self.key_turn - delta / 0.16) }
+        self.feed()
+        if var ui = self.editor_ui { return ui.update(delta) }
+        if self.smoke { self.largest_rpm = Math.max(self.largest_rpm, self.engine.rpm() as float) }
+        return self.powered || self.engine.rpm() > 0.0 ||
+            previous_turn != self.key_turn || previous_opening != self.pedal.opening()
+    }
+
+    func drawing(width:int, height:int) Canvas {
+        if var ui = self.editor_ui { return ui.drawing(width, height) }
+        if width < 80 || height < 80 { return Canvas() }
+        let layout = PanelLayout.Layout(width, height)
+        self.setup_frame = layout.setup
+        self.mix_frame = layout.mixer
+        self.equipment_frame = layout.equipment
+        self.key = layout.key
+        self.pedal_mode = layout.pedal_mode
+        self.frame_count += 1
+        var cylinders:EngineSimulation.CylinderState[] = []
+        for i in 0...self.setup.cylinders { cylinders.append(self.engine.cylinder(i)!) }
+        let setup = self.setup
+        let preview = self.displacement_preview ?? setup
+        let levels = self.levels
+        let equipment = self.equipment
+        let clock = self.engine.frame()
+        let rpm = self.engine.rpm() as float
+        let powered = self.powered
+        let starting = self.starting()
+        let key_turn = self.key_turn
+        let opening = self.pedal.opening() as float
+        let progressive = self.pedal.progressive
+        var measuring = self.text_measurer
+        self.picture.clear()
+        self.picture.paint(func(painter:&Canvas.Painter) {
+            EngineSetup.draw(painter, measuring, layout.setup, preview)
+            Mixer.draw(painter, layout.mixer, levels)
+            Dashboard.panel(painter, layout.profile)
+            Dashboard.panel(painter, layout.overhead)
+            EngineViews.profile(painter, layout.profile, setup, cylinders, clock)
+            EngineViews.overhead(painter, layout.overhead, setup, cylinders, clock)
+            Dashboard.instruments(painter, measuring, layout, powered, starting, key_turn, opening, progressive, rpm)
+            EngineEquipment.draw(painter, measuring, layout.equipment, equipment, setup.cylinders > 1)
+        })
+        return self.picture
+    }
+
+    func handle(event:@Events.Event) bool {
+        if var editor = self.editor {
+            match event {
+                key_pressed(value) => {
+                    if value.key == Keyboard.Key.escape { self.close_editor(); return true }
+                }
+                else => {}
+            }
+            var ui = self.editor_ui!
+            let handled = ui.handle(event)
+            if editor.cancelled { self.close_editor(); return true }
+            if let requested = editor.requested {
+                editor.requested = null
+                if let problem = self.configure(requested) { editor.invalid("Réglages hors limites · " + problem) }
+                else { self.close_editor() }
+                return true
+            }
+            return handled
+        }
+        match event {
+            mouse_button_pressed(value) => {
+                if value.button == Pointer.MouseButton.left {
+                    if self.select_at(value.position) { return true }
+                    if self.select_mix(value.position) { return true }
+                    if self.select_equipment(value.position) { return true }
+                    if contains(self.key, value.position) { self.toggle(); return true }
+                    if contains(self.pedal_mode, value.position) {
+                        self.pedal.progressive = !self.pedal.progressive
+                        return true
+                    }
+                }
+            }
+            mouse_moved(value) => {
+                if let track = self.mix_drag {
+                    self.set_mix(track, value.position.x)
+                    return true
+                }
+                if self.displacement_preview != null {
+                    self.displacement_preview = self.displacement_at(value.position.x)
+                    return true
+                }
+            }
+            mouse_button_released(value) => {
+                if value.button == Pointer.MouseButton.left {
+                    if let track = self.mix_drag {
+                        self.mix_drag = null
+                        self.set_mix(track, value.position.x)
+                        return true
+                    }
+                    if self.displacement_preview != null {
+                        let setup = self.displacement_at(value.position.x)
+                        self.displacement_preview = null
+                        self.configure(setup)
+                        return true
+                    }
+                }
+            }
+            key_pressed(value) => {
+                if value.key == Keyboard.Key.m || value.keycode == 109 as uint32 || value.keycode == 77 as uint32 {
+                    if !value.repeated { self.toggle() }
+                    return true
+                }
+                if value.key == Keyboard.Key.t || value.keycode == 116 as uint32 || value.keycode == 84 as uint32 {
+                    if !value.repeated { self.pedal.progressive = !self.pedal.progressive }
+                    return true
+                }
+                if value.key == Keyboard.Key.space { self.pedal.pressed = true; return true }
+            }
+            key_released(value) => {
+                if value.key == Keyboard.Key.space { self.pedal.pressed = false; return true }
+            }
+            window_focus_lost(value) => {
+                self.pedal.pressed = false
+                self.displacement_preview = null
+                self.mix_drag = null
+                return true
+            }
+            else => {}
+        }
+        return false
+    }
+
+    func accepts_text_input() bool {
+        if var ui = self.editor_ui { return ui.accepts_text_input() }
+        return false
+    }
+    func text_input_target() Canvas.TextInputTarget? {
+        if var ui = self.editor_ui { return ui.text_input_target() }
+        return null
+    }
+    func pointer_cursor() Window.Cursor {
+        if var ui = self.editor_ui { return ui.pointer_cursor() }
+        return Window.Cursor.standard
+    }
+
+    func done() bool { return self.elapsed >= 1.45 }
+
+    func verify_smoke() {
+        assert(self.frame_count >= 3, "the live viewer must draw several frames")
+        assert(self.largest_rpm >= 250.0 && self.engine.cylinder(0)!.firings > 0, "the V8 must crank and fire")
+        print("V8 fenêtré, démarrage et allumages vérifiés. Régime maximal ", self.largest_rpm)
+    }
+
+    func verify_controls() {
+        let window = Window.Id(value:0 as uint32)
+        let timestamp = Events.Timestamp(nanoseconds:0 as uint)
+        let center = self.key.position.add(self.key.size.multiply(0.5))
+        let click = Events.MouseButtonEvent(window:window, mouse:Pointer.MouseId(value:0 as uint32),
+            button:Pointer.MouseButton.left, down:true, clicks:1 as uint8, position:center, timestamp:timestamp)
+        assert(self.handle(Events.Event.mouse_button_pressed(click)) && self.starting())
+        let space = key_event(Keyboard.Key.space)
+        assert(self.handle(Events.Event.key_pressed(space)) && self.pedal.pressed)
+        assert(self.handle(Events.Event.key_released(space)) && !self.pedal.pressed)
+        let mode = key_event(Keyboard.Key.t)
+        assert(self.handle(Events.Event.key_pressed(mode)) && self.pedal.progressive)
+        let badge = Events.MouseButtonEvent(window:window, mouse:Pointer.MouseId(value:0 as uint32),
+            button:Pointer.MouseButton.left, down:true, clicks:1 as uint8,
+            position:self.pedal_mode.position.add(self.pedal_mode.size.multiply(0.5)), timestamp:timestamp)
+        assert(self.handle(Events.Event.mouse_button_pressed(badge)) && !self.pedal.progressive)
+        self.handle(Events.Event.key_pressed(space))
+        self.handle(Events.Event.window_focus_lost(Events.WindowEvent(window:window, timestamp:timestamp)))
+        assert(!self.pedal.pressed)
+        assert(self.handle(Events.Event.key_pressed(key_event(Keyboard.Key.m))) && !self.powered)
+    }
+
+    func verify_setup() {
+        assert(self.handle(Events.Event.mouse_button_pressed(click(center(EngineSetup.chevrolet(self.setup_frame))))))
+        assert(self.setup.tuning != null && self.setup.displacement == 7_439 && self.engine.cylinder(7) != null)
+        assert(self.handle(Events.Event.mouse_button_pressed(click(center(EngineSetup.topology(self.setup_frame, false))))))
+        assert(self.setup.tuning == null && !self.setup.vee && self.setup.cylinders == 6)
+        assert(self.handle(Events.Event.mouse_button_pressed(click(center(EngineSetup.cylinder(self.setup_frame, 0))))))
+        assert(self.setup.cylinders == 1 && self.engine.cylinder(1) == null)
+        let track = EngineSetup.slider(self.setup_frame)
+        let low = Math.Vec2(track.position.x, center(track).y)
+        let before = self.setup.displacement
+        assert(self.handle(Events.Event.mouse_button_pressed(click(low))))
+        assert(self.setup.displacement == before && self.displacement_preview!.displacement == 50)
+        assert(self.handle(Events.Event.mouse_button_released(click(low, down:false))))
+        assert(self.setup.displacement == 50 && self.displacement_preview == null)
+        self.drawing(420, 700)
+        assert(self.handle(Events.Event.mouse_button_pressed(click(center(EngineSetup.topology(self.setup_frame, true))))))
+        assert(self.handle(Events.Event.mouse_button_pressed(click(center(EngineSetup.cylinder(self.setup_frame, 6))))))
+        assert(self.setup.vee && self.setup.cylinders == 16 && self.engine.cylinder(15) != null)
+        let high = track.position.add(Math.Vec2(track.size.x, track.size.y * 0.5))
+        assert(self.handle(Events.Event.mouse_button_pressed(click(center(track)))))
+        assert(self.handle(Events.Event.mouse_button_released(click(high, down:false))))
+        assert(self.setup.displacement == 48_000 && !self.powered && self.engine.frame() == 0)
+        self.drawing(1_120, 740)
+    }
+
+    func verify_editor() {
+        let previous = self.setup
+        assert(self.handle(Events.Event.mouse_button_pressed(click(center(EngineSetup.advanced(self.setup_frame))))))
+        assert(self.editor != null)
+        var form = self.drawing(420, 700)
+        assert(label_position(form.commands(), "Alésage (mm)") != null)
+        let exhaust = label_position(form.commands(), "Échappement")!
+        assert(exhaust.x > 0.0 && exhaust.x < 420.0 && exhaust.y > 0.0 && exhaust.y < 700.0)
+        self.handle(Events.Event.mouse_button_pressed(click(exhaust)))
+        self.handle(Events.Event.mouse_button_released(click(exhaust, down:false)))
+        form = self.drawing(420, 700)
+        assert(label_position(form.commands(), "Résonance commune") != null)
+        let more = label_position(form.commands(), "+")!
+        self.handle(Events.Event.mouse_button_pressed(click(more)))
+        self.handle(Events.Event.mouse_button_released(click(more, down:false)))
+        form = self.drawing(420, 700)
+        assert(label_position(form.commands(), "Sortie 1") != null)
+        assert(self.handle(Events.Event.key_pressed(key_event(Keyboard.Key.escape))))
+        assert(self.editor == null && self.setup.same(previous))
+        self.drawing(1_120, 740)
+        assert(self.handle(Events.Event.mouse_button_pressed(click(center(EngineSetup.advanced(self.setup_frame))))))
+        form = self.drawing(700, 450)
+        let apply = label_position(form.commands(), "Appliquer")!
+        assert(apply.x > 0.0 && apply.x < 700.0 && apply.y > 0.0 && apply.y < 450.0)
+        self.handle(Events.Event.mouse_button_pressed(click(apply)))
+        self.handle(Events.Event.mouse_button_released(click(apply, down:false)))
+        assert(self.editor == null, "Appliquer must return to the bench")
+        assert(self.setup.same(previous), "unmodified settings must preserve the assembly")
+        self.drawing(1_120, 740)
+    }
+
+    func verify_mix() {
+        let intake = Mixer.slider(self.mix_frame, 0)
+        let combustion = Mixer.slider(self.mix_frame, 1)
+        let right = Math.Vec2(combustion.position.x + combustion.size.x, center(combustion).y)
+        assert(self.handle(Events.Event.mouse_button_pressed(click(center(combustion)))))
+        assert(self.levels.gain[0] == Mixer.Levels().gain[0] && self.levels.gain[1] == 0.5)
+        assert(self.handle(Events.Event.mouse_button_released(click(right, down:false))))
+        assert(self.levels.gain[1] == 1.0 && self.mix_drag == null)
+        let left = Math.Vec2(intake.position.x - 2.0, center(intake).y)
+        assert(self.handle(Events.Event.mouse_button_pressed(click(center(intake)))))
+        let drag = Events.MouseMotionEvent(window:Window.Id(value:0 as uint32),
+            mouse:Pointer.MouseId(value:0 as uint32), buttons:1 as uint32, position:left,
+            delta:left.subtract(center(intake)), relative:false, timestamp:Events.Timestamp(nanoseconds:0 as uint))
+        assert(self.handle(Events.Event.mouse_moved(drag)) && self.levels.gain[0] == 0.0)
+        assert(self.handle(Events.Event.mouse_button_released(click(left, down:false))))
+        assert(self.levels.gain[0] == 0.0 && self.mix_drag == null)
+        self.configure(EngineConfig.Setup())
+        assert(self.levels.gain[0] == 0.0 && self.levels.gain[1] == 1.0)
+        self.toggle()
+        self.feed()
+        assert(self.applied_levels.gain == self.levels.gain && self.engine.frame() > 0 && self.starting())
+    }
+
+    func verify_stream(setup:EngineConfig.Setup) {
+        self.configure(setup)
+        self.drawing(1_120, 740)
+        self.toggle()
+        self.feed()
+        for _ in 0...42 {
+            self.audio.render(800)
+            self.feed()
+        }
+        self.pedal.pressed = true
+        let frame = self.engine.frame()
+        let piston = self.engine.cylinder(0)!
+        let playback = self.playing
+        assert(self.handle(Events.Event.mouse_button_pressed(click(
+            center(EngineEquipment.silencer_button(self.equipment_frame, 1))))))
+        assert(self.equipment.silencer == EngineEquipment.Silencer.open_pipe)
+        assert(self.handle(Events.Event.mouse_button_pressed(click(
+            center(EngineEquipment.outlet_button(self.equipment_frame, 2))))))
+        assert(self.equipment.outlets == EngineEquipment.Outlets.unequal_length && self.powered && self.pedal.pressed)
+        assert(self.engine.frame() == frame && self.engine.cylinder(0)! == piston && self.playing == playback)
+        for _ in 0...6 {
+            for frames in [800, 2_400, 960, 2_160, 480] {
+                let before = self.audio.stream_info(self.stream)
+                self.audio.render(frames)
+                let after = self.audio.stream_info(self.stream)
+                assert(after.consumed_frames - before.consumed_frames == frames && !after.starved,
+                    "the stream must cover a 50 ms gap between frames")
+                self.feed()
+            }
+        }
+        assert(self.engine.cylinder(0)!.firings > 0)
+    }
+
+    func verify_monocylinder(cc:int) {
+        let setup = EngineConfig.Setup(vee:false, cylinders:1, displacement:cc)
+        assert(self.configure(setup) == null)
+        let contact = Events.Event.key_pressed(key_event(Keyboard.Key.m))
+        assert(self.handle(contact))
+        self.feed()
+        let stop_second = 6
+        let restart_second = 10
+        for second in 0...20 {
+            if second == stop_second || second == restart_second { assert(self.handle(contact)) }
+            if second == restart_second { assert(self.engine.rpm() == 0.0, "the restart must begin from rest") }
+            let firings = self.engine.cylinder(0)!.firings
+            for _ in 0...60 {
+                self.audio.render(800)
+                self.feed()
+                if second != 0 && second != restart_second && self.powered {
+                    assert(!self.starting() && self.engine.rpm() > 140.0,
+                        "the single must sustain idle after the starter disengages")
+                }
+            }
+            if self.powered {
+                assert(self.engine.cylinder(0)!.firings >= firings + 3,
+                    "the single must keep firing with the pedal released")
+            }
+        }
+        assert(!self.pedal.pressed && self.pedal.opening() == 0.0)
+        print("Monocylindre ", cc, " cm³ · ralenti et redémarrage vérifiés")
+    }
+
+    func verify_454_response() {
+        assert(self.configure(EngineConfig.chevrolet_454()) == null)
+        assert(self.handle(Events.Event.key_pressed(key_event(Keyboard.Key.m))))
+        let space = key_event(Keyboard.Key.space)
+        self.feed()
+        for step in 0...120 {
+            if step == 40 || step == 80 { assert(self.handle(Events.Event.key_pressed(space))) }
+            if step == 45 || step == 100 { assert(self.handle(Events.Event.key_released(space))) }
+            self.audio.render(2_400)
+            self.feed()
+            let rpm = self.engine.rpm()
+            // Check the end of each press and the return towards idle.
+            if step == 44 { assert(rpm > 1_250.0 && rpm < 1_850.0) }
+            if step == 69 { assert(rpm > 950.0 && rpm < 1_350.0) }
+            if step == 99 { assert(rpm > 4_900.0 && rpm < 5_700.0) }
+            if step == 119 { assert(rpm > 2_200.0 && rpm < 3_000.0) }
+        }
+    }
+
+    drop {
+        if self.playing.is_valid() { self.audio.stop(self.playing) }
+        self.audio.release(self.stream)
+    }
+}
+
+public func show(smoke:bool = false) {
+    var session = Session(smoke:smoke)
+    let settings = Viewer.CanvasSettings(width:1_120, height:740, title:"AudioEngineSimulator",
+        background:Dashboard.background(), hidden:smoke)
+    if smoke {
+        assert(Viewer.show_until(session, session.done, settings) == 0)
+        session.verify_smoke()
+    } else {
+        Viewer.show(session, settings)
+    }
+}
+
+public func check() {
+    var session = Session(offline:true)
+    let sizes:Math.Vec2[] = [Math.Vec2(1_120.0, 740.0), Math.Vec2(1_060.0, 690.0),
+        Math.Vec2(700.0, 450.0), Math.Vec2(420.0, 700.0)]
+    for size in sizes {
+        let layout = PanelLayout.Layout(size.x as int, size.y as int)
+        assert(layout.mixer.position.y > layout.setup.position.y + layout.setup.size.y)
+        assert(layout.mixer.position.y + layout.mixer.size.y <= size.y)
+        check_mix_layout(layout.mixer)
+        assert(layout.profile.size.x > 0.0 && layout.overhead.size.y > 0.0)
+        assert(layout.profile.position.x == layout.overhead.position.x && layout.profile.size.x == layout.overhead.size.x)
+        assert(layout.profile.position.y + layout.profile.size.y < layout.overhead.position.y)
+        assert(layout.overhead.position.y + layout.overhead.size.y <= size.y)
+        assert(layout.overhead.position.x + layout.overhead.size.x < layout.controls.position.x ||
+            layout.overhead.position.y + layout.overhead.size.y < layout.controls.position.y)
+        assert(layout.pedal.size.x > 0.0 && layout.pedal.size.x == layout.pedal.size.y)
+        assert(layout.pedal_mode.position.x >= layout.pedal.position.x &&
+            layout.pedal_mode.position.x + layout.pedal_mode.size.x <= layout.pedal.position.x + layout.pedal.size.x)
+        assert(layout.equipment.position.y > layout.controls.position.y + layout.controls.size.y &&
+            layout.equipment.position.y + layout.equipment.size.y <= size.y)
+        let fit = PanelLayout.Viewport(layout.profile, 540.0, 344.0)
+        assert(fit.scale > 0.0 && fit.point(540.0, 344.0).x <= layout.profile.position.x + layout.profile.size.x)
+        let top = PanelLayout.Viewport(layout.overhead, 310.0, 170.0)
+        assert(top.scale > 0.0 && top.point(310.0, 170.0).y <= layout.overhead.position.y + layout.overhead.size.y)
+        var first = session.drawing(size.x as int, size.y as int)
+        let count = first.command_count()
+        var next = session.drawing(size.x as int, size.y as int)
+        assert(count > 100 && next.command_count() == count, "a redraw must replace the previous drawing")
+        check_label(EngineSetup.topology(layout.setup, false), "En ligne", 0.45)
+        check_label(EngineSetup.topology(layout.setup, true), "En V", 0.45)
+        check_label(EngineSetup.chevrolet(layout.setup), "Chevrolet 454", 0.45)
+        check_label(EngineSetup.advanced(layout.setup), "Réglages techniques", 0.45)
+        check_label(EngineEquipment.silencer_button(layout.equipment, 1), "Tube libre", 0.43)
+        check_label(EngineEquipment.outlet_button(layout.equipment, 2), "Deux longueurs", 0.43)
+        check_label(EngineSetup.cylinder(layout.setup, 6), "16", 0.45)
+        check_label(layout.pedal_mode, "Hard", 0.58)
+        check_label(layout.pedal_mode, "Soft", 0.58)
+    }
+    session.verify_controls()
+    session.verify_setup()
+    session.verify_editor()
+    session.verify_mix()
+    var stream_session = Session(offline:true)
+    stream_session.verify_stream(EngineConfig.chevrolet_454())
+    stream_session.verify_stream(EngineConfig.Setup().select(false, 4))
+    stream_session.verify_454_response()
+    for cc in [50, 100, 250, 500, 1_000, 1_500, 2_500, 3_000] { stream_session.verify_monocylinder(cc) }
+    check_edited_engines()
+    check_mix()
+    check_pedal()
+    check_range()
+    print("Vues empilées, commandes, flux audio, mixage et réglages moteur vérifiés.")
+}
+
+func check_edited_engines() {
+    let preset = EngineConfig.chevrolet_454()
+    let manual = EngineEditor.Editor.check_manual_454()
+    assert(manual.same(preset) && manual.load_scale() == preset.load_scale() &&
+        manual.starter_frames() == preset.starter_frames())
+    var expected = EngineSimulation.Simulator.create(preset.assembly())
+    var actual = EngineSimulation.Simulator.create(manual.assembly())
+    var a:EngineSimulation.Sources[] = []
+    var b:EngineSimulation.Sources[] = []
+    for _ in 0...240 { a.append(EngineSimulation.Sources()); b.append(EngineSimulation.Sources()) }
+    let mix = Mixer.Levels()
+    let speeds:float32[] = [850.0, 2_600.0]
+    for rpm in speeds {
+        let controls = EngineSimulation.Controls(ignition:true, hold_rpm:rpm, throttle:0.45)
+        expected.set_controls(controls)
+        actual.set_controls(controls)
+        for _ in 0...30 {
+            expected.render_sources(&a[0:240])
+            actual.render_sources(&b[0:240])
+            for i in 0...240 { assert(a[i] == b[i] && mix.mix(a[i]) == mix.mix(b[i])) }
+        }
+    }
+
+    let (baseline, modified) = EngineEditor.Editor.check_inline_exhaust()
+    var short = EngineSimulation.Simulator.create(baseline.assembly())
+    var long = EngineSimulation.Simulator.create(modified.assembly())
+    let controls = EngineSimulation.Controls(ignition:true, hold_rpm:2_600.0, throttle:0.45)
+    short.set_controls(controls)
+    long.set_controls(controls)
+    var change:float32 = 0.0
+    for _ in 0...30 {
+        short.render_sources(&a[0:240])
+        long.render_sources(&b[0:240])
+        for i in 0...240 {
+            assert(a[i].friction == b[i].friction && a[i].intake == b[i].intake)
+            change += Math.abs(a[i].combustion - b[i].combustion)
+        }
+    }
+    assert(change > 1.0, "changing a pipe must change the sound of the inline-four")
+}
+
+func label_position(commands:Canvas.Command[], caption:str) Math.Vec2? {
+    for command in commands {
+        match command {
+            text(value) => {
+                if value.value == caption { return value.position.add(Math.Vec2(2.0, 2.0)) }
+            }
+            layer(value) => {
+                if let point = label_position(value.commands(), caption) { return point }
+            }
+            else => {}
+        }
+    }
+    return null
+}
+
+func check_mix_layout(frame:Canvas.Rect) {
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        Mixer.draw(painter, frame, Mixer.Levels())
+    })
+    var text_bottom = frame.position.y
+    var track_bottom = frame.position.y
+    var index = 0
+    for command in drawing.commands() {
+        match command {
+            text(value) => {
+                assert(value.position.y > track_bottom, "mixer labels must follow the previous slider")
+                let metrics = drawing.measure_text(value.value, value.style)
+                text_bottom = Math.max(text_bottom, value.position.y + metrics.height)
+            }
+            fill_circle(value) => {
+                let track = Mixer.slider(frame, index)
+                assert(track.size.x > 0.0 && text_bottom < track.position.y, "mixer labels must sit above the slider")
+                assert(text_bottom < value.shape.center.y - value.shape.radius, "mixer thumb must clear the labels")
+                track_bottom = track.position.y + track.size.y
+                index++
+            }
+            else => {}
+        }
+    }
+    assert(index == 2 && track_bottom < frame.position.y + frame.size.y)
+}
+
+func check_mix() {
+    assert(Mixer.Levels().gain[0] == 0.60 && Mixer.Levels().gain[1] == 1.0)
+    let source = EngineSimulation.Sources(friction:0.5, intake:0.2, combustion:-0.4)
+    let full = Mixer.Levels(gain:[1.0, 1.0])
+    let combustion = Mixer.Levels(gain:[0.0, 1.0])
+    let mute = Mixer.Levels(gain:[0.0, 0.0])
+    assert(full.mix(source) == EngineSimulation.Sources(intake:source.intake, combustion:source.combustion).mixed())
+    assert(full.mix(EngineSimulation.Sources(friction:source.friction)) == 0.0)
+    let isolated = combustion.mix(source)
+    assert(isolated == EngineSimulation.Sources(combustion:source.combustion).mixed())
+    assert(mute.mix(source) == 0.0)
+    var sources:EngineSimulation.Sources[] = [source, source, source, source]
+    var samples:float32[] = [0.0, 0.0, 0.0, 0.0]
+    mute.write(combustion, @sources[0:4], &samples[0:4])
+    assert(isolated < samples[0] && samples[0] < samples[1] && samples[1] < samples[2] && samples[3] == 0.0)
+}
+
+func check_label(frame:Canvas.Rect, text:str, size_ratio:float) {
+    var drawing = Canvas()
+    var measuring = Canvas()
+    let style = Canvas.TextStyle(size:frame.size.y * size_ratio)
+    drawing.paint(func(painter:&Canvas.Painter) {
+        Dashboard.centered_label(painter, measuring, frame, text, style)
+    })
+    let bounds = drawing.bounds()!
+    let measured = measuring.measure_text(text, style)
+    assert(Math.abs(center(bounds).x - center(frame).x) < 0.01)
+    assert(Math.abs(center(bounds).y - center(frame).y) < 0.01)
+    assert(Math.abs(bounds.size.x - measured.width) < 0.01 && Math.abs(bounds.size.y - measured.height) < 0.01)
+}
+
+func check_range() {
+    var samples:float32[] = []
+    for _ in 0...480 { samples.append(0.0) }
+    check_start(EngineConfig.chevrolet_454(), samples)
+    for vee in [false, true] {
+        for count in EngineConfig.counts(vee) {
+            let small = EngineConfig.Setup(vee:vee, cylinders:count, displacement:count * 50)
+            let large = EngineConfig.Setup(vee:vee, cylinders:count, displacement:count * 3_000)
+            check_start(small, samples)
+            check_start(large, samples)
+        }
+    }
+}
+
+func check_start(setup:EngineConfig.Setup, samples:&float32[]) {
+    let assembly = setup.assembly()
+    assert(assembly.cylinders.count() == setup.cylinders)
+    let cylinder = assembly.cylinders[0]
+    let cc = Math.pi<float32>() * cylinder.bore_mm * cylinder.bore_mm * cylinder.stroke_mm / 4_000.0
+    assert(Math.abs(cc * setup.cylinders as float32 - setup.displacement as float32) < 0.1)
+    var engine = EngineSimulation.Simulator.create(assembly)
+    let load_scale = setup.load_scale()
+    let starter_frames = setup.starter_frames()
+    for _ in 0...140 {
+        let starter = engine.frame() < starter_frames
+        let load = bench_load(engine.rpm(), load_scale, starter)
+        engine.set_controls(EngineSimulation.Controls(starter:starter, ignition:true,
+            throttle:Accelerator.Pedal().throttle(), load_nm:load))
+        engine.render(&samples[0:480])
+        for sample in samples { assert(Math.is_finite(sample) && Math.abs(sample) < 1.0) }
+    }
+    print("Moteur ", setup.vee, " · ", setup.cylinders, " cylindres · ", setup.displacement,
+        " cm³ · ", engine.rpm(), " tr/min · ", engine.cylinder(0)!.firings, " allumages")
+    assert(engine.cylinder(0)!.firings > 0 && engine.rpm() > 140.0)
+}
+
+func bench_load(rpm:float32, scale:float32, starter:bool, opening:float32 = 0.0) float32 {
+    if starter { return 0.0 }
+    // The restricted intake adds pumping losses as the throttle closes.
+    let restriction = 1.0 - opening * opening
+    let pumping = restriction * (0.036 * rpm + 0.008 * Math.max(0.0, rpm - 900.0))
+    return Math.min(4_000.0, (12.0 + 0.007 * rpm + pumping) * scale)
+}
+
+func check_pedal() {
+    var fast = Accelerator.Pedal(pressed:true)
+    var slow = Accelerator.Pedal(pressed:true, progressive:true)
+    var fast_engine = EngineSimulation.Simulator.create()
+    var slow_engine = EngineSimulation.Simulator.create()
+    var fast_samples:float32[] = []
+    var slow_samples:float32[] = []
+    for _ in 0...240 { fast_samples.append(0.0); slow_samples.append(0.0) }
+    var difference:float64 = 0.0
+    for block in 0...60 {
+        if block == 29 { assert(fast.opening() < 1.0 && slow.throttle() < fast.throttle()) }
+        fast_engine.set_controls(EngineSimulation.Controls(ignition:true, throttle:fast.throttle(), hold_rpm:2_000.0))
+        slow_engine.set_controls(EngineSimulation.Controls(ignition:true, throttle:slow.throttle(), hold_rpm:2_000.0))
+        fast_engine.render(&fast_samples[0:240])
+        slow_engine.render(&slow_samples[0:240])
+        for i in 0...240 {
+            difference += Math.abs(fast_samples[i] - slow_samples[i]) as float64
+        }
+        fast.advance(240)
+        slow.advance(240)
+        if block == 29 { assert(fast.opening() == 1.0) }
+    }
+    assert(fast_engine.rpm() == slow_engine.rpm() && difference > 0.5, "pedal modes must change sound at the same rpm")
+    assert(fast.opening() == 1.0 && Math.abs(slow.opening() - 0.3) < 0.00001)
+    for _ in 0...139 { slow.advance(240) }
+    assert(slow.opening() < 1.0)
+    slow.advance(240)
+    assert(slow.opening() == 1.0 && slow.throttle() == fast.throttle())
+    slow.pressed = false
+    slow.advance(7_200)
+    assert(slow.opening() == 0.5)
+    slow.advance(7_200)
+    assert(slow.opening() == 0.0)
+}
+
+func contains(frame:Canvas.Rect, point:Math.Vec2) bool {
+    return point.x >= frame.position.x && point.x < frame.position.x + frame.size.x &&
+        point.y >= frame.position.y && point.y < frame.position.y + frame.size.y
+}
+
+func center(frame:Canvas.Rect) Math.Vec2 { return frame.position.add(frame.size.multiply(0.5)) }
+
+func click(position:Math.Vec2, down:bool = true) Events.MouseButtonEvent {
+    return Events.MouseButtonEvent(window:Window.Id(value:0 as uint32), mouse:Pointer.MouseId(value:0 as uint32),
+        button:Pointer.MouseButton.left, down:down, clicks:1 as uint8, position:position,
+        timestamp:Events.Timestamp(nanoseconds:0 as uint))
+}
+
+func key_event(key:Keyboard.Key) Events.KeyEvent {
+    return Events.KeyEvent(window:Window.Id(value:0 as uint32), keyboard:Keyboard.KeyboardId(value:0 as uint32),
+        key:key, keycode:0 as uint32, raw:0 as uint16, repeated:false,
+        modifiers:Keyboard.Modifiers(), timestamp:Events.Timestamp(nanoseconds:0 as uint))
+}

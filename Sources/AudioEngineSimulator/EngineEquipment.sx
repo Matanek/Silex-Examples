@@ -1,0 +1,140 @@
+use GFX.Audio.EngineSimulation
+use GFX.Audio.Synthesis.EngineParts
+use GFX.Canvas
+use GFX.Color
+use STD.Math
+use Module.Dashboard
+use Module.PanelLayout
+
+public enum Silencer { original; open_pipe; baffles }
+public enum Outlets { original; common; unequal_length; dominant }
+
+public struct Selection {
+    var silencer:Silencer = Silencer.original
+    var outlets:Outlets = Outlets.original
+
+    func exhaust(assembly:EngineSimulation.Assembly) (EngineParts.Exhaust[], int[]) {
+        var routes:int[] = []
+        if self.outlets == Outlets.original {
+            for cylinder in assembly.cylinders { routes.append(cylinder.exhaust_index) }
+            if self.silencer == Silencer.original { return (assembly.exhausts, routes) }
+            var paths:EngineParts.Exhaust[] = []
+            for path in assembly.exhausts { paths.append(self.with_silencer(path)) }
+            if paths.count() == 0 { paths.append(self.with_silencer(default_path(assembly))) }
+            return (paths, routes)
+        }
+
+        var first = default_path(assembly)
+        if assembly.exhausts.count() > 0 { first = assembly.exhausts[0] }
+        first.outlet_level = 1.0
+        if self.outlets == Outlets.common || assembly.cylinders.count() == 1 {
+            for _ in assembly.cylinders { routes.append(0) }
+            return ([self.with_silencer(first)], routes)
+        }
+
+        var second = first
+        if assembly.exhausts.count() > 1 { second = assembly.exhausts[1] }
+        second.outlet_level = 1.0
+        if self.outlets == Outlets.unequal_length {
+            // Different travel times make the two banks interact differently.
+            second.pipe.length_mm = first.pipe.length_mm * 1.25
+            if second.pipe.length_mm > 5_000.0 { second.pipe.length_mm = first.pipe.length_mm * 0.80 }
+        }
+        if self.outlets == Outlets.dominant { second.outlet_level = 0.1 }
+        for i in 0...assembly.cylinders.count() { routes.append(i % 2) }
+        return ([self.with_silencer(first), self.with_silencer(second)], routes)
+    }
+
+    private func with_silencer(path:EngineParts.Exhaust) EngineParts.Exhaust {
+        var result = path
+        match self.silencer {
+            original => {}
+            open_pipe => {
+                result.silencer = EngineParts.Silencer(volume_litres:0.08, absorption:0.0)
+            }
+            baffles => {
+                result.silencer = EngineParts.Silencer(
+                    volume_litres:Math.max(path.silencer.volume_litres, 2.0),
+                    absorption:0.82, baffles:4)
+            }
+        }
+        return result
+    }
+}
+
+func default_path(assembly:EngineSimulation.Assembly) EngineParts.Exhaust {
+    let scale = assembly.cylinders[0].bore_mm / 107.95
+    return EngineParts.Exhaust(
+        header:EngineParts.Pipe(length_mm:254.0 * scale, diameter_mm:45.0 * scale),
+        pipe:EngineParts.Pipe(length_mm:1_180.0 * scale, diameter_mm:50.0 * scale),
+        silencer:EngineParts.Silencer(volume_litres:Math.max(0.05, 1.65 * scale * scale * scale),
+            absorption:0.15, baffles:2))
+}
+
+public func draw(painter:&Canvas.Painter, measuring:Canvas, frame:Canvas.Rect, equipment:Selection, multi:bool) {
+    if frame.size.x <= 0.0 || frame.size.y <= 0.0 { return }
+    Dashboard.panel(painter, frame)
+    let view = viewport(frame)
+    let title = Color.bytes(231, 240, 248)
+    let label = Color.bytes(163, 185, 206)
+    painter.text("Échappement", view.point(0.0, 0.0), Canvas.TextStyle(size:17.0 * view.scale, color:title), clip:frame)
+    painter.text("Silencieux", view.point(0.0, 28.0), Canvas.TextStyle(size:12.0 * view.scale, color:label), clip:frame)
+    painter.text("Montage des sorties", view.point(0.0, 83.0), Canvas.TextStyle(size:12.0 * view.scale, color:label), clip:frame)
+    let silencers:Silencer[] = [Silencer.original, Silencer.open_pipe, Silencer.baffles]
+    let silencer_names:str[] = ["Origine", "Tube libre", "Chicanes"]
+    for i in 0...silencers.count() {
+        draw_button(painter, measuring, silencer_button(frame, i), silencer_names[i], equipment.silencer == silencers[i], true)
+    }
+    let outlets:Outlets[] = [Outlets.original, Outlets.common, Outlets.unequal_length, Outlets.dominant]
+    let outlet_names:str[] = ["Origine", "Commune", "Deux longueurs", "Une dominante"]
+    for i in 0...outlets.count() {
+        draw_button(painter, measuring, outlet_button(frame, i), outlet_names[i], equipment.outlets == outlets[i], multi || i < 2)
+    }
+}
+
+public func select(frame:Canvas.Rect, point:Math.Vec2, current:Selection, multi:bool) Selection? {
+    if !contains(frame, point) { return null }
+    let silencers:Silencer[] = [Silencer.original, Silencer.open_pipe, Silencer.baffles]
+    for i in 0...silencers.count() {
+        if contains(silencer_button(frame, i), point) {
+            return Selection(silencer:silencers[i], outlets:current.outlets)
+        }
+    }
+    let outlets:Outlets[] = [Outlets.original, Outlets.common, Outlets.unequal_length, Outlets.dominant]
+    for i in 0...outlets.count() {
+        if (multi || i < 2) && contains(outlet_button(frame, i), point) {
+            return Selection(silencer:current.silencer, outlets:outlets[i])
+        }
+    }
+    return null
+}
+
+public func silencer_button(frame:Canvas.Rect, index:int) Canvas.Rect {
+    return button_area(frame, index as float * 76.0, 46.0, 70.0)
+}
+
+public func outlet_button(frame:Canvas.Rect, index:int) Canvas.Rect {
+    return button_area(frame, (index % 2) as float * 115.0, 101.0 + (index / 2) as float * 30.0, 107.0)
+}
+
+func viewport(frame:Canvas.Rect) PanelLayout.Viewport { return PanelLayout.Viewport(frame, 224.0, 156.0) }
+
+func button_area(frame:Canvas.Rect, x:float, y:float, width:float) Canvas.Rect {
+    let view = viewport(frame)
+    let origin = view.point(x, y)
+    return PanelLayout.rect(origin.x, origin.y, width * view.scale, 25.0 * view.scale)
+}
+
+func draw_button(painter:&Canvas.Painter, measuring:Canvas, frame:Canvas.Rect, caption:str, active:bool, enabled:bool) {
+    var background = Color.bytes(35, 45, 59)
+    var text = Color.bytes(231, 240, 248)
+    if active { background = Color.bytes(36, 77, 87) }
+    if !enabled { text = Color.bytes(106, 120, 134) }
+    painter.fill(Canvas.Rect(frame.position, frame.size, radius:frame.size.y * 0.24), Canvas.Fill.solid(background))
+    Dashboard.centered_label(painter, measuring, frame, caption, Canvas.TextStyle(size:frame.size.y * 0.43, color:text))
+}
+
+func contains(frame:Canvas.Rect, point:Math.Vec2) bool {
+    return point.x >= frame.position.x && point.x < frame.position.x + frame.size.x &&
+        point.y >= frame.position.y && point.y < frame.position.y + frame.size.y
+}

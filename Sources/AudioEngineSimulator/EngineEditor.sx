@@ -1,0 +1,307 @@
+use GFX.Audio.EngineSimulation
+use GFX.Audio.Synthesis.EngineParts
+use GFX.Color
+use GFX.UI
+use STD.Math
+use STD.Text
+use STD.Text.UTF8
+use Module.EngineConfig
+
+class NumberField {
+    let label:str
+    private let initial:str
+    private let original:float32
+    var text:UI.State<str>
+
+    init(label:str, value:float32) {
+        self.label = label
+        self.original = value
+        self.initial = "$(value)"
+        self.text = UI.State<str>(self.initial)
+    }
+
+    func number() float32? {
+        let value = Text.trim(self.text.value())
+        if value == self.initial { return self.original }
+        let bytes = UTF8.bytes(value)
+        if bytes.count() > 32 { return null }
+        var digits = 0
+        var seen_separator = false
+        var magnitude:float64 = 0.0
+        var divisor:float64 = 1.0
+        for byte in bytes {
+            let ascii = byte as int
+            if (ascii == 44 || ascii == 46) && !seen_separator {
+                seen_separator = true
+            } elif ascii >= 48 && ascii <= 57 {
+                digits++
+                magnitude = 10.0 * magnitude + (ascii - 48) as float64
+                if seen_separator { divisor *= 10.0 }
+            } else {
+                return null
+            }
+        }
+        let number = magnitude / divisor
+        if digits == 0 || number > 1_000_000.0 { return null }
+        return round_float<float32>(number)
+    }
+
+    func view() UI.View {
+        var field = UI.TextField(self.text)
+        field.style.width = 132.0
+        var style = UI.Style()
+        style.width = 166.0
+        style.gap = 4.0
+        return UI.Label(self.label, field, style:style)
+    }
+}
+
+struct CylinderFields {
+    var phase:NumberField
+    var outlet:NumberField
+}
+
+struct OutletFields {
+    var numbers:NumberField[]
+
+    init(value:EngineParts.Exhaust) {
+        self.numbers = [
+            NumberField("Primaire · L (mm)", value.header.length_mm),
+            NumberField("Primaire · Ø (mm)", value.header.diameter_mm),
+            NumberField("Sortie · L (mm)", value.pipe.length_mm),
+            NumberField("Sortie · Ø (mm)", value.pipe.diameter_mm),
+            NumberField("Silencieux (L)", value.silencer.volume_litres),
+            NumberField("Absorption (0–1)", value.silencer.absorption),
+            NumberField("Chicanes", value.silencer.baffles as float32),
+            NumberField("Expansion (L)", value.expansion_litres),
+            NumberField("Gain sortie (0–1)", value.outlet_level)
+        ]
+    }
+}
+
+public class Editor {
+    private let base:EngineConfig.Setup
+    private var mechanics:NumberField[]
+    private var cylinders:CylinderFields[] = []
+    private var outlets:OutletFields[] = []
+    private var outlet_count:UI.State<int>
+    private var selected:UI.State<str?> = UI.State<str?>("mechanics")
+    private var error:UI.State<str> = UI.State<str>("")
+    var requested:EngineConfig.Setup? = null
+    var cancelled:bool = false
+
+    init(setup:EngineConfig.Setup) {
+        self.base = setup
+        let assembly = setup.assembly()
+        let common = assembly.cylinders[0]
+        self.mechanics = [
+            NumberField("Alésage (mm)", common.bore_mm),
+            NumberField("Course (mm)", common.stroke_mm),
+            NumberField("Bielle (mm)", common.rod_mm),
+            NumberField("Piston (kg)", common.piston_kg),
+            NumberField("Chambre (cm³)", common.chamber_cc),
+            NumberField("Frottement (coef.)", common.friction),
+            NumberField("Inertie (kg·m²)", assembly.inertia_kg_m2),
+            NumberField("Démarreur (N·m)", assembly.starter_nm)
+        ]
+        self.outlet_count = UI.State<int>(assembly.exhausts.count())
+        for cylinder in assembly.cylinders {
+            self.cylinders.append(CylinderFields(phase:NumberField("Phase (°)", cylinder.firing_degrees),
+                outlet:NumberField("Sortie", (cylinder.exhaust_index + 1) as float32)))
+        }
+        for i in 0...4 {
+            var value = EngineParts.Exhaust()
+            if i < assembly.exhausts.count() { value = assembly.exhausts[i] }
+            self.outlets.append(OutletFields(value))
+        }
+    }
+
+    func view(reads:UI.Reads) UI.View {
+        let outlet_count = reads.read(self.outlet_count)
+        let problem = reads.read(self.error)
+        var tabs = UI.Tabs([
+            UI.Tab("mechanics", "Mécanique", self.mechanics_view()),
+            UI.Tab("cylinders", "Cylindres", self.cylinders_view()),
+            UI.Tab("exhaust", "Échappement", self.exhaust_view(outlet_count))
+        ], self.selected)
+        tabs.style.flex = 1.0
+        var title = UI.Text("Réglages moteur")
+        title.style.font_size = 23.0
+        title.style.font_weight = UI.FontWeight.bold
+        var children:UI.View[] = [title, tabs]
+        if problem != "" {
+            var message = UI.Text(problem)
+            message.style.foreground = Color.bytes(255, 154, 157)
+            children.append(message)
+        }
+        var apply_button = UI.Button("Appliquer", self.apply)
+        apply_button.style.selected = true
+        var actions = UI.Row([apply_button, UI.Button("Annuler", self.cancel)])
+        actions.style.gap = 10.0
+        children.append(actions)
+        var page = UI.Column(children)
+        page.style.theme = UI.Theme.dark()
+        page.style.padding = UI.Insets(16.0)
+        page.style.gap = 12.0
+        return page
+    }
+
+    private func mechanics_view() UI.View {
+        return scroll([field_row(self.mechanics)])
+    }
+
+    private func cylinders_view() UI.View {
+        var rows:UI.View[] = []
+        for i, cylinder in self.cylinders.indexed() {
+            var label = UI.Text("Cylindre $(i + 1)")
+            label.style.width = 104.0
+            var row = UI.Row([label, cylinder.phase.view(), cylinder.outlet.view()], wrap:true)
+            row.style.gap = 8.0
+            rows.append(row)
+        }
+        return scroll(rows)
+    }
+
+    private func exhaust_view(count:int) UI.View {
+        var fewer = UI.Button("−", self.remove_outlet)
+        fewer.style.disabled = count == 0
+        var more = UI.Button("+", self.add_outlet)
+        more.style.disabled = count == 4
+        var title = "Sorties configurées · $(count)"
+        if count == 0 { title = "Résonance commune" }
+        var counter = UI.Row([UI.Text(title), fewer, more], wrap:true)
+        counter.style.gap = 10.0
+        var rows:UI.View[] = [counter]
+        for i in 0...count {
+            rows.append(UI.Text("Sortie $(i + 1)"))
+            rows.append(field_row(self.outlets[i].numbers))
+        }
+        return scroll(rows)
+    }
+
+    private func add_outlet() {
+        if self.outlet_count.value() < 4 { self.outlet_count.set(self.outlet_count.value() + 1) }
+    }
+
+    private func remove_outlet() {
+        if self.outlet_count.value() > 0 { self.outlet_count.set(self.outlet_count.value() - 1) }
+    }
+
+    func cancel() { self.cancelled = true }
+
+    func invalid(message:str) { self.error.set(message) }
+
+    private func values(fields:NumberField[]) float32[]? {
+        var result:float32[] = []
+        for field in fields {
+            if let value = field.number() { result.append(value) }
+            else { self.invalid("Saisir un nombre pour « $(field.label) »."); return null }
+        }
+        return result
+    }
+
+    func apply() {
+        self.requested = null
+        self.error.set("")
+        let mechanics = self.values(self.mechanics)
+        if mechanics == null { return }
+        let geometry = mechanics!
+        let count = self.outlet_count.value()
+        var cylinders:EngineSimulation.Cylinder[] = []
+        for i, fields in self.cylinders.indexed() {
+            let phase = fields.phase.number()
+            if phase == null || phase! >= 720.0 {
+                self.invalid("Cylindre $(i + 1) · saisir une phase entre 0 et 720° (exclu).")
+                return
+            }
+            let outlet = fields.outlet.number()
+            if outlet == null || outlet! < 1.0 || outlet! > Math.max(1, count) as float32 ||
+                outlet! != Math.floor(outlet!) {
+                self.invalid("Cylindre $(i + 1) · choisir une sortie existante.")
+                return
+            }
+            cylinders.append(EngineSimulation.Cylinder(bore_mm:geometry[0], stroke_mm:geometry[1], rod_mm:geometry[2],
+                piston_kg:geometry[3], chamber_cc:geometry[4], friction:geometry[5], firing_degrees:phase!,
+                exhaust_index:(outlet! as int) - 1))
+        }
+        var exhausts:EngineParts.Exhaust[] = []
+        for i in 0...count {
+            let fields = self.values(self.outlets[i].numbers)
+            if fields == null { return }
+            let numbers = fields!
+            let baffles = numbers[6]
+            if baffles > 8.0 || baffles != Math.floor(baffles) {
+                self.invalid("Sortie $(i + 1) · saisir de 0 à 8 chicanes.")
+                return
+            }
+            exhausts.append(EngineParts.Exhaust(
+                header:EngineParts.Pipe(length_mm:numbers[0], diameter_mm:numbers[1]),
+                pipe:EngineParts.Pipe(length_mm:numbers[2], diameter_mm:numbers[3]),
+                silencer:EngineParts.Silencer(volume_litres:numbers[4], absorption:numbers[5], baffles:baffles as int),
+                expansion_litres:numbers[7], outlet_level:numbers[8]))
+        }
+        let assembly = EngineSimulation.Assembly(cylinders:cylinders, exhausts:exhausts,
+            inertia_kg_m2:geometry[6], starter_nm:geometry[7])
+        if EngineConfig.same_assembly(assembly, self.base.assembly()) { self.requested = self.base; return }
+        let candidate = self.base.tuned(assembly)
+        if candidate.displacement < 50 * candidate.cylinders || candidate.displacement > 3_000 * candidate.cylinders {
+            self.invalid("La cylindrée doit rester entre 50 et 3 000 cm³ par cylindre.")
+            return
+        }
+        self.requested = candidate
+    }
+
+    static func check_manual_454() EngineConfig.Setup {
+        var editor = Editor(EngineConfig.Setup().select(true, 8))
+        let geometry:str[] = ["107,95", "101,6", "155,829", "0,88", "118", "0,08", "0,65", "271"]
+        let phases:str[] = ["0", "630", "270", "180", "450", "360", "540", "90"]
+        editor.add_outlet()
+        editor.add_outlet()
+        for i, value in geometry.indexed() { editor.mechanics[i].text.set(value) }
+        for i, value in phases.indexed() {
+            editor.cylinders[i].phase.text.set(value)
+            editor.cylinders[i].outlet.text.set("$((i % 2) + 1)")
+        }
+        for outlet in 0...2 {
+            var settings:str[] = ["254", "45", "1180", "50", "1,65", "0,15", "2", "0", "1"]
+            if outlet == 1 { settings[8] = "0,1" }
+            for i, value in settings.indexed() { editor.outlets[outlet].numbers[i].text.set(value) }
+        }
+        editor.cylinders[0].outlet.text.set("3")
+        editor.apply()
+        assert(editor.requested == null && editor.error.value() != "")
+        editor.cylinders[0].outlet.text.set("1")
+        editor.apply()
+        assert(editor.error.value() == "" && editor.requested != null)
+        return editor.requested!
+    }
+
+    static func check_inline_exhaust() (EngineConfig.Setup, EngineConfig.Setup) {
+        var editor = Editor(EngineConfig.Setup().select(false, 4))
+        editor.add_outlet()
+        editor.apply()
+        let baseline = editor.requested!
+        editor.outlets[0].numbers[2].text.set("1450")
+        editor.apply()
+        let modified = editor.requested!
+        assert(!modified.vee && modified.cylinders == 4)
+        return (baseline, modified)
+    }
+}
+
+func field_row(fields:NumberField[]) UI.View {
+    var children:UI.View[] = []
+    for field in fields { children.append(field.view()) }
+    var row = UI.Row(children, wrap:true)
+    row.style.gap = 10.0
+    return row
+}
+
+func scroll(rows:UI.View[]) UI.View {
+    var content = UI.Column(rows)
+    content.style.padding = UI.Insets(12.0)
+    content.style.gap = 12.0
+    var viewport = UI.ScrollView(content)
+    viewport.style.flex = 1.0
+    return viewport
+}

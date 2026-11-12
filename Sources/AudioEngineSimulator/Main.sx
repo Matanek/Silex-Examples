@@ -1,0 +1,100 @@
+use GFX.Audio.EngineSimulation
+use STD.Process
+use STD.File
+use STD.Math
+use Module.Wave
+use Module.Bench
+use Module.EngineConfig
+use Module.Mixer
+
+func main() {
+    let arguments = Process.arguments()
+    if arguments.count() == 1 { Bench.show(); return }
+    if arguments.count() == 2 && arguments[1] == "--check" { Bench.check(); return }
+    if arguments.count() == 2 && arguments[1] == "--smoke" { Bench.show(smoke:true); return }
+    if arguments.count() == 3 && arguments[1] == "--render-454" {
+        render(arguments[2], EngineConfig.chevrolet_454().assembly(), held:false, comparison:true)
+        return
+    }
+    if arguments.count() != 3 || arguments[1] != "--render" {
+        print("AudioEngineSimulator [--check | --smoke | --render <préfixe> | --render-454 <préfixe>]")
+        return
+    }
+    let prefix = arguments[2]
+    let mono = EngineSimulation.Assembly()
+    let twin = EngineSimulation.Assembly(cylinders:[EngineSimulation.Cylinder(),
+        EngineSimulation.Cylinder(firing_degrees:180.0)], inertia_kg_m2:0.33)
+    let greater_friction = EngineSimulation.Assembly(cylinders:[EngineSimulation.Cylinder(friction:0.16)])
+    render(prefix + "-mono", mono, held:false)
+    render(prefix + "-bi", twin, held:false)
+    render(prefix + "-frottement-reference", mono, held:true)
+    render(prefix + "-frottement-double", greater_friction, held:true)
+    print("Rendus et traces écrits avec le préfixe ", prefix)
+}
+
+func cycle_controls(seconds:float32) EngineSimulation.Controls {
+    if seconds < 0.25 { return EngineSimulation.Controls() }
+    if seconds < 0.95 { return EngineSimulation.Controls(starter:true) }
+    if seconds < 1.4 { return EngineSimulation.Controls(starter:true, ignition:true, throttle:0.22) }
+    if seconds < 2.2 { return EngineSimulation.Controls(ignition:true, throttle:0.09) }
+    if seconds < 3.6 {
+        let opening = (seconds - 2.2) / 1.4
+        return EngineSimulation.Controls(ignition:true, throttle:0.09 + 0.43 * opening, load_nm:12.0 * opening)
+    }
+    if seconds < 4.7 { return EngineSimulation.Controls(ignition:true, throttle:0.52, load_nm:12.0) }
+    if seconds < 5.3 { return EngineSimulation.Controls(ignition:true, load_nm:12.0) }
+    return EngineSimulation.Controls(load_nm:12.0)
+}
+
+func comparison_controls(seconds:float32) EngineSimulation.Controls {
+    let opening = Math.clamp(Math.min((seconds - 2.0) * 0.5, 7.0 - seconds), 0.0, 1.0)
+    return EngineSimulation.Controls(ignition:true, throttle:0.12 + 0.4 * opening, hold_rpm:850.0 + 1_750.0 * opening)
+}
+
+func render(prefix:str, assembly:EngineSimulation.Assembly, held:bool, comparison:bool = false) {
+    var engine = EngineSimulation.Simulator.create(assembly)
+    let rate = engine.format.sample_rate
+    var block = 240
+    var duration = 11
+    if held { duration = 2 }
+    if comparison { block = 480; duration = 7 }
+    let levels = Mixer.Levels()
+    var samples:EngineSimulation.Sources[] = []
+    for _ in 0...block { samples.append(EngineSimulation.Sources()) }
+    var mix:float32[] = []
+    var friction:float32[] = []
+    var intake:float32[] = []
+    var combustion:float32[] = []
+    var trace = "frame,cylinder,rpm,starter,ignition,throttle,load_nm,cycle_degrees,piston_mm,piston_mps,friction_n,intake_m3_s,pressure_pa,firings,last_firing_frame\n"
+    while engine.frame() < duration * rate {
+        let seconds = engine.frame() as float32 / rate as float32
+        var controls = cycle_controls(seconds)
+        if held { controls = EngineSimulation.Controls(throttle:0.35, hold_rpm:1_500.0) }
+        if comparison { controls = comparison_controls(seconds) }
+        engine.set_controls(controls)
+        engine.render_sources(&samples[0:block])
+        for sample in samples {
+            if comparison { mix.append(levels.mix(sample)) }
+            else { mix.append(sample.mixed()) }
+            friction.append(sample.friction)
+            if !held {
+                intake.append(sample.intake)
+                combustion.append(sample.combustion)
+            }
+        }
+        for i in 0...assembly.cylinders.count() {
+            let state = engine.cylinder(i)!
+            let firing = state.last_firing_frame ?? -1
+            trace += "$(engine.frame()),$(i),$(engine.rpm()),$(controls.starter),$(controls.ignition),"
+            trace += "$(controls.throttle),$(controls.load_nm),$(state.cycle_degrees),$(state.piston_mm),"
+            trace += "$(state.piston_mps),$(state.friction_n),$(state.intake_m3_s),$(state.pressure_pa),$(state.firings),$(firing)\n"
+        }
+    }
+    Wave.write(prefix + "-mix.wav", rate, @mix[0:mix.count()])
+    Wave.write(prefix + "-frottement.wav", rate, @friction[0:friction.count()])
+    if !held {
+        Wave.write(prefix + "-aspiration.wav", rate, @intake[0:intake.count()])
+        Wave.write(prefix + "-combustion.wav", rate, @combustion[0:combustion.count()])
+    }
+    File.write_all(prefix + ".csv", trace)
+}

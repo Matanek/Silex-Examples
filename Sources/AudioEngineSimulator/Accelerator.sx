@@ -1,0 +1,23 @@
+public struct Pedal {
+    var pressed:bool = false
+    var progressive:bool = false
+    private var travel:int = 0
+
+    func advance(frames:int) {
+        // At 48 kHz, Hard takes 7,200 frames, Soft 48,000 and release 14,400.
+        var units_per_frame = -10
+        if self.pressed {
+            units_per_frame = 20
+            if self.progressive { units_per_frame = 3 }
+        }
+        self.travel += frames * units_per_frame
+        if self.travel > 144_000 { self.travel = 144_000 }
+        if self.travel < 0 { self.travel = 0 }
+    }
+
+    func opening() float32 { return self.travel as float32 / 144_000.0 }
+    func throttle(idle_trim:float32 = 0.0) float32 {
+        let opening = self.opening()
+        return 0.028 + 0.592 * opening + idle_trim * (1.0 - opening)
+    }
+}

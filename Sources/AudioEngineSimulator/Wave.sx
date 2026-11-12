@@ -1,0 +1,33 @@
+use STD.File
+use STD.Math
+
+func little_endian(bytes:&uint8[], value:int, width:int) {
+    var remaining = value
+    for _ in 0...width {
+        bytes.append((remaining % 256) as uint8)
+        remaining /= 256
+    }
+}
+
+public func write(path:str, rate:int, samples:@float32[..]) {
+    // Mono RIFF/WAVE PCM16.
+    var bytes:uint8[] = [82 as uint8, 73 as uint8, 70 as uint8, 70 as uint8]
+    little_endian(bytes, 36 + samples.count() * 2, 4)
+    for byte in [87, 65, 86, 69, 102, 109, 116, 32] { bytes.append(byte as uint8) }
+    little_endian(bytes, 16, 4)
+    little_endian(bytes, 1, 2)
+    little_endian(bytes, 1, 2)
+    little_endian(bytes, rate, 4)
+    little_endian(bytes, rate * 2, 4)
+    little_endian(bytes, 2, 2)
+    little_endian(bytes, 16, 2)
+    for byte in [100, 97, 116, 97] { bytes.append(byte as uint8) }
+    little_endian(bytes, samples.count() * 2, 4)
+    for sample in samples {
+        assert(Math.is_finite(sample) && Math.abs(sample) <= 1.0, "sample outside PCM range")
+        var value = Math.round(sample * 32_767.0) as int
+        if value < 0 { value += 65_536 }
+        little_endian(bytes, value, 2)
+    }
+    File.write_all(path, @bytes[0:bytes.count()])
+}

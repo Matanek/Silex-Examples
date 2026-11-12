@@ -1,0 +1,64 @@
+use GFX.Audio.EngineSimulation
+use GFX.Canvas
+use GFX.Color
+use STD.Math
+use Module.Dashboard
+use Module.PanelLayout
+
+public struct Levels {
+    var gain:float32[2] = [0.60, 1.0]
+
+    func mix(source:EngineSimulation.Sources) float32 {
+        return EngineSimulation.Sources(intake:source.intake * self.gain[0],
+            combustion:source.combustion * self.gain[1]).mixed()
+    }
+
+    func write(previous:Levels, sources:@EngineSimulation.Sources[..], samples:&float32[..]) {
+        let count = samples.count()
+        if self.gain == previous.gain {
+            for i in 0...count { samples[i] = self.mix(sources[i]) }
+            return
+        }
+        for i in 0...count {
+            let t = (i + 1) as float32 / count as float32
+            let levels = Levels(gain:[
+                Math.mix(previous.gain[0], self.gain[0], t),
+                Math.mix(previous.gain[1], self.gain[1], t)])
+            samples[i] = levels.mix(sources[i])
+        }
+    }
+}
+
+public func draw(painter:&Canvas.Painter, frame:Canvas.Rect, levels:Levels) {
+    Dashboard.panel(painter, frame)
+    let view = PanelLayout.Viewport(frame, 150.0, 100.0)
+    if view.scale <= 0.0 { return }
+    let text = Color.bytes(197, 212, 228)
+    painter.text("Mixage", view.point(0.0, 4.0), Canvas.TextStyle(size:16.0 * view.scale, color:text), clip:frame)
+    let names:str[2] = ["Aspiration", "Combustion"]
+    let colors:Color[2] = [Color.bytes(119, 214, 225), Color.bytes(255, 190, 98)]
+    for i in 0...names.count() {
+        let y = label_y(i)
+        let level = levels.gain[i] as float
+        let percent = Math.round(level * 100.0) as int
+        painter.text(names[i], view.point(0.0, y), Canvas.TextStyle(size:12.0 * view.scale, color:text), clip:frame)
+        painter.text("$(percent) %", view.point(150.0, y), Canvas.TextStyle(size:12.0 * view.scale,
+            alignment:Canvas.TextAlignment.end, color:colors[i]), clip:frame)
+        let track = slider(frame, i)
+        let center_y = track.position.y + track.size.y * 0.5
+        let begin = Math.Vec2(track.position.x, center_y)
+        let finish = Math.Vec2(track.position.x + track.size.x, center_y)
+        let thumb = Math.Vec2(track.position.x + track.size.x * level, center_y)
+        painter.stroke(Canvas.Line(begin, finish), Canvas.Stroke(Color.bytes(64, 82, 102), 2.0 * view.scale))
+        if level > 0.0 { painter.stroke(Canvas.Line(begin, thumb), Canvas.Stroke(colors[i], 2.0 * view.scale)) }
+        painter.fill(Canvas.Circle(thumb, 4.0 * view.scale), Canvas.Fill.solid(colors[i]))
+    }
+}
+
+public func slider(frame:Canvas.Rect, index:int) Canvas.Rect {
+    let view = PanelLayout.Viewport(frame, 150.0, 100.0)
+    let origin = view.point(0.0, label_y(index) + 18.0)
+    return PanelLayout.rect(origin.x, origin.y, 150.0 * view.scale, 16.0 * view.scale)
+}
+
+func label_y(index:int) float { return 28.0 + index as float * 36.0 }

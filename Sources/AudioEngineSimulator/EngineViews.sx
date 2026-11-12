@@ -1,0 +1,172 @@
+use GFX.Audio.EngineSimulation
+use GFX.Canvas
+use GFX.Color
+use STD.Math
+use Module.EngineConfig
+use Module.PanelLayout
+
+public func profile(painter:&Canvas.Painter, frame:Canvas.Rect, setup:EngineConfig.Setup,
+    cylinders:@EngineSimulation.CylinderState[], clock:int) {
+    let stroke = setup.stroke_mm() as float
+    if !setup.vee {
+        let width = Math.max(280.0, setup.cylinders as float * 100.0 + 20.0)
+        let view = PanelLayout.Viewport(frame, width, 344.0)
+        if view.scale <= 0.0 { return }
+        let first = (width - (setup.cylinders - 1) as float * 100.0) * 0.5
+        let steel = Color.bytes(163, 174, 187)
+        if setup.cylinders > 1 {
+            line(painter, view, Math.Vec2(first, 279.0),
+                Math.Vec2(width - first, 279.0), 12.0, Color.bytes(63, 75, 89))
+        }
+        for i in 0...setup.cylinders {
+            let center = Math.Vec2(first + i as float * 100.0, 279.0)
+            let state = cylinders[i]
+            disc(painter, view, center, 36.0, steel)
+            draw_cylinder(painter, view, center, Math.Vec2(0.0, -1.0), state, stroke, 0.0, ignition(state, clock))
+            disc(painter, view, center, 16.0, Color.bytes(85, 100, 117))
+        }
+        return
+    }
+    let view = PanelLayout.Viewport(frame, 540.0, 344.0)
+    if view.scale <= 0.0 { return }
+    let angle = setup.bank_angle() * Math.pi() / 360.0
+    let tilt = Math.sin(angle)
+    let rise = -Math.cos(angle)
+    let rows = setup.rows()
+    let step = Math.min(20.0, 100.0 / Math.max(1.0, (rows - 1) as float))
+    for layer in 0...rows {
+        let row = rows - 1 - layer
+        let depth = row as float
+        let center = Math.Vec2(270.0, 295.0 - depth * step)
+        let layer_view = view.scaled_at(center, 1.0 - depth * 0.022)
+        let distance = Math.min(0.64, depth * 0.16)
+        let steel = Color.bytes(163, 174, 187).mix(Color.bytes(21, 28, 38), distance)
+        // The foreground hides most of the crank and piston detail in a V16.
+        let detailed = rows < 8 || row < 2
+        disc(painter, layer_view, center, 38.0, steel)
+        for bank in 0...2 {
+            var side = -tilt
+            if bank == 1 { side = tilt }
+            let axis = Math.Vec2(side, rise)
+            let state = cylinders[row * 2 + bank]
+            if detailed {
+                draw_cylinder(painter, layer_view, center, axis, state, stroke, distance, ignition(state, clock))
+            } else {
+                draw_frame(painter, layer_view, center, axis, distance)
+                draw_valves(painter, layer_view, center, axis, state.cycle_degrees as float, distance, false)
+            }
+        }
+        if detailed {
+            disc(painter, layer_view, center, 21.0, steel)
+            disc(painter, layer_view, center, 9.0, steel.mix(Color.bytes(38, 47, 59), 0.72))
+        }
+    }
+}
+
+func draw_cylinder(painter:&Canvas.Painter, view:PanelLayout.Viewport, center:Math.Vec2, axis:Math.Vec2,
+    state:EngineSimulation.CylinderState, stroke:float, distance:float, fire:float) {
+    let phase = state.cycle_degrees as float * (Math.pi() / 180.0)
+    let metal = Color.bytes(231, 235, 238).mix(Color.bytes(24, 29, 36), distance)
+    let wrist = 145.0 - 66.0 * Math.clamp(state.piston_mm as float / stroke, 0.0, 1.0)
+    let crank = cylinder_point(center, axis, 33.0 * Math.cos(phase), 33.0 * Math.sin(phase))
+    let pin = cylinder_point(center, axis, wrist, 0.0)
+
+    line(painter, view, crank, pin, 15.0, metal.mix(Color.bytes(66, 78, 92), 0.38))
+    disc(painter, view, crank, 11.0, metal)
+    box(painter, view, center, axis, wrist - 12.0, wrist + 24.0, -31.0, 31.0, metal)
+    box(painter, view, center, axis, wrist + 17.0, wrist + 20.0, -31.0, 31.0,
+        metal.mix(Color.bytes(47, 58, 70), 0.64))
+    disc(painter, view, pin, 5.5, Color.bytes(24, 30, 39))
+    let chamber = Color.bytes(24, 28, 37).mix(Color.bytes(248, 174, 82), fire * (1.0 - distance))
+    box(painter, view, center, axis, wrist + 24.0, 185.0, -31.0, 31.0, chamber)
+    draw_frame(painter, view, center, axis, distance)
+    draw_valves(painter, view, center, axis, state.cycle_degrees as float, distance, true)
+}
+
+func draw_frame(painter:&Canvas.Painter, view:PanelLayout.Viewport, center:Math.Vec2, axis:Math.Vec2,
+    distance:float) {
+    let frame = Color.bytes(230, 138, 179).mix(Color.bytes(35, 25, 40), distance)
+    box(painter, view, center, axis, 64.0, 194.0, -39.0, -32.0, frame)
+    box(painter, view, center, axis, 64.0, 194.0, 32.0, 39.0, frame)
+    box(painter, view, center, axis, 187.0, 206.0, -40.0, 40.0, frame)
+}
+
+func draw_valves(painter:&Canvas.Painter, view:PanelLayout.Viewport, center:Math.Vec2, axis:Math.Vec2,
+    cycle:float, distance:float, detailed:bool) {
+    let cam_angle = cycle * (Math.pi() / 180.0) * 0.5
+    var lift_in:float = 0.0
+    var lift_out:float = 0.0
+    if cycle >= 360.0 && cycle < 540.0 { lift_in = Math.sin((cycle - 360.0) * Math.pi() / 180.0) }
+    if cycle >= 154.8 && cycle < 360.0 { lift_out = Math.sin((cycle - 154.8) * Math.pi() / 205.2) }
+    valve(painter, view, center, axis, -16.0, lift_in, cam_angle,
+        Color.bytes(119, 214, 225).mix(Color.bytes(26, 45, 51), distance), detailed)
+    valve(painter, view, center, axis, 16.0, lift_out, cam_angle + 2.2,
+        Color.bytes(250, 196, 81).mix(Color.bytes(55, 45, 25), distance), detailed)
+}
+
+func valve(painter:&Canvas.Painter, view:PanelLayout.Viewport, center:Math.Vec2, axis:Math.Vec2,
+    side:float, lift:float, angle:float, color:Color, detailed:bool) {
+    let face = 184.0 - lift * 11.0
+    let stem = 222.0 - lift * 11.0
+    line(painter, view, cylinder_point(center, axis, face, side), cylinder_point(center, axis, stem, side), 4.0, color)
+    let cam = cylinder_point(center, axis, 229.0, side)
+    let lobe = cylinder_point(center, axis, 229.0 + 5.0 * Math.cos(angle), side + 5.0 * Math.sin(angle))
+    if !detailed {
+        disc(painter, view, lobe, 9.0, color)
+        return
+    }
+    line(painter, view, cylinder_point(center, axis, face, side - 9.0), cylinder_point(center, axis, face, side + 9.0), 5.0, color)
+    disc(painter, view, cam, 9.0, color)
+    disc(painter, view, lobe, 8.0, color)
+    disc(painter, view, cam, 2.5, Color.bytes(25, 29, 35))
+}
+
+public func overhead(painter:&Canvas.Painter, frame:Canvas.Rect, setup:EngineConfig.Setup,
+    cylinders:@EngineSimulation.CylinderState[], clock:int) {
+    var banks = 1
+    if setup.vee { banks = 2 }
+    let rows = setup.rows()
+    let view = PanelLayout.Viewport(frame, rows as float * 75.0 + 10.0, banks as float * 82.0 + 6.0)
+    if view.scale <= 0.0 { return }
+    let stroke = setup.stroke_mm() as float
+    for row in 0...rows {
+        for bank in 0...banks {
+            let state = cylinders[row * banks + bank]
+            let center = Math.Vec2(42.0 + row as float * 75.0, 44.0 + bank as float * 82.0)
+            let depth = Math.clamp(state.piston_mm as float / stroke, 0.0, 1.0)
+            let fire = ignition(state, clock)
+            let piston = Color.bytes(78, 90, 105).mix(Color.bytes(32, 39, 49), depth)
+                .mix(Color.bytes(255, 181, 84), fire)
+            disc(painter, view, center, 32.0, Color.bytes(50, 61, 77))
+            disc(painter, view, center, 30.0, Color.bytes(11, 15, 21))
+            disc(painter, view, center, 27.0 - depth * 4.0, piston)
+        }
+    }
+}
+
+func ignition(state:EngineSimulation.CylinderState, clock:int) float {
+    if let firing = state.last_firing_frame {
+        return Math.clamp(1.0 - (clock - firing) as float / 1_650.0, 0.0, 1.0)
+    }
+    return 0.0
+}
+
+func cylinder_point(center:Math.Vec2, axis:Math.Vec2, along:float, across:float) Math.Vec2 {
+    return center.add(axis.multiply(along)).add(Math.Vec2(-axis.y, axis.x).multiply(across))
+}
+
+func box(painter:&Canvas.Painter, view:PanelLayout.Viewport, center:Math.Vec2, axis:Math.Vec2,
+    base:float, end:float, left:float, right:float, color:Color) {
+    let middle = (left + right) * 0.5
+    line(painter, view, cylinder_point(center, axis, base, middle), cylinder_point(center, axis, end, middle),
+        right - left, color)
+}
+
+func disc(painter:&Canvas.Painter, view:PanelLayout.Viewport, point:Math.Vec2, radius:float, color:Color) {
+    painter.fill(Canvas.Circle(view.point(point.x, point.y), radius * view.scale), Canvas.Fill.solid(color))
+}
+
+func line(painter:&Canvas.Painter, view:PanelLayout.Viewport, from:Math.Vec2, to:Math.Vec2, width:float, color:Color) {
+    painter.stroke(Canvas.Line(view.point(from.x, from.y), view.point(to.x, to.y)),
+        Canvas.Stroke(color, width * view.scale))
+}

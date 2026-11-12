@@ -1,0 +1,92 @@
+use GFX.Canvas
+use STD.Math
+
+public struct Layout {
+    let setup:Canvas.Rect
+    let mixer:Canvas.Rect
+    let profile:Canvas.Rect
+    let overhead:Canvas.Rect
+    let controls:Canvas.Rect
+    let equipment:Canvas.Rect
+    let tachometer:Canvas.Rect
+    let key:Canvas.Rect
+    let pedal:Canvas.Rect
+    let pedal_mode:Canvas.Rect
+
+    init(width:int, height:int) {
+        let w = width as float
+        let h = height as float
+        let margin = Math.clamp(Math.min(w, h) * 0.028, 2.0, 22.0)
+        let view_height = h - 2.0 * margin
+        let narrow = w < 650.0 && h > w * 1.05
+        var setup_fraction:float = 0.18
+        if narrow { setup_fraction = 0.25 }
+        let setup_width = Math.min(190.0, (w - 2.0 * margin) * setup_fraction)
+        let setup_height = Math.min(view_height * 0.65, setup_width * (369.0 / 170.0) + 12.0)
+        self.setup = rect(margin, margin, setup_width, setup_height)
+        self.mixer = rect(margin, margin + setup_height + margin, setup_width,
+            Math.min(132.0, view_height - setup_height - margin))
+        let work_x = self.setup.position.x + setup_width + margin
+        let work_width = w - work_x - margin
+        var engine_width = work_width
+        var engine_height = view_height
+        if narrow {
+            let instruments_height = Math.min(220.0, view_height * 0.30)
+            let equipment_height = Math.min(174.0, view_height * 0.24)
+            let equipment_y = h - margin - equipment_height
+            self.equipment = rect(work_x, equipment_y, work_width, equipment_height)
+            self.controls = rect(work_x, equipment_y - margin - instruments_height, work_width, instruments_height)
+            engine_height -= instruments_height + equipment_height + 2.0 * margin
+        } else {
+            let instruments_width = Math.min(252.0, work_width * 0.29)
+            let instruments_height = Math.min(350.0, (view_height - margin) * 0.55)
+            let instruments_x = w - margin - instruments_width
+            self.controls = rect(instruments_x, margin, instruments_width, instruments_height)
+            self.equipment = rect(instruments_x, 2.0 * margin + instruments_height, instruments_width,
+                Math.min(204.0, view_height - margin - instruments_height))
+            engine_width -= instruments_width + margin
+        }
+        let overhead_height = Math.min(190.0, (engine_height - margin) * 0.32)
+        let profile_height = engine_height - overhead_height - margin
+        self.profile = rect(work_x, margin, engine_width, profile_height)
+        self.overhead = rect(work_x, margin + profile_height + margin, engine_width, overhead_height)
+        let right_x = self.controls.position.x
+        let right_width = self.controls.size.x
+        let control_height = self.controls.size.y
+        let control_y = self.controls.position.y
+        let lower_height = control_height * 0.44
+        let lower_y = control_y + control_height - lower_height
+        self.tachometer = rect(right_x, control_y, right_width, control_height - lower_height)
+        let side = Math.min(lower_height * 0.92, right_width * 0.45)
+        let inset = Math.min(8.0, right_width * 0.036)
+        let pedal_x = right_x + right_width - inset - side
+        self.pedal = rect(pedal_x, lower_y + (lower_height - side) * 0.5, side, side)
+        self.key = rect(right_x, lower_y, pedal_x - right_x, lower_height)
+        self.pedal_mode = rect(pedal_x + side * 0.53, self.pedal.position.y + side * 0.07, side * 0.39, side * 0.17)
+    }
+}
+
+public struct Viewport {
+    let origin:Math.Vec2
+    let scale:float
+
+    init(frame:Canvas.Rect, width:float, height:float) {
+        let inset = Math.min(16.0, Math.min(frame.size.x, frame.size.y) * 0.10)
+        let available = frame.size.subtract(Math.Vec2(2.0 * inset, 2.0 * inset))
+        self.scale = Math.min(available.x / width, available.y / height)
+        self.origin = frame.position.add(Math.Vec2((frame.size.x - width * self.scale) * 0.5,
+            (frame.size.y - height * self.scale) * 0.5))
+    }
+
+    init(origin:Math.Vec2, scale:float) { self.origin = origin; self.scale = scale }
+
+    func point(x:float, y:float) Math.Vec2 { return self.origin.add(Math.Vec2(x, y).multiply(self.scale)) }
+
+    func scaled_at(center:Math.Vec2, factor:float) Viewport {
+        return Viewport(self.origin.add(center.multiply(self.scale * (1.0 - factor))), self.scale * factor)
+    }
+}
+
+public func rect(x:float, y:float, w:float, h:float) Canvas.Rect {
+    return Canvas.Rect(Math.Vec2(x, y), Math.Vec2(Math.max(0.0, w), Math.max(0.0, h)))
+}

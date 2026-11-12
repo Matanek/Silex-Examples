@@ -1,0 +1,65 @@
+use GFX.Canvas
+use GFX.Color
+use STD.Math
+use Module.Dashboard
+use Module.EngineConfig
+use Module.PanelLayout
+
+public func draw(painter:&Canvas.Painter, measuring:Canvas, frame:Canvas.Rect, setup:EngineConfig.Setup) {
+    Dashboard.panel(painter, frame)
+    button(painter, measuring, chevrolet(frame), "Chevrolet 454", false)
+    label(painter, frame, "Disposition", 10.0, 47.0, 12.0)
+    button(painter, measuring, topology(frame, false), "En ligne", !setup.vee)
+    button(painter, measuring, topology(frame, true), "En V", setup.vee)
+    label(painter, frame, "Cylindres", 10.0, 105.0, 12.0)
+    for index, count in EngineConfig.counts(setup.vee).indexed() {
+        button(painter, measuring, cylinder(frame, index), "$(count)", setup.cylinders == count)
+    }
+    label(painter, frame, "Cylindrée totale", 10.0, 243.0, 12.0)
+    label(painter, frame, "$(setup.displacement) cm³", 10.0, 263.0, 19.0)
+    let area = slider(frame)
+    let center_y = area.position.y + area.size.y * 0.5
+    let thumb = Math.Vec2(area.position.x + area.size.x * setup.travel(), center_y)
+    let begin = Math.Vec2(area.position.x, center_y)
+    let finish = Math.Vec2(area.position.x + area.size.x, center_y)
+    let cyan = Color.bytes(119, 214, 225)
+    painter.stroke(Canvas.Line(begin, finish), Canvas.Stroke(Color.bytes(64, 82, 102), area.size.y * 0.12))
+    if thumb.x > begin.x { painter.stroke(Canvas.Line(begin, thumb), Canvas.Stroke(cyan, area.size.y * 0.12)) }
+    painter.fill(Canvas.Circle(thumb, area.size.y * 0.22), Canvas.Fill.solid(cyan))
+    button(painter, measuring, advanced(frame), "Réglages techniques", false)
+}
+
+public func chevrolet(frame:Canvas.Rect) Canvas.Rect { return fitted(frame, 10.0, 12.0, 150.0, 29.0) }
+
+public func topology(frame:Canvas.Rect, vee:bool) Canvas.Rect {
+    var x:float = 10.0
+    if vee { x = 89.0 }
+    return fitted(frame, x, 64.0, 71.0, 28.0)
+}
+
+public func cylinder(frame:Canvas.Rect, index:int) Canvas.Rect {
+    return fitted(frame, 10.0 + (index % 3) as float * 52.0, 122.0 + (index / 3) as float * 33.0, 46.0, 27.0)
+}
+
+public func slider(frame:Canvas.Rect) Canvas.Rect { return fitted(frame, 16.0, 287.0, 138.0, 28.0) }
+
+public func advanced(frame:Canvas.Rect) Canvas.Rect { return fitted(frame, 10.0, 324.0, 150.0, 29.0) }
+
+func fitted(frame:Canvas.Rect, x:float, y:float, w:float, h:float) Canvas.Rect {
+    let scale = Math.min(frame.size.x / 170.0, frame.size.y / 369.0)
+    let origin = frame.position.add(Math.Vec2((frame.size.x - 170.0 * scale) * 0.5, 8.0 * scale))
+    return PanelLayout.rect(origin.x + x * scale, origin.y + y * scale, w * scale, h * scale)
+}
+
+func label(painter:&Canvas.Painter, frame:Canvas.Rect, text:str, x:float, y:float, size:float) {
+    let position = fitted(frame, x, y, 0.0, size)
+    painter.text(text, position.position, Canvas.TextStyle(size:position.size.y, color:Color.bytes(197, 212, 228)), clip:frame)
+}
+
+func button(painter:&Canvas.Painter, measuring:Canvas, frame:Canvas.Rect, text:str, selected:bool) {
+    var color = Color.bytes(35, 45, 59)
+    if selected { color = Color.bytes(36, 77, 87) }
+    painter.fill(Canvas.Rect(frame.position, frame.size, radius:frame.size.y * 0.20), Canvas.Fill.solid(color))
+    Dashboard.centered_label(painter, measuring, frame, text,
+        Canvas.TextStyle(size:frame.size.y * 0.45, color:Color.bytes(231, 240, 248)))
+}
