@@ -1,0 +1,86 @@
+use GFX.Audio
+use GFX.Canvas
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.Window
+use STD.Error.Kind
+use Package.EngineWorkshop.Workshop.Workshop
+
+// Match EngineWorkshop's stereo queue and controls while leaving its session independent.
+// Read only ready native blocks; never wait for the simulator in a UI frame.
+public class PresetPlayback:Canvas.Session {
+    private var workshop:Workshop
+    private var panel:Canvas.Session
+    private var audio:Audio
+    private var stream:Audio.Stream
+    private var playing:Audio.PlayingSound = Audio.PlayingSound()
+    private var samples:float32[] = []
+    private var pending:bool = false
+    private var offset:int = 0
+    private var generation:int = 0
+    init(workshop:Workshop, panel:Canvas.Session, audio:Audio) {
+        self.workshop = workshop
+        self.panel = panel
+        self.audio = audio
+        self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+        for _ in 0...960 { self.samples.append(0.0) }
+        self.workshop.source.enqueue()
+    }
+    private func feed() {
+        if self.generation != self.workshop.generation {
+            if self.playing.is_valid() { self.audio.stop(self.playing) }
+            self.audio.release(self.stream)
+            self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+            self.playing = Audio.PlayingSound(); self.pending = false; self.offset = 0
+            self.generation = self.workshop.generation
+            self.workshop.source.enqueue()
+        }
+        var count = 0
+        while count < 8 {
+            if self.audio.stream_info(self.stream).queued_frames >= 2_400 { break }
+            if !self.pending {
+                if !self.workshop.source.render_ready(&self.samples[0:960]) { break }
+                self.pending = true; self.offset = 0
+            }
+            match try self.audio.write(self.stream, @self.samples[self.offset * 2:960]) {
+                failure(error) => { if error.kind != Kind.would_block() { panic(error.detail) }
+                    break }
+                success(frames) => {
+                    self.offset += frames
+                    if self.offset == 480 { self.pending = false; self.workshop.source.enqueue() }
+                    if frames == 0 { break }
+                }
+            }
+            count++
+        }
+        if !self.playing.is_valid() && self.audio.stream_info(self.stream).queued_frames >= 1_920 {
+            self.playing = self.audio.play(self.stream, Audio.Playback(fade_in_seconds:0.05))
+        }
+    }
+    func drawing(width:int, height:int) Canvas { self.feed(); return self.panel.drawing(width, height) }
+    func update(delta:float) bool {
+        self.workshop.update(delta); self.feed(); return self.panel.update(delta)
+    }
+    func handle(event:@Events.Event) bool {
+        match event {
+            window_focus_lost(value) => { self.workshop.accelerating = false; self.workshop.sync() }
+            key_pressed(value) => {
+                if !self.panel.accepts_text_input() && !value.modifiers.control && !value.modifiers.alt && !value.modifiers.system {
+                    let m = value.keycode == 109 as uint32 || value.keycode == 77 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.m)
+                    if m { if !value.repeated { self.workshop.toggle_running() }
+                        return true }
+                    if value.key == Keyboard.Key.space { self.workshop.accelerating = true; self.workshop.sync(); return true }
+                }
+            }
+            key_released(value) => { if value.key == Keyboard.Key.space { self.workshop.accelerating = false; self.workshop.sync(); return true } }
+            else => {}
+        }
+        return self.panel.handle(event)
+    }
+    func accepts_text_input() bool { return self.panel.accepts_text_input() }
+    func text_input_target() Canvas.TextInputTarget? { return self.panel.text_input_target() }
+    func pointer_cursor() Window.Cursor { return self.panel.pointer_cursor() }
+    drop {
+        if self.playing.is_valid() { self.audio.stop(self.playing, fade_out_seconds:0.03) }
+    }
+}

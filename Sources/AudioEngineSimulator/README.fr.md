@@ -2,20 +2,23 @@
 
 ## Presets d’EngineWorkshop
 
-Au lancement, choisir un des neuf moteurs dans le sélecteur. Le banc
-reprend le rendu, la pédale, la charge et les réglages d’origine
-d’EngineWorkshop. Appuyer sur **M** pour mettre ou couper le contact,
-maintenir **Espace** pour donner plein gaz ou cliquer sur **Essai 8 secondes**
-pour rejouer le scénario de référence. Pour changer de moteur, couper le
-contact et attendre l’arrêt.
+La fenêtre principale réunit les neuf presets d’EngineWorkshop, la coupe de
+profil et la vue des cylindres de dessus. Les pistons des deux vues sont
+animés à partir du régime du moteur. La clé, le compte-tours et la pédale
+sont regroupés à côté des vues, ou en dessous dans une fenêtre étroite.
 
-`--check-references` compare le son, le régime et l’état du démarreur
-des neuf presets à ceux d’EngineWorkshop. `--render-reference <id> <wav>`
-exporte le même essai en WAV stéréo à 44,1 kHz.
+Cliquer sur la clé ou appuyer sur **M** pour mettre ou couper le contact.
+Maintenir **Espace** pour donner plein gaz ou doser l’ouverture avec le
+curseur **Accélérateur**. Le bouton **Essai 8 secondes** rejoue le scénario
+d’EngineWorkshop. Couper le contact et attendre l’arrêt pour changer de moteur.
+
+`--check-references` vérifie les vues et les commandes et compare le son,
+le régime et le démarreur des neuf presets à ceux d’EngineWorkshop.
+`--render-reference <id> <wav>` exporte le même essai en WAV stéréo à 44,1 kHz.
 
 ## Simulateur de pièces
 
-Lancer le binaire avec `--procedural` pour retrouver le banc à deux vues.
+Lancer le binaire avec `--procedural` pour configurer les pièces et les équipements.
 
 La fenêtre s’ouvre sur un V8 4T générique. À gauche, choisir une disposition
 en ligne ou en V, le nombre de cylindres, puis la cylindrée totale au curseur.

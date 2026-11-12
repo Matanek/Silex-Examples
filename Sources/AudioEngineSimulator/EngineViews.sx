@@ -6,7 +6,7 @@ use Module.EngineConfig
 use Module.PanelLayout
 
 public func profile(painter:&Canvas.Painter, frame:Canvas.Rect, setup:EngineConfig.Setup,
-    cylinders:@EngineSimulation.CylinderState[], clock:int) {
+    cylinders:@EngineSimulation.CylinderState[], clock:int, bank_angle:float? = null) {
     let stroke = setup.stroke_mm() as float
     if !setup.vee {
         let width = Math.max(280.0, setup.cylinders as float * 100.0 + 20.0)
@@ -29,7 +29,10 @@ public func profile(painter:&Canvas.Painter, frame:Canvas.Rect, setup:EngineConf
     }
     let view = PanelLayout.Viewport(frame, 540.0, 344.0)
     if view.scale <= 0.0 { return }
-    let angle = setup.bank_angle() * Math.pi() / 360.0
+    let degrees = bank_angle ?? setup.bank_angle()
+    let angle = degrees * Math.pi() / 360.0
+    var crank_y = 295.0
+    if degrees == 180.0 { crank_y = 220.0 }
     let tilt = Math.sin(angle)
     let rise = -Math.cos(angle)
     let rows = setup.rows()
@@ -37,7 +40,7 @@ public func profile(painter:&Canvas.Painter, frame:Canvas.Rect, setup:EngineConf
     for layer in 0...rows {
         let row = rows - 1 - layer
         let depth = row as float
-        let center = Math.Vec2(270.0, 295.0 - depth * step)
+        let center = Math.Vec2(270.0, crank_y - depth * step)
         let layer_view = view.scaled_at(center, 1.0 - depth * 0.022)
         let distance = Math.min(0.64, depth * 0.16)
         let steel = Color.bytes(163, 174, 187).mix(Color.bytes(21, 28, 38), distance)

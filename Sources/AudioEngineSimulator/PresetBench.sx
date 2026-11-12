@@ -1,0 +1,299 @@
+use GFX.Audio
+use GFX.Audio.EngineSimulation
+use GFX.Canvas
+use GFX.Color
+use GFX.Input.Events
+use GFX.Input.Keyboard
+use GFX.Input.Pointer
+use GFX.Viewer
+use GFX.Window
+use STD.Math
+use Package.EngineWorkshop.Workshop.Workshop
+use Module.Dashboard
+use Module.EngineConfig
+use Module.EngineViews
+use Module.PanelLayout
+use Module.PresetPlayback.PresetPlayback
+
+func preset_labels() str[9] { return ["Chevrolet 454", "4 cylindres · GTI", "Flat-six · 911", "V8 américain", "V10 · LFA",
+    "V12 · Ferrari 412 T2", "Motocross · 500 4T", "Hayabusa · 4 en ligne", "Chopper · V-twin 1800"] }
+
+class PresetPanel:Canvas.Session {
+    private let labels:str[9] = preset_labels()
+    private var workshop:Workshop
+    private var layout:PanelLayout.Layout = PanelLayout.Layout(1_120, 740)
+    private var measuring:Canvas = Canvas()
+    private var picture:Canvas = Canvas()
+    private var generation:int = -1
+    private var setup:EngineConfig.Setup = EngineConfig.Setup()
+    private var bank_angle:float = 90.0
+    private var geometry:EngineSimulation.Cylinder[] = []
+    private var cycle:float = 0.0
+    private var rpm:float = 0.0
+    private var key_turn:float = 0.0
+    private var drag:int? = null
+    private var selection_blocked:bool = false
+
+    init(workshop:Workshop) { self.workshop = workshop }
+
+    private func refresh_geometry() {
+        if self.generation == self.workshop.generation { return }
+        self.generation = self.workshop.generation
+        let profile = self.workshop.selected()
+        let twin = profile.key == "custom-1800"
+        self.setup = EngineConfig.Setup(vee:profile.cylinders >= 6 || twin,
+            cylinders:profile.cylinders, displacement:Math.round(profile.displacement_cc) as int)
+        self.bank_angle = self.setup.bank_angle()
+        if profile.key == "sport-flat6" { self.bank_angle = 180.0 }
+        if profile.key == "sport-v12" { self.bank_angle = 75.0 }
+        if twin { self.bank_angle = 45.0 }
+        self.geometry = self.setup.assembly().cylinders
+        if twin { self.geometry[1].firing_degrees = 315.0 }
+        self.cycle = 0.0
+        self.rpm = 0.0
+    }
+
+    func update(delta:float) bool {
+        self.refresh_geometry()
+        let rpm = self.workshop.source.current_rpm()
+        // The reference exposes RPM. Both views share a reconstructed crank angle.
+        let position = self.cycle + delta * (self.rpm + rpm) * 3.0
+        self.cycle = position - Math.floor(position / 720.0) * 720.0
+        let previous_rpm = self.rpm
+        self.rpm = rpm
+        let previous_turn = self.key_turn
+        let powered = self.workshop.running.value()
+        if powered { self.key_turn = Math.min(1.0, self.key_turn + delta / 0.16) }
+        else { self.key_turn = Math.max(0.0, self.key_turn - delta / 0.16) }
+        return powered || rpm > 0.0 || previous_rpm != rpm || previous_turn != self.key_turn
+    }
+
+    private func cylinder_states() EngineSimulation.CylinderState[] {
+        var states:EngineSimulation.CylinderState[] = []
+        for cylinder in self.geometry {
+            let offset = self.cycle + 720.0 - cylinder.firing_degrees as float
+            let phase = offset - Math.floor(offset / 720.0) * 720.0
+            let angle = phase * Math.pi() / 180.0
+            let radius = cylinder.stroke_mm as float * 0.5
+            let rod = cylinder.rod_mm as float
+            let lateral = radius * Math.sin(angle)
+            let travel = radius * (1.0 - Math.cos(angle)) + rod - Math.sqrt(rod * rod - lateral * lateral)
+            states.append(EngineSimulation.CylinderState(cycle_degrees:phase as float32, piston_mm:travel as float32))
+        }
+        return states
+    }
+
+    func drawing(width:int, height:int) Canvas {
+        if width < 80 || height < 80 { return Canvas() }
+        self.layout = PanelLayout.Layout(width, height)
+        self.refresh_geometry()
+        let layout = self.layout
+        let setup = self.setup
+        let states = self.cylinder_states()
+        let bank_angle = self.bank_angle
+        let powered = self.workshop.running.value()
+        let starting = self.workshop.source.is_starting()
+        let controls = self.workshop.source.controls()
+        var opening = controls.throttle ?? 0.0
+        if controls.accelerating { opening = 1.0 }
+        let key_turn = self.key_turn
+        let rpm = self.rpm
+        let redline = self.workshop.selected().redline_rpm
+        var measuring = self.measuring
+        self.picture.clear()
+        self.picture.paint(func(painter:&Canvas.Painter) {
+            self.draw_presets(painter, measuring)
+            Dashboard.panel(painter, layout.profile)
+            Dashboard.panel(painter, layout.overhead)
+            EngineViews.profile(painter, layout.profile, setup, states, 0, bank_angle:bank_angle)
+            EngineViews.overhead(painter, layout.overhead, setup, states, 0)
+            Dashboard.instruments(painter, measuring, layout, powered, starting, key_turn, opening, null, rpm, redline)
+            self.draw_controls(painter)
+        })
+        return self.picture
+    }
+
+    private func draw_presets(painter:&Canvas.Painter, measuring:Canvas) {
+        let frame = self.layout.setup
+        Dashboard.panel(painter, frame)
+        let view = PanelLayout.Viewport(frame, 162.0, 345.0)
+        let ink = Color.bytes(197, 212, 228)
+        painter.text("Moteurs", view.point(0.0, 0.0), Canvas.TextStyle(size:17.0 * view.scale, color:ink), clip:frame)
+        let selected = self.workshop.profile.value() ?? 0
+        for i, caption in self.labels.indexed() {
+            button(painter, measuring, preset_row(view, i), caption, i == selected, 12.5 * view.scale)
+        }
+        let audition = self.workshop.audition
+        var caption = "Essai 8 secondes"
+        if audition { caption = "Essai en cours" }
+        button(painter, measuring, preset_row(view, self.labels.count()), caption, audition, 12.5 * view.scale)
+        let status = self.layout.mixer
+        if self.selection_blocked && (self.workshop.running.value() || self.rpm >= 5.0) {
+            let hint = PanelLayout.Viewport(status, 162.0, 46.0)
+            let style = Canvas.TextStyle(size:12.0 * hint.scale, color:Color.bytes(255, 194, 99))
+            painter.text("Coupez le contact", hint.point(0.0, 3.0), style, clip:status)
+            painter.text("et attendez l’arrêt.", hint.point(0.0, 23.0), style, clip:status)
+        }
+    }
+
+    private func draw_controls(painter:&Canvas.Painter) {
+        let frame = self.layout.equipment
+        Dashboard.panel(painter, frame)
+        let view = PanelLayout.Viewport(frame, 160.0, 129.0)
+        let levels:float[3] = [self.workshop.throttle.value(), self.workshop.load.value(), self.workshop.volume.value()]
+        let captions = ["Accélérateur", "Charge du banc", "Volume d’écoute"]
+        let ink = Color.bytes(197, 212, 228)
+        let accent = Color.bytes(119, 214, 225)
+        for i, level in levels.indexed() {
+            let y = i as float * 43.0
+            let percent = Math.round(level * 100.0) as int
+            painter.text(captions[i], view.point(0.0, y + 2.0), Canvas.TextStyle(size:12.0 * view.scale, color:ink), clip:frame)
+            painter.text("$(percent) %", view.point(160.0, y + 2.0), Canvas.TextStyle(size:12.0 * view.scale,
+                alignment:Canvas.TextAlignment.end, color:accent), clip:frame)
+            let start = view.point(0.0, y + 29.0)
+            let end = view.point(160.0, y + 29.0)
+            let thumb = view.point(160.0 * level, y + 29.0)
+            painter.stroke(Canvas.Line(start, end), Canvas.Stroke(Color.bytes(64, 82, 102), 2.0 * view.scale))
+            if level > 0.0 { painter.stroke(Canvas.Line(start, thumb), Canvas.Stroke(accent, 2.0 * view.scale)) }
+            painter.fill(Canvas.Circle(thumb, 4.0 * view.scale), Canvas.Fill.solid(accent))
+        }
+    }
+
+    private func change_control(index:int, x:float) {
+        let view = PanelLayout.Viewport(self.layout.equipment, 160.0, 129.0)
+        let level = Math.clamp((x - view.origin.x) / (160.0 * view.scale), 0.0, 1.0)
+        match index {
+            0 => { self.workshop.throttle.set(level); self.workshop.controls_changed(level) }
+            1 => { self.workshop.load.set(level); self.workshop.controls_changed(level) }
+            else => { self.workshop.volume.set(level); self.workshop.sync() }
+        }
+    }
+
+    func handle(event:@Events.Event) bool {
+        match event {
+            mouse_button_pressed(value) => {
+                if value.button != Pointer.MouseButton.left { return false }
+                if contains(self.layout.key, value.position) { self.workshop.toggle_running(); return true }
+                let presets = PanelLayout.Viewport(self.layout.setup, 162.0, 345.0)
+                for i in 0...self.labels.count() {
+                    if contains(preset_row(presets, i), value.position) {
+                        let previous = self.workshop.generation
+                        self.workshop.choose_profile(i)
+                        self.selection_blocked = self.workshop.generation == previous
+                        return true
+                    }
+                }
+                if contains(preset_row(presets, self.labels.count()), value.position) {
+                    self.workshop.audition_cycle()
+                    return true
+                }
+                let controls = PanelLayout.Viewport(self.layout.equipment, 160.0, 129.0)
+                for i in 0...3 {
+                    let start = controls.point(0.0, 19.0 + 43.0 * i as float)
+                    if contains(PanelLayout.rect(start.x, start.y, 160.0 * controls.scale, 20.0 * controls.scale), value.position) {
+                        self.drag = i; self.change_control(i, value.position.x); return true
+                    }
+                }
+            }
+            mouse_moved(value) => {
+                if let index = self.drag { self.change_control(index, value.position.x); return true }
+            }
+            mouse_button_released(value) => {
+                if value.button == Pointer.MouseButton.left {
+                    if let index = self.drag {
+                        self.drag = null; self.change_control(index, value.position.x); return true
+                    }
+                }
+            }
+            window_focus_lost(value) => { self.drag = null }
+            else => {}
+        }
+        return false
+    }
+
+    func accepts_text_input() bool { return false }
+    func text_input_target() Canvas.TextInputTarget? { return null }
+    func pointer_cursor() Window.Cursor { return Window.Cursor.standard }
+
+    func check_views() {
+        let sizes:Math.Vec2[2] = [Math.Vec2(1_120.0, 740.0), Math.Vec2(420.0, 700.0)]
+        for size in sizes {
+            var drawing = self.drawing(size.x as int, size.y as int)
+            var cutaway = false
+            var overhead = false
+            var pedal = false
+            for command in drawing.commands() {
+                match command {
+                    text(value) => { if value.value == "Espace" { pedal = contains(self.layout.pedal, value.position) } }
+                    fill_circle(value) => {
+                        if contains(self.layout.profile, value.shape.center) { cutaway = true }
+                        if contains(self.layout.overhead, value.shape.center) { overhead = true }
+                    }
+                    else => {}
+                }
+            }
+            assert(cutaway && overhead && pedal)
+            assert(self.layout.profile.position.y + self.layout.profile.size.y < self.layout.overhead.position.y)
+        }
+    }
+}
+
+func preset_row(view:PanelLayout.Viewport, index:int) Canvas.Rect {
+    let start = view.point(0.0, 33.0 + 31.0 * index as float)
+    return PanelLayout.rect(start.x, start.y, 162.0 * view.scale, 27.0 * view.scale)
+}
+
+func button(painter:&Canvas.Painter, measuring:Canvas, frame:Canvas.Rect, caption:str, selected:bool, size:float) {
+    var fill = Color.bytes(34, 44, 58)
+    if selected { fill = Color.bytes(32, 72, 82) }
+    painter.fill(Canvas.Rect(frame.position, frame.size, radius:frame.size.y * 0.20), Canvas.Fill.solid(fill))
+    Dashboard.centered_label(painter, measuring, frame, caption, Canvas.TextStyle(size:size, color:Color.bytes(234, 240, 248)))
+}
+
+func contains(frame:Canvas.Rect, point:Math.Vec2) bool {
+    return point.x >= frame.position.x && point.x < frame.position.x + frame.size.x &&
+        point.y >= frame.position.y && point.y < frame.position.y + frame.size.y
+}
+
+public func show() {
+    var workshop = Workshop(reference_only:true)
+    var session = PresetPlayback(workshop, PresetPanel(workshop), Audio())
+    Viewer.show(session, Viewer.CanvasSettings(width:1_120, height:740, title:"AudioEngineSimulator",
+        background:Dashboard.background()))
+}
+
+public func check() {
+    var workshop = Workshop(reference_only:true)
+    var panel = PresetPanel(workshop)
+    var session = PresetPlayback(workshop, panel, Audio.offline(sample_rate:44_100, channels:2))
+    assert(workshop.catalogue.count() == preset_labels().count())
+    let layout = PanelLayout.Layout(1_120, 740)
+    let presets = PanelLayout.Viewport(layout.setup, 162.0, 345.0)
+    for i, profile in workshop.catalogue.indexed() {
+        let row = preset_row(presets, i)
+        assert(session.handle(Events.Event.mouse_button_pressed(click(row.position.add(row.size.multiply(0.5))))))
+        assert(workshop.selected().key == profile.key)
+    }
+    panel.check_views()
+    session.drawing(420, 700)
+    let key = PanelLayout.Layout(420, 700).key
+    assert(session.handle(Events.Event.mouse_button_pressed(click(key.position.add(key.size.multiply(0.5))))))
+    assert(workshop.running.value())
+    let controls = PanelLayout.Viewport(PanelLayout.Layout(420, 700).equipment, 160.0, 129.0)
+    assert(session.handle(Events.Event.mouse_button_pressed(click(controls.point(160.0 * 0.9, 29.0)))))
+    assert(Math.abs((workshop.source.controls().throttle ?? 0.0) - 0.16) < 0.0001)
+    let space = Events.KeyEvent(window:Window.Id(value:0 as uint32), keyboard:Keyboard.KeyboardId(value:0 as uint32),
+        key:Keyboard.Key.space, keycode:0 as uint32, raw:0 as uint16, repeated:false,
+        modifiers:Keyboard.Modifiers(), timestamp:Events.Timestamp(nanoseconds:0 as uint))
+    assert(session.handle(Events.Event.key_pressed(space)))
+    assert(workshop.source.controls().accelerating)
+    assert(session.handle(Events.Event.key_released(space)))
+    assert(!workshop.source.controls().accelerating)
+    print("Banc des presets · sélection, coupe, vue de dessus, pédale et contact vérifiés")
+}
+
+func click(position:Math.Vec2) Events.MouseButtonEvent {
+    return Events.MouseButtonEvent(window:Window.Id(value:0 as uint32), mouse:Pointer.MouseId(value:0 as uint32),
+        button:Pointer.MouseButton.left, down:true, clicks:1 as uint8, position:position,
+        timestamp:Events.Timestamp(nanoseconds:0 as uint))
+}

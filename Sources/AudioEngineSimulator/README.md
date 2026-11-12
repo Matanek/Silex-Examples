@@ -2,19 +2,23 @@
 
 ## EngineWorkshop presets
 
-The launcher opens a selector with the nine chosen EngineWorkshop engines.
-It uses the original EngineWorkshop renderer, throttle, load and default
-settings. Press **M** to toggle ignition, hold **Space** for full throttle,
-or click **Essai 8 secondes** for the reference audition. Switch off the
-ignition and wait for the engine to stop before selecting another preset.
+The main window combines the nine EngineWorkshop presets with a cutaway
+and an overhead view. Both views animate the pistons from the engine RPM.
+The ignition key, tachometer and accelerator sit beside the views or below
+them in a narrow window.
 
-`--check-references` compares the PCM, RPM and starter state of all nine
-presets with EngineWorkshop. `--render-reference <id> <wav>` exports the
-same audition as 44.1 kHz stereo WAV.
+Click the key or press **M** to toggle ignition. Hold **Space** for full
+throttle or set the opening with the **Accélérateur** slider. Click
+**Essai 8 secondes** for the EngineWorkshop audition. Switch off the ignition
+and wait for the engine to stop before selecting another preset.
+
+`--check-references` checks the views and controls and compares the PCM, RPM
+and starter state of all nine presets with EngineWorkshop.
+`--render-reference <id> <wav>` exports the same audition as 44.1 kHz stereo WAV.
 
 ## Parts-based simulator
 
-Run the binary with `--procedural` to open the two-view engine bench.
+Run the binary with `--procedural` to configure the engine parts and equipment.
 
 The window starts with a generic four-stroke V8. Use the left panel to
 choose inline or V, select the cylinder count and set total displacement.

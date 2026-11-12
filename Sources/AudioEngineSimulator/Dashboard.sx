@@ -20,7 +20,7 @@ public func centered_label(painter:&Canvas.Painter, measuring:Canvas, frame:Canv
 }
 
 public func instruments(painter:&Canvas.Painter, measuring:Canvas, layout:PanelLayout.Layout, powered:bool, starting:bool,
-    key_turn:float, opening:float, progressive:bool, rpm:float, rev_limit:float) {
+    key_turn:float, opening:float, progressive:bool?, rpm:float, rev_limit:float) {
     let frame = layout.controls
     panel(painter, frame)
     let key = layout.key
@@ -51,7 +51,7 @@ public func instruments(painter:&Canvas.Painter, measuring:Canvas, layout:PanelL
 
     tachometer(painter, layout.tachometer, rpm, rev_limit)
     pedal(painter, layout.pedal, opening)
-    pedal_mode(painter, measuring, layout.pedal_mode, progressive)
+    if let mode = progressive { pedal_mode(painter, measuring, layout.pedal_mode, mode) }
 }
 
 func pedal_mode(painter:&Canvas.Painter, measuring:Canvas, frame:Canvas.Rect, progressive:bool) {
