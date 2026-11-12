@@ -16,8 +16,9 @@ the selected engine.
 
 Click a gear on the gate beside the pedal to select it. **Up** and **Down**
 shift, and **N** selects neutral. The gate shows the engaged gear and speed.
-Hold **S** to brake. With the pedal released, a downshift waits for the
-speed shown on the gate. Selecting another gear replaces the pending request.
+Hold **S** to brake. The gearbox engages the selected gear at the current
+speed. A downshift can drive the engine past the ignition cut-off and
+slow the vehicle through engine braking.
 In neutral, **Charge du banc** applies the bench load.
 
 `--check-references` checks the views and controls and compares the PCM, RPM

@@ -41,14 +41,16 @@ public func run() {
             if block == 170 { demo.toggle_running(); original.toggle_running() }
             demo.update(480.0 / 44_100.0)
             original.update(480.0 / 44_100.0)
-            demo.source.render(&a[0:960])
-            original.source.render(&b[0:960])
+            try demo.source.render(&a[0:960]) else error { panic(key + " · simulation at block $(block): $(error.detail)") }
+            try original.source.render(&b[0:960]) else error { panic(key + " · reference at block $(block): $(error.detail)") }
             assert(demo.source.current_rpm() == original.source.current_rpm(), key + " · RPM differs at block $(block): $(demo.source.current_rpm()) / $(original.source.current_rpm())")
             assert(demo.source.is_starting() == original.source.is_starting(), key + " · starter differs")
             for cylinder in 0...demo.selected().cylinders {
                 assert(demo.source.last_combustion_frame(cylinder) == original.source.last_combustion_frame(cylinder))
             }
-            for i in 0...960 { assert(a[i] == b[i], key + " · PCM differs") }
+            for i in 0...960 {
+                if a[i] != b[i] { panic(key + " · PCM differs at block $(block), sample $(i): $(a[i]) / $(b[i])") }
+            }
         }
         for cylinder in 0...demo.selected().cylinders {
             if let frame = demo.source.last_combustion_frame(cylinder) { assert(frame <= demo.source.frame()) }

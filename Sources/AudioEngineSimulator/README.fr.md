@@ -18,9 +18,9 @@ Tourner la clé ou appuyer sur **M** pour démarrer le moteur sélectionné.
 Cliquer sur un rapport de la grille à côté de la pédale pour l’engager.
 **↑** et **↓** changent de rapport, **N** ramène au point mort. Le rapport
 engagé et la vitesse s’affichent sur la grille. Maintenir **S** pour
-freiner. Pédale relâchée, un rétrogradage attend que la vitesse descende
-à la limite indiquée sur la grille. Choisir un autre rapport remplace
-la demande en attente. Au point mort, le curseur
+freiner. La boîte engage le rapport sélectionné à la vitesse courante.
+En rétrogradant, les roues peuvent entraîner le moteur au-delà du
+rupteur et ralentir le véhicule par frein moteur. Au point mort, le curseur
 **Charge du banc** permet de remettre le moteur en charge.
 
 `--check-references` vérifie les vues et les commandes et compare le son,
