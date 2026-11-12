@@ -126,19 +126,26 @@ public class PresetPlayback:Canvas.Session {
     }
     func handle(event:@Events.Event) bool {
         match event {
-            window_focus_lost(value) => { self.pedal.pressed = false }
+            window_focus_lost(value) => { self.pedal.pressed = false; self.workshop.set_braking(false) }
             key_pressed(value) => {
                 if !self.panel.accepts_text_input() && !value.modifiers.control && !value.modifiers.alt && !value.modifiers.system {
                     let m = value.keycode == 109 as uint32 || value.keycode == 77 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.m)
                     if m { if !value.repeated { self.workshop.toggle_running() }
                         return true }
+                    if value.key == Keyboard.Key.s {
+                        if !value.repeated { self.workshop.set_braking(true) }
+                        return true
+                    }
                     if value.key == Keyboard.Key.space {
                         if !value.repeated { self.pedal.pressed = true }
                         return true
                     }
                 }
             }
-            key_released(value) => { if value.key == Keyboard.Key.space { self.pedal.pressed = false; return true } }
+            key_released(value) => {
+                if value.key == Keyboard.Key.space { self.pedal.pressed = false; return true }
+                if value.key == Keyboard.Key.s { self.workshop.set_braking(false); return true }
+            }
             else => {}
         }
         let handled = self.panel.handle(event)

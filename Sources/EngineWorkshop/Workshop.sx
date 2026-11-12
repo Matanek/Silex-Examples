@@ -13,6 +13,7 @@ public class Workshop {
     private let reference_only:bool
     private let transmission:Engines.Transmission?
     var requested_gear:int = 0
+    private var braking:bool = false
     var generation:int = 0
     var running:UI.State<bool> = UI.State<bool>(false)
     var profile:UI.State<int?> = UI.State<int?>(0)
@@ -85,6 +86,7 @@ public class Workshop {
                 self.source = source; self.active_capacity = capacity; self.generation++
                 self.keyboard_opening = 0.0
                 self.requested_gear = 0
+                self.braking = false
                 self.accelerating = false; self.audition = false; self.reference_active = false
                 // Profile idle is metadata; this command engages the dyno.
                 // Keep the reference bench's free-idle default for every model.
@@ -114,13 +116,28 @@ public class Workshop {
     }
     func select_gear(gear:int) {
         if self.transmission == null || gear < 0 || gear > self.source.gearing.ratios.count() { return }
+        self.source.request_gear(gear)
         self.requested_gear = gear
         self.audition = false
         self.sync()
     }
 
+    func shift_gear(step:int) {
+        let state = self.source.drive_state()!
+        var gear = self.requested_gear
+        if state.shift_refused { gear = state.gear }
+        self.select_gear(gear + step)
+    }
+
+    func set_braking(active:bool) {
+        if active { self.audition = false }
+        self.braking = active
+        self.sync()
+    }
+
     func audition_cycle() {
         self.requested_gear = 0
+        self.braking = false
         self.running.set(true); self.audition = true; self.audition_time = 0.0
         self.notice.set("Essai 8 s · démarrage, gaz progressifs, charge, relâchement")
         self.sync()
@@ -149,6 +166,7 @@ public class Workshop {
         var controls = self.source.controls()
         controls.running = self.running.value(); controls.accelerating = self.accelerating
         controls.gear = self.requested_gear
+        controls.braking = self.braking
         controls.throttle = null
         if !self.accelerating && self.throttle.value() > 0.0 { controls.throttle = self.pedal(self.throttle.value()) }
         if self.keyboard_opening > 0.0 {

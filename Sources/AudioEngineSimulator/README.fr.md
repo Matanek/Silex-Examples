@@ -17,7 +17,9 @@ Tourner la clé ou appuyer sur **M** pour démarrer le moteur sélectionné.
 
 Cliquer sur un rapport de la grille à côté de la pédale pour l’engager.
 **↑** et **↓** changent de rapport, **N** ramène au point mort. Le rapport
-engagé et la vitesse s’affichent sur la grille. Au point mort, le curseur
+engagé et la vitesse s’affichent sur la grille. Maintenir **S** pour
+freiner. Après un refus de rétrogradage, ralentir puis redemander le
+rapport. Au point mort, le curseur
 **Charge du banc** permet de remettre le moteur en charge.
 
 `--check-references` vérifie les vues et les commandes et compare le son,

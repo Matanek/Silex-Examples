@@ -219,9 +219,9 @@ class PresetPanel:Canvas.Session {
                 match value.key {
                     n => { if !value.repeated { self.workshop.select_gear(0) }
                         return true }
-                    up => { if !value.repeated { self.workshop.select_gear(self.workshop.requested_gear + 1) }
+                    up => { if !value.repeated { self.workshop.shift_gear(1) }
                         return true }
-                    down => { if !value.repeated { self.workshop.select_gear(self.workshop.requested_gear - 1) }
+                    down => { if !value.repeated { self.workshop.shift_gear(-1) }
                         return true }
                     else => {}
                 }
