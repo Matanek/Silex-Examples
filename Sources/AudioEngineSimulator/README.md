@@ -9,8 +9,9 @@ them in a narrow window.
 
 Click the key or press **M** to toggle ignition. Hold **Space** for full
 throttle or set the opening with the **Accélérateur** slider. Click
-**Essai 8 secondes** for the EngineWorkshop audition. Switch off the ignition
-and wait for the engine to stop before selecting another preset.
+**Essai 8 secondes** for the EngineWorkshop audition. Selecting another
+preset switches off the ignition. Click the key or press **M** to start
+the selected engine.
 
 `--check-references` checks the views and controls and compares the PCM, RPM
 and starter state of all nine presets with EngineWorkshop.

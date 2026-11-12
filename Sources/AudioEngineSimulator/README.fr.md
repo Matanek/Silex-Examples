@@ -10,7 +10,8 @@ sont regroupés à côté des vues, ou en dessous dans une fenêtre étroite.
 Cliquer sur la clé ou appuyer sur **M** pour mettre ou couper le contact.
 Maintenir **Espace** pour donner plein gaz ou doser l’ouverture avec le
 curseur **Accélérateur**. Le bouton **Essai 8 secondes** rejoue le scénario
-d’EngineWorkshop. Couper le contact et attendre l’arrêt pour changer de moteur.
+d’EngineWorkshop. Choisir un autre moteur coupe automatiquement le contact.
+Tourner la clé ou appuyer sur **M** pour démarrer le moteur sélectionné.
 
 `--check-references` vérifie les vues et les commandes et compare le son,
 le régime et le démarreur des neuf presets à ceux d’EngineWorkshop.

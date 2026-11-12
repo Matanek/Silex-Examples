@@ -32,7 +32,6 @@ class PresetPanel:Canvas.Session {
     private var rpm:float = 0.0
     private var key_turn:float = 0.0
     private var drag:int? = null
-    private var selection_blocked:bool = false
 
     init(workshop:Workshop) { self.workshop = workshop }
 
@@ -51,6 +50,7 @@ class PresetPanel:Canvas.Session {
         if twin { self.geometry[1].firing_degrees = 315.0 }
         self.cycle = 0.0
         self.rpm = 0.0
+        self.key_turn = 0.0
     }
 
     func update(delta:float) bool {
@@ -96,6 +96,9 @@ class PresetPanel:Canvas.Session {
         let controls = self.workshop.source.controls()
         var opening = controls.throttle ?? 0.0
         if controls.accelerating { opening = 1.0 }
+        let throttle = self.workshop.throttle.value()
+        let load = self.workshop.load.value()
+        let volume = self.workshop.volume.value()
         let key_turn = self.key_turn
         let rpm = self.rpm
         let redline = self.workshop.selected().redline_rpm
@@ -108,7 +111,12 @@ class PresetPanel:Canvas.Session {
             EngineViews.profile(painter, layout.profile, setup, states, 0, bank_angle:bank_angle)
             EngineViews.overhead(painter, layout.overhead, setup, states, 0)
             Dashboard.instruments(painter, measuring, layout, powered, starting, key_turn, opening, null, rpm, redline)
-            self.draw_controls(painter)
+            let frame = layout.equipment
+            Dashboard.panel(painter, frame)
+            let view = PanelLayout.Viewport(frame, 160.0, 129.0)
+            draw_slider(painter, frame, view, 0, "Accélérateur", throttle)
+            draw_slider(painter, frame, view, 1, "Charge du banc", load)
+            draw_slider(painter, frame, view, 2, "Volume d’écoute", volume)
         })
         return self.picture
     }
@@ -127,36 +135,6 @@ class PresetPanel:Canvas.Session {
         var caption = "Essai 8 secondes"
         if audition { caption = "Essai en cours" }
         button(painter, measuring, preset_row(view, self.labels.count()), caption, audition, 12.5 * view.scale)
-        let status = self.layout.mixer
-        if self.selection_blocked && (self.workshop.running.value() || self.rpm >= 5.0) {
-            let hint = PanelLayout.Viewport(status, 162.0, 46.0)
-            let style = Canvas.TextStyle(size:12.0 * hint.scale, color:Color.bytes(255, 194, 99))
-            painter.text("Coupez le contact", hint.point(0.0, 3.0), style, clip:status)
-            painter.text("et attendez l’arrêt.", hint.point(0.0, 23.0), style, clip:status)
-        }
-    }
-
-    private func draw_controls(painter:&Canvas.Painter) {
-        let frame = self.layout.equipment
-        Dashboard.panel(painter, frame)
-        let view = PanelLayout.Viewport(frame, 160.0, 129.0)
-        let levels:float[3] = [self.workshop.throttle.value(), self.workshop.load.value(), self.workshop.volume.value()]
-        let captions = ["Accélérateur", "Charge du banc", "Volume d’écoute"]
-        let ink = Color.bytes(197, 212, 228)
-        let accent = Color.bytes(119, 214, 225)
-        for i, level in levels.indexed() {
-            let y = i as float * 43.0
-            let percent = Math.round(level * 100.0) as int
-            painter.text(captions[i], view.point(0.0, y + 2.0), Canvas.TextStyle(size:12.0 * view.scale, color:ink), clip:frame)
-            painter.text("$(percent) %", view.point(160.0, y + 2.0), Canvas.TextStyle(size:12.0 * view.scale,
-                alignment:Canvas.TextAlignment.end, color:accent), clip:frame)
-            let start = view.point(0.0, y + 29.0)
-            let end = view.point(160.0, y + 29.0)
-            let thumb = view.point(160.0 * level, y + 29.0)
-            painter.stroke(Canvas.Line(start, end), Canvas.Stroke(Color.bytes(64, 82, 102), 2.0 * view.scale))
-            if level > 0.0 { painter.stroke(Canvas.Line(start, thumb), Canvas.Stroke(accent, 2.0 * view.scale)) }
-            painter.fill(Canvas.Circle(thumb, 4.0 * view.scale), Canvas.Fill.solid(accent))
-        }
     }
 
     private func change_control(index:int, x:float) {
@@ -177,9 +155,10 @@ class PresetPanel:Canvas.Session {
                 let presets = PanelLayout.Viewport(self.layout.setup, 162.0, 345.0)
                 for i in 0...self.labels.count() {
                     if contains(preset_row(presets, i), value.position) {
-                        let previous = self.workshop.generation
-                        self.workshop.choose_profile(i)
-                        self.selection_blocked = self.workshop.generation == previous
+                        if i != (self.workshop.profile.value() ?? 0) {
+                            self.drag = null
+                            self.workshop.choose_profile_and_stop(i)
+                        }
                         return true
                     }
                 }
@@ -189,8 +168,9 @@ class PresetPanel:Canvas.Session {
                 }
                 let controls = PanelLayout.Viewport(self.layout.equipment, 160.0, 129.0)
                 for i in 0...3 {
-                    let start = controls.point(0.0, 19.0 + 43.0 * i as float)
-                    if contains(PanelLayout.rect(start.x, start.y, 160.0 * controls.scale, 20.0 * controls.scale), value.position) {
+                    let start = controls.point(0.0, slider_y(i) - 10.0)
+                    if contains(PanelLayout.rect(start.x - 4.0 * controls.scale, start.y,
+                        168.0 * controls.scale, 20.0 * controls.scale), value.position) {
                         self.drag = i; self.change_control(i, value.position.x); return true
                     }
                 }
@@ -215,27 +195,80 @@ class PresetPanel:Canvas.Session {
     func text_input_target() Canvas.TextInputTarget? { return null }
     func pointer_cursor() Window.Cursor { return Window.Cursor.standard }
 
-    func check_views() {
-        let sizes:Math.Vec2[2] = [Math.Vec2(1_120.0, 740.0), Math.Vec2(420.0, 700.0)]
-        for size in sizes {
-            var drawing = self.drawing(size.x as int, size.y as int)
-            var cutaway = false
-            var overhead = false
-            var pedal = false
-            for command in drawing.commands() {
-                match command {
-                    text(value) => { if value.value == "Espace" { pedal = contains(self.layout.pedal, value.position) } }
-                    fill_circle(value) => {
-                        if contains(self.layout.profile, value.shape.center) { cutaway = true }
-                        if contains(self.layout.overhead, value.shape.center) { overhead = true }
-                    }
-                    else => {}
+    func check_slider(index:int, level:float) {
+        let view = PanelLayout.Viewport(self.layout.equipment, 160.0, 129.0)
+        let y = slider_y(index)
+        let label = view.point(160.0, y - 27.0)
+        let thumb = view.point(160.0 * level, y)
+        let expected = Math.round(level * 100.0) as int
+        var has_label = false
+        var has_thumb = false
+        for command in self.picture.commands() {
+            match command {
+                text(value) => {
+                    if value.position == label && value.value == "$(expected) %" { has_label = true }
                 }
+                fill_circle(value) => {
+                    if Math.abs(value.shape.center.x - thumb.x) < 0.01 && Math.abs(value.shape.center.y - thumb.y) < 0.01 {
+                        has_thumb = true
+                    }
+                }
+                else => {}
             }
-            assert(cutaway && overhead && pedal)
-            assert(self.layout.profile.position.y + self.layout.profile.size.y < self.layout.overhead.position.y)
         }
+        assert(has_label && has_thumb, "slider $(index) should display $(expected) %")
     }
+
+    func check_views(width:int, height:int) {
+        var drawing = self.drawing(width, height)
+        var cutaway = false
+        var overhead = false
+        var pedal = false
+        var liners = 0
+        let middle = self.layout.profile.position.x + self.layout.profile.size.x * 0.5
+        for command in drawing.commands() {
+            match command {
+                text(value) => { if value.value == "Espace" { pedal = contains(self.layout.pedal, value.position) } }
+                fill_circle(value) => {
+                    if contains(self.layout.profile, value.shape.center) { cutaway = true }
+                    if contains(self.layout.overhead, value.shape.center) { overhead = true }
+                }
+                stroke_line(value) => {
+                    let start = value.shape.start
+                    let end = value.shape.end
+                    let ink = value.style.brush().color_at(start)
+                    if contains(self.layout.profile, start) && ink.r > ink.b && ink.b > ink.g {
+                        let direction = end.subtract(start)
+                        let edge = value.style.width * Math.abs(direction.y) / direction.length() * 0.5
+                        assert(Math.max(start.x, end.x) + edge < middle ||
+                            Math.min(start.x, end.x) - edge > middle, "cylinder banks overlap at the crank centerline")
+                        liners++
+                    }
+                }
+                else => {}
+            }
+        }
+        assert(cutaway && overhead && pedal && liners == 6)
+        assert(self.layout.profile.position.y + self.layout.profile.size.y < self.layout.overhead.position.y)
+    }
+}
+
+func slider_y(index:int) float { return 29.0 + 43.0 * index as float }
+
+func draw_slider(painter:&Canvas.Painter, frame:Canvas.Rect, view:PanelLayout.Viewport, index:int, caption:str, level:float) {
+    let y = slider_y(index)
+    let percent = Math.round(level * 100.0) as int
+    let ink = Color.bytes(197, 212, 228)
+    let accent = Color.bytes(119, 214, 225)
+    painter.text(caption, view.point(0.0, y - 27.0), Canvas.TextStyle(size:12.0 * view.scale, color:ink), clip:frame)
+    painter.text("$(percent) %", view.point(160.0, y - 27.0), Canvas.TextStyle(size:12.0 * view.scale,
+        alignment:Canvas.TextAlignment.end, color:accent), clip:frame)
+    let start = view.point(0.0, y)
+    let end = view.point(160.0, y)
+    let thumb = view.point(160.0 * level, y)
+    painter.stroke(Canvas.Line(start, end), Canvas.Stroke(Color.bytes(64, 82, 102), 2.0 * view.scale))
+    if level > 0.0 { painter.stroke(Canvas.Line(start, thumb), Canvas.Stroke(accent, 2.0 * view.scale)) }
+    painter.fill(Canvas.Circle(thumb, 4.0 * view.scale), Canvas.Fill.solid(accent))
 }
 
 func preset_row(view:PanelLayout.Viewport, index:int) Canvas.Rect {
@@ -267,6 +300,10 @@ public func check() {
     var panel = PresetPanel(workshop)
     var session = PresetPlayback(workshop, panel, Audio.offline(sample_rate:44_100, channels:2))
     assert(workshop.catalogue.count() == preset_labels().count())
+    session.drawing(1_120, 740)
+    panel.check_slider(0, 0.0)
+    panel.check_slider(1, 0.2)
+    panel.check_slider(2, 0.7)
     let layout = PanelLayout.Layout(1_120, 740)
     let presets = PanelLayout.Viewport(layout.setup, 162.0, 345.0)
     for i, profile in workshop.catalogue.indexed() {
@@ -274,14 +311,29 @@ public func check() {
         assert(session.handle(Events.Event.mouse_button_pressed(click(row.position.add(row.size.multiply(0.5))))))
         assert(workshop.selected().key == profile.key)
     }
-    panel.check_views()
+    panel.check_views(1_120, 740)
+    panel.check_views(420, 700)
     session.drawing(420, 700)
     let key = PanelLayout.Layout(420, 700).key
     assert(session.handle(Events.Event.mouse_button_pressed(click(key.position.add(key.size.multiply(0.5))))))
     assert(workshop.running.value())
     let controls = PanelLayout.Viewport(PanelLayout.Layout(420, 700).equipment, 160.0, 129.0)
-    assert(session.handle(Events.Event.mouse_button_pressed(click(controls.point(160.0 * 0.9, 29.0)))))
+    let throttle = controls.point(160.0 * 0.9, slider_y(0))
+    let load = controls.point(160.0 * 0.4, slider_y(1))
+    let volume = controls.point(160.0, slider_y(2))
+    assert(session.handle(Events.Event.mouse_button_pressed(click(throttle))))
+    session.drawing(420, 700)
+    panel.check_slider(0, 0.9)
     assert(Math.abs((workshop.source.controls().throttle ?? 0.0) - 0.16) < 0.0001)
+    assert(session.handle(Events.Event.mouse_button_pressed(click(load))))
+    session.drawing(420, 700)
+    panel.check_slider(1, 0.4)
+    assert(Math.abs(workshop.source.controls().load - 0.4) < 0.0001)
+    assert(session.handle(Events.Event.mouse_button_pressed(click(volume))))
+    assert(session.handle(Events.Event.mouse_button_released(click(volume, down:false))))
+    session.drawing(420, 700)
+    panel.check_slider(2, 1.0)
+    assert(workshop.source.controls().volume > 0.9999)
     let space = Events.KeyEvent(window:Window.Id(value:0 as uint32), keyboard:Keyboard.KeyboardId(value:0 as uint32),
         key:Keyboard.Key.space, keycode:0 as uint32, raw:0 as uint16, repeated:false,
         modifiers:Keyboard.Modifiers(), timestamp:Events.Timestamp(nanoseconds:0 as uint))
@@ -289,11 +341,25 @@ public func check() {
     assert(workshop.source.controls().accelerating)
     assert(session.handle(Events.Event.key_released(space)))
     assert(!workshop.source.controls().accelerating)
-    print("Banc des presets · sélection, coupe, vue de dessus, pédale et contact vérifiés")
+    let narrow_presets = PanelLayout.Viewport(PanelLayout.Layout(420, 700).setup, 162.0, 345.0)
+    let audition = preset_row(narrow_presets, preset_labels().count())
+    let chevrolet = preset_row(narrow_presets, 0)
+    assert(session.handle(Events.Event.mouse_button_pressed(click(audition.position.add(audition.size.multiply(0.5))))))
+    assert(workshop.audition && workshop.running.value())
+    assert(session.handle(Events.Event.mouse_button_pressed(click(chevrolet.position.add(chevrolet.size.multiply(0.5))))))
+    assert(workshop.selected().key == "454" && !workshop.audition && !workshop.running.value())
+    assert(!workshop.source.controls().running && !workshop.source.controls().accelerating)
+    session.drawing(420, 700)
+    panel.check_slider(0, 0.0)
+    panel.check_slider(1, 0.2)
+    panel.check_slider(2, 1.0)
+    assert(session.handle(Events.Event.mouse_button_pressed(click(key.position.add(key.size.multiply(0.5))))))
+    assert(workshop.running.value() && workshop.source.controls().running)
+    print("Banc des presets · cylindres, curseurs et redémarrage après changement vérifiés")
 }
 
-func click(position:Math.Vec2) Events.MouseButtonEvent {
+func click(position:Math.Vec2, down:bool = true) Events.MouseButtonEvent {
     return Events.MouseButtonEvent(window:Window.Id(value:0 as uint32), mouse:Pointer.MouseId(value:0 as uint32),
-        button:Pointer.MouseButton.left, down:true, clicks:1 as uint8, position:position,
+        button:Pointer.MouseButton.left, down:down, clicks:1 as uint8, position:position,
         timestamp:Events.Timestamp(nanoseconds:0 as uint))
 }

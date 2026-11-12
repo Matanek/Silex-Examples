@@ -75,7 +75,9 @@ public class PresetPlayback:Canvas.Session {
             key_released(value) => { if value.key == Keyboard.Key.space { self.workshop.accelerating = false; self.workshop.sync(); return true } }
             else => {}
         }
-        return self.panel.handle(event)
+        let handled = self.panel.handle(event)
+        if self.generation != self.workshop.generation { self.feed() }
+        return handled
     }
     func accepts_text_input() bool { return self.panel.accepts_text_input() }
     func text_input_target() Canvas.TextInputTarget? { return self.panel.text_input_target() }

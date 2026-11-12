@@ -61,19 +61,24 @@ public class Workshop {
         if !self.can_replace() {
             self.profile.set(self.selected_index); self.notice.set("Coupez le contact et attendez l’arrêt pour changer de moteur."); return
         }
-        self.selected_index = index; self.profile.set(index)
-        self.capacity.set(self.selected().displacement_cc)
-        self.install()
+        self.install(index, self.catalogue[index].displacement_cc)
+    }
+    func choose_profile_and_stop(index:int) {
+        self.install(index, self.catalogue[index].displacement_cc, stop_current:true)
     }
     func apply_capacity() {
         if !self.can_replace() { self.notice.set("Appliquez la cylindrée après avoir coupé le contact et attendu l’arrêt."); return }
-        self.install()
+        self.install(self.selected_index, self.capacity.value())
     }
-    private func install() {
-        match try Vehicles.create(self.selected().key, displacement_cc:self.capacity.value()) {
-            failure(error) => { self.notice.set("Cylindrée refusée : $(error.detail)") }
+    private func install(index:int, capacity:float, stop_current:bool = false) {
+        match try Vehicles.create(self.catalogue[index].key, displacement_cc:capacity) {
+            failure(error) => {
+                self.profile.set(self.selected_index); self.notice.set("Cylindrée refusée : $(error.detail)")
+            }
             success(var source) => {
-                self.source = source; self.active_capacity = self.capacity.value(); self.generation++
+                if stop_current { self.running.set(false) }
+                self.selected_index = index; self.profile.set(index); self.capacity.set(capacity)
+                self.source = source; self.active_capacity = capacity; self.generation++
                 self.accelerating = false; self.audition = false; self.reference_active = false
                 // Profile idle is metadata; this command engages the dyno.
                 // Keep the reference bench's free-idle default for every model.
