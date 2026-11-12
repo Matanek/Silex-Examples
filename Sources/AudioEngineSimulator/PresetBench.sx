@@ -282,6 +282,31 @@ class PresetPanel:Canvas.Session {
         assert(has_label && has_thumb, "slider $(index) should display $(expected) %")
     }
 
+    func check_two_stroke_ports(width:int, height:int) {
+        self.refresh_geometry()
+        for angle in [0, 110, 180] {
+            self.cycle = angle as float
+            var drawing = self.drawing(width, height)
+            var exhaust = false
+            var transfer = false
+            for command in drawing.commands() {
+                match command {
+                    stroke_line(value) => {
+                        let start = value.shape.start
+                        if contains(self.layout.profile, start) {
+                            let ink = value.style.brush().color_at(start)
+                            if ink == Color.bytes(250, 196, 81) { exhaust = true }
+                            if ink == Color.bytes(119, 214, 225) { transfer = true }
+                        }
+                    }
+                    else => {}
+                }
+            }
+            assert(exhaust == (angle >= 110) && transfer == (angle == 180),
+                "the two-stroke piston should uncover exhaust before transfer")
+        }
+    }
+
     func check_views(width:int, height:int) {
         var drawing = self.drawing(width, height)
         var cutaway = false
@@ -419,6 +444,11 @@ public func check() {
         let row = preset_row(presets, i)
         assert(session.handle(Events.Event.mouse_button_pressed(click(row.position.add(row.size.multiply(0.5))))))
         assert(vehicle.selected().key == profile.key)
+        if profile.key == "cross-250-2t" {
+            panel.check_two_stroke_ports(1_120, 740)
+            panel.check_two_stroke_ports(420, 700)
+            session.drawing(1_120, 740)
+        }
     }
     combustion.append(1, 500)
     combustion.advance(499)
