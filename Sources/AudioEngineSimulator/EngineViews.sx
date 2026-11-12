@@ -10,9 +10,7 @@ public func profile(painter:&Canvas.Painter, frame:Canvas.Rect, setup:EngineConf
     let stroke = setup.stroke_mm() as float
     if !setup.vee {
         let width = Math.max(280.0, setup.cylinders as float * 100.0 + 20.0)
-        var height:float = 344.0
-        if two_stroke { height = 354.0 }
-        let view = PanelLayout.Viewport(frame, width, height)
+        let view = PanelLayout.Viewport(frame, width, 344.0)
         if view.scale <= 0.0 { return }
         let first = (width - (setup.cylinders - 1) as float * 100.0) * 0.5
         let steel = Color.bytes(163, 174, 187)
@@ -24,14 +22,7 @@ public func profile(painter:&Canvas.Painter, frame:Canvas.Rect, setup:EngineConf
             let center = Math.Vec2(first + i as float * 100.0, 279.0)
             let axis = Math.Vec2(0.0, -1.0)
             let state = cylinders[i]
-            if two_stroke {
-                let shell = Color.bytes(73, 87, 103)
-                let interior = Color.bytes(31, 41, 52)
-                disc(painter, view, center, 61.0, shell)
-                box(painter, view, center, axis, 37.0, 62.0, -46.0, 46.0, shell)
-                disc(painter, view, center, 55.0, interior)
-                box(painter, view, center, axis, 37.0, 63.0, -32.0, 32.0, interior)
-            }
+            if two_stroke { draw_crankcase_outline(painter, view, center) }
             disc(painter, view, center, 36.0, steel)
             draw_cylinder(painter, view, center, axis, state, stroke, 0.0,
                 ignition(state, clock), two_stroke:two_stroke)
@@ -112,8 +103,23 @@ func draw_cylinder(painter:&Canvas.Painter, view:PanelLayout.Viewport, center:Ma
     }
 }
 
-func draw_two_stroke_liner(painter:&Canvas.Painter, view:PanelLayout.Viewport, center:Math.Vec2, axis:Math.Vec2,
-    crown:float) {
+func draw_crankcase_outline(painter:&Canvas.Painter, view:PanelLayout.Viewport, center:Math.Vec2) {
+    let radius:float = 47.0
+    let wall:float = 35.5
+    let shoulder = Math.sqrt(radius * radius - wall * wall)
+    let angle = Math.acos(wall / radius)
+    let edge = Color.bytes(73, 87, 103)
+    painter.stroke(Canvas.Arc(view.point(center.x, center.y), radius * view.scale, -angle, Math.pi() + 2.0 * angle),
+        Canvas.Stroke(edge, 3.0 * view.scale))
+    let sides:float[2] = [-wall, wall]
+    for side in sides {
+        line(painter, view, Math.Vec2(center.x + side, center.y - shoulder),
+            Math.Vec2(center.x + side, center.y - 64.0), 3.0, edge)
+    }
+}
+
+func draw_two_stroke_liner(painter:&Canvas.Painter, view:PanelLayout.Viewport, center:Math.Vec2,
+    axis:Math.Vec2, crown:float) {
     let casting = Color.bytes(230, 138, 179)
     let passage = Color.bytes(41, 51, 64)
     let transfer_bottom = 104.0
@@ -121,36 +127,42 @@ func draw_two_stroke_liner(painter:&Canvas.Painter, view:PanelLayout.Viewport, c
     let exhaust_bottom = 121.0
     let exhaust_top = 136.0
 
-    // The transfer passage rises from the crankcase into the lower opening.
-    let foot = cylinder_point(center, axis, 40.0, -47.0)
-    let bend = cylinder_point(center, axis, 93.0, -58.0)
-    let transfer_mouth = cylinder_point(center, axis, (transfer_top + transfer_bottom) * 0.5, -46.0)
-    let duct = Color.bytes(82, 123, 138)
-    line(painter, view, foot, bend, 17.0, duct)
-    line(painter, view, bend, transfer_mouth, 17.0, duct)
-    disc(painter, view, bend, 8.5, duct)
-    line(painter, view, foot, bend, 8.0, passage)
-    line(painter, view, bend, transfer_mouth, 8.0, passage)
-    disc(painter, view, bend, 4.0, passage)
+    // Inline 2T cutaway shares the liner and head proportions of the 4T.
+    let x = center.x
+    let y = center.y
+    let transfer_middle = (transfer_top + transfer_bottom) * 0.5
+    var duct = Canvas.Path()
+        ..move_to(view.point(x - 35.5, y - 45.0))
+        ..quadratic_to(view.point(x - 51.0, y - 55.0), view.point(x - 51.0, y - 77.0))
+        ..line_to(view.point(x - 51.0, y - 97.0))
+        ..quadratic_to(view.point(x - 51.0, y - transfer_middle), view.point(x - 39.0, y - transfer_middle))
+    painter.stroke(duct, Canvas.Stroke(Color.bytes(82, 123, 138), 3.5 * view.scale))
+    let exhaust_middle = (exhaust_top + exhaust_bottom) * 0.5
+    box(painter, view, center, axis, exhaust_middle - 2.0, exhaust_middle + 2.0,
+        39.0, 57.0, Color.bytes(149, 109, 96))
 
-    box(painter, view, center, axis, 117.0, 140.0, 38.0, 72.0, Color.bytes(149, 109, 96))
-    box(painter, view, center, axis, exhaust_bottom, exhaust_top, 32.0, 72.0, passage)
-    box(painter, view, center, axis, transfer_bottom, transfer_top, -48.0, -32.0, passage)
-    box(painter, view, center, axis, 53.0, transfer_bottom, -46.0, -32.0, casting)
-    box(painter, view, center, axis, transfer_top, 194.0, -46.0, -32.0, casting)
-    box(painter, view, center, axis, 53.0, exhaust_bottom, 32.0, 46.0, casting)
-    box(painter, view, center, axis, exhaust_top, 194.0, 32.0, 46.0, casting)
-    box(painter, view, center, axis, 187.0, 203.0, -46.0, 46.0, casting)
-    box(painter, view, center, axis, 203.0, 208.0, -50.0, 50.0, Color.bytes(245, 161, 198))
+    box(painter, view, center, axis, transfer_bottom, transfer_top, -39.0, -32.0, passage)
+    box(painter, view, center, axis, exhaust_bottom, exhaust_top, 32.0, 39.0, passage)
+    box(painter, view, center, axis, 64.0, transfer_bottom, -39.0, -32.0, casting)
+    box(painter, view, center, axis, transfer_top, 194.0, -39.0, -32.0, casting)
+    box(painter, view, center, axis, 64.0, exhaust_bottom, 32.0, 39.0, casting)
+    box(painter, view, center, axis, exhaust_top, 194.0, 32.0, 39.0, casting)
+    box(painter, view, center, axis, 187.0, 206.0, -40.0, 40.0, casting)
+
+    let steel = Color.bytes(163, 174, 187)
+    box(painter, view, center, axis, 182.0, 189.0, -1.5, 1.5, steel)
+    box(painter, view, center, axis, 204.0, 211.0, -7.0, 7.0, steel)
+    box(painter, view, center, axis, 211.0, 227.0, -4.5, 4.5, Color.bytes(231, 235, 238))
+    box(painter, view, center, axis, 227.0, 232.0, -2.5, 2.5, steel)
 
     // Only the section above the crown communicates with the chamber.
     if crown < exhaust_top {
         box(painter, view, center, axis, Math.max(crown, exhaust_bottom), exhaust_top,
-            32.0, 48.0, Color.bytes(250, 196, 81))
+            32.0, 39.0, Color.bytes(250, 196, 81))
     }
     if crown < transfer_top {
         box(painter, view, center, axis, Math.max(crown, transfer_bottom), transfer_top,
-            -48.0, -32.0, Color.bytes(119, 214, 225))
+            -39.0, -32.0, Color.bytes(119, 214, 225))
     }
 }
 
