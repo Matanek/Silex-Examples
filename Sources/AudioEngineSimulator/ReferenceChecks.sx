@@ -29,7 +29,6 @@ public func run() {
                 input.throttle = null
             }
             if block == 170 { demo.toggle_running(); input.running = false }
-            demo.update(480.0 / 44_100.0)
             try reference.set_controls(input) else error { panic(error.detail) }
             try demo.source.render(&a[0:960]) else error { panic(key + " · simulation at block $(block): $(error.detail)") }
             try reference.render(&b[0:960]) else error { panic(key + " · reference at block $(block): $(error.detail)") }

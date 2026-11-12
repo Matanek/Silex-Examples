@@ -1,9 +1,9 @@
 # AudioEngineSimulator
 
-## Presets d’EngineWorkshop
+## Presets de véhicules
 
-La fenêtre principale réunit les neuf presets d’EngineWorkshop, la coupe de
-profil et la vue des cylindres de dessus. Les pistons des deux vues sont
+La fenêtre principale réunit neuf presets 4T et le motocross 250 cm³ 2T,
+avec une coupe de profil et une vue des cylindres de dessus. Les pistons sont
 animés à partir du régime du moteur. Les chambres et les pistons
 s’illuminent quand leur cylindre brûle. La clé, le compte-tours et la pédale
 sont regroupés à côté des vues, ou en dessous dans une fenêtre étroite.
@@ -11,8 +11,8 @@ sont regroupés à côté des vues, ou en dessous dans une fenêtre étroite.
 Cliquer sur la clé ou appuyer sur **M** pour mettre ou couper le contact.
 Maintenir **Espace** enfonce la pédale jusqu’à la butée en 0,15 s.
 Relâcher **Espace** ramène la pédale à sa position de départ en 0,3 s.
-Le curseur **Accélérateur** permet de doser l’ouverture. Le bouton **Essai 8 secondes** rejoue le scénario
-d’EngineWorkshop. Choisir un autre moteur coupe automatiquement le contact.
+Le curseur **Accélérateur** permet de doser l’ouverture. Choisir un autre
+moteur coupe automatiquement le contact.
 Tourner la clé ou appuyer sur **M** pour démarrer le moteur sélectionné.
 
 Cliquer sur un rapport de la grille à côté de la pédale pour l’engager.
@@ -26,7 +26,9 @@ rupteur et ralentir le véhicule par frein moteur. Au point mort, le curseur
 La démo et ses exports utilisent directement les presets de GFX.Audio.
 `--check-references` vérifie les vues et les commandes et compare le PCM,
 le régime, le démarreur et les combustions au moteur GFX.Audio en rotation libre.
-`--render-reference <id> <wav>` exporte le même essai en WAV stéréo à 44,1 kHz.
+`--render-reference <id> <wav>` exporte une séquence de référence en WAV
+stéréo à 44,1 kHz. Le motocross `cross-250-2t` utilise le modèle 2T
+générique à lumières et balayage simplifiés.
 
 ## Simulateur de pièces
 

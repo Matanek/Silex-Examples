@@ -18,11 +18,11 @@ use Module.PanelLayout
 use Module.PresetPlayback.PresetPlayback
 use Module.PresetPlayback.CombustionDisplay
 
-func preset_labels() str[9] { return ["Chevrolet 454", "4 cylindres · GTI", "Flat-six · 911", "V8 américain", "V10 · LFA",
-    "V12 · Ferrari 412 T2", "Motocross · 500 4T", "Hayabusa · 4 en ligne", "Chopper · V-twin 1800"] }
+func preset_labels() str[10] { return ["Chevrolet 454", "4 cylindres · GTI", "Flat-six · 911", "V8 américain", "V10 · LFA",
+    "V12 · Ferrari 412 T2", "Motocross · 250 2T", "Motocross · 500 4T", "Hayabusa · 4 en ligne", "Chopper · V-twin 1800"] }
 
 class PresetPanel:Canvas.Session {
-    private let labels:str[9] = preset_labels()
+    private let labels:str[10] = preset_labels()
     private var presets:PresetSession
     private var combustion:CombustionDisplay
     private var grouped_banks:bool = false
@@ -120,7 +120,9 @@ class PresetPanel:Canvas.Session {
         let volume = self.presets.volume
         let key_turn = self.key_turn
         let rpm = self.rpm
-        let redline = self.presets.selected().redline_rpm
+        let selected = self.presets.selected()
+        let redline = selected.redline_rpm
+        let two_stroke = selected.strokes == 2
         let transmission = self.presets.source.drive_state()!
         let gears = self.presets.source.gearing.ratios.count()
         let requested_gear = self.presets.requested_gear
@@ -130,7 +132,7 @@ class PresetPanel:Canvas.Session {
             self.draw_presets(painter, measuring)
             Dashboard.panel(painter, layout.profile)
             Dashboard.panel(painter, layout.overhead)
-            EngineViews.profile(painter, layout.profile, setup, states, combustion_clock, bank_angle:bank_angle)
+            EngineViews.profile(painter, layout.profile, setup, states, combustion_clock, bank_angle:bank_angle, two_stroke:two_stroke)
             EngineViews.overhead(painter, layout.overhead, setup, states, combustion_clock)
             Dashboard.instruments(painter, layout, powered, starting, key_turn, opening, rpm, redline)
             draw_gearbox(painter, measuring, layout.gearbox, transmission, gears, requested_gear)
@@ -154,10 +156,6 @@ class PresetPanel:Canvas.Session {
         for i, caption in self.labels.indexed() {
             button(painter, measuring, preset_row(view, i), caption, i == selected, 12.5 * view.scale)
         }
-        let audition = self.presets.audition
-        var caption = "Essai 8 secondes"
-        if audition { caption = "Essai en cours" }
-        button(painter, measuring, preset_row(view, self.labels.count()), caption, audition, 12.5 * view.scale)
     }
 
     private func change_control(index:int, x:float) {
@@ -190,10 +188,6 @@ class PresetPanel:Canvas.Session {
                         }
                         return true
                     }
-                }
-                if contains(preset_row(presets, self.labels.count()), value.position) {
-                    self.presets.audition_cycle()
-                    return true
                 }
                 let controls = PanelLayout.Viewport(self.layout.equipment, 160.0, 129.0)
                 for i in 0...3 {
@@ -480,12 +474,9 @@ public func check() {
     }
     assert(Math.abs((vehicle.source.controls().throttle ?? 0.0) - 0.16) < 0.0001)
     let narrow_presets = PanelLayout.Viewport(PanelLayout.Layout(420, 700, with_gearbox:true).setup, 162.0, 345.0)
-    let audition = preset_row(narrow_presets, preset_labels().count())
     let chevrolet = preset_row(narrow_presets, 0)
-    assert(session.handle(Events.Event.mouse_button_pressed(click(audition.position.add(audition.size.multiply(0.5))))))
-    assert(vehicle.audition && vehicle.running)
     assert(session.handle(Events.Event.mouse_button_pressed(click(chevrolet.position.add(chevrolet.size.multiply(0.5))))))
-    assert(vehicle.selected().key == "454" && !vehicle.audition && !vehicle.running)
+    assert(vehicle.selected().key == "454" && !vehicle.running)
     assert(combustion.frame() == 0 && combustion.last_combustion_frame(1) == null)
     assert(!vehicle.source.controls().running && !vehicle.source.controls().accelerating)
     session.drawing(420, 700)

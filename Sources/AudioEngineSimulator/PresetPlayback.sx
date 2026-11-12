@@ -121,7 +121,8 @@ public class PresetPlayback:Canvas.Session {
     }
     func drawing(width:int, height:int) Canvas { self.feed(); return self.panel.drawing(width, height) }
     func update(delta:float) bool {
-        self.presets.update(delta); self.feed(); return self.panel.update(delta)
+        self.feed()
+        return self.panel.update(delta)
     }
     func handle(event:@Events.Event) bool {
         match event {

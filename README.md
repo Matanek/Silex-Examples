@@ -29,13 +29,8 @@ beeps, impacts, a laser, an explosion, a changing engine, an 8-bit sound and
 melodies composed directly or through MIDI. Select a recipe with `--case` or
 verify its PCM and stream without a device using `--check`.
 
-The [vehicle workshop](Sources/EngineWorkshop/README.md) provides the broader
-vehicle catalogue on the `GFX.Audio.Engines` sound chain. It includes the
-Chevrolet 454 reference and 17 vehicle variants, with displacement controls,
-A/B processing comparison and WAV export.
-
 The [AudioEngineSimulator demo](Sources/AudioEngineSimulator/README.md)
-combines nine engine presets with cutaway and overhead views, a tachometer,
+combines ten engine presets with cutaway and overhead views, a tachometer,
 an accelerator and a manual gearbox.
 
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,

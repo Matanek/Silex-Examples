@@ -1,16 +1,15 @@
 # AudioEngineSimulator
 
-## EngineWorkshop presets
+## Vehicle presets
 
-The main window combines the nine EngineWorkshop presets with a cutaway
-and an overhead view. Both views animate the pistons from the engine RPM
+The main window combines nine four-stroke presets and a 250 cc two-stroke
+motocross preset with a cutaway and an overhead view. Both views animate the pistons from the engine RPM
 and highlight each cylinder when its chamber fires. The ignition key, tachometer and accelerator sit beside the views or below
 them in a narrow window.
 
 Click the key or press **M** to toggle ignition. Hold **Space** to fully
 depress the pedal in 0.15 s. Release **Space** to return to its starting
-position in 0.3 s. The **Accélérateur** slider sets the throttle opening. Click
-**Essai 8 secondes** for the EngineWorkshop audition. Selecting another
+position in 0.3 s. The **Accélérateur** slider sets the throttle opening. Selecting another
 preset switches off the ignition. Click the key or press **M** to start
 the selected engine.
 
@@ -24,7 +23,9 @@ In neutral, **Charge du banc** applies the bench load.
 The demo and its exports use the GFX.Audio presets directly.
 `--check-references` checks the views and controls and compares PCM, RPM,
 starter state and firing events with the GFX.Audio engine in neutral.
-`--render-reference <id> <wav>` exports the same audition as 44.1 kHz stereo WAV.
+`--render-reference <id> <wav>` exports a reference sequence as 44.1 kHz
+stereo WAV. The `cross-250-2t` preset uses the generic two-stroke model
+with simplified ports and scavenging.
 
 ## Parts-based simulator
 

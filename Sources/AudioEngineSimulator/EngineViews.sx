@@ -6,7 +6,7 @@ use Module.EngineConfig
 use Module.PanelLayout
 
 public func profile(painter:&Canvas.Painter, frame:Canvas.Rect, setup:EngineConfig.Setup,
-    cylinders:@EngineSimulation.CylinderState[], clock:int, bank_angle:float? = null) {
+    cylinders:@EngineSimulation.CylinderState[], clock:int, bank_angle:float? = null, two_stroke:bool = false) {
     let stroke = setup.stroke_mm() as float
     if !setup.vee {
         let width = Math.max(280.0, setup.cylinders as float * 100.0 + 20.0)
@@ -22,7 +22,8 @@ public func profile(painter:&Canvas.Painter, frame:Canvas.Rect, setup:EngineConf
             let center = Math.Vec2(first + i as float * 100.0, 279.0)
             let state = cylinders[i]
             disc(painter, view, center, 36.0, steel)
-            draw_cylinder(painter, view, center, Math.Vec2(0.0, -1.0), state, stroke, 0.0, ignition(state, clock))
+            draw_cylinder(painter, view, center, Math.Vec2(0.0, -1.0), state, stroke, 0.0,
+                ignition(state, clock), two_stroke:two_stroke)
             disc(painter, view, center, 16.0, Color.bytes(85, 100, 117))
         }
         return
@@ -75,7 +76,8 @@ public func profile(painter:&Canvas.Painter, frame:Canvas.Rect, setup:EngineConf
 }
 
 func draw_cylinder(painter:&Canvas.Painter, view:PanelLayout.Viewport, center:Math.Vec2, axis:Math.Vec2,
-    state:EngineSimulation.CylinderState, stroke:float, distance:float, fire:float, clearance:float = 0.0) {
+    state:EngineSimulation.CylinderState, stroke:float, distance:float, fire:float, clearance:float = 0.0,
+    two_stroke:bool = false) {
     let phase = state.cycle_degrees as float * (Math.pi() / 180.0)
     let metal = Color.bytes(231, 235, 238).mix(Color.bytes(24, 29, 36), distance)
     let wrist = 145.0 - 66.0 * Math.clamp(state.piston_mm as float / stroke, 0.0, 1.0)
@@ -92,7 +94,16 @@ func draw_cylinder(painter:&Canvas.Painter, view:PanelLayout.Viewport, center:Ma
     let chamber = Color.bytes(24, 28, 37).mix(Color.bytes(248, 174, 82), fire * (1.0 - distance))
     box(painter, view, cylinder, axis, wrist + 24.0, 185.0, -31.0, 31.0, chamber)
     draw_frame(painter, view, cylinder, axis, distance)
-    draw_valves(painter, view, cylinder, axis, state.cycle_degrees as float, distance, true)
+    if two_stroke {
+        // The native 2T model opens exhaust first, then transfer near bottom dead centre.
+        let exhaust = Math.max(0.0, -Math.cos(phase))
+        let transfer = Math.max(0.0, (exhaust - 0.5) * 2.0)
+        let closed = Color.bytes(42, 48, 59)
+        box(painter, view, cylinder, axis, 114.0, 126.0, -57.0, -32.0,
+            closed.mix(Color.bytes(119, 214, 225), transfer))
+        box(painter, view, cylinder, axis, 128.0, 140.0, 32.0, 57.0,
+            closed.mix(Color.bytes(250, 196, 81), exhaust))
+    } else { draw_valves(painter, view, cylinder, axis, state.cycle_degrees as float, distance, true) }
 }
 
 func draw_frame(painter:&Canvas.Painter, view:PanelLayout.Viewport, center:Math.Vec2, axis:Math.Vec2,

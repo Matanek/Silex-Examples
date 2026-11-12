@@ -61,7 +61,7 @@ synchronisation automatique.
 | Bundle multiple windows | `Sources/Bundle/MultipleWindows.sx` | création propre au catalogue |
 | 2D shape gallery | `Sources/ShapeGallery2D/Main.sx` | `GFX.Canvas/Examples/ShapeGallery2D.sx` |
 | Silex logo | `Sources/SilexLogo.sx` | création propre au catalogue |
-| AudioEngineSimulator | `Sources/AudioEngineSimulator/Main.sx` | neuf presets de référence avec vues des cylindres, compte-tours et boîte manuelle, banc de pièces accessible avec `--procedural` |
+| AudioEngineSimulator | `Sources/AudioEngineSimulator/Main.sx` | dix presets avec vues des cylindres, compte-tours et boîte manuelle, banc de pièces accessible avec `--procedural` |
 | Procedural audio | `Sources/ProceduralAudio/Main.sx` | composition des parcours publics de GFX.Audio ; générateurs propres à l’application et partition MIDI de 218 octets, sans banque de sons |
 | Retro victory sound | `Sources/RetroVictory.sx` | parcours `GFX.Audio.Music` : quatre notes Do–Mi–Sol–Do en temps/BPM et timbre rétro modifiable ; PCM interne, son préparé une fois puis déclenché avec `audio.play(victory)` |
 | Spatial audio | `Sources/SpatialAudio.sx` | `GFX.Audio/Examples/PlaySpatialSound.sx` |
