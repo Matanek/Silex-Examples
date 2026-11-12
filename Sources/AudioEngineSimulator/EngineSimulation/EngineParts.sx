@@ -1,0 +1,27 @@
+use STD.Math
+
+public struct Pipe {
+    var length_mm:float32 = 800.0
+    var diameter_mm:float32 = 50.0
+}
+public struct Silencer {
+    var volume_litres:float32 = 8.0
+    var absorption:float32 = 0.65
+    var baffles:int = 0
+}
+public struct Exhaust {
+    var header:Pipe = Pipe(length_mm:600.0, diameter_mm:40.0)
+    var pipe:Pipe = Pipe()
+    var silencer:Silencer = Silencer()
+    var outlet_level:float32 = 1.0
+    var expansion_litres:float32 = 0.0
+}
+
+func in_range(value:float32, low:float32, high:float32) bool { return Math.is_finite(value) && value >= low && value <= high }
+func unit(value:float32) bool { return in_range(value, 0.0, 1.0) }
+func pipe_valid(value:Pipe) bool { return in_range(value.length_mm, 20.0, 5_000.0) && in_range(value.diameter_mm, 5.0, 250.0) }
+package func exhaust_valid(value:Exhaust) bool {
+    return pipe_valid(value.header) && pipe_valid(value.pipe) &&
+        in_range(value.silencer.volume_litres, 0.05, 100.0) && unit(value.silencer.absorption) && unit(value.outlet_level) &&
+        value.silencer.baffles >= 0 && value.silencer.baffles <= 8 && in_range(value.expansion_litres, 0.0, 30.0)
+}

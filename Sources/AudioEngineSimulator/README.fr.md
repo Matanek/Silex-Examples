@@ -23,9 +23,14 @@ En rétrogradant, les roues peuvent entraîner le moteur au-delà du
 rupteur et ralentir le véhicule par frein moteur. Au point mort, le curseur
 **Charge du banc** permet de remettre le moteur en charge.
 
-La démo et ses exports utilisent directement les presets de GFX.Audio.
+La démo embarque le moteur natif et sa banque sur macOS ARM64. Le module
+[`Engines`](Engines/) fournit aussi le Chevrolet 454 à
+[MonsterTruck](../Physics3D/MonsterTruck/README.fr.md). Le simulateur de
+pièces se trouve dans [`EngineSimulation`](EngineSimulation/). Les deux
+parcours utilisent les flux PCM et les traitements de GFX.Audio.
 `--check-references` vérifie les vues et les commandes et compare le PCM,
-le régime, le démarreur et les combustions au moteur GFX.Audio en rotation libre.
+le régime, le démarreur et les combustions au moteur natif piloté
+directement en rotation libre.
 `--render-reference <id> <wav>` exporte une séquence de référence en WAV
 stéréo à 44,1 kHz. Le motocross `cross-250-2t` utilise le modèle 2T
 générique à lumières et balayage simplifiés.
@@ -78,13 +83,16 @@ cylindres ou la cylindrée au curseur repart des valeurs génériques.
 Les assemblages utilisent un modèle 4T à allumage commandé et des calages
 génériques. La cylindrée marine sert à explorer des tailles de moteur.
 
-Depuis la racine du workspace où `GFX.Audio` fournit `EngineSimulation` :
+Compiler puis lancer la fenêtre depuis la racine du workspace.
 
 ```sh
 mkdir -p Build
 silex compile Silex-Examples/Sources/AudioEngineSimulator/Main.sx --debug -o Build/AudioEngineSimulator-Window
 Build/AudioEngineSimulator-Window
 ```
+
+Le [guide de maintenance](../../Tools/AudioEngineSimulator/README.md) décrit
+la reconstruction du moteur natif et de sa banque.
 
 ## Export hors ligne
 

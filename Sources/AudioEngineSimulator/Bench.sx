@@ -1,5 +1,5 @@
 use GFX.Audio
-use GFX.Audio.EngineSimulation
+use Package.AudioEngineSimulator.EngineSimulation
 use GFX.Canvas
 use GFX.Input.Events
 use GFX.Input.Keyboard

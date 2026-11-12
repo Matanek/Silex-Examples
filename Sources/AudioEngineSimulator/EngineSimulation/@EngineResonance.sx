@@ -1,0 +1,29 @@
+use STD.Math
+
+// A normalized band-pass, prepared once; its history advances per audio frame.
+class EngineResonance {
+    private let b:float32
+    private let a1:float32
+    private let a2:float32
+    private var x1:float32 = 0.0
+    private var x2:float32 = 0.0
+    private var y1:float32 = 0.0
+    private var y2:float32 = 0.0
+
+    init(rate:float32, frequency:float32, q:float32) {
+        let angle = 6.283185307179586 as float32 * frequency / rate
+        let alpha = Math.sin(angle) / (2.0 * q)
+        self.b = alpha / (1.0 + alpha)
+        self.a1 = -2.0 * Math.cos(angle) / (1.0 + alpha)
+        self.a2 = (1.0 - alpha) / (1.0 + alpha)
+    }
+
+    func next(value:float32) float32 {
+        let result = self.b * (value - self.x2) - self.a1 * self.y1 - self.a2 * self.y2
+        self.x2 = self.x1; self.x1 = value
+        self.y2 = self.y1; self.y1 = result
+        return result
+    }
+
+    func reset() { self.x1 = 0.0; self.x2 = 0.0; self.y1 = 0.0; self.y2 = 0.0 }
+}

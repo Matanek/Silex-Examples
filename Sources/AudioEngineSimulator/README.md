@@ -20,9 +20,14 @@ speed. A downshift can drive the engine past the ignition cut-off and
 slow the vehicle through engine braking.
 In neutral, **Charge du banc** applies the bench load.
 
-The demo and its exports use the GFX.Audio presets directly.
+The demo embeds the native renderer and its sound bank on macOS ARM64.
+The [`Engines`](Engines/) module also supplies the Chevrolet 454 to
+[MonsterTruck](../Physics3D/MonsterTruck/README.md). The parts-based simulator
+lives in [`EngineSimulation`](EngineSimulation/). Both use GFX.Audio's PCM
+streams and effects.
 `--check-references` checks the views and controls and compares PCM, RPM,
-starter state and firing events with the GFX.Audio engine in neutral.
+starter state and firing events with direct operation of the native engine
+in neutral.
 `--render-reference <id> <wav>` exports a reference sequence as 44.1 kHz
 stereo WAV. The `cross-250-2t` preset uses the generic two-stroke model
 with simplified ports and scavenging.
@@ -75,14 +80,16 @@ The configurations use a generic spark-ignition four-stroke model and
 representative firing phases. The marine-size range lets you explore
 large displacements.
 
-Run from the workspace root with a `GFX.Audio` checkout that provides
-`EngineSimulation`.
+Build and run from the workspace root.
 
 ```sh
 mkdir -p Build
 silex compile Silex-Examples/Sources/AudioEngineSimulator/Main.sx --debug -o Build/AudioEngineSimulator-Window
 Build/AudioEngineSimulator-Window
 ```
+
+The [maintenance guide](../../Tools/AudioEngineSimulator/README.md) covers
+rebuilding the native renderer and its bank.
 
 ## Offline export
 

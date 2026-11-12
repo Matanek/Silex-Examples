@@ -15,8 +15,9 @@ From the workspace root containing `Silex-Examples/`:
 silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 ```
 
-The Chevrolet 454 sound from `GFX.Audio.Engines` is enabled by default. The package
-supplies the simulator and resources on macOS ARM64; no external library or
+The Chevrolet 454 from [AudioEngineSimulator](../../AudioEngineSimulator/README.md)
+is enabled by default. The demo embeds the simulator and its resources on
+macOS ARM64; no external library or
 preparation command is required. The HUD displays physical engine RPM and the
 selected gear.
 
@@ -29,10 +30,10 @@ Build/MonsterTruck-Drive-Response --engine-library /absolute/path/to/EngineLibra
 ```
 
 This customization requires a complete v3 native library compatible with
-`GFX.Audio.Engines`. An invalid path remains an explicit error. `--silent`
+`AudioEngineSimulator.Engines`. An invalid path remains an explicit error. `--silent`
 intentionally disables sound; omitting a custom library never disables it.
 The embedded standard engine also works from another current directory,
-without access to the package sources.
+without access to the example sources.
 
 | Control | Action |
 | --- | --- |
@@ -214,18 +215,12 @@ mode and on the same course.
 
 ## Reusable Chevrolet sound
 
-The source is `GFX.Audio.Engines.Library.driven_engine("454")`; the demo copies
-no acoustic calculation. It supplies RPM and effort through `OperatingState`
-and consumes ready blocks without waiting in the physics loop. Playback holds
-at most five queued blocks and four native requests, about 98 ms excluding the
-device. R also resets sound.
-
-Sound receives `engine_rpm` and normalized combustion torque from the physical
-engine. It follows shifts, clutch engagement and airborne wheels without a
-second gearbox simulation. GFX.Audio remains independent of GFX.Physics:
-`Library.engine` provides standalone operation with an optional transmission;
-`Library.driven_engine` accepts RPM, load and ignition supplied by any game or
-simulation. The truck’s configuration is not imposed on these other uses.
+The `AudioEngineSimulator.Engines` module supplies the Chevrolet 454 through
+`Library.driven_engine("454")`. MonsterTruck passes `engine_rpm` and normalized
+combustion torque through `OperatingState`. Sound follows the RPM produced by
+shifts, the clutch and the wheels. The physics loop consumes ready blocks.
+Playback holds up to five queued blocks and four native requests, about 98 ms
+excluding the device. R resets the sound as well.
 
 Offline integration check without a window or audio device:
 

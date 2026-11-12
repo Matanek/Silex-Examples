@@ -1,5 +1,5 @@
-use GFX.Audio.EngineSimulation
-use GFX.Audio.Synthesis.EngineParts
+use Package.AudioEngineSimulator.EngineSimulation
+use Package.AudioEngineSimulator.EngineSimulation.EngineParts
 use GFX.Canvas
 use GFX.Color
 use STD.Math

@@ -71,7 +71,7 @@ also exercises branches with very different signal levels.
 ## Run and verify
 
 The [AudioEngineSimulator demo](../../Sources/AudioEngineSimulator/README.md) uses the
-simulator supplied by GFX.Audio. The standalone helper offers two deterministic
+native simulator bundled with the demo. The standalone helper offers two deterministic
 offline renders:
 
 ```sh

@@ -15,9 +15,9 @@ Depuis la racine du workspace contenant `Silex-Examples/` :
 silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 ```
 
-Le son Chevrolet 454 de `GFX.Audio.Engines` est actif par défaut. Le package
-fournit le simulateur et ses ressources sur macOS ARM64 ; aucune banque externe
-ni commande de préparation n’est nécessaire. Le HUD montre le régime du moteur
+Le Chevrolet 454 d’[AudioEngineSimulator](../../AudioEngineSimulator/README.fr.md)
+est actif par défaut. La démo embarque le simulateur et ses ressources sur
+macOS ARM64. Le moteur démarre directement depuis le binaire. Le HUD montre le régime du moteur
 physique et le rapport engagé.
 
 Pour utiliser une bibliothèque personnalisée, compiler puis fournir son chemin
@@ -29,10 +29,10 @@ Build/MonsterTruck-Drive-Response --engine-library /chemin/absolu/vers/EngineLib
 ```
 
 Cette personnalisation exige une bibliothèque native v3 complète, compatible avec
-`GFX.Audio.Engines`. Un chemin invalide reste une erreur explicite. `--silent`
+`AudioEngineSimulator.Engines`. Un chemin invalide reste une erreur explicite. `--silent`
 désactive volontairement le son ; l’absence d’une bibliothèque personnalisée ne
 le désactive jamais. Le moteur standard embarqué fonctionne aussi depuis un autre
-répertoire courant, sans accès aux sources du package.
+répertoire courant, sans accès aux sources de la démo.
 
 | Commande | Action |
 | --- | --- |
@@ -228,19 +228,13 @@ concurrent, dans le même mode et sur le même parcours.
 
 ## Son Chevrolet réutilisable
 
-La source est `GFX.Audio.Engines.Library.driven_engine("454")` ; la démo ne
-recopie aucun calcul acoustique. Elle fournit régime et charge par
-`OperatingState`, puis reçoit des blocs prêts sans attente dans la boucle
-physique. La file contient au plus cinq blocs de lecture et quatre demandes
-natives, environ 98 ms hors périphérique. R réinitialise aussi le son.
-
-Le son reçoit `engine_rpm` et le couple de combustion normalisé issus du moteur
-physique. Il accompagne donc les passages de rapport, l’embrayage et les roues
-en l’air, sans simuler une deuxième boîte. Le générateur de GFX.Audio reste
-indépendant de GFX.Physics : `Library.engine` fournit son fonctionnement autonome
-et sa boîte optionnelle ; `Library.driven_engine` accepte régime, charge et
-contact fournis par n’importe quel jeu ou simulation. La configuration du camion
-n’est pas imposée à ces autres usages.
+Le module `AudioEngineSimulator.Engines` fournit le Chevrolet 454 via
+`Library.driven_engine("454")`. MonsterTruck transmet `engine_rpm` et le couple
+de combustion normalisé via `OperatingState`. Le son suit le régime issu des
+passages de rapport, de l’embrayage et du mouvement des roues. La boucle physique
+consomme les blocs prêts. La file contient au plus cinq blocs de lecture et
+quatre demandes natives, environ 98 ms hors périphérique. R réinitialise aussi
+le son.
 
 Contrôle croisé hors ligne, sans fenêtre ni périphérique sonore :
 

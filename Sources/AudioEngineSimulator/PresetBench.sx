@@ -1,6 +1,6 @@
 use GFX.Audio
-use GFX.Audio.EngineSimulation
-use GFX.Audio.Engines
+use Package.AudioEngineSimulator.EngineSimulation
+use Package.AudioEngineSimulator.Engines
 use GFX.Canvas
 use GFX.Color
 use GFX.Input.Events
