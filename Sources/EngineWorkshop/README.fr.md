@@ -1,11 +1,7 @@
 # Écouter et adapter les moteurs de référence
 
-Pour qualifier un cross depuis l’enregistrement YZ250 fourni, utiliser le
-[prototype d’écoute YZ250](../YZ250/README.fr.md). Ce prototype est isolé du
-catalogue ci-dessous et conserve les parcours 454 et cross 500 4T.
-
-EngineWorkshop utilise `GFX.Audio.Engines.Vehicles` et le simulateur thermique
-d’EngineLibrary. Le Chevrolet 454 est le profil initial : sa définition,
+EngineWorkshop utilise le simulateur thermique de `GFX.Audio.Engines.Vehicles`.
+Le Chevrolet 454 est le profil initial : sa définition,
 ses réponses d’échappement et son
 traitement sont conservés. Le générateur simplifié par impulsions n’est plus
 utilisé dans cette démo.
@@ -27,7 +23,7 @@ Build/EngineWorkshop
 ```
 
 Le simulateur embarqué reste construit en Release. Debug concerne ici le
-programme Silex de l’interface, comme pour EngineLibrary. La banque native
+programme Silex de l’interface. La banque native
 est actuellement disponible sur macOS ARM64.
 
 ## Choisir et écouter
@@ -93,9 +89,10 @@ Le catalogue concatène les 18 clips (180 s) et affiche les repères. Les niveau
 ne sont pas normalisés et l’export ne reprend pas les réglages d’une fenêtre
 interactive existante.
 
-`--check` compare le PCM du 454 à EngineLibrary sur démarrage, accélération,
-charge et coupure, puis vérifie A/B, gardes de changement, clavier, curseur
-logarithmique et dessins à trois largeurs, sans périphérique. Il mesure aussi
+`--check` compare le PCM du 454 au moteur de référence de GFX.Audio pendant
+le démarrage, l’accélération, la mise en charge et la coupure. Il vérifie aussi
+le mode A/B, les gardes de changement, le clavier, le curseur
+logarithmique et les dessins à trois largeurs, sans périphérique. Il mesure aussi
 la progression du régime à 25/50/75 % sur les quatre pédales calibrées et vérifie
 l’accès aux pleins gaz. Le test consommateur
 GFX.Audio exerce les 18 définitions et la pédale continue. Le flux interactif

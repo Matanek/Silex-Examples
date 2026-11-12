@@ -34,15 +34,9 @@ vehicle catalogue on the `GFX.Audio.Engines` sound chain. It includes the
 Chevrolet 454 reference and 17 vehicle variants, with displacement controls,
 A/B processing comparison and WAV export.
 
-The [EngineLibrary demo](Sources/EngineLibrary/README.md) uses the same
-engine library. Its dashboard includes a tachometer and controls for the
-optional automatic or manual transmission.
-
-The [KTM 250 SX / YZ250 bench](Sources/YZ250/README.md) compares a recorded
-KTM throttle blip with its E/G mix and lets you test the rise, hold and fall
-with Space. The same entry also provides the Yamaha fixed-RPM and load bench.
-The [spectral YZ250 experiment](Sources/YZ250Procedural/README.md) remains
-available separately.
+The [AudioEngineSimulator demo](Sources/AudioEngineSimulator/README.md)
+combines nine engine presets with cutaway and overhead views, a tachometer,
+an accelerator and a manual gearbox.
 
 The [World3D FPS scene](Sources/World3D/README.md) demonstrates capsule movement,
 variable jumping and automatic stair climbing in a forest.

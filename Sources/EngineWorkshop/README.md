@@ -1,11 +1,7 @@
 # Listen to and adapt the reference engines
 
-To qualify a motocross engine from the supplied YZ250 recording, use the
-[YZ250 listening prototype](../YZ250/README.md). It stays separate from the
-catalogue below and preserves the 454 and 500 four-stroke motocross paths.
-
-EngineWorkshop uses `GFX.Audio.Engines.Vehicles` and EngineLibrary’s
-thermal simulator. Chevrolet 454 is the initial profile;
+EngineWorkshop uses the thermal simulator in `GFX.Audio.Engines.Vehicles`.
+Chevrolet 454 is the initial profile;
 its definition, exhaust responses and output processing are preserved.
 The simplified pulse generator is no longer used by this demo.
 
@@ -25,7 +21,7 @@ Build/EngineWorkshop
 ```
 
 The embedded simulator remains a Release build. Debug applies to the Silex UI
-program here, as with EngineLibrary. The native bank currently supports macOS ARM64.
+program here. The native bank currently supports macOS ARM64.
 
 ## Choose and listen
 
@@ -88,7 +84,7 @@ clip lasts 10 seconds: audition, shutdown and a faded tail. The catalogue
 concatenates all 18 clips (180 s) and prints timestamps. Levels are not normalized;
 export does not read settings from an existing interactive window.
 
-`--check` compares 454 PCM with EngineLibrary during startup, acceleration,
+`--check` compares 454 PCM with the GFX.Audio reference during startup, acceleration,
 load and ignition cut, then checks A/B, replacement guards, keyboard controls,
 logarithmic slider and drawing at three widths without a device. It also measures
 RPM progression at 25/50/75% on all four calibrated pedals and checks access to

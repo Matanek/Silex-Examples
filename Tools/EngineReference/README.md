@@ -70,7 +70,7 @@ also exercises branches with very different signal levels.
 
 ## Run and verify
 
-The [EngineLibrary demo](../../Sources/EngineLibrary/README.md) consumes the
+The [AudioEngineSimulator demo](../../Sources/AudioEngineSimulator/README.md) uses the
 simulator supplied by GFX.Audio. The standalone helper offers two deterministic
 offline renders:
 

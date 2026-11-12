@@ -1,8 +1,0 @@
-{
-  "pcm_sha256": "0db7b0f40cc906875d480d6b68815dab604b34c8dd44f44005e848c50d553f48",
-  "source_sha256": "32b83e44e764829ad085224afdb4d4f809c70ab2cec0949747d3be3708d99b28",
-  "rpm_steps": 16,
-  "load_steps": 4,
-  "values": 2125,
-  "ceiling": 0.98
-}

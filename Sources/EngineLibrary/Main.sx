@@ -1,9 +1,0 @@
-use STD.Process
-use Module.Session
-
-func main() {
-    let arguments = Process.arguments()
-    var directory:str? = null
-    if arguments.count() > 1 { directory = arguments[1] }
-    Session.show(directory)
-}

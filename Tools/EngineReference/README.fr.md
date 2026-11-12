@@ -73,7 +73,7 @@ synthétique C++ exerce aussi des branches de niveaux très différents.
 
 ## Exécuter et vérifier
 
-La [démo EngineLibrary](../../Sources/EngineLibrary/README.fr.md) consomme le
+La [démo AudioEngineSimulator](../../Sources/AudioEngineSimulator/README.fr.md) utilise le
 simulateur fourni par GFX.Audio. Le helper autonome propose deux rendus
 déterministes hors ligne :
 
