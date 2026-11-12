@@ -44,7 +44,6 @@ class Session:Canvas.Session {
     private var mix_frame:Canvas.Rect = PanelLayout.rect(0.0, 0.0, 0.0, 0.0)
     private var equipment_frame:Canvas.Rect = PanelLayout.rect(0.0, 0.0, 0.0, 0.0)
     private var key:Canvas.Rect = PanelLayout.rect(0.0, 0.0, 0.0, 0.0)
-    private var pedal_mode:Canvas.Rect = PanelLayout.rect(0.0, 0.0, 0.0, 0.0)
     private var powered:bool = false
     private var key_turn:float = 0.0
     private var pedal:Accelerator.Pedal = Accelerator.Pedal()
@@ -245,7 +244,6 @@ class Session:Canvas.Session {
         self.mix_frame = layout.mixer
         self.equipment_frame = layout.equipment
         self.key = layout.key
-        self.pedal_mode = layout.pedal_mode
         self.frame_count += 1
         var cylinders:EngineSimulation.CylinderState[] = []
         for i in 0...self.setup.cylinders { cylinders.append(self.engine.cylinder(i)!) }
@@ -260,7 +258,6 @@ class Session:Canvas.Session {
         let starting = self.starting()
         let key_turn = self.key_turn
         let opening = self.pedal.opening() as float
-        let progressive = self.pedal.progressive
         var measuring = self.text_measurer
         self.picture.clear()
         self.picture.paint(func(painter:&Canvas.Painter) {
@@ -270,7 +267,7 @@ class Session:Canvas.Session {
             Dashboard.panel(painter, layout.overhead)
             EngineViews.profile(painter, layout.profile, setup, cylinders, clock)
             EngineViews.overhead(painter, layout.overhead, setup, cylinders, clock)
-            Dashboard.instruments(painter, measuring, layout, powered, starting, key_turn, opening, progressive, rpm, rev_limit)
+            Dashboard.instruments(painter, layout, powered, starting, key_turn, opening, rpm, rev_limit)
             EngineEquipment.draw(painter, measuring, layout.equipment, equipment, setup.cylinders > 1)
         })
         return self.picture
@@ -302,10 +299,6 @@ class Session:Canvas.Session {
                     if self.select_mix(value.position) { return true }
                     if self.select_equipment(value.position) { return true }
                     if contains(self.key, value.position) { self.toggle(); return true }
-                    if contains(self.pedal_mode, value.position) {
-                        self.pedal.progressive = !self.pedal.progressive
-                        return true
-                    }
                 }
             }
             mouse_moved(value) => {
@@ -336,10 +329,6 @@ class Session:Canvas.Session {
             key_pressed(value) => {
                 if value.key == Keyboard.Key.m || value.keycode == 109 as uint32 || value.keycode == 77 as uint32 {
                     if !value.repeated { self.toggle() }
-                    return true
-                }
-                if value.key == Keyboard.Key.t || value.keycode == 116 as uint32 || value.keycode == 84 as uint32 {
-                    if !value.repeated { self.pedal.progressive = !self.pedal.progressive }
                     return true
                 }
                 if value.key == Keyboard.Key.space { self.pedal.pressed = true; return true }
@@ -389,12 +378,6 @@ class Session:Canvas.Session {
         let space = key_event(Keyboard.Key.space)
         assert(self.handle(Events.Event.key_pressed(space)) && self.pedal.pressed)
         assert(self.handle(Events.Event.key_released(space)) && !self.pedal.pressed)
-        let mode = key_event(Keyboard.Key.t)
-        assert(self.handle(Events.Event.key_pressed(mode)) && self.pedal.progressive)
-        let badge = Events.MouseButtonEvent(window:window, mouse:Pointer.MouseId(value:0 as uint32),
-            button:Pointer.MouseButton.left, down:true, clicks:1 as uint8,
-            position:self.pedal_mode.position.add(self.pedal_mode.size.multiply(0.5)), timestamp:timestamp)
-        assert(self.handle(Events.Event.mouse_button_pressed(badge)) && !self.pedal.progressive)
         self.handle(Events.Event.key_pressed(space))
         self.handle(Events.Event.window_focus_lost(Events.WindowEvent(window:window, timestamp:timestamp)))
         assert(!self.pedal.pressed)
@@ -595,8 +578,6 @@ public func check() {
         assert(layout.overhead.position.x + layout.overhead.size.x < layout.controls.position.x ||
             layout.overhead.position.y + layout.overhead.size.y < layout.controls.position.y)
         assert(layout.pedal.size.x > 0.0 && layout.pedal.size.x == layout.pedal.size.y)
-        assert(layout.pedal_mode.position.x >= layout.pedal.position.x &&
-            layout.pedal_mode.position.x + layout.pedal_mode.size.x <= layout.pedal.position.x + layout.pedal.size.x)
         assert(layout.equipment.position.y > layout.controls.position.y + layout.controls.size.y &&
             layout.equipment.position.y + layout.equipment.size.y <= size.y)
         let fit = PanelLayout.Viewport(layout.profile, 540.0, 344.0)
@@ -614,8 +595,6 @@ public func check() {
         check_label(EngineEquipment.silencer_button(layout.equipment, 1), "Tube libre", 0.43)
         check_label(EngineEquipment.outlet_button(layout.equipment, 2), "Deux longueurs", 0.43)
         check_label(EngineSetup.cylinder(layout.setup, 6), "16", 0.45)
-        check_label(layout.pedal_mode, "Hard", 0.58)
-        check_label(layout.pedal_mode, "Soft", 0.58)
     }
     session.verify_controls()
     session.verify_setup()
@@ -793,38 +772,24 @@ func bench_load(rpm:float32, scale:float32, starter:bool, opening:float32 = 0.0)
 }
 
 func check_pedal() {
-    var fast = Accelerator.Pedal(pressed:true)
-    var slow = Accelerator.Pedal(pressed:true, progressive:true)
-    var fast_engine = EngineSimulation.Simulator.create()
-    var slow_engine = EngineSimulation.Simulator.create()
-    var fast_samples:float32[] = []
-    var slow_samples:float32[] = []
-    for _ in 0...240 { fast_samples.append(0.0); slow_samples.append(0.0) }
-    var difference:float64 = 0.0
-    for block in 0...60 {
-        if block == 29 { assert(fast.opening() < 1.0 && slow.throttle() < fast.throttle()) }
-        fast_engine.set_controls(EngineSimulation.Controls(ignition:true, throttle:fast.throttle(), hold_rpm:2_000.0))
-        slow_engine.set_controls(EngineSimulation.Controls(ignition:true, throttle:slow.throttle(), hold_rpm:2_000.0))
-        fast_engine.render(&fast_samples[0:240])
-        slow_engine.render(&slow_samples[0:240])
-        for i in 0...240 {
-            difference += Math.abs(fast_samples[i] - slow_samples[i]) as float64
-        }
-        fast.advance(240)
-        slow.advance(240)
-        if block == 29 { assert(fast.opening() == 1.0) }
-    }
-    assert(fast_engine.rpm() == slow_engine.rpm() && difference > 0.5, "pedal modes must change sound at the same rpm")
-    assert(fast.opening() == 1.0 && Math.abs(slow.opening() - 0.3) < 0.00001)
-    for _ in 0...139 { slow.advance(240) }
-    assert(slow.opening() < 1.0)
-    slow.advance(240)
-    assert(slow.opening() == 1.0 && slow.throttle() == fast.throttle())
-    slow.pressed = false
-    slow.advance(7_200)
-    assert(slow.opening() == 0.5)
-    slow.advance(7_200)
-    assert(slow.opening() == 0.0)
+    check_pedal_at_rate(48_000, 7_200)
+    check_pedal_at_rate(44_100, 6_615)
+}
+
+func check_pedal_at_rate(rate:int, press_frames:int) {
+    var pedal = Accelerator.Pedal(sample_rate:rate)
+    pedal.pressed = true
+    pedal.advance(press_frames - 1)
+    assert(pedal.opening() > 0.0 && pedal.opening() < 1.0)
+    pedal.advance(1)
+    assert(pedal.opening() == 1.0)
+    pedal.pressed = false
+    pedal.advance(press_frames)
+    assert(pedal.opening() == 0.5)
+    pedal.advance(press_frames - 1)
+    assert(pedal.opening() > 0.0)
+    pedal.advance(1)
+    assert(pedal.opening() == 0.0)
 }
 
 func contains(frame:Canvas.Rect, point:Math.Vec2) bool {

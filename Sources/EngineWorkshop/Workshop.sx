@@ -33,6 +33,7 @@ public class Workshop {
     private var selected_index:int = 0
     private var active_capacity:float
     private var reference:Engines.Controls = Engines.Controls()
+    private var keyboard_opening:float = 0.0
     private var audition_time:float = 0.0
     private var display_time:float = 0.0
 
@@ -79,6 +80,7 @@ public class Workshop {
                 if stop_current { self.running.set(false) }
                 self.selected_index = index; self.profile.set(index); self.capacity.set(capacity)
                 self.source = source; self.active_capacity = capacity; self.generation++
+                self.keyboard_opening = 0.0
                 self.accelerating = false; self.audition = false; self.reference_active = false
                 // Profile idle is metadata; this command engages the dyno.
                 // Keep the reference bench's free-idle default for every model.
@@ -125,11 +127,20 @@ public class Workshop {
         if value <= 0.9 { let position = value / 0.9; return useful * position * position }
         return useful + (1.0 - useful) * ((value - 0.9) / 0.1)
     }
+    func set_keyboard_opening(opening:float) {
+        if self.keyboard_opening == opening { return }
+        self.keyboard_opening = opening
+        self.sync()
+    }
+
     func sync() {
         var controls = self.source.controls()
         controls.running = self.running.value(); controls.accelerating = self.accelerating
         controls.throttle = null
         if !self.accelerating && self.throttle.value() > 0.0 { controls.throttle = self.pedal(self.throttle.value()) }
+        if self.keyboard_opening > 0.0 {
+            controls.throttle = Math.mix(controls.throttle ?? 0.0, 1.0, self.keyboard_opening)
+        }
         controls.idle_rpm = self.idle.value(); controls.load = self.load.value()
         controls.texture = self.texture.value(); controls.exhaust = self.exhaust.value()
         controls.intake = self.intake.value(); controls.ambience = self.ambience.value(); controls.volume = self.volume.value()

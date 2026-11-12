@@ -11,7 +11,6 @@ public struct Layout {
     let tachometer:Canvas.Rect
     let key:Canvas.Rect
     let pedal:Canvas.Rect
-    let pedal_mode:Canvas.Rect
 
     init(width:int, height:int) {
         let w = width as float
@@ -62,7 +61,6 @@ public struct Layout {
         let pedal_x = right_x + right_width - inset - side
         self.pedal = rect(pedal_x, lower_y + (lower_height - side) * 0.5, side, side)
         self.key = rect(right_x, lower_y, pedal_x - right_x, lower_height)
-        self.pedal_mode = rect(pedal_x + side * 0.53, self.pedal.position.y + side * 0.07, side * 0.39, side * 0.17)
     }
 }
 

@@ -5,6 +5,7 @@ use GFX.Input.Keyboard
 use GFX.Window
 use STD.Error.Kind
 use Package.EngineWorkshop.Workshop.Workshop
+use Module.Accelerator
 
 struct Combustion {
     let cylinder:int
@@ -63,6 +64,7 @@ public class PresetPlayback:Canvas.Session {
     private var offset:int = 0
     private var generation:int = 0
     private var combustion:CombustionDisplay
+    private var pedal:Accelerator.Pedal = Accelerator.Pedal(sample_rate:44_100)
     init(workshop:Workshop, panel:Canvas.Session, audio:Audio, combustion:CombustionDisplay) {
         self.workshop = workshop
         self.panel = panel
@@ -80,6 +82,7 @@ public class PresetPlayback:Canvas.Session {
             self.playing = Audio.PlayingSound(); self.pending = false; self.offset = 0
             self.generation = self.workshop.generation
             self.combustion.reset()
+            self.pedal = Accelerator.Pedal(sample_rate:44_100)
             self.workshop.source.enqueue()
         }
         var count = 0
@@ -100,7 +103,13 @@ public class PresetPlayback:Canvas.Session {
                     break }
                 success(frames) => {
                     self.offset += frames
-                    if self.offset == 480 { self.pending = false; self.workshop.source.enqueue() }
+                    if self.offset == 480 {
+                        self.pending = false
+                        // Send the travel at the start of the next audio block.
+                        self.workshop.set_keyboard_opening(self.pedal.opening() as float)
+                        self.workshop.source.enqueue()
+                        self.pedal.advance(480)
+                    }
                     if frames == 0 { break }
                 }
             }
@@ -117,16 +126,19 @@ public class PresetPlayback:Canvas.Session {
     }
     func handle(event:@Events.Event) bool {
         match event {
-            window_focus_lost(value) => { self.workshop.accelerating = false; self.workshop.sync() }
+            window_focus_lost(value) => { self.pedal.pressed = false }
             key_pressed(value) => {
                 if !self.panel.accepts_text_input() && !value.modifiers.control && !value.modifiers.alt && !value.modifiers.system {
                     let m = value.keycode == 109 as uint32 || value.keycode == 77 as uint32 || (value.keycode == 0 as uint32 && value.key == Keyboard.Key.m)
                     if m { if !value.repeated { self.workshop.toggle_running() }
                         return true }
-                    if value.key == Keyboard.Key.space { self.workshop.accelerating = true; self.workshop.sync(); return true }
+                    if value.key == Keyboard.Key.space {
+                        if !value.repeated { self.pedal.pressed = true }
+                        return true
+                    }
                 }
             }
-            key_released(value) => { if value.key == Keyboard.Key.space { self.workshop.accelerating = false; self.workshop.sync(); return true } }
+            key_released(value) => { if value.key == Keyboard.Key.space { self.pedal.pressed = false; return true } }
             else => {}
         }
         let handled = self.panel.handle(event)

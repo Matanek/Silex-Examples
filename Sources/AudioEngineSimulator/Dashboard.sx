@@ -19,8 +19,8 @@ public func centered_label(painter:&Canvas.Painter, measuring:Canvas, frame:Canv
     painter.text(text, position, centered, clip:frame)
 }
 
-public func instruments(painter:&Canvas.Painter, measuring:Canvas, layout:PanelLayout.Layout, powered:bool, starting:bool,
-    key_turn:float, opening:float, progressive:bool?, rpm:float, rev_limit:float) {
+public func instruments(painter:&Canvas.Painter, layout:PanelLayout.Layout, powered:bool, starting:bool,
+    key_turn:float, opening:float, rpm:float, rev_limit:float) {
     let frame = layout.controls
     panel(painter, frame)
     let key = layout.key
@@ -51,16 +51,6 @@ public func instruments(painter:&Canvas.Painter, measuring:Canvas, layout:PanelL
 
     tachometer(painter, layout.tachometer, rpm, rev_limit)
     pedal(painter, layout.pedal, opening)
-    if let mode = progressive { pedal_mode(painter, measuring, layout.pedal_mode, mode) }
-}
-
-func pedal_mode(painter:&Canvas.Painter, measuring:Canvas, frame:Canvas.Rect, progressive:bool) {
-    var mode = "Hard"
-    var fill = Color.bytes(76, 57, 39)
-    if progressive { mode = "Soft"; fill = Color.bytes(34, 69, 78) }
-    painter.fill(Canvas.Rect(frame.position, frame.size, radius:frame.size.y * 0.32), Canvas.Fill.solid(fill))
-    centered_label(painter, measuring, frame, mode,
-        Canvas.TextStyle(size:frame.size.y * 0.58, color:Color.bytes(234, 240, 248)))
 }
 
 func pedal(painter:&Canvas.Painter, frame:Canvas.Rect, opening:float) {

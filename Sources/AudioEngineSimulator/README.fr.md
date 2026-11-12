@@ -9,8 +9,9 @@ s’illuminent quand leur cylindre brûle. La clé, le compte-tours et la pédal
 sont regroupés à côté des vues, ou en dessous dans une fenêtre étroite.
 
 Cliquer sur la clé ou appuyer sur **M** pour mettre ou couper le contact.
-Maintenir **Espace** pour donner plein gaz ou doser l’ouverture avec le
-curseur **Accélérateur**. Le bouton **Essai 8 secondes** rejoue le scénario
+Maintenir **Espace** enfonce la pédale jusqu’à la butée en 0,15 s.
+Relâcher **Espace** ramène la pédale à sa position de départ en 0,3 s.
+Le curseur **Accélérateur** permet de doser l’ouverture. Le bouton **Essai 8 secondes** rejoue le scénario
 d’EngineWorkshop. Choisir un autre moteur coupe automatiquement le contact.
 Tourner la clé ou appuyer sur **M** pour démarrer le moteur sélectionné.
 
@@ -28,9 +29,8 @@ La plage dépend du nombre de cylindres et va de 50 cm³ pour un monocylindre
 à 48 L pour un V16. Le nouveau moteur attend la remise du contact. Les
 pistons, les bielles et le compte-tours suivent le simulateur qui produit le son.
 Cliquer sur la clé ou appuyer sur **M** pour la tourner de 11 h à 13 h et
-mettre le contact. Maintenir **Espace** pour enfoncer la pédale. Cliquer
-sur le bouton compact ou appuyer sur **T** pour choisir **Hard** (0,15 s) ou
-**Soft** (1 s). La jauge suit l’enfoncement. Le remplissage du moteur suit
+mettre le contact. Maintenir **Espace** enfonce la pédale jusqu’à la butée
+en 0,15 s. La jauge suit l’enfoncement. Le remplissage du moteur suit
 la pédale avec un court retard. Relâcher Espace ramène la pédale au repos
 en 0,3 s et augmente le frein moteur. Rétrécir la fenêtre
 pour voir les deux panneaux se réagencer en conservant leurs proportions.

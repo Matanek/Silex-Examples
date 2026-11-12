@@ -113,9 +113,7 @@ class PresetPanel:Canvas.Session {
         let bank_angle = self.bank_angle
         let powered = self.workshop.running.value()
         let starting = self.workshop.source.is_starting()
-        let controls = self.workshop.source.controls()
-        var opening = controls.throttle ?? 0.0
-        if controls.accelerating { opening = 1.0 }
+        let opening = self.workshop.source.controls().throttle ?? 0.0
         let throttle = self.workshop.throttle.value()
         let load = self.workshop.load.value()
         let volume = self.workshop.volume.value()
@@ -130,7 +128,7 @@ class PresetPanel:Canvas.Session {
             Dashboard.panel(painter, layout.overhead)
             EngineViews.profile(painter, layout.profile, setup, states, combustion_clock, bank_angle:bank_angle)
             EngineViews.overhead(painter, layout.overhead, setup, states, combustion_clock)
-            Dashboard.instruments(painter, measuring, layout, powered, starting, key_turn, opening, null, rpm, redline)
+            Dashboard.instruments(painter, layout, powered, starting, key_turn, opening, rpm, redline)
             let frame = layout.equipment
             Dashboard.panel(painter, frame)
             let view = PanelLayout.Viewport(frame, 160.0, 129.0)
@@ -396,9 +394,25 @@ public func check() {
         key:Keyboard.Key.space, keycode:0 as uint32, raw:0 as uint16, repeated:false,
         modifiers:Keyboard.Modifiers(), timestamp:Events.Timestamp(nanoseconds:0 as uint))
     assert(session.handle(Events.Event.key_pressed(space)))
-    assert(workshop.source.controls().accelerating)
-    assert(session.handle(Events.Event.key_released(space)))
+    assert(Math.abs((workshop.source.controls().throttle ?? 0.0) - 0.16) < 0.0001)
+    var pedal_timeout = Stopwatch()
+    pedal_timeout.start()
+    var intermediate = false
+    while workshop.source.controls().throttle != 1.0 && pedal_timeout.get_elapsed_seconds() < 5.0 {
+        session.update(480.0 / 44_100.0)
+        audio.render(480)
+        let opening = workshop.source.controls().throttle ?? 0.0
+        if opening > 0.16 && opening < 1.0 { intermediate = true }
+    }
+    assert(intermediate && workshop.source.controls().throttle == 1.0)
     assert(!workshop.source.controls().accelerating)
+    assert(session.handle(Events.Event.key_released(space)))
+    pedal_timeout.restart()
+    while (workshop.source.controls().throttle ?? 0.0) > 0.1601 && pedal_timeout.get_elapsed_seconds() < 5.0 {
+        session.update(480.0 / 44_100.0)
+        audio.render(480)
+    }
+    assert(Math.abs((workshop.source.controls().throttle ?? 0.0) - 0.16) < 0.0001)
     let narrow_presets = PanelLayout.Viewport(PanelLayout.Layout(420, 700).setup, 162.0, 345.0)
     let audition = preset_row(narrow_presets, preset_labels().count())
     let chevrolet = preset_row(narrow_presets, 0)

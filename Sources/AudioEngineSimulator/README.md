@@ -7,8 +7,9 @@ and an overhead view. Both views animate the pistons from the engine RPM
 and highlight each cylinder when its chamber fires. The ignition key, tachometer and accelerator sit beside the views or below
 them in a narrow window.
 
-Click the key or press **M** to toggle ignition. Hold **Space** for full
-throttle or set the opening with the **Accélérateur** slider. Click
+Click the key or press **M** to toggle ignition. Hold **Space** to fully
+depress the pedal in 0.15 s. Release **Space** to return to its starting
+position in 0.3 s. The **Accélérateur** slider sets the throttle opening. Click
 **Essai 8 secondes** for the EngineWorkshop audition. Selecting another
 preset switches off the ignition. Click the key or press **M** to start
 the selected engine.
@@ -27,9 +28,8 @@ The range depends on the cylinder count, from 50 cc on a single to 48 L
 on a V16. Changing the configuration switches off the ignition. The
 pistons, rods, and tachometer follow the simulation that produces the sound.
 Click the key or press **M** to turn it from 11 to
-1 o'clock and switch on the ignition. Hold **Space** to depress the pedal.
-Click the compact toggle or press **T** to switch between **Hard** (0.15 s) and
-**Soft** (1 s). The gauge shows pedal travel. Cylinder filling follows the
+1 o'clock and switch on the ignition. Hold **Space** to fully depress the
+pedal in 0.15 s. The gauge shows pedal travel. Cylinder filling follows the
 pedal with a short lag. Releasing Space returns the pedal to rest in 0.3 s
 and increases engine braking. Resize the
 window to see the panels adapt while preserving each drawing's proportions.
