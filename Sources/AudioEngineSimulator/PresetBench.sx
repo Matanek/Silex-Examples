@@ -8,12 +8,14 @@ use GFX.Input.Pointer
 use GFX.Viewer
 use GFX.Window
 use STD.Math
+use STD.Time.Stopwatch
 use Package.EngineWorkshop.Workshop.Workshop
 use Module.Dashboard
 use Module.EngineConfig
 use Module.EngineViews
 use Module.PanelLayout
 use Module.PresetPlayback.PresetPlayback
+use Module.PresetPlayback.CombustionDisplay
 
 func preset_labels() str[9] { return ["Chevrolet 454", "4 cylindres · GTI", "Flat-six · 911", "V8 américain", "V10 · LFA",
     "V12 · Ferrari 412 T2", "Motocross · 500 4T", "Hayabusa · 4 en ligne", "Chopper · V-twin 1800"] }
@@ -21,6 +23,9 @@ func preset_labels() str[9] { return ["Chevrolet 454", "4 cylindres · GTI", "Fl
 class PresetPanel:Canvas.Session {
     private let labels:str[9] = preset_labels()
     private var workshop:Workshop
+    private var combustion:CombustionDisplay
+    private var grouped_banks:bool = false
+    private var first_bank_on_right:bool = false
     private var layout:PanelLayout.Layout = PanelLayout.Layout(1_120, 740)
     private var measuring:Canvas = Canvas()
     private var picture:Canvas = Canvas()
@@ -33,7 +38,10 @@ class PresetPanel:Canvas.Session {
     private var key_turn:float = 0.0
     private var drag:int? = null
 
-    init(workshop:Workshop) { self.workshop = workshop }
+    init(workshop:Workshop, combustion:CombustionDisplay) {
+        self.workshop = workshop
+        self.combustion = combustion
+    }
 
     private func refresh_geometry() {
         if self.generation == self.workshop.generation { return }
@@ -42,6 +50,10 @@ class PresetPanel:Canvas.Session {
         let twin = profile.key == "custom-1800"
         self.setup = EngineConfig.Setup(vee:profile.cylinders >= 6 || twin,
             cylinders:profile.cylinders, displacement:Math.round(profile.displacement_cc) as int)
+        // Most native V engines list all cylinders of one bank before the next.
+        // The generated flat-six declares alternating individual banks.
+        self.grouped_banks = self.setup.vee && profile.key != "sport-flat6"
+        self.first_bank_on_right = profile.key == "454" || profile.key == "sport-v8" || twin
         self.bank_angle = self.setup.bank_angle()
         if profile.key == "sport-flat6" { self.bank_angle = 180.0 }
         if profile.key == "sport-v12" { self.bank_angle = 75.0 }
@@ -70,7 +82,7 @@ class PresetPanel:Canvas.Session {
 
     private func cylinder_states() EngineSimulation.CylinderState[] {
         var states:EngineSimulation.CylinderState[] = []
-        for cylinder in self.geometry {
+        for index, cylinder in self.geometry.indexed() {
             let offset = self.cycle + 720.0 - cylinder.firing_degrees as float
             let phase = offset - Math.floor(offset / 720.0) * 720.0
             let angle = phase * Math.pi() / 180.0
@@ -78,7 +90,14 @@ class PresetPanel:Canvas.Session {
             let rod = cylinder.rod_mm as float
             let lateral = radius * Math.sin(angle)
             let travel = radius * (1.0 - Math.cos(angle)) + rod - Math.sqrt(rod * rod - lateral * lateral)
-            states.append(EngineSimulation.CylinderState(cycle_degrees:phase as float32, piston_mm:travel as float32))
+            var native_index = index
+            if self.grouped_banks {
+                var bank = index % 2
+                if self.first_bank_on_right { bank = 1 - bank }
+                native_index = bank * self.setup.rows() + index / 2
+            }
+            states.append(EngineSimulation.CylinderState(cycle_degrees:phase as float32, piston_mm:travel as float32,
+                last_firing_frame:self.combustion.last_combustion_frame(native_index)))
         }
         return states
     }
@@ -90,6 +109,7 @@ class PresetPanel:Canvas.Session {
         let layout = self.layout
         let setup = self.setup
         let states = self.cylinder_states()
+        let combustion_clock = self.combustion.frame()
         let bank_angle = self.bank_angle
         let powered = self.workshop.running.value()
         let starting = self.workshop.source.is_starting()
@@ -108,8 +128,8 @@ class PresetPanel:Canvas.Session {
             self.draw_presets(painter, measuring)
             Dashboard.panel(painter, layout.profile)
             Dashboard.panel(painter, layout.overhead)
-            EngineViews.profile(painter, layout.profile, setup, states, 0, bank_angle:bank_angle)
-            EngineViews.overhead(painter, layout.overhead, setup, states, 0)
+            EngineViews.profile(painter, layout.profile, setup, states, combustion_clock, bank_angle:bank_angle)
+            EngineViews.overhead(painter, layout.overhead, setup, states, combustion_clock)
             Dashboard.instruments(painter, measuring, layout, powered, starting, key_turn, opening, null, rpm, redline)
             let frame = layout.equipment
             Dashboard.panel(painter, frame)
@@ -194,6 +214,34 @@ class PresetPanel:Canvas.Session {
     func accepts_text_input() bool { return false }
     func text_input_target() Canvas.TextInputTarget? { return null }
     func pointer_cursor() Window.Cursor { return Window.Cursor.standard }
+
+    func check_combustion(lit:bool) {
+        var drawing = self.drawing(1_120, 740)
+        var chamber = false
+        var piston = false
+        let profile_amber = Color.bytes(248, 174, 82)
+        let overhead_amber = Color.bytes(255, 181, 84)
+        for command in drawing.commands() {
+            match command {
+                stroke_line(value) => {
+                    let start = value.shape.start
+                    if contains(self.layout.profile, start) &&
+                        value.style.brush().color_at(start) == profile_amber { chamber = true }
+                }
+                fill_circle(value) => {
+                    let center = value.shape.center
+                    if contains(self.layout.overhead, center) &&
+                        value.style.brush().color_at(center) == overhead_amber { piston = true }
+                }
+                else => {}
+            }
+        }
+        assert(chamber == lit && piston == lit)
+        if lit {
+            let states = self.cylinder_states()
+            assert(states[0].last_firing_frame != null && states[1].last_firing_frame == null)
+        }
+    }
 
     func check_slider(index:int, level:float) {
         let view = PanelLayout.Viewport(self.layout.equipment, 160.0, 129.0)
@@ -290,15 +338,18 @@ func contains(frame:Canvas.Rect, point:Math.Vec2) bool {
 
 public func show() {
     var workshop = Workshop(reference_only:true)
-    var session = PresetPlayback(workshop, PresetPanel(workshop), Audio())
+    var combustion = CombustionDisplay()
+    var session = PresetPlayback(workshop, PresetPanel(workshop, combustion), Audio(), combustion)
     Viewer.show(session, Viewer.CanvasSettings(width:1_120, height:740, title:"AudioEngineSimulator",
         background:Dashboard.background()))
 }
 
 public func check() {
     var workshop = Workshop(reference_only:true)
-    var panel = PresetPanel(workshop)
-    var session = PresetPlayback(workshop, panel, Audio.offline(sample_rate:44_100, channels:2))
+    var combustion = CombustionDisplay()
+    var panel = PresetPanel(workshop, combustion)
+    var audio = Audio.offline(sample_rate:44_100, channels:2)
+    var session = PresetPlayback(workshop, panel, audio, combustion)
     assert(workshop.catalogue.count() == preset_labels().count())
     session.drawing(1_120, 740)
     panel.check_slider(0, 0.0)
@@ -311,6 +362,13 @@ public func check() {
         assert(session.handle(Events.Event.mouse_button_pressed(click(row.position.add(row.size.multiply(0.5))))))
         assert(workshop.selected().key == profile.key)
     }
+    combustion.append(1, 500)
+    combustion.advance(499)
+    panel.check_combustion(false)
+    combustion.advance(500)
+    panel.check_combustion(true)
+    combustion.advance(2_150)
+    panel.check_combustion(false)
     panel.check_views(1_120, 740)
     panel.check_views(420, 700)
     session.drawing(420, 700)
@@ -348,6 +406,7 @@ public func check() {
     assert(workshop.audition && workshop.running.value())
     assert(session.handle(Events.Event.mouse_button_pressed(click(chevrolet.position.add(chevrolet.size.multiply(0.5))))))
     assert(workshop.selected().key == "454" && !workshop.audition && !workshop.running.value())
+    assert(combustion.frame() == 0 && combustion.last_combustion_frame(1) == null)
     assert(!workshop.source.controls().running && !workshop.source.controls().accelerating)
     session.drawing(420, 700)
     panel.check_slider(0, 0.0)
@@ -355,7 +414,16 @@ public func check() {
     panel.check_slider(2, 1.0)
     assert(session.handle(Events.Event.mouse_button_pressed(click(key.position.add(key.size.multiply(0.5))))))
     assert(workshop.running.value() && workshop.source.controls().running)
-    print("Banc des presets · cylindres, curseurs et redémarrage après changement vérifiés")
+    var timeout = Stopwatch()
+    timeout.start()
+    while combustion.last_combustion_frame(0) == null && timeout.get_elapsed_seconds() < 5.0 {
+        session.update(480.0 / 44_100.0)
+        audio.render(480)
+    }
+    let ignition = combustion.last_combustion_frame(0)
+    assert(ignition != null, "no native combustion reached the offline audio playhead")
+    assert(ignition! <= combustion.frame())
+    print("Banc des presets · combustions, cylindres, curseurs et redémarrage vérifiés")
 }
 
 func click(position:Math.Vec2, down:bool = true) Events.MouseButtonEvent {

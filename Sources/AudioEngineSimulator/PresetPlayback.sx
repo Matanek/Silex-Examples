@@ -6,6 +6,50 @@ use GFX.Window
 use STD.Error.Kind
 use Package.EngineWorkshop.Workshop.Workshop
 
+struct Combustion {
+    let cylinder:int
+    let frame:int
+}
+
+public class CombustionDisplay {
+    private var waiting:Combustion[] = []
+    private var visible:int[16]
+    private var played_frame:int = 0
+
+    init() {
+        for cylinder in 0...16 { self.visible[cylinder] = 0 }
+    }
+
+    func frame() int { return self.played_frame }
+
+    func last_combustion_frame(cylinder:int) int? {
+        let frame = self.visible[cylinder]
+        if frame == 0 { return null }
+        return frame
+    }
+
+    func append(cylinder:int, frame:int) {
+        self.waiting.append(Combustion(cylinder:cylinder, frame:frame))
+    }
+
+    func advance(frame:int) {
+        self.played_frame = frame
+        if self.waiting.count() == 0 { return }
+        var future:Combustion[] = []
+        for event in self.waiting {
+            if event.frame <= frame { self.visible[event.cylinder] = event.frame }
+            else { future.append(event) }
+        }
+        self.waiting = future
+    }
+
+    func reset() {
+        self.played_frame = 0
+        self.waiting = []
+        for cylinder in 0...self.visible.count() { self.visible[cylinder] = 0 }
+    }
+}
+
 // Match EngineWorkshop's stereo queue and controls while leaving its session independent.
 // Read only ready native blocks; never wait for the simulator in a UI frame.
 public class PresetPlayback:Canvas.Session {
@@ -18,10 +62,12 @@ public class PresetPlayback:Canvas.Session {
     private var pending:bool = false
     private var offset:int = 0
     private var generation:int = 0
-    init(workshop:Workshop, panel:Canvas.Session, audio:Audio) {
+    private var combustion:CombustionDisplay
+    init(workshop:Workshop, panel:Canvas.Session, audio:Audio, combustion:CombustionDisplay) {
         self.workshop = workshop
         self.panel = panel
         self.audio = audio
+        self.combustion = combustion
         self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
         for _ in 0...960 { self.samples.append(0.0) }
         self.workshop.source.enqueue()
@@ -33,13 +79,20 @@ public class PresetPlayback:Canvas.Session {
             self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
             self.playing = Audio.PlayingSound(); self.pending = false; self.offset = 0
             self.generation = self.workshop.generation
+            self.combustion.reset()
             self.workshop.source.enqueue()
         }
         var count = 0
         while count < 8 {
             if self.audio.stream_info(self.stream).queued_frames >= 2_400 { break }
             if !self.pending {
+                let previous = self.workshop.source.frame()
                 if !self.workshop.source.render_ready(&self.samples[0:960]) { break }
+                for cylinder in 0...self.workshop.selected().cylinders {
+                    if let frame = self.workshop.source.last_combustion_frame(cylinder) {
+                        if frame > previous { self.combustion.append(cylinder, frame) }
+                    }
+                }
                 self.pending = true; self.offset = 0
             }
             match try self.audio.write(self.stream, @self.samples[self.offset * 2:960]) {
@@ -56,6 +109,7 @@ public class PresetPlayback:Canvas.Session {
         if !self.playing.is_valid() && self.audio.stream_info(self.stream).queued_frames >= 1_920 {
             self.playing = self.audio.play(self.stream, Audio.Playback(fade_in_seconds:0.05))
         }
+        self.combustion.advance(self.audio.stream_info(self.stream).consumed_frames)
     }
     func drawing(width:int, height:int) Canvas { self.feed(); return self.panel.drawing(width, height) }
     func update(delta:float) bool {

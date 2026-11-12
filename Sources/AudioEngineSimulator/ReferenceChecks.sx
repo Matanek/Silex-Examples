@@ -44,8 +44,15 @@ public func run() {
             original.source.render(&b[0:960])
             assert(demo.source.current_rpm() == original.source.current_rpm(), key + " · RPM differs")
             assert(demo.source.is_starting() == original.source.is_starting(), key + " · starter differs")
+            for cylinder in 0...demo.selected().cylinders {
+                assert(demo.source.last_combustion_frame(cylinder) == original.source.last_combustion_frame(cylinder))
+            }
             for i in 0...960 { assert(a[i] == b[i], key + " · PCM differs") }
         }
-        print(key, " · PCM, régime et démarreur identiques")
+        for cylinder in 0...demo.selected().cylinders {
+            if let frame = demo.source.last_combustion_frame(cylinder) { assert(frame <= demo.source.frame()) }
+            else { panic(key + " · aucune combustion pour le cylindre $(cylinder)") }
+        }
+        print(key, " · PCM, régime, démarreur et combustions identiques")
     }
 }

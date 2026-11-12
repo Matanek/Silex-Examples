@@ -4,7 +4,8 @@
 
 La fenêtre principale réunit les neuf presets d’EngineWorkshop, la coupe de
 profil et la vue des cylindres de dessus. Les pistons des deux vues sont
-animés à partir du régime du moteur. La clé, le compte-tours et la pédale
+animés à partir du régime du moteur. Les chambres et les pistons
+s’illuminent quand leur cylindre brûle. La clé, le compte-tours et la pédale
 sont regroupés à côté des vues, ou en dessous dans une fenêtre étroite.
 
 Cliquer sur la clé ou appuyer sur **M** pour mettre ou couper le contact.

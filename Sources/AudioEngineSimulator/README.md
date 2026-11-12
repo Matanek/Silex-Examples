@@ -3,8 +3,8 @@
 ## EngineWorkshop presets
 
 The main window combines the nine EngineWorkshop presets with a cutaway
-and an overhead view. Both views animate the pistons from the engine RPM.
-The ignition key, tachometer and accelerator sit beside the views or below
+and an overhead view. Both views animate the pistons from the engine RPM
+and highlight each cylinder when its chamber fires. The ignition key, tachometer and accelerator sit beside the views or below
 them in a narrow window.
 
 Click the key or press **M** to toggle ignition. Hold **Space** for full
