@@ -23,9 +23,10 @@ class WorkshopSession:Canvas.Session {
     private let trace:bool
     private var empty_observations:int = 0
     private var max_interval:float = 0.0
-    init(trace:bool = false) {
+    init(trace:bool, reference_only:bool) {
         self.trace = trace
-        self.workshop = Workshop(); self.ui = UI.Session(self.workshop.view()); self.audio = Audio()
+        self.workshop = Workshop(reference_only:reference_only)
+        self.ui = UI.Session(self.workshop.view()); self.audio = Audio()
         self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
         for _ in 0...960 { self.samples.append(0.0) }
         self.workshop.source.enqueue()
@@ -91,8 +92,10 @@ class WorkshopSession:Canvas.Session {
         if self.playing.is_valid() { self.audio.stop(self.playing, fade_out_seconds:0.03) }
     }
 }
-public func show(trace:bool = false) {
-    var session = WorkshopSession(trace)
+public func show(trace:bool = false, reference_only:bool = false) {
+    var session = WorkshopSession(trace, reference_only)
+    var title = "Silex — Atelier des véhicules · citadines et TDI hybride"
+    if reference_only { title = "AudioEngineSimulator" }
     Viewer.show(session, Viewer.CanvasSettings(width:1_160, height:860,
-        title:"Silex — Atelier des véhicules · citadines et TDI hybride", background:Color.bytes(8, 13, 20)))
+        title:title, background:Color.bytes(8, 13, 20)))
 }

@@ -1,5 +1,22 @@
 # AudioEngineSimulator
 
+## Presets d’EngineWorkshop
+
+Au lancement, choisir un des neuf moteurs dans le sélecteur. Le banc
+reprend le rendu, la pédale, la charge et les réglages d’origine
+d’EngineWorkshop. Appuyer sur **M** pour mettre ou couper le contact,
+maintenir **Espace** pour donner plein gaz ou cliquer sur **Essai 8 secondes**
+pour rejouer le scénario de référence. Pour changer de moteur, couper le
+contact et attendre l’arrêt.
+
+`--check-references` compare le son, le régime et l’état du démarreur
+des neuf presets à ceux d’EngineWorkshop. `--render-reference <id> <wav>`
+exporte le même essai en WAV stéréo à 44,1 kHz.
+
+## Simulateur de pièces
+
+Lancer le binaire avec `--procedural` pour retrouver le banc à deux vues.
+
 La fenêtre s’ouvre sur un V8 4T générique. À gauche, choisir une disposition
 en ligne ou en V, le nombre de cylindres, puis la cylindrée totale au curseur.
 La plage dépend du nombre de cylindres et va de 50 cm³ pour un monocylindre

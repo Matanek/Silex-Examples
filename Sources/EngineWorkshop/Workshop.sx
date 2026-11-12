@@ -9,7 +9,8 @@ use Module.Widgets.Knob
 // The native simulator owns crank motion, combustion, gas flow and sound.
 public class Workshop {
     var source:Engines.Engine
-    let catalogue:Vehicles.Profile[] = Vehicles.catalogue()
+    let catalogue:Vehicles.Profile[]
+    private let reference_only:bool
     var generation:int = 0
     var running:UI.State<bool> = UI.State<bool>(false)
     var profile:UI.State<int?> = UI.State<int?>(0)
@@ -35,11 +36,14 @@ public class Workshop {
     private var audition_time:float = 0.0
     private var display_time:float = 0.0
 
-    init() {
+    init(reference_only:bool = false) {
+        self.reference_only = reference_only
+        self.catalogue = workshop_catalogue(reference_only)
         self.source = Vehicles.create("454")
         self.active_capacity = self.catalogue[0].displacement_cc
         self.capacity.set(self.active_capacity)
         self.intake.set(self.source.profile.intake)
+        if reference_only { self.notice.set("Moteur prêt") }
         self.update_status(); self.remember(); self.sync()
     }
     func selected() Vehicles.Profile { return self.catalogue[self.selected_index] }
@@ -181,12 +185,38 @@ public class Workshop {
         sound.append(Widgets.button("Basculer A / B", self.compare))
         var character = Widgets.card("Écoute A / B", "Comparaison des traitements · volume et conduite communs", sound)
         var row = UI.Row([setup, bench, character], wrap:true); row.style.gap = 14.0
-        var content = UI.Column([Widgets.text("Atelier des véhicules", 30.0, Color.slate_100()),
-            Widgets.text("Citadines feutrées · diesel TDI hybride · Chevrolet 454 conservé"), tools,
-            UI.Reactive(self.readout_view), UI.Reactive(self.status_view), UI.Reactive(self.notice_view), row,
-            Widgets.text("Le régime et l’effort viennent de la simulation. Les variantes restent à qualifier par l’écoute.", 12.0, Color.slate_400())])
+        var title = "Atelier des véhicules"
+        if self.reference_only { title = "Presets d’EngineWorkshop" }
+        var sections:UI.View[] = [Widgets.text(title, 30.0, Color.slate_100())]
+        if !self.reference_only {
+            sections.append(Widgets.text("Citadines feutrées · diesel TDI hybride · Chevrolet 454 conservé"))
+        }
+        sections.append(tools)
+        sections.append(UI.Reactive(self.readout_view))
+        sections.append(UI.Reactive(self.status_view))
+        sections.append(UI.Reactive(self.notice_view))
+        sections.append(row)
+        if !self.reference_only {
+            sections.append(Widgets.text("Le régime et l’effort viennent de la simulation. Les variantes restent à qualifier par l’écoute.", 12.0, Color.slate_400()))
+        }
+        var content = UI.Column(sections)
         content.style.gap = 14.0; content.style.padding = UI.Insets(22.0); content.style.background = Color.bytes(8, 13, 20)
         content.style.foreground = Color.slate_100()
         return UI.ScrollView(content, smooth_scroll:true)
     }
+}
+
+func workshop_catalogue(reference_only:bool) Vehicles.Profile[] {
+    let profiles = Vehicles.catalogue()
+    if !reference_only { return profiles }
+    let keys = ["454", "sport-turbo-i4", "sport-flat6", "sport-v8", "sport-v10", "sport-v12",
+        "cross-500-4t", "race-i4", "custom-1800"]
+    var selected:Vehicles.Profile[] = []
+    for key in keys {
+        for profile in profiles {
+            if profile.key == key { selected.append(profile); break }
+        }
+    }
+    assert(selected.count() == keys.count(), "a requested EngineWorkshop preset is missing")
+    return selected
 }

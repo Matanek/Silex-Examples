@@ -1,5 +1,21 @@
 # AudioEngineSimulator
 
+## EngineWorkshop presets
+
+The launcher opens a selector with the nine chosen EngineWorkshop engines.
+It uses the original EngineWorkshop renderer, throttle, load and default
+settings. Press **M** to toggle ignition, hold **Space** for full throttle,
+or click **Essai 8 secondes** for the reference audition. Switch off the
+ignition and wait for the engine to stop before selecting another preset.
+
+`--check-references` compares the PCM, RPM and starter state of all nine
+presets with EngineWorkshop. `--render-reference <id> <wav>` exports the
+same audition as 44.1 kHz stereo WAV.
+
+## Parts-based simulator
+
+Run the binary with `--procedural` to open the two-view engine bench.
+
 The window starts with a generic four-stroke V8. Use the left panel to
 choose inline or V, select the cylinder count and set total displacement.
 The range depends on the cylinder count, from 50 cc on a single to 48 L

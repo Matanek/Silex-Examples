@@ -1,0 +1,51 @@
+use GFX.UI
+use GFX.Input.Keyboard
+use Package.EngineWorkshop.Workshop.Workshop
+
+public func run() {
+    let keys = ["454", "sport-turbo-i4", "sport-flat6", "sport-v8", "sport-v10", "sport-v12",
+        "cross-500-4t", "race-i4", "custom-1800"]
+    var selected = Workshop(reference_only:true)
+    assert(selected.catalogue.count() == keys.count())
+    var runtime = UI.Runtime(selected.view())
+    runtime.drawing(900, 700)
+    assert(runtime.key_pressed(Keyboard.Key.tab))
+    assert(runtime.key_pressed(Keyboard.Key.down))
+    assert(runtime.key_pressed(Keyboard.Key.end))
+    assert(runtime.key_pressed(Keyboard.Key.enter))
+    assert(selected.selected().key == "custom-1800")
+
+    var a:float32[] = []
+    var b:float32[] = []
+    for _ in 0...960 { a.append(0.0); b.append(0.0) }
+    for index, key in keys.indexed() {
+        var demo = Workshop(reference_only:true)
+        var original = Workshop()
+        demo.choose_profile(index)
+        for i, profile in original.catalogue.indexed() {
+            if profile.key == key { original.choose_profile(i); break }
+        }
+        assert(demo.selected().key == key && original.selected().key == key)
+        demo.toggle_running(); original.toggle_running()
+        for block in 0...200 {
+            if block == 60 {
+                demo.throttle.set(0.5); original.throttle.set(0.5)
+                demo.load.set(0.4); original.load.set(0.4)
+            }
+            if block == 100 { demo.accelerating = true; original.accelerating = true }
+            if block == 140 {
+                demo.accelerating = false; original.accelerating = false
+                demo.throttle.set(0.0); original.throttle.set(0.0)
+            }
+            if block == 170 { demo.toggle_running(); original.toggle_running() }
+            demo.update(480.0 / 44_100.0)
+            original.update(480.0 / 44_100.0)
+            demo.source.render(&a[0:960])
+            original.source.render(&b[0:960])
+            assert(demo.source.current_rpm() == original.source.current_rpm(), key + " · RPM differs")
+            assert(demo.source.is_starting() == original.source.is_starting(), key + " · starter differs")
+            for i in 0...960 { assert(a[i] == b[i], key + " · PCM differs") }
+        }
+        print(key, " · PCM, régime et démarreur identiques")
+    }
+}

@@ -6,18 +6,27 @@ use Module.Wave
 use Module.Bench
 use Module.EngineConfig
 use Module.Mixer
+use Package.EngineWorkshop.Session
+use Package.EngineWorkshop.Offline
+use Module.ReferenceChecks
 
 func main() {
     let arguments = Process.arguments()
-    if arguments.count() == 1 { Bench.show(); return }
+    if arguments.count() == 1 { Session.show(reference_only:true); return }
+    if arguments.count() == 2 && arguments[1] == "--procedural" { Bench.show(); return }
     if arguments.count() == 2 && arguments[1] == "--check" { Bench.check(); return }
+    if arguments.count() == 2 && arguments[1] == "--check-references" { ReferenceChecks.run(); return }
     if arguments.count() == 2 && arguments[1] == "--smoke" { Bench.show(smoke:true); return }
+    if arguments.count() == 4 && arguments[1] == "--render-reference" {
+        Offline.render(arguments[3], arguments[2], reference_only:true)
+        return
+    }
     if arguments.count() == 3 && arguments[1] == "--render-454" {
         render(arguments[2], EngineConfig.chevrolet_454().assembly(), held:false, comparison:true)
         return
     }
     if arguments.count() != 3 || arguments[1] != "--render" {
-        print("AudioEngineSimulator [--check | --smoke | --render <préfixe> | --render-454 <préfixe>]")
+        print("AudioEngineSimulator [--procedural | --check | --check-references | --smoke | --render-reference <id> <wav> | --render <préfixe> | --render-454 <préfixe>]")
         return
     }
     let prefix = arguments[2]
