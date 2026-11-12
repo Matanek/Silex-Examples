@@ -17,7 +17,7 @@ la pédale sont regroupés à droite et passent sous les vues en format étroit.
 
 Sous la configuration du moteur, **Mixage** règle l’aspiration et la
 combustion de 0 à 100 % pendant la lecture. Les niveaux initiaux sont
-60 % et 100 %. Pour isoler une piste, ramener l’autre à 0 %. Les niveaux
+20 % et 100 %. Pour isoler une piste, ramener l’autre à 0 %. Les niveaux
 restent en place quand on change de moteur.
 
 Le panneau **Échappement** permet de changer de silencieux et de montage

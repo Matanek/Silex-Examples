@@ -116,8 +116,8 @@ public func chevrolet_454() Setup {
             rod_mm:155.829, piston_kg:0.88, chamber_cc:118.0, firing_degrees:phase, exhaust_index:index % 2))
     }
     let outlet = EngineParts.Exhaust(header:EngineParts.Pipe(length_mm:254.0, diameter_mm:45.0),
-        pipe:EngineParts.Pipe(length_mm:1_180.0, diameter_mm:50.0),
-        silencer:EngineParts.Silencer(volume_litres:1.65, absorption:0.15, baffles:2))
+        pipe:EngineParts.Pipe(length_mm:1_260.0, diameter_mm:55.0),
+        silencer:EngineParts.Silencer(volume_litres:1.15, absorption:0.15, baffles:1))
     var quieter = outlet
     quieter.outlet_level = 0.1
     return Setup().tuned(EngineSimulation.Assembly(cylinders:cylinders, exhausts:[outlet, quieter],

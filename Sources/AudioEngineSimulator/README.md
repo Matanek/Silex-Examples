@@ -16,7 +16,7 @@ The overhead view sits below the cutaway. The key, tachometer and
 accelerator sit to the right and move below the views in a narrow window.
 
 Below the engine settings, **Mixage** adjusts intake and combustion from
-0 to 100% during playback. Their starting levels are 60% and 100%. To
+0 to 100% during playback. Their starting levels are 20% and 100%. To
 isolate either source, set the other to 0%. Changing the engine keeps
 the current mix.
 

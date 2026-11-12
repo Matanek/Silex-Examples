@@ -712,7 +712,7 @@ func check_mix_layout(frame:Canvas.Rect) {
 }
 
 func check_mix() {
-    assert(Mixer.Levels().gain[0] == 0.60 && Mixer.Levels().gain[1] == 1.0)
+    assert(Mixer.Levels().gain[0] == 0.20 && Mixer.Levels().gain[1] == 1.0)
     let source = EngineSimulation.Sources(friction:0.5, intake:0.2, combustion:-0.4)
     let full = Mixer.Levels(gain:[1.0, 1.0])
     let combustion = Mixer.Levels(gain:[0.0, 1.0])

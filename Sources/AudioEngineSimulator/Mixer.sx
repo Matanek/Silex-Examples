@@ -6,7 +6,7 @@ use Module.Dashboard
 use Module.PanelLayout
 
 public struct Levels {
-    var gain:float32[2] = [0.60, 1.0]
+    var gain:float32[2] = [0.20, 1.0]
 
     func mix(source:EngineSimulation.Sources) float32 {
         return EngineSimulation.Sources(intake:source.intake * self.gain[0],
