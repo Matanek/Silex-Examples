@@ -1,5 +1,6 @@
 use GFX.Input
 use GFX.Input.Events
+use GFX.Physics
 use STD.Error
 use STD.File
 use STD.Math
@@ -21,7 +22,7 @@ struct Frame {
     var physics_step:int=0
     var visual_step:int=0
     var backlog_ms:float=0.0
-    var chassis:Math.Vec3=Math.Vec3()
+    var chassis:Physics.Transform3D=Physics.Transform3D()
     var velocity:Math.Vec3=Math.Vec3()
     var camera:Math.Vec3=Math.Vec3()
     var yaw:float=0.0
@@ -84,7 +85,7 @@ package class StutterTrace {
         }
     }
 
-    func prepared(physics_step:int,visual_step:int,chassis:Math.Vec3,velocity:Math.Vec3,yaw:float) {
+    func prepared(physics_step:int,visual_step:int,chassis:Physics.Transform3D,velocity:Math.Vec3,yaw:float) {
         if var frame=self.current {
             frame.physics_step=physics_step
             frame.visual_step=visual_step
@@ -96,10 +97,10 @@ package class StutterTrace {
         }
     }
 
-    func finish(draw_calls:int,shadow_draw_calls:int) {
+    func finish(draw_calls:int,shadow_draw_calls:int) bool {
         if var frame=self.current {
             self.current=null
-            if frame.submit_start_ms==0.0 { return }
+            if frame.submit_start_ms==0.0 { return false }
             frame.completed_ms=self.clock.get_elapsed_milliseconds()
             frame.draw_calls=draw_calls
             frame.shadow_draw_calls=shadow_draw_calls
@@ -108,8 +109,10 @@ package class StutterTrace {
             if self.count<Const.capacity { self.count++ }
             if let marked_ms=self.marked_ms {
                 self.collecting=frame.completed_ms-marked_ms<Const.after_mark_ms
+                return !self.collecting
             }
         }
+        return false
     }
 
     func render_ready(camera:Math.Vec3) {
@@ -130,17 +133,20 @@ package class StutterTrace {
     }
 
     private func write(file:&File) Result<void,Error> {
-        try write_text(file,"start_ms,pre_render_ms,submit_start_ms,complete_ms,sim_delta_ms,physics_ms,ticks,physics_step,visual_step,backlog_ms,chassis_x,chassis_y,chassis_z,velocity_x,velocity_y,velocity_z,camera_x,camera_y,camera_z,yaw,focused,mark,draw_calls,shadow_draw_calls\n") else error {
+        try write_text(file,"start_ms,pre_render_ms,submit_start_ms,complete_ms,sim_delta_ms,physics_ms,ticks,physics_step,visual_step,backlog_ms,chassis_x,chassis_y,chassis_z,velocity_x,velocity_y,velocity_z,camera_x,camera_y,camera_z,yaw,focused,mark,draw_calls,shadow_draw_calls,chassis_qx,chassis_qy,chassis_qz,chassis_qw,clock_start_us\n") else error {
             return Result<void,Error>.failure(error)
         }
         let first=(self.next+Const.capacity-self.count)%Const.capacity
         for index in 0...self.count {
             let frame=self.frames[(first+index)%Const.capacity]
             let timing="$(frame.started_ms),$(frame.prepared_ms),$(frame.submit_start_ms),$(frame.completed_ms),$(frame.delta_ms),$(frame.physics_ms),$(frame.ticks),$(frame.physics_step),$(frame.visual_step),$(frame.backlog_ms),"
-            let chassis="$(frame.chassis.x),$(frame.chassis.y),$(frame.chassis.z),$(frame.velocity.x),$(frame.velocity.y),$(frame.velocity.z),"
+            let position=frame.chassis.position
+            let rotation=frame.chassis.rotation
+            let chassis="$(position.x),$(position.y),$(position.z),$(frame.velocity.x),$(frame.velocity.y),$(frame.velocity.z),"
             let camera="$(frame.camera.x),$(frame.camera.y),$(frame.camera.z),$(frame.yaw),"
-            let flags="$(frame.focused),$(frame.mark),$(frame.draw_calls),$(frame.shadow_draw_calls)\n"
-            let line=timing+chassis+camera+flags
+            let flags="$(frame.focused),$(frame.mark),$(frame.draw_calls),$(frame.shadow_draw_calls),"
+            let attitude="$(rotation.x),$(rotation.y),$(rotation.z),$(rotation.w),$(self.clock.last_microseconds)\n"
+            let line=timing+chassis+camera+flags+attitude
             try write_text(file,line) else error { return Result<void,Error>.failure(error) }
         }
         return Result<void,Error>.success()

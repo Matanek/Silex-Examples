@@ -30,7 +30,10 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
             match event {
                 key_pressed(_)=>{
                     if var trace=state.stutter_trace {
-                        if trace.handle(event) { window.set_title("MonsterTruck — À-coup marqué") }
+                        if trace.handle(event) {
+                            if state.quit_after_mark { window.set_title("MonsterTruck — À-coup marqué · fermeture dans 2 s") }
+                            else { window.set_title("MonsterTruck — À-coup marqué") }
+                        }
                     }
                 }
                 mouse_wheel(wheel)=>{ state.chase.distance=Math.clamp(state.chase.distance-wheel.delta.y*0.75,7.0,18.0) }
@@ -93,7 +96,7 @@ func sync_view(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Tr
     state.view!.update(world,meshes)
     Scene.follow(world,state,simulation.delta())
     if var trace=state.stutter_trace {
-        trace.prepared(state.truck.steps,state.view!.last_step,state.truck.chassis.position(),
+        trace.prepared(state.truck.steps,state.view!.last_step,state.truck.chassis.transform(),
             state.truck.chassis.linear_velocity(),state.chase.yaw)
     }
 }
@@ -105,10 +108,10 @@ func trace_render_ready(world:&Resources.World,state:&Scene.TruckScene) {
     }
 }
 
-func finish_trace_frame(state:&Scene.TruckScene,renderer:@Resources.Renderer) {
+func finish_trace_frame(state:&Scene.TruckScene,renderer:@Resources.Renderer,controller:&Application.Controller) {
     if var trace=state.stutter_trace {
         let stats=renderer.stats()
-        trace.finish(stats.draw_calls(),stats.shadow_draw_calls())
+        if trace.finish(stats.draw_calls(),stats.shadow_draw_calls()) && state.quit_after_mark { controller.stop() }
     }
 }
 
@@ -150,6 +153,7 @@ func main() {
     var directory:str?=null
     var trace_path:str?=null
     var paced=false
+    var quit_after_mark=false
     let arguments=Process.arguments()
     for i,arg in arguments.indexed() {
         if arg=="--silent" { audible=false }
@@ -171,6 +175,7 @@ func main() {
         if arg=="--profile-turn" { profile=true;profile_throttle=1.0;profile_turn=true }
         if arg=="--trace-performance" { trace_performance=true }
         if arg=="--pace-120" { paced=true }
+        if arg=="--quit-after-mark" { quit_after_mark=true }
         if arg=="--trace-stutter" {
             if i+1>=arguments.count() { panic("--trace-stutter requires an output CSV path") }
             trace_path=arguments[i+1]
@@ -187,6 +192,7 @@ func main() {
     if bumps { title="MESURE AUTOMATIQUE — Petites bosses — $(profile_duration as int) secondes" }
     if let path=trace_path {
         state.stutter_trace=StutterTrace(path)
+        state.quit_after_mark=quit_after_mark
         if !profile { title="MonsterTruck — M : marquer l’à-coup" }
     }
     if paced { title=title+" — Cadence 120 Hz" }

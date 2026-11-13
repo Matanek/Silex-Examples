@@ -46,6 +46,7 @@ package class TruckScene {
     var trace_maximum_update:float=0.0
     let trace_performance:bool
     var stutter_trace:StutterTrace?=null
+    var quit_after_mark:bool=false
     var sound:EngineSound?=null
     let workers:int
     init(workers:int=4,profile:bool=false,slope:bool=false,ramp:bool=false,throttle:float=0.75,turn:bool=false,trace:bool=false,duration:float=12.0,spawn:Physics.Transform3D?=null,bumps:bool=false) {

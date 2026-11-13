@@ -217,7 +217,9 @@ mode and on the same course.
 **M** when the scenery starts stuttering, keep driving for about two seconds,
 then quit with **Escape**. The window title confirms the mark. The path must
 name a new file. On exit, the demo writes application-side frame times,
-physics steps, and truck and camera positions around the mark.
+physics steps, the chassis pose, and the camera position around the mark.
+Add `--quit-after-mark` to exit two seconds after pressing M, aligning the
+end of an external recording with the trace.
 `--pace-120` runs the same route with frame pacing set to 120 Hz for comparison.
 
 ## Reusable Chevrolet sound
