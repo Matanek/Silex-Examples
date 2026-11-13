@@ -9,7 +9,7 @@ use STD.Math
 
 func height(world:Physics.World3D,x:float,z:float,expected:float) {
     let hit=world.ray_cast(Physics.Ray3D(Math.Vec3(x,10.0,z),Math.Vec3(0.0,-20.0,0.0)))
-    assert(hit!=null)
+    assert(hit!=null,"ray missed expected arena surface")
     if Math.abs(hit!.point().y-expected)>=0.0001 { print("arena height x=",x," z=",z," expected=",expected," actual=",hit!.point().y) }
     assert(Math.abs(hit!.point().y-expected)<0.0001 && hit!.normal().y>0.7)
 }
@@ -132,11 +132,24 @@ package func verify() {
     height(world,27.0,65.0,0.0)
     height(world,43.0,85.0,0.0)
     height(world,-1.0,101.0,0.66)
+    height(world,1.0,111.0,1.35)
+    height(world,16.0,134.0,2.3)
+    assert(Math.abs(ArenaGround.height(-28.0,22.0)-1.8)<0.0001)
+    assert(Math.abs(ArenaGround.height(23.0,25.0)-2.9)<0.0001)
+    assert(Math.abs(ArenaGround.height(1.0,111.0)-1.35)<0.0001)
+    assert(Math.abs(ArenaGround.height(-2.0,123.0)-0.90)<0.0001)
+    assert(ArenaGround.height(23.0,24.0)<ArenaGround.height(23.0,25.0))
+    assert(ArenaGround.height(23.0,26.0)<ArenaGround.height(23.0,24.0))
+    let ground_mesh=ArenaGround.mesh(samples)
+    assert(ground_mesh.triangle_count()<(Arena.Grid.columns-1)*(Arena.Grid.rows-1)*2/2)
+    print("Arena render triangles=",ground_mesh.triangle_count())
     height(world,Arena.Grid.left-1.0,28.0,0.0)
     height(world,0.0,Arena.far_edge()+1.0,0.0)
-    let seams:Math.Vec3[]=[Math.Vec3(0.2,0.0,8.0),Math.Vec3(39.0,0.0,88.4),
-        Math.Vec3(0.3,0.0,110.0),Math.Vec3(-22.7,0.0,54.2),Math.Vec3(6.3,0.0,32.8)]
-    for point in seams {
+    let samples_to_check:Math.Vec3[]=[Math.Vec3(0.2,0.0,8.0),Math.Vec3(39.0,0.0,88.4),
+        Math.Vec3(0.3,0.0,110.0),Math.Vec3(-22.7,0.0,54.2),Math.Vec3(6.3,0.0,32.8),
+        Math.Vec3(-28.3,0.0,22.2),Math.Vec3(23.2,0.0,25.3),Math.Vec3(1.2,0.0,111.3),
+        Math.Vec3(-2.3,0.0,123.2)]
+    for point in samples_to_check {
         height(world,point.x,point.z,ArenaGround.surface_height(samples,point.x,point.z))
     }
     let quarter=QuarterPipe.Dimensions.origin

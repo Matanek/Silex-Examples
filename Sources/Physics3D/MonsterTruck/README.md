@@ -77,8 +77,11 @@ the chassis. Reversing gradually turns the view toward the new travel direction.
 
 Start straight ahead with the large table, then explore the central mound
 and its four approaches. The left side has a takeoff and separate landing;
-the right side has a bowl with two slopes. Small rollers are at the far end.
-A lane along the western mounds leads to the slide rails.
+the right side has a bowl with two slopes. The jump tables have level tops
+with a distinct break in grade. A rounded mound sits left of the start, and
+a 2.9 m crest to the right has a long climb and a short descent. Three
+mounds at the far end alternate crests and a dome at heights of 0.66 m,
+1.35 m and 0.90 m. A lane along the western mounds leads to the slide rails.
 
 For a wheelie, briefly press Shift + Z, then release. To lift the rear,
 build speed and briefly press Space. Torque and braking physically pitch the

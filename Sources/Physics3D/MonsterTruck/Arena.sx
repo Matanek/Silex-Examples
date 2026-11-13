@@ -21,33 +21,50 @@ package func shoulder(distance:float,top:float,base:float) float {
     return 1.0-ease((Math.abs(distance)-top)/(base-top))
 }
 
-func mound(x:float,z:float,center_x:float,center_z:float,width:float,length:float,height:float) float {
+func dome(x:float,z:float,center_x:float,center_z:float,width:float,length:float,height:float) float {
     let dx=(x-center_x)/width
     let dz=(z-center_z)/length
     return height*(1.0-ease(Math.sqrt(dx*dx+dz*dz)))
 }
 
-func plateau(x:float,z:float,center_x:float,start:float,top_start:float,top_end:float,end:float,
+// A short curved toe blends into a steady grade. The grade reaches the
+// crest, so the takeoff and landing break are visible in silhouette.
+func bank(run:float,length:float) float {
+    let distance=Math.clamp(run,0.0,length)
+    let toe=Math.min(2.0,length*0.4)
+    if distance<toe { return distance*distance/(2.0*toe*(length-toe*0.5)) }
+    return (distance-toe*0.5)/(length-toe*0.5)
+}
+
+func table_top(x:float,z:float,center_x:float,start:float,top_start:float,top_end:float,end:float,
     top_width:float,width:float,height:float) float {
-    let rise=ease((z-start)/(top_start-start))
-    let fall=ease((end-z)/(end-top_end))
-    return height*rise*fall*shoulder(x-center_x,top_width,width)
+    let along=Math.min(bank(z-start,top_start-start),bank(end-z,end-top_end))
+    let across=bank(width-Math.abs(x-center_x),width-top_width)
+    return height*Math.min(along,across)
+}
+
+func roller(x:float,z:float,center_x:float,crest:float,rise:float,fall:float,width:float,height:float) float {
+    let along=Math.min(bank(z-crest+rise,rise),bank(crest+fall-z,fall))
+    return height*along*shoulder(x-center_x,1.5,width)
 }
 
 // A continuous soil surface with open run-ups between the main features.
 package func relief(x:float,z:float) float {
-    let table=plateau(x,z,0.0,9.0,24.0,32.0,45.0,6.0,13.0,2.65)
-    let central=plateau(x,z,0.0,54.0,65.0,74.0,92.0,9.0,23.0,3.9)
-    let west_jump=plateau(x,z,-28.0,41.0,55.0,57.0,62.0,4.0,10.5,3.1)
-    let west_landing=plateau(x,z,-30.0,65.0,70.0,73.0,90.0,5.0,11.0,2.4)
-    let east_banks=plateau(x,z,27.0,43.0,48.0,50.0,62.0,4.0,10.5,3.1)+
-        plateau(x,z,28.0,68.0,80.0,82.0,91.0,4.0,10.5,3.5)
-    let side=mound(x,z,-28.0,22.0,13.0,14.0,2.6)+mound(x,z,23.0,24.0,12.0,16.0,2.9)
-    let rolls=mound(x,z,-1.0,101.0,8.0,5.4,0.66)+mound(x,z,1.2,111.0,8.0,6.0,1.04)+
-        mound(x,z,-1.8,123.0,10.0,7.0,0.76)
-    let back=plateau(x,z,16.0,113.0,132.0,139.0,158.0,4.5,14.0,2.3)+
-        mound(x,z,40.0,131.0,16.0,17.0,1.45)
-    let outside=mound(x,z,-53.0,35.0,15.5,22.0,1.05)+mound(x,z,-53.0,78.0,14.0,22.0,1.4)
+    let table=table_top(x,z,0.0,9.0,24.0,32.0,45.0,6.0,13.0,2.65)
+    let central=table_top(x,z,0.0,54.0,65.0,74.0,92.0,9.0,23.0,3.9)
+    let west_jump=table_top(x,z,-28.0,41.0,52.0,54.0,62.0,4.0,10.5,3.1)
+    let west_landing=table_top(x,z,-30.0,65.0,70.0,73.0,90.0,5.0,11.0,2.4)
+    let east_banks=table_top(x,z,27.0,43.0,48.0,50.0,62.0,4.0,10.5,3.1)+
+        table_top(x,z,28.0,68.0,80.0,82.0,91.0,4.0,10.5,3.5)
+    let side=dome(x,z,-28.0,22.0,11.0,11.5,1.8)+
+        roller(x,z,23.0,25.0,10.0,6.0,10.5,2.9)
+    let rolls=roller(x,z,-1.0,101.0,4.5,4.0,7.0,0.66)+
+        roller(x,z,1.0,111.0,6.0,4.5,8.0,1.35)+
+        dome(x,z,-2.0,123.0,8.5,5.5,0.90)
+    let back=table_top(x,z,16.0,115.0,129.0,139.0,155.0,4.5,14.0,2.3)+
+        dome(x,z,42.0,132.0,13.5,12.5,1.65)
+    let outside=dome(x,z,-53.0,35.0,12.0,15.0,1.05)+
+        roller(x,z,-51.0,76.0,13.0,8.0,11.0,1.6)
     return Math.max(Math.max(table,central),Math.max(Math.max(west_jump,west_landing),
         Math.max(east_banks,Math.max(side,Math.max(rolls,Math.max(back,outside))))))
 }

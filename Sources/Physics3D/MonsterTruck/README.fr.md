@@ -80,8 +80,12 @@ progressivement la vue dans la nouvelle direction de déplacement.
 
 Commencer tout droit par la grande table, puis la butte centrale et ses quatre
 accès. À gauche se trouvent un tremplin et une réception séparée ; à droite,
-une cuvette à deux montées. Les petites bosses sont au fond. À gauche, un
-passage longe les buttes du bord et rejoint les rails de slide.
+une cuvette à deux montées. Les tables ont un sommet plat et un changement de
+pente marqué au bord du plateau. La butte à gauche du départ est arrondie.
+À droite du départ, une crête de 2,9 m présente une montée longue et une
+descente courte. Au fond, trois bosses de 0,66 m, 1,35 m et 0,90 m alternent
+crêtes et dôme. À gauche, un passage longe les buttes du bord et rejoint
+les rails de slide.
 
 Pour un cabrage, donner un bref appui sur Maj + Z puis relâcher. Pour lever
 l’arrière, prendre de la vitesse puis donner un bref appui sur Espace. Le couple
