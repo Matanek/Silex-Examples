@@ -13,6 +13,7 @@ use Physics3D.MonsterTruck.Scene
 use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.HudChecks
 use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.PickupBody
 use Physics3D.MonsterTruck.RimMesh
 use Physics3D.MonsterTruck.TyreMesh
 use Physics3D.MonsterTruck.TyreProfile
@@ -56,6 +57,45 @@ func verify_normals(mesh:Scene3D.Geometry.Mesh) {
         let normal=b.position.subtract(a.position).cross(c.position.subtract(a.position))
         assert(normal.dot(a.normal)>0.0)
     }
+}
+
+func verify_body() {
+    let shell=PickupBody.shell(Color.red_600())
+    verify_normals(shell)
+    verify_normals(PickupBody.windows())
+    verify_normals(PickupBody.frame_and_trim())
+    verify_normals(PickupBody.shock())
+    let vertices=shell.vertices();let indices=shell.indices()
+    var triangles:Physics.Triangle3D[]=[]
+    for triangle in 0...shell.triangle_count() {
+        triangles.append(Physics.Triangle3D(vertices[indices[triangle*3] as int].position,
+            vertices[indices[triangle*3+1] as int].position,vertices[indices[triangle*3+2] as int].position))
+    }
+    let body=Physics.ShapePlacement3D(Physics.Shape3D.mesh(Physics.TriangleMesh3D(triangles)))
+    let sides:float[]=[-1.0,1.0]
+    for side in sides {
+        let direction=Math.Vec3(-side*0.85,0.0,0.0)
+        for axle in sides {
+            let z=axle*2.05
+            let open=Physics.Geometry3D.ray_cast(Physics.Ray3D(Math.Vec3(side*1.5,0.28,z),direction),body)
+            let fender=Physics.Geometry3D.ray_cast(Physics.Ray3D(Math.Vec3(side*1.5,0.70,z),direction),body)
+            assert(!open.hit && fender.hit,"the shell must leave each wheel opening visible")
+        }
+    }
+}
+
+func verify_dirt(world:&Resources.World,images:&Resources.Images) {
+    var textured=0
+    for entity in world.entities() {
+        if !world.has<Components.MaterialSettings3D>(entity) { continue }
+        let settings=world.get<Components.MaterialSettings3D>(entity)
+        if let albedo=settings.textures.albedo {
+            let image=images.get(albedo.image)
+            assert(image.width()==1024 && image.height()==1024 && albedo.scale==Math.Vec2(256.0))
+            textured++
+        }
+    }
+    assert(textured==1,"the arena floor must use the embedded dirt texture")
 }
 
 func verify_wheel_rim() {
@@ -105,9 +145,11 @@ func verify_loaded_tread() {
 
 package func verify() {
     verify_wheel_rim()
+    verify_body()
     var world=Resources.World();var meshes=Resources.Meshes3D();var images=Resources.Images()
     var state=Scene.TruckScene(1)
     Scene.startup(world,meshes,images,state);state.view!.update(world,meshes);Scene.follow(world,state,0.016)
+    verify_dirt(world,images)
     assert(!world.get<Scene2D.Canvas>(state.hud).visible)
     var shortcuts=copy world.get<Scene2D.Canvas>(state.shortcut_line)
     assert(shortcuts.visible && shortcuts.anchor==Math.Vec2(0.5,1.0))
@@ -280,7 +322,7 @@ package func verify() {
         assert(Math.abs(view.rotation.rotate(Math.Vec3.right()).y)<0.00001)
     } }
     verify_loaded_tread()
-    print("Monster scene checks passed: input, reset, flat loaded treads, shortcuts and HUD, travel camera and rollover horizon")
+    print("Monster scene checks passed: pickup shell, dirt texture, input, reset, flat loaded treads, shortcuts and HUD, travel camera and rollover horizon")
 }
 
 func main() { verify() }

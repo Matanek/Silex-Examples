@@ -1,14 +1,15 @@
+use GFX.Color
 use GFX.Scene3D
 use STD.Math
 
-func face(vertices:&Scene3D.Geometry.Vertex[],indices:&uint32[],
-    a:Math.Vec3,b:Math.Vec3,c:Math.Vec3,d:Math.Vec3) {
+package func face(vertices:&Scene3D.Geometry.Vertex[],indices:&uint32[],
+    a:Math.Vec3,b:Math.Vec3,c:Math.Vec3,d:Math.Vec3,color:Color=Color.white()) {
     let offset=vertices.count() as uint32
     let normal=b.subtract(a).cross(c.subtract(a)).normalized()
-    vertices.append(Scene3D.Geometry.Vertex(a,normal,Math.Vec2()))
-    vertices.append(Scene3D.Geometry.Vertex(b,normal,Math.Vec2(1.0,0.0)))
-    vertices.append(Scene3D.Geometry.Vertex(c,normal,Math.Vec2(1.0)))
-    vertices.append(Scene3D.Geometry.Vertex(d,normal,Math.Vec2(0.0,1.0)))
+    vertices.append(Scene3D.Geometry.Vertex(a,normal,Math.Vec2(),color))
+    vertices.append(Scene3D.Geometry.Vertex(b,normal,Math.Vec2(1.0,0.0),color))
+    vertices.append(Scene3D.Geometry.Vertex(c,normal,Math.Vec2(1.0),color))
+    vertices.append(Scene3D.Geometry.Vertex(d,normal,Math.Vec2(0.0,1.0),color))
     indices.append(offset);indices.append(offset+1 as uint32);indices.append(offset+2 as uint32)
     indices.append(offset);indices.append(offset+2 as uint32);indices.append(offset+3 as uint32)
 }
@@ -42,49 +43,6 @@ package func arrow() Scene3D.Geometry.Mesh {
     vertices.append(Scene3D.Geometry.Vertex(Math.Vec3(0.0,0.0,0.6),Math.Vec3.up(),Math.Vec2(0.5,1.0)))
     vertices.append(Scene3D.Geometry.Vertex(Math.Vec3(0.38,0.0,0.0),Math.Vec3.up(),Math.Vec2(1.0,0.0)))
     indices.append(offset);indices.append(offset+1 as uint32);indices.append(offset+2 as uint32)
-    return Scene3D.Geometry.Mesh(vertices,indices)
-}
-
-package func cab() Scene3D.Geometry.Mesh {
-    let w=0.975
-    let a=Math.Vec3(-w,0.5,-0.8);let b=Math.Vec3(w,0.5,-0.8)
-    let c=Math.Vec3(-w,0.5,1.0);let d=Math.Vec3(w,0.5,1.0)
-    let e=Math.Vec3(-w,1.5,-0.65);let f=Math.Vec3(w,1.5,-0.65)
-    let g=Math.Vec3(-w,1.5,0.7);let h=Math.Vec3(w,1.5,0.7)
-    var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[]
-    face(vertices,indices,c,d,h,g);face(vertices,indices,b,a,e,f)
-    face(vertices,indices,a,c,g,e);face(vertices,indices,d,b,f,h)
-    face(vertices,indices,e,g,h,f);face(vertices,indices,c,a,b,d)
-    return Scene3D.Geometry.Mesh(vertices,indices)
-}
-
-package func windows() Scene3D.Geometry.Mesh {
-    var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[]
-    face(vertices,indices,Math.Vec3(-0.82,0.68,0.958),Math.Vec3(0.82,0.68,0.958),
-        Math.Vec3(0.78,1.4,0.742),Math.Vec3(-0.78,1.4,0.742))
-    let sides:float[]=[-1.0,1.0]
-    for side in sides {
-        let x=side*0.986
-        face(vertices,indices,Math.Vec3(x,0.68,0.06),Math.Vec3(x,0.68,0.91),
-            Math.Vec3(x,1.4,0.66),Math.Vec3(x,1.4,0.06))
-        face(vertices,indices,Math.Vec3(x,0.68,-0.7),Math.Vec3(x,0.68,-0.04),
-            Math.Vec3(x,1.4,-0.04),Math.Vec3(x,1.4,-0.57))
-    }
-    face(vertices,indices,Math.Vec3(0.8,0.73,-0.777),Math.Vec3(-0.8,0.73,-0.777),
-        Math.Vec3(-0.78,1.38,-0.68),Math.Vec3(0.78,1.38,-0.68))
-    return Scene3D.Geometry.Mesh(vertices,indices)
-}
-
-package func stripes() Scene3D.Geometry.Mesh {
-    var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[]
-    let sides:float[]=[-1.0,1.0]
-    for side in sides {
-        let x=side*1.058
-        face(vertices,indices,Math.Vec3(x,0.14,-2.1),Math.Vec3(x,0.32,-0.6),
-            Math.Vec3(x,0.54,0.1),Math.Vec3(x,0.31,-0.25))
-        face(vertices,indices,Math.Vec3(x,0.22,-0.2),Math.Vec3(x,0.39,0.5),
-            Math.Vec3(x,0.54,1.8),Math.Vec3(x,0.29,0.8))
-    }
     return Scene3D.Geometry.Mesh(vertices,indices)
 }
 

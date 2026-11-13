@@ -5,57 +5,34 @@ use GFX.Resources
 use GFX.Scene3D
 use Physics3D.MonsterTruck.TyreMesh
 use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.PickupBody
 use Physics3D.MonsterTruck.Primitives
 use Physics3D.MonsterTruck.RimMesh
 use Physics3D.MonsterTruck.WheelView
 use STD.Math
 
-struct Part { let entity:ECS.Entity;let position:Math.Vec3;let size:Math.Vec3;let rotation:Math.Quat }
-
 package class PickupView {
     var truck:Model.Truck
     var wheels:WheelView[]=[]
-    private var parts:Part[]=[]
+    private var parts:ECS.Entity[]=[]
     private var tyre:TyreMesh=TyreMesh()
     var struts:ECS.Entity[]=[]
     var last_step:int= -1
     init(truck:Model.Truck,world:&Resources.World,meshes:&Resources.Meshes3D) {
         self.truck=truck
-        let cube=meshes.add(Scene3D.Geometry.Cube.make())
-        let red=Color.bytes(220,39,38);let dark=Color.bytes(36,44,56);let metal=Color.bytes(122,135,150)
+        let red=Color.bytes(220,39,38)
         let assets=WheelView.Assets(rim:meshes.add(RimMesh.rim(red)),
             hub:meshes.add(RimMesh.hub()),
             bolt:meshes.add(Scene3D.Geometry.Cylinder.make(0.021,0.025,6)))
         for wheel in truck.wheels { self.wheels.append(WheelView(wheel,assets,self.tyre,world,meshes)) }
-        self.part(world,cube,Math.Vec3(0.0,0.35,0.0),Math.Vec3(2.1,0.45,4.6),red)
-        self.part(world,meshes.add(Primitives.cab()),Math.Vec3(),Math.Vec3(1.0),red)
-        let windows=WheelView.mesh_entity(world,meshes.add(Primitives.windows()),Color.bytes(24,58,79),0.6,0.16)
-        world.insert(windows,Components.MaterialSettings3D(double_sided:true))
-        self.parts.append(Part(entity:windows,position:Math.Vec3(),size:Math.Vec3(1.0),rotation:Math.Quat()))
-        let stripes=WheelView.mesh_entity(world,meshes.add(Primitives.stripes()),Color.bytes(255,163,30),0.1,0.4)
-        world.insert(stripes,Components.MaterialSettings3D(double_sided:true))
-        self.parts.append(Part(entity:stripes,position:Math.Vec3(),size:Math.Vec3(1.0),rotation:Math.Quat()))
-        self.part(world,cube,Math.Vec3(0.0,0.65,1.55),Math.Vec3(2.0,0.3,1.2),red)
-        self.part(world,cube,Math.Vec3(0.0,0.63,-1.55),Math.Vec3(1.7,0.06,1.25),dark)
-        self.part(world,cube,Math.Vec3(-0.97,0.83,-1.55),Math.Vec3(0.16,0.45,1.5),red)
-        self.part(world,cube,Math.Vec3(0.97,0.83,-1.55),Math.Vec3(0.16,0.45,1.5),red)
-        self.part(world,cube,Math.Vec3(0.0,0.83,-2.23),Math.Vec3(2.1,0.45,0.16),red)
-        self.part(world,cube,Math.Vec3(0.0,-0.65,0.15),Math.Vec3(1.05,0.65,1.5),dark)
-        self.part(world,cube,Math.Vec3(0.0,-0.15,0.0),Math.Vec3(1.25,0.35,4.2),dark)
-        self.part(world,cube,Math.Vec3(0.0,0.15,2.35),Math.Vec3(2.25,0.22,0.22),metal)
-        self.part(world,cube,Math.Vec3(0.0,0.18,-2.4),Math.Vec3(2.2,0.2,0.2),metal)
-        self.part(world,cube,Math.Vec3(0.0,0.45,2.32),Math.Vec3(0.92,0.26,0.025),dark)
-        let sides:float[]=[-1.0,1.0]
-        for side in sides {
-            self.part(world,cube,Math.Vec3(side*0.75,0.48,2.33),Math.Vec3(0.43,0.19,0.035),Color.bytes(255,237,169))
-            self.part(world,cube,Math.Vec3(side*0.86,0.79,-2.33),Math.Vec3(0.2,0.25,0.025),Color.bytes(255,110,60))
-            self.part(world,cube,Math.Vec3(side*1.1,1.0,0.65),Math.Vec3(0.22,0.18,0.3),dark)
-        }
-        let strut=meshes.add(Scene3D.Geometry.Cylinder.make(0.045,1.0,12))
-        for _ in 0...4 { self.struts.append(WheelView.mesh_entity(world,strut,metal,0.65,0.35)) }
-    }
-    private func part(world:&Resources.World,asset:Scene3D.MeshHandle,position:Math.Vec3,size:Math.Vec3,color:Color) {
-        self.parts.append(Part(entity:WheelView.mesh_entity(world,asset,color,0.25,0.4),position:position,size:size,rotation:Math.Quat()))
+        self.parts.append(WheelView.mesh_entity(world,meshes.add(PickupBody.shell(red)),
+            Color.white(),metallic:0.35,roughness:0.32))
+        self.parts.append(WheelView.mesh_entity(world,meshes.add(PickupBody.windows()),
+            Color.white(),metallic:0.25,roughness:0.18))
+        self.parts.append(WheelView.mesh_entity(world,meshes.add(PickupBody.frame_and_trim()),
+            Color.white(),metallic:0.25,roughness:0.56))
+        let strut=meshes.add(PickupBody.shock())
+        for _ in 0...4 { self.struts.append(WheelView.mesh_entity(world,strut,Color.white(),0.55,0.38)) }
     }
     func rebind(truck:Model.Truck) {
         self.truck=truck;self.last_step= -1
@@ -67,16 +44,16 @@ package class PickupView {
         self.last_step=self.truck.steps
         let pose=self.truck.chassis.transform()
         for part in self.parts {
-            let position=pose.point(part.position);let rotation=pose.rotation.multiply(part.rotation);let size=part.size
-            world.update<Components.Transform3D>(part.entity,func(t:&Components.Transform3D) {
-                t.position=position;t.rotation=rotation;t.scale=size
+            world.update<Components.Transform3D>(part,func(t:&Components.Transform3D) {
+                t.position=pose.position
+                t.rotation=pose.rotation
             })
         }
         var index=0
         for view in self.wheels {
             view.update(world,meshes,self.tyre)
             var wheel=self.truck.wheels[index]
-            let top=pose.point(Math.Vec3(wheel.anchor.x*0.55,-0.15,wheel.anchor.z))
+            let top=pose.point(Math.Vec3(wheel.anchor.x*0.36,0.12,wheel.anchor.z))
             let bottom=wheel.rim.position();let offset=bottom.subtract(top)
             let position=top.add(bottom).multiply(0.5)
             let rotation=Primitives.align(Math.Vec3.up(),offset.normalized());let size=Math.Vec3(1.0,offset.length(),1.0)

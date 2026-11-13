@@ -4,8 +4,9 @@
 
 Conduire un pickup à quatre pneus déformables dans une arène géométrique de
 freestyle : tables de saut, butte à quatre accès, grandes rampes, réception,
-cuvette et petites bosses. Le sol brun conserve une grille pour lire la vitesse.
-Les faces jaunes et rouges montrent les trajectoires, avec des bordures blanches.
+cuvette et petites bosses. Le pickup a des ailes découpées et un châssis
+apparent. Une texture de terre compacte et de gravier couvre le sol. Les faces
+jaunes et rouges montrent les trajectoires, avec des bordures blanches.
 
 ## Lancer et conduire
 

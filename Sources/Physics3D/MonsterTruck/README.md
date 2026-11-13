@@ -4,8 +4,9 @@
 
 Drive a pickup with four deformable tires in a geometric freestyle arena:
 jump tables, a mound with four approaches, large ramps, a landing ramp,
-a two-sided bowl and small rollers. The brown floor retains a grid to show
-speed. Yellow and red surfaces mark the lines, with white borders.
+a two-sided bowl and small rollers. The pickup has cutaway fenders and an
+exposed frame. The arena floor uses a packed dirt and gravel texture. Yellow
+and red surfaces mark the lines, with white borders.
 
 ## Launch and drive
 
