@@ -24,6 +24,10 @@ struct Station {
             self.sill+(self.belt-self.sill)*fraction,self.z)
     }
 
+    func floor(side:float) Math.Vec3 {
+        return self.side(side,0.0).subtract(Math.Vec3(side*0.11,-0.02,0.0))
+    }
+
     func deck(side:float) Math.Vec3 {
         return Math.Vec3(side*(self.width-0.13),self.belt+0.095,self.z)
     }
@@ -90,14 +94,15 @@ package func shell(paint:Color) Scene3D.Geometry.Mesh {
             side_face(vertices,indices,side,b_upper,a_upper,a_belt,b_belt,paint)
             side_face(vertices,indices,side,b_belt,a_belt,a.deck(side),b.deck(side),paint)
             // The folded lip gives the wheel openings depth when viewed from below.
-            let lip=Math.Vec3(side*0.11,-0.02,0.0)
-            side_face(vertices,indices,side,b_base.subtract(lip),a_base.subtract(lip),a_base,b_base,lower)
+            side_face(vertices,indices,side,b.floor(side),a.floor(side),a_base,b_base,lower)
             if b.z<=Bed.front {
                 let inset=Math.Vec3(side*0.045,0.20,0.0)
                 side_face(vertices,indices,side,b.deck(side),a.deck(side),
                     a.deck(side).subtract(inset),b.deck(side).subtract(inset),liner)
             }
         }
+        // Close the shell from below while following the cutaway fenders.
+        Primitives.face(vertices,indices,a.floor(1.0),b.floor(1.0),b.floor(-1.0),a.floor(-1.0),liner)
         if a.z>=Bed.front {
             Primitives.face(vertices,indices,a.deck(-1.0),b.deck(-1.0),b.deck(1.0),a.deck(1.0),paint)
         } else {
@@ -112,6 +117,8 @@ package func shell(paint:Color) Scene3D.Geometry.Mesh {
         }
     }
     let tail=panels[0];let nose=panels[panels.count()-1]
+    Primitives.face(vertices,indices,tail.floor(-1.0),tail.floor(1.0),tail.side(1.0,0.0),tail.side(-1.0,0.0),liner)
+    Primitives.face(vertices,indices,nose.floor(1.0),nose.floor(-1.0),nose.side(-1.0,0.0),nose.side(1.0,0.0),liner)
     Primitives.face(vertices,indices,tail.deck(-1.0).add(Math.Vec3(0.045,-0.20,0.0)),
         tail.deck(1.0).add(Math.Vec3(-0.045,-0.20,0.0)),tail.deck(1.0),tail.deck(-1.0),liner)
     Primitives.face(vertices,indices,tail.side(1.0,0.0),tail.side(-1.0,0.0),tail.side(-1.0,1.0),tail.side(1.0,1.0),paint)
@@ -156,65 +163,27 @@ package func windows() Scene3D.Geometry.Mesh {
     return Scene3D.Geometry.Mesh(vertices,indices)
 }
 
-func beam(vertices:&Scene3D.Geometry.Vertex[],indices:&uint32[],a:Math.Vec3,b:Math.Vec3,
-    width:float,color:Color) {
-    let axis=b.subtract(a).normalized()
-    let u=axis.cross(Math.Vec3.right()).normalized().multiply(width*0.5)
-    let v=axis.cross(u)
-    let corners:Math.Vec3[]=[u.add(v),v.subtract(u),u.add(v).negated(),u.subtract(v)]
-    for index in 0...4 {
-        let p=corners[index];let q=corners[(index+1)%4]
-        Primitives.face(vertices,indices,a.add(p),a.add(q),b.add(q),b.add(p),color)
-    }
-}
-
-func box(vertices:&Scene3D.Geometry.Vertex[],indices:&uint32[],center:Math.Vec3,size:Math.Vec3,color:Color) {
-    let cube=Scene3D.Geometry.Cube.make()
-    let offset=vertices.count() as uint32
-    for vertex in cube.vertices() {
-        let p=vertex.position
-        let position=center.add(Math.Vec3(p.x*size.x,p.y*size.y,p.z*size.z))
-        vertices.append(Scene3D.Geometry.Vertex(position,vertex.normal,vertex.uv,color))
-    }
-    for index in cube.indices() { indices.append(index+offset) }
-}
-
-package func frame_and_trim() Scene3D.Geometry.Mesh {
+package func trim() Scene3D.Geometry.Mesh {
     var vertices:Scene3D.Geometry.Vertex[]=[]
     var indices:uint32[]=[]
-    let graphite=Color.bytes(29,32,37)
     let sides:float[]=[-1.0,1.0]
-    for side in sides {
-        let x=side*0.64
-        let rear=Math.Vec3(x,0.12,-2.36);let front=Math.Vec3(x,0.12,2.37)
-        let skid_rear=Math.Vec3(x,-0.74,-0.70);let skid_front=Math.Vec3(x,-0.74,0.70)
-        beam(vertices,indices,rear,front,0.13,graphite)
-        beam(vertices,indices,rear,skid_rear,0.12,graphite)
-        beam(vertices,indices,skid_front,front,0.12,graphite)
-        beam(vertices,indices,skid_rear,skid_front,0.12,graphite)
-        beam(vertices,indices,skid_rear,Math.Vec3(x,0.12,-0.12),0.084,graphite)
-        beam(vertices,indices,skid_front,Math.Vec3(x,0.12,0.12),0.084,graphite)
-        beam(vertices,indices,Math.Vec3(x,-0.41,-1.34),Math.Vec3(x,0.12,-1.59),0.085,graphite)
-        beam(vertices,indices,Math.Vec3(x,-0.41,1.34),Math.Vec3(x,0.12,1.59),0.085,graphite)
-    }
     let dark=Color.bytes(22,25,30)
     let metal=Color.bytes(84,91,98)
-    box(vertices,indices,Math.Vec3(0.0,-0.48,0.15),Math.Vec3(0.88,0.50,1.24),dark)
-    box(vertices,indices,Math.Vec3(0.0,0.12,2.69),Math.Vec3(1.88,0.14,0.26),metal)
-    box(vertices,indices,Math.Vec3(0.0,0.10,-2.71),Math.Vec3(1.97,0.14,0.24),metal)
-    box(vertices,indices,Math.Vec3(0.0,0.42,2.752),Math.Vec3(1.08,0.28,0.028),dark)
+    Primitives.box(vertices,indices,Math.Vec3(0.0,0.12,2.69),Math.Vec3(1.88,0.14,0.26),metal)
+    Primitives.box(vertices,indices,Math.Vec3(0.0,0.10,-2.71),Math.Vec3(1.97,0.14,0.24),metal)
+    Primitives.box(vertices,indices,Math.Vec3(0.0,0.42,2.752),Math.Vec3(1.08,0.28,0.028),dark)
     for row in 0...3 {
-        box(vertices,indices,Math.Vec3(0.0,0.34+0.08*(row as float),2.77),Math.Vec3(1.04,0.015,0.014),metal)
+        Primitives.box(vertices,indices,Math.Vec3(0.0,0.34+0.08*(row as float),2.77),Math.Vec3(1.04,0.015,0.014),metal)
     }
-    box(vertices,indices,Math.Vec3(0.0,0.59,-2.777),Math.Vec3(0.30,0.06,0.025),dark)
+    Primitives.box(vertices,indices,Math.Vec3(0.0,0.59,-2.777),Math.Vec3(0.30,0.06,0.025),dark)
     for side in sides {
-        box(vertices,indices,Math.Vec3(side*0.717,0.46,2.750),Math.Vec3(0.30,0.19,0.05),dark)
-        box(vertices,indices,Math.Vec3(side*0.717,0.483,2.774),Math.Vec3(0.265,0.12,0.017),Color.bytes(247,240,215))
-        box(vertices,indices,Math.Vec3(side*0.717,0.392,2.774),Math.Vec3(0.265,0.033,0.017),Color.bytes(237,137,42))
-        box(vertices,indices,Math.Vec3(side*0.842,0.46,-2.756),Math.Vec3(0.12,0.37,0.059),Color.bytes(132,19,18))
-        box(vertices,indices,Math.Vec3(side*0.842,0.40,-2.788),Math.Vec3(0.102,0.045,0.017),Color.bytes(221,144,107))
-        box(vertices,indices,Math.Vec3(side*0.98,0.99,0.47),Math.Vec3(0.23,0.12,0.18),dark)
-        box(vertices,indices,Math.Vec3(side*1.026,0.73,-0.41),Math.Vec3(0.042,0.043,0.16),dark)
+        Primitives.box(vertices,indices,Math.Vec3(side*0.717,0.46,2.750),Math.Vec3(0.30,0.19,0.05),dark)
+        Primitives.box(vertices,indices,Math.Vec3(side*0.717,0.483,2.774),Math.Vec3(0.265,0.12,0.017),Color.bytes(247,240,215))
+        Primitives.box(vertices,indices,Math.Vec3(side*0.717,0.392,2.774),Math.Vec3(0.265,0.033,0.017),Color.bytes(237,137,42))
+        Primitives.box(vertices,indices,Math.Vec3(side*0.842,0.46,-2.756),Math.Vec3(0.12,0.37,0.059),Color.bytes(132,19,18))
+        Primitives.box(vertices,indices,Math.Vec3(side*0.842,0.40,-2.788),Math.Vec3(0.102,0.045,0.017),Color.bytes(221,144,107))
+        Primitives.box(vertices,indices,Math.Vec3(side*0.98,0.99,0.47),Math.Vec3(0.23,0.12,0.18),dark)
+        Primitives.box(vertices,indices,Math.Vec3(side*1.026,0.73,-0.41),Math.Vec3(0.042,0.043,0.16),dark)
     }
     return Scene3D.Geometry.Mesh(vertices,indices)
 }

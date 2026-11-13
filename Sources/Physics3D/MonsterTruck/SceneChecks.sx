@@ -12,6 +12,7 @@ use GFX.UI
 use Physics3D.MonsterTruck.Scene
 use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.HudChecks
+use Physics3D.MonsterTruck.Chassis
 use Physics3D.MonsterTruck.Model
 use Physics3D.MonsterTruck.PickupBody
 use Physics3D.MonsterTruck.RimMesh
@@ -63,15 +64,10 @@ func verify_body() {
     let shell=PickupBody.shell(Color.red_600())
     verify_normals(shell)
     verify_normals(PickupBody.windows())
-    verify_normals(PickupBody.frame_and_trim())
+    verify_normals(PickupBody.trim())
+    verify_normals(Chassis.mesh())
     verify_normals(PickupBody.shock())
-    let vertices=shell.vertices();let indices=shell.indices()
-    var triangles:Physics.Triangle3D[]=[]
-    for triangle in 0...shell.triangle_count() {
-        triangles.append(Physics.Triangle3D(vertices[indices[triangle*3] as int].position,
-            vertices[indices[triangle*3+1] as int].position,vertices[indices[triangle*3+2] as int].position))
-    }
-    let body=Physics.ShapePlacement3D(Physics.Shape3D.mesh(Physics.TriangleMesh3D(triangles)))
+    let body=triangle_surface(shell)
     let sides:float[]=[-1.0,1.0]
     for side in sides {
         let direction=Math.Vec3(-side*0.85,0.0,0.0)
@@ -81,6 +77,35 @@ func verify_body() {
             let fender=Physics.Geometry3D.ray_cast(Physics.Ray3D(Math.Vec3(side*1.5,0.70,z),direction),body)
             assert(!open.hit && fender.hit,"the shell must leave each wheel opening visible")
         }
+    }
+}
+
+func triangle_surface(mesh:Scene3D.Geometry.Mesh) Physics.ShapePlacement3D {
+    let vertices=mesh.vertices();let indices=mesh.indices()
+    var triangles:Physics.Triangle3D[]=[]
+    for triangle in 0...mesh.triangle_count() {
+        triangles.append(Physics.Triangle3D(vertices[indices[triangle*3] as int].position,
+            vertices[indices[triangle*3+1] as int].position,vertices[indices[triangle*3+2] as int].position))
+    }
+    return Physics.ShapePlacement3D(Physics.Shape3D.mesh(Physics.TriangleMesh3D(triangles)))
+}
+
+func verify_underbody() {
+    let body=triangle_surface(PickupBody.shell(Color.red_600()))
+    let stations:float[]=[-2.50,-2.05,-1.25,0.12,1.25,2.05,2.50]
+    for z in stations {
+        let hit=Physics.Geometry3D.ray_cast(Physics.Ray3D(Math.Vec3(0.32,-2.0,z),Math.Vec3(0.0,2.7,0.0)),body)
+        assert(hit.hit && hit.normal.y< -0.5,"the shell must have an outward-facing floor")
+    }
+    let chassis=triangle_surface(Chassis.mesh())
+    let collider=Physics.ShapePlacement3D(Chassis.shape())
+    let contact_samples:float[]=[-0.39,0.0,0.70]
+    for z in contact_samples {
+        let ray=Physics.Ray3D(Math.Vec3(0.35,-2.0,z),Math.Vec3(0.0,2.0,0.0))
+        let plate=Physics.Geometry3D.ray_cast(ray,chassis)
+        let collision=Physics.Geometry3D.ray_cast(ray,collider)
+        assert(plate.hit && collision.hit && plate.normal.y< -0.999)
+        assert(plate.point.nearly_equal(collision.point,0.00001),"the skid plate must match chassis contact")
     }
 }
 
@@ -102,13 +127,7 @@ func verify_wheel_rim() {
     let mesh=RimMesh.rim(Color.red_600())
     verify_normals(mesh)
     verify_normals(RimMesh.hub())
-    let vertices=mesh.vertices();let indices=mesh.indices()
-    var triangles:Physics.Triangle3D[]=[]
-    for triangle in 0...mesh.triangle_count() {
-        triangles.append(Physics.Triangle3D(vertices[indices[triangle*3] as int].position,
-            vertices[indices[triangle*3+1] as int].position,vertices[indices[triangle*3+2] as int].position))
-    }
-    let rim=Physics.ShapePlacement3D(Physics.Shape3D.mesh(Physics.TriangleMesh3D(triangles)))
+    let rim=triangle_surface(mesh)
     let sides:float[]=[-1.0,1.0]
     for side in sides {
         let direction=Math.Vec3(0.0,-side*2.0,0.0)
@@ -146,6 +165,7 @@ func verify_loaded_tread() {
 package func verify() {
     verify_wheel_rim()
     verify_body()
+    verify_underbody()
     var world=Resources.World();var meshes=Resources.Meshes3D();var images=Resources.Images()
     var state=Scene.TruckScene(1)
     Scene.startup(world,meshes,images,state);state.view!.update(world,meshes);Scene.follow(world,state,0.016)
@@ -322,7 +342,7 @@ package func verify() {
         assert(Math.abs(view.rotation.rotate(Math.Vec3.right()).y)<0.00001)
     } }
     verify_loaded_tread()
-    print("Monster scene checks passed: pickup shell, dirt texture, input, reset, flat loaded treads, shortcuts and HUD, travel camera and rollover horizon")
+    print("Monster scene checks passed: closed underside, skid contact, dirt texture, input, reset, flat loaded treads, shortcuts and HUD, travel camera and rollover horizon")
 }
 
 func main() { verify() }

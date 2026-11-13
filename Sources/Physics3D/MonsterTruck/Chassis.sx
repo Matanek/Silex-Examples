@@ -1,0 +1,86 @@
+use GFX.Color
+use GFX.Physics
+use GFX.Scene3D
+use Physics3D.MonsterTruck.Primitives
+use STD.Math
+
+static struct Skid {
+    let center:Math.Vec3=Math.Vec3(0.0,-0.65,0.15)
+    let envelope:Math.Vec3=Math.Vec3(1.05,0.65,1.50)
+    let thickness:float=0.10
+}
+
+package func shape() Physics.Shape3D {
+    var parts:Physics.CompoundChild3D[]=[
+        Physics.CompoundChild3D(0,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.25,0.35,4.2))),
+            Physics.Transform3D(Math.Vec3(0.0,-0.15,0.0))),
+        Physics.CompoundChild3D(1,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.9,1.0,1.8))),
+            Physics.Transform3D(Math.Vec3(0.0,1.0,0.1))),
+        Physics.CompoundChild3D(2,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(2.0,0.3,1.2))),
+            Physics.Transform3D(Math.Vec3(0.0,0.65,1.55))),
+        Physics.CompoundChild3D(3,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(2.1,0.45,4.6))),
+            Physics.Transform3D(Math.Vec3(0.0,0.35,0.0))),
+        Physics.CompoundChild3D(4,Physics.Shape3D.box(Physics.Box3D(Skid.envelope)),
+            Physics.Transform3D(Skid.center))]
+    return Physics.Shape3D.compound(Physics.Compound3D(parts))
+}
+
+func beam(vertices:&Scene3D.Geometry.Vertex[],indices:&uint32[],a:Math.Vec3,b:Math.Vec3,
+    width:float,color:Color) {
+    let axis=b.subtract(a).normalized()
+    let u=axis.cross(Math.Vec3.right()).normalized().multiply(width*0.5)
+    let v=axis.cross(u)
+    let corners:Math.Vec3[]=[u.add(v),v.subtract(u),u.add(v).negated(),u.subtract(v)]
+    for index in 0...4 {
+        let p=corners[index];let q=corners[(index+1)%4]
+        Primitives.face(vertices,indices,a.add(p),a.add(q),b.add(q),b.add(p),color)
+    }
+}
+
+package func mesh() Scene3D.Geometry.Mesh {
+    var vertices:Scene3D.Geometry.Vertex[]=[]
+    var indices:uint32[]=[]
+    let graphite=Color.bytes(29,32,37)
+    let steel=Color.bytes(67,72,79)
+    let casing=Color.bytes(47,51,57)
+    let sides:float[]=[-1.0,1.0]
+    let lower=Skid.center.y-Skid.envelope.y*0.5
+    let rear_edge=Skid.center.z-Skid.envelope.z*0.5
+    let front_edge=Skid.center.z+Skid.envelope.z*0.5
+    for side in sides {
+        let x=side*0.61
+        let rear=Math.Vec3(x,0.12,-2.56);let front=Math.Vec3(x,0.12,2.59)
+        let rear_mount=Math.Vec3(x,0.12,-1.45);let front_mount=Math.Vec3(x,0.12,1.42)
+        let skid_rear=Math.Vec3(side*0.45,lower+0.15,rear_edge)
+        let skid_front=Math.Vec3(side*0.45,lower+0.15,front_edge)
+        beam(vertices,indices,rear,front,0.14,graphite)
+        beam(vertices,indices,rear_mount,skid_rear,0.12,graphite)
+        beam(vertices,indices,skid_rear,skid_front,0.13,graphite)
+        beam(vertices,indices,skid_front,front_mount,0.12,graphite)
+        beam(vertices,indices,skid_rear,Math.Vec3(x,0.12,0.30),0.086,steel)
+        beam(vertices,indices,skid_front,Math.Vec3(x,0.12,-0.30),0.086,steel)
+        beam(vertices,indices,rear,Math.Vec3(x,-0.41,-1.88),0.10,graphite)
+        beam(vertices,indices,front,Math.Vec3(x,-0.41,1.88),0.10,graphite)
+        beam(vertices,indices,Math.Vec3(x,-0.41,-1.88),rear_mount,0.12,graphite)
+        beam(vertices,indices,Math.Vec3(x,-0.41,1.88),front_mount,0.12,graphite)
+    }
+
+    // Box-section crossmembers tie both trusses together and carry the skid.
+    let crossmembers:float[]=[-2.47,-1.48,1.48,2.47]
+    for z in crossmembers {
+        Primitives.box(vertices,indices,Math.Vec3(0.0,0.11,z),Math.Vec3(1.33,0.12,0.15),graphite)
+    }
+    // The underside of this plate is flush with the lowest chassis collider.
+    Primitives.box(vertices,indices,Math.Vec3(0.0,lower+Skid.thickness*0.5,Skid.center.z),
+        Math.Vec3(Skid.envelope.x,Skid.thickness,Skid.envelope.z),steel)
+    let skid_mounts:float[]=[rear_edge+0.12,front_edge-0.12]
+    for z in skid_mounts {
+        Primitives.box(vertices,indices,Math.Vec3(0.0,lower+0.12,z),Math.Vec3(1.02,0.09,0.16),graphite)
+    }
+
+    // Engine sump, stepped transmission housing between the trusses.
+    Primitives.box(vertices,indices,Math.Vec3(0.0,-0.26,0.63),Math.Vec3(0.84,0.48,1.16),casing)
+    Primitives.box(vertices,indices,Math.Vec3(0.0,-0.55,0.46),Math.Vec3(0.58,0.24,0.81),steel)
+    Primitives.box(vertices,indices,Math.Vec3(0.0,-0.43,-0.39),Math.Vec3(0.45,0.32,0.79),casing)
+    return Scene3D.Geometry.Mesh(vertices,indices)
+}

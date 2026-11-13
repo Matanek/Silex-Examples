@@ -2,6 +2,7 @@ use GFX.Physics
 use STD.Math
 use Physics3D.MonsterTruck.Wheel
 use Physics3D.MonsterTruck.TyreProfile
+use Physics3D.MonsterTruck.Chassis
 use Physics3D.MonsterTruck.Terrain
 use Physics3D.MonsterTruck.Transmission
 
@@ -28,7 +29,7 @@ package class Truck {
             ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0
             ..collision_filter=Physics.CollisionFilter3D(category_bits:1,mask_bits:14))
         self.chassis=self.world.create_rigid_body(Physics.RigidBody3DSettings()
-            ..shape=Terrain.chassis_shape()
+            ..shape=Chassis.shape()
             ..transform=spawn
             // Engine and transmission sit below the body shell, slightly forward.
             ..mass_properties=Physics.MassProperties3D(150.0,Math.Vec3(269.8,319.6,60.4),Math.Vec3(0.0,-0.85,0.15))

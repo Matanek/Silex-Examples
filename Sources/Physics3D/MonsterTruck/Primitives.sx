@@ -14,6 +14,17 @@ package func face(vertices:&Scene3D.Geometry.Vertex[],indices:&uint32[],
     indices.append(offset);indices.append(offset+2 as uint32);indices.append(offset+3 as uint32)
 }
 
+package func box(vertices:&Scene3D.Geometry.Vertex[],indices:&uint32[],center:Math.Vec3,size:Math.Vec3,color:Color) {
+    let cube=Scene3D.Geometry.Cube.make()
+    let offset=vertices.count() as uint32
+    for vertex in cube.vertices() {
+        let p=vertex.position
+        let position=center.add(Math.Vec3(p.x*size.x,p.y*size.y,p.z*size.z))
+        vertices.append(Scene3D.Geometry.Vertex(position,vertex.normal,vertex.uv,color))
+    }
+    for index in cube.indices() { indices.append(index+offset) }
+}
+
 package func sphere() Scene3D.Geometry.Mesh {
     var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[]
     for ring in 0...13 {

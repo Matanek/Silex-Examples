@@ -12,10 +12,11 @@ use STD.Math
 package func create(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images) {
     let dirt=images.add(PNG.decode(embed_bytes("Assets/PackedDirt.png")))
     let ground=meshes.add(Scene3D.Geometry.Plane.make(Math.Vec2(1024.0)))
+    // Scene3D multiplies the sRGB texture in linear space. Cool the ochre without flattening the grit.
     world.spawn(ECS.EntityRecipe()
         ..with(Components.Transform3D(rotation:Math.Quat.angle_axis(-Math.half_pi(),Math.Vec3.right())))
         ..with(Components.Mesh3D(ground,casts_shadows:false))
-        ..with(Components.Material3D(albedo:Color.bytes(243,246,255),roughness:1.0))
+        ..with(Components.Material3D(albedo:Color.bytes(123,135,245),roughness:1.0))
         ..with(Components.MaterialSettings3D(textures:Components.MaterialTextures3D(
             albedo:Components.MaterialTexture3D(image:dirt,scale:Math.Vec2(256.0))))))
     ArenaView.create(world,meshes)
