@@ -5,6 +5,7 @@ use GFX.Physics
 use GFX.Plugins
 use GFX.Resources
 use GFX.Scene2D
+use GFX.Scene3D
 use GFX.Window
 use Physics3D.MonsterTruck.Terrain
 use Physics3D.MonsterTruck.Scene
@@ -195,6 +196,7 @@ func main() {
     }
     title=title+" — Cadence 120 Hz"
     var app=Application() ..add_resource(state)
+        ..add_resource(Resources.Skybox3D.procedural(Scene3D.ProceduralSky.day()))
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
         ..add_plugin(Plugins.Input()) ..add_plugin(Plugins.Time())
         ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
