@@ -5,6 +5,7 @@ use GFX.Resources
 use GFX.Scene3D
 use Physics3D.MonsterTruck.Arena
 use Physics3D.MonsterTruck.QuarterPipe
+use Physics3D.MonsterTruck.SlideRails
 use STD.Math
 
 func batch(world:&Resources.World,mesh:Scene3D.MeshHandle,color:Color,placements:Scene3D.Transform[],shadows:bool=true) {
@@ -47,4 +48,5 @@ package func create(world:&Resources.World,meshes:&Resources.Meshes3D) {
     batch(world,cube,Color.bytes(227,126,42),calibration)
     batch(world,cylinder,Color.bytes(66,164,185),round)
     QuarterPipe.create_view(world,meshes)
+    SlideRails.create_view(world,meshes)
 }

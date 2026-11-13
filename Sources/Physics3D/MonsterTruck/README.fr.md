@@ -4,7 +4,7 @@
 
 Conduire un pickup à quatre pneus déformables dans une arène géométrique de
 freestyle : tables de saut, butte à quatre accès, grandes rampes, réception,
-cuvette, petites bosses et quarter-pipe. Le pickup a des ailes découpées,
+cuvette, petites bosses, rails de slide et quarter-pipe. Le pickup a des ailes découpées,
 un châssis tubulaire apparent et un sabot en acier sous la transmission.
 Une texture de terre compacte et de gravier couvre le sol. Les faces jaunes et
 rouges montrent les trajectoires, avec des bordures blanches.
@@ -18,7 +18,14 @@ silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 ```
 
 La boucle de rendu est cadencée à 120 Hz, comme la simulation. Le quarter-pipe
-se trouve au fond à droite de l’arène. Une flèche indique son entrée.
+se trouve derrière la cuvette, près du bord de l’arène. Une flèche indique son entrée. Sa lèvre
+revient légèrement vers la rampe. Dose l’élan et utilise le frein en vol pour
+ajuster l’assiette avant la réception.
+
+Les deux rails en acier se trouvent au fond, du côté de la piste de contrôle.
+Aligne le centre du camion sur
+la flèche et garde les roues sur les deux bosses d’accès. Le sabot prend le
+relais au milieu. Le rail proche des petites bosses monte, celui proche du bord descend.
 
 Le Chevrolet 454 d’[AudioEngineSimulator](../../AudioEngineSimulator/README.fr.md)
 est actif par défaut. La démo embarque le simulateur et ses ressources sur

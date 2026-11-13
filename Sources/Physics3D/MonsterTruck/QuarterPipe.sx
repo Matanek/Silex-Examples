@@ -11,8 +11,8 @@ package static struct Dimensions {
     let origin:Math.Vec3=Math.Vec3(43.0,0.0,91.0)
     let width:float=12.0
     let radius:float=13.0
-    let angle:float=1.31
-    let facets:int=16
+    let angle:float=1.615
+    let facets:int=9
     let deck_thickness:float=0.42
 }
 
@@ -34,18 +34,25 @@ struct Support {
 func supports() Support[] {
     var supports:Support[]=[]
     let sides:float[]=[-1.0,1.0]
-    for index in [7,12,15] {
-        let point=edge(index,0.0)
-        // Let the posts meet the underside while clearing the full riding surface.
-        let normal=facet_rotation(index).rotate(Math.Vec3.up())
-        let rise_over_post=0.15*(-normal.z/normal.y)
-        let height=point.y-rise_over_post-0.08
-        for side in sides {
-            let center=Math.Vec3(side*(Dimensions.width*0.5-0.30),height*0.5,point.z)
-            supports.append(Support(center:center,size:Math.Vec3(0.33,height,0.30)))
-        }
-        supports.append(Support(center:Math.Vec3(0.0,height-0.68,point.z),
+    // Keep the trestle behind the riding surface and the returning truck.
+    let length=Dimensions.radius+0.35
+    let top=11.0
+    for side in sides {
+        let center=Math.Vec3(side*(Dimensions.width*0.5-0.30),top*0.5,length)
+        supports.append(Support(center:center,size:Math.Vec3(0.33,top,0.30)))
+    }
+    let elevations:float[]=[2.6,7.0,11.0]
+    for height in elevations {
+        supports.append(Support(center:Math.Vec3(0.0,height-0.68,length),
             size:Math.Vec3(Dimensions.width-0.25,0.22,0.30)))
+    }
+    for index in [5,7,8] {
+        let point=edge(index,0.0)
+        let span=length-point.z
+        for side in sides {
+            let center=Math.Vec3(side*(Dimensions.width*0.5-0.30),point.y-0.44,point.z+span*0.5)
+            supports.append(Support(center:center,size:Math.Vec3(0.28,0.24,span)))
+        }
     }
     return supports
 }
@@ -96,7 +103,6 @@ package func create_collider(world:Physics.World3D) {
         let size=Math.Vec3(Dimensions.width,Dimensions.deck_thickness,b.subtract(a).length())
         collider_box(world,center,size,rotation)
     }
-    for support in supports() { collider_box(world,origin.add(support.center),support.size,Math.Quat()) }
 }
 
 func collider_box(world:Physics.World3D,center:Math.Vec3,size:Math.Vec3,rotation:Math.Quat) {
@@ -105,7 +111,8 @@ func collider_box(world:Physics.World3D,center:Math.Vec3,size:Math.Vec3,rotation
         ..shape=Physics.Shape3D.box(Physics.Box3D(size))
         ..transform=Physics.Transform3D(center,rotation)
         ..friction=1.1
-        ..collision_filter=Physics.CollisionFilter3D(category_bits:1,mask_bits:14))
+        // Tires touch the deck; the inner rim is protected by the loaded tire.
+        ..collision_filter=Physics.CollisionFilter3D(category_bits:1,mask_bits:12))
 }
 
 package func create_view(world:&Resources.World,meshes:&Resources.Meshes3D) {

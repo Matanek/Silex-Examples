@@ -4,7 +4,7 @@
 
 Drive a pickup with four deformable tires in a geometric freestyle arena:
 jump tables, a mound with four approaches, large ramps, a landing ramp,
-a two-sided bowl, small rollers and a quarter-pipe. The pickup has cutaway
+a two-sided bowl, small rollers, slide rails and a quarter-pipe. The pickup has cutaway
 fenders, an exposed tube frame and a steel skid plate under the transmission.
 The arena floor uses a packed dirt and gravel texture. Yellow and red surfaces
 mark the lines, with white borders.
@@ -18,7 +18,15 @@ silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 ```
 
 The render loop is paced at 120 Hz, matching the physics simulation. The
-quarter-pipe is at the back right of the arena, with an arrow at its approach.
+quarter-pipe is beyond the bowl, near the edge of the arena. An arrow marks
+its approach.
+Its lip turns slightly back toward the ramp. Adjust your approach speed and
+use the brake in the air to set up the landing.
+
+The two steel rails are at the far end, on the calibration lane side. Center
+the truck on the arrow and
+keep the wheels on the approach berms. The skid plate takes over in the middle.
+The rail nearer the small rollers climbs. The one nearer the arena edge descends.
 
 The Chevrolet 454 from [AudioEngineSimulator](../../AudioEngineSimulator/README.md)
 is enabled by default. The demo embeds the simulator and its resources on
