@@ -233,6 +233,8 @@ puis quitter avec **Échap**. Le titre confirme le marquage. Le fichier doit
 être nouveau et les données sont écrites à la fermeture. Elles contiennent la
 durée des images côté application, les pas physiques et les positions du
 camion et de la caméra autour du marquage.
+`--pace-120` permet de comparer le même parcours avec une boucle cadencée à
+120 Hz.
 
 ## Son Chevrolet réutilisable
 

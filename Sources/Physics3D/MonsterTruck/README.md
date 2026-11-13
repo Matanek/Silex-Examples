@@ -218,6 +218,7 @@ mode and on the same course.
 then quit with **Escape**. The window title confirms the mark. The path must
 name a new file. On exit, the demo writes application-side frame times,
 physics steps, and truck and camera positions around the mark.
+`--pace-120` runs the same route with frame pacing set to 120 Hz for comparison.
 
 ## Reusable Chevrolet sound
 

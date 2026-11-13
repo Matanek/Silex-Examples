@@ -149,6 +149,7 @@ func main() {
     var spawn:Physics.Transform3D?=null
     var directory:str?=null
     var trace_path:str?=null
+    var paced=false
     let arguments=Process.arguments()
     for i,arg in arguments.indexed() {
         if arg=="--silent" { audible=false }
@@ -169,6 +170,7 @@ func main() {
         if arg=="--profile-boost" { profile=true;profile_throttle=1.5 }
         if arg=="--profile-turn" { profile=true;profile_throttle=1.0;profile_turn=true }
         if arg=="--trace-performance" { trace_performance=true }
+        if arg=="--pace-120" { paced=true }
         if arg=="--trace-stutter" {
             if i+1>=arguments.count() { panic("--trace-stutter requires an output CSV path") }
             trace_path=arguments[i+1]
@@ -187,6 +189,7 @@ func main() {
         state.stutter_trace=StutterTrace(path)
         if !profile { title="MonsterTruck — M : marquer l’à-coup" }
     }
+    if paced { title=title+" — Cadence 120 Hz" }
     var app=Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
         ..add_plugin(Plugins.Input()) ..add_plugin(Plugins.Time())
@@ -200,5 +203,6 @@ func main() {
         app.add_after_system(Application.Schedule.render,finish_trace_frame,process_mode:Application.ProcessMode.always)
         app.add_system(Application.Schedule.shutdown,save_trace)
     }
+    if paced { app.add_plugin(Application.FramePacing(120)) }
     app.run()
 }
