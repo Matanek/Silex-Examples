@@ -1,0 +1,163 @@
+use GFX.Input
+use GFX.Input.Events
+use STD.Error
+use STD.File
+use STD.Math
+use STD.Text.UTF8
+use STD.Time
+
+static struct Const {
+    let capacity:int=16_384
+    let after_mark_ms:float=2_000.0
+}
+
+struct Frame {
+    var started_ms:float=0.0
+    var prepared_ms:float=0.0
+    var submit_start_ms:float=0.0
+    var delta_ms:float=0.0
+    var physics_ms:float=0.0
+    var ticks:int=0
+    var physics_step:int=0
+    var visual_step:int=0
+    var backlog_ms:float=0.0
+    var chassis:Math.Vec3=Math.Vec3()
+    var velocity:Math.Vec3=Math.Vec3()
+    var camera:Math.Vec3=Math.Vec3()
+    var yaw:float=0.0
+    var focused:bool=false
+    var mark:bool=false
+    var completed_ms:float=0.0
+    var draw_calls:int=0
+    var shadow_draw_calls:int=0
+}
+
+package class StutterTrace {
+    let path:str
+    private var file:File
+    private var clock:Time.Stopwatch=Time.Stopwatch()
+    private var frames:Frame[]=[]
+    private var next:int=0
+    private var count:int=0
+    private var current:Frame?=null
+    private var marked_ms:float?=null
+    private var collecting:bool=true
+
+    init(path:str) {
+        self.path=path
+        self.file=open_trace(path)
+        for _ in 0...Const.capacity { self.frames.append(Frame()) }
+        self.clock.start()
+    }
+
+    func begin(focused:bool,delta:float) {
+        if !self.collecting { return }
+        self.current=Frame(started_ms:self.clock.get_elapsed_milliseconds(),focused:focused,delta_ms:delta*1000.0)
+    }
+
+    func handle(event:@Events.Event) bool {
+        match event {
+            key_pressed(key)=>{
+                if key.keycode==109 as uint32 || key.keycode==77 as uint32 ||
+                    (key.keycode==0 as uint32 && key.key==Input.Key.m) {
+                    if !key.repeated && self.marked_ms==null {
+                        if var frame=self.current {
+                            self.marked_ms=self.clock.get_elapsed_milliseconds()
+                            frame.mark=true
+                            self.current=frame
+                            return true
+                        }
+                    }
+                }
+            }
+            else=>{}
+        }
+        return false
+    }
+
+    func physics(seconds:float,ticks:int,backlog:float) {
+        if var frame=self.current {
+            frame.physics_ms=seconds*1000.0
+            frame.ticks=ticks
+            frame.backlog_ms=backlog*1000.0
+            self.current=frame
+        }
+    }
+
+    func prepared(physics_step:int,visual_step:int,chassis:Math.Vec3,velocity:Math.Vec3,yaw:float) {
+        if var frame=self.current {
+            frame.physics_step=physics_step
+            frame.visual_step=visual_step
+            frame.chassis=chassis
+            frame.velocity=velocity
+            frame.yaw=yaw
+            frame.prepared_ms=self.clock.get_elapsed_milliseconds()
+            self.current=frame
+        }
+    }
+
+    func finish(draw_calls:int,shadow_draw_calls:int) {
+        if var frame=self.current {
+            self.current=null
+            if frame.submit_start_ms==0.0 { return }
+            frame.completed_ms=self.clock.get_elapsed_milliseconds()
+            frame.draw_calls=draw_calls
+            frame.shadow_draw_calls=shadow_draw_calls
+            self.frames[self.next]=frame
+            self.next=(self.next+1)%Const.capacity
+            if self.count<Const.capacity { self.count++ }
+            if let marked_ms=self.marked_ms {
+                self.collecting=frame.completed_ms-marked_ms<Const.after_mark_ms
+            }
+        }
+    }
+
+    func render_ready(camera:Math.Vec3) {
+        if var frame=self.current {
+            frame.camera=camera
+            frame.submit_start_ms=self.clock.get_elapsed_milliseconds()
+            self.current=frame
+        }
+    }
+
+    func save() Result<void,Error> {
+        var file=self.file
+        try self.write(file) else error {
+            let ignored=try File.close(file)
+            return Result<void,Error>.failure(error)
+        }
+        return try File.close(file)
+    }
+
+    private func write(file:&File) Result<void,Error> {
+        try write_text(file,"start_ms,pre_render_ms,submit_start_ms,complete_ms,sim_delta_ms,physics_ms,ticks,physics_step,visual_step,backlog_ms,chassis_x,chassis_y,chassis_z,velocity_x,velocity_y,velocity_z,camera_x,camera_y,camera_z,yaw,focused,mark,draw_calls,shadow_draw_calls\n") else error {
+            return Result<void,Error>.failure(error)
+        }
+        let first=(self.next+Const.capacity-self.count)%Const.capacity
+        for index in 0...self.count {
+            let frame=self.frames[(first+index)%Const.capacity]
+            let timing="$(frame.started_ms),$(frame.prepared_ms),$(frame.submit_start_ms),$(frame.completed_ms),$(frame.delta_ms),$(frame.physics_ms),$(frame.ticks),$(frame.physics_step),$(frame.visual_step),$(frame.backlog_ms),"
+            let chassis="$(frame.chassis.x),$(frame.chassis.y),$(frame.chassis.z),$(frame.velocity.x),$(frame.velocity.y),$(frame.velocity.z),"
+            let camera="$(frame.camera.x),$(frame.camera.y),$(frame.camera.z),$(frame.yaw),"
+            let flags="$(frame.focused),$(frame.mark),$(frame.draw_calls),$(frame.shadow_draw_calls)\n"
+            let line=timing+chassis+camera+flags
+            try write_text(file,line) else error { return Result<void,Error>.failure(error) }
+        }
+        return Result<void,Error>.success()
+    }
+}
+
+func open_trace(path:str) File {
+    let options=File.OpenOptions(access:File.Access.write(),creation:File.Creation.create_new(),append:false)
+    match try File.open(path,options) {
+        success(file)=>{ return file }
+        failure(error)=>{ panic("Cannot create MonsterTruck trace at $(path): $(error.detail)") }
+    }
+}
+
+func write_text(file:&File,line:str) Result<void,Error> {
+    let bytes=UTF8.bytes(line)
+    let written=try file.write(@bytes[0:bytes.count()]) else error { return Result<void,Error>.failure(error) }
+    assert(written==bytes.count())
+    return Result<void,Error>.success()
+}

@@ -5,6 +5,7 @@ use GFX.Physics
 use GFX.Plugins
 use GFX.Resources
 use GFX.Scene2D
+use GFX.Window
 use Physics3D.MonsterTruck.Terrain
 use Physics3D.MonsterTruck.Scene
 use Physics3D.MonsterTruck.Controls
@@ -14,17 +15,24 @@ use Physics3D.MonsterTruck.SlopeChecks
 use Physics3D.MonsterTruck.ArenaChecks
 use Physics3D.MonsterTruck.SceneChecks
 use Physics3D.MonsterTruck.EngineSound
+use Physics3D.MonsterTruck.StutterTrace
 use STD.Math
 use STD.Process
 use STD.Time
 
 func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.TruckScene,input:@Resources.InputState,
-    simulation:@Application.Simulation,controller:&Application.Controller) {
+    simulation:@Application.Simulation,controller:&Application.Controller,window:&Window) {
     if input.is_pressed(Input.Key.escape) { controller.stop();return }
+    if var trace=state.stutter_trace { trace.begin(input.focused_window()!=null,simulation.delta()) }
     if !state.profile {
         for event in input.events() {
             Scene.handle(world,state,event)
             match event {
+                key_pressed(_)=>{
+                    if var trace=state.stutter_trace {
+                        if trace.handle(event) { window.set_title("MonsterTruck — À-coup marqué") }
+                    }
+                }
                 mouse_wheel(wheel)=>{ state.chase.distance=Math.clamp(state.chase.distance-wheel.delta.y*0.75,7.0,18.0) }
                 else=>{}
             }
@@ -58,6 +66,7 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
         state.truck.step();state.accumulator-=1.0/120.0;ticks++
     }
     let physics_seconds=clock.get_elapsed_seconds()
+    if var trace=state.stutter_trace { trace.physics(physics_seconds,ticks,state.accumulator) }
     state.metrics.physics_seconds+=physics_seconds
     if state.profile || state.trace_performance {
         let focused=input.focused_window()!=null
@@ -83,6 +92,33 @@ func sync_view(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Tr
     // Scene3D gathers the camera, transforms and meshes during render.
     state.view!.update(world,meshes)
     Scene.follow(world,state,simulation.delta())
+    if var trace=state.stutter_trace {
+        trace.prepared(state.truck.steps,state.view!.last_step,state.truck.chassis.position(),
+            state.truck.chassis.linear_velocity(),state.chase.yaw)
+    }
+}
+
+// Exclusive World access orders this sample after the Scene3D gathering system.
+func trace_render_ready(world:&Resources.World,state:&Scene.TruckScene) {
+    if var trace=state.stutter_trace {
+        trace.render_ready(world.get<Components.Transform3D>(state.camera).position)
+    }
+}
+
+func finish_trace_frame(state:&Scene.TruckScene,renderer:@Resources.Renderer) {
+    if var trace=state.stutter_trace {
+        let stats=renderer.stats()
+        trace.finish(stats.draw_calls(),stats.shadow_draw_calls())
+    }
+}
+
+func save_trace(state:&Scene.TruckScene) {
+    if var trace=state.stutter_trace {
+        match try trace.save() {
+            success=>{ print("Trace MonsterTruck : ",trace.path) }
+            failure(error)=>{ print("Échec de l’écriture de la trace MonsterTruck : ",trace.path," — ",error.detail) }
+        }
+    }
 }
 
 func render(state:&Scene.TruckScene) {
@@ -112,6 +148,7 @@ func main() {
     var profile_throttle:float=0.75;var profile_turn=false;var trace_performance=false;var profile_duration:float=12.0
     var spawn:Physics.Transform3D?=null
     var directory:str?=null
+    var trace_path:str?=null
     let arguments=Process.arguments()
     for i,arg in arguments.indexed() {
         if arg=="--silent" { audible=false }
@@ -132,6 +169,10 @@ func main() {
         if arg=="--profile-boost" { profile=true;profile_throttle=1.5 }
         if arg=="--profile-turn" { profile=true;profile_throttle=1.0;profile_turn=true }
         if arg=="--trace-performance" { trace_performance=true }
+        if arg=="--trace-stutter" {
+            if i+1>=arguments.count() { panic("--trace-stutter requires an output CSV path") }
+            trace_path=arguments[i+1]
+        }
         if arg=="--profile-long" { profile=true;profile_duration=36.0 }
     }
     if slope { profile_duration=6.0 }
@@ -142,12 +183,22 @@ func main() {
     if ramp {title="MESURE AUTOMATIQUE — Montée de rampe — $(profile_duration as int) secondes"}
     if slope { title="MESURE AUTOMATIQUE — Monster truck sur pente — 6 secondes" }
     if bumps { title="MESURE AUTOMATIQUE — Petites bosses — $(profile_duration as int) secondes" }
-    Application() ..add_resource(state)
+    if let path=trace_path {
+        state.stutter_trace=StutterTrace(path)
+        if !profile { title="MonsterTruck — M : marquer l’à-coup" }
+    }
+    var app=Application() ..add_resource(state)
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
         ..add_plugin(Plugins.Input()) ..add_plugin(Plugins.Time())
         ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
         ..add_system(Application.Schedule.startup,Scene.startup)
         ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
         ..add_system(Application.Schedule.post_update,sync_view,process_mode:Application.ProcessMode.always)
-        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
+        ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always)
+    if trace_path!=null {
+        app.add_system(Application.Schedule.render,trace_render_ready,process_mode:Application.ProcessMode.always)
+        app.add_after_system(Application.Schedule.render,finish_trace_frame,process_mode:Application.ProcessMode.always)
+        app.add_system(Application.Schedule.shutdown,save_trace)
+    }
+    app.run()
 }

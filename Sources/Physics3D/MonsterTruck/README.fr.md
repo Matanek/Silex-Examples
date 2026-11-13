@@ -227,6 +227,13 @@ Ces mesures sont optionnelles ; le lancement ordinaire ne produit aucune trace.
 Pour comparer des binaires, les exécuter séparément, sans build ni autre test
 concurrent, dans le même mode et sur le même parcours.
 
+`--trace-stutter chemin.csv` enregistre les dernières images en conduite libre.
+Appuyer sur **M** dès que le décor saccade, continuer environ deux secondes,
+puis quitter avec **Échap**. Le titre confirme le marquage. Le fichier doit
+être nouveau et les données sont écrites à la fermeture. Elles contiennent la
+durée des images côté application, les pas physiques et les positions du
+camion et de la caméra autour du marquage.
+
 ## Son Chevrolet réutilisable
 
 Le module `AudioEngineSimulator.Engines` fournit le Chevrolet 454 via

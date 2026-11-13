@@ -213,6 +213,12 @@ These measurements are optional; ordinary launches emit no trace.
 Compare binaries separately, without concurrent builds or tests, in the same
 mode and on the same course.
 
+`--trace-stutter path.csv` records recent frames during free driving. Press
+**M** when the scenery starts stuttering, keep driving for about two seconds,
+then quit with **Escape**. The window title confirms the mark. The path must
+name a new file. On exit, the demo writes application-side frame times,
+physics steps, and truck and camera positions around the mark.
+
 ## Reusable Chevrolet sound
 
 The `AudioEngineSimulator.Engines` module supplies the Chevrolet 454 through
