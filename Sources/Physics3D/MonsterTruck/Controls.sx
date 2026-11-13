@@ -1,11 +1,25 @@
 use GFX.Color
+use GFX.Canvas
 use GFX.Input
 use GFX.Input.Events
 use GFX.UI
 use Physics3D.MonsterTruck.Transmission
 use Physics3D.MonsterTruck.Model
+use STD.Math
 
 package static struct Hud { let width:int=304;let height:int=414 }
+
+package func shortcuts() Canvas {
+    let label = "Z/S Avancer / reculer  ·  Q/D Tourner  ·  Espace Freiner  ·  Maj Turbo  ·  R Repartir  ·  H Réglages"
+    let style = Canvas.TextStyle(size:14.0, color:Color.slate_100(), alignment:Canvas.TextAlignment.center)
+    var drawing = Canvas()
+    drawing.paint(func(painter:&Canvas.Painter) {
+        painter.text(label, Math.Vec2(1.0, 1.0),
+            Canvas.TextStyle(size:style.size, color:Color.black(), alignment:style.alignment))
+        painter.text(label, Math.Vec2(), style)
+    })
+    return drawing
+}
 
 func letter(key:@Events.KeyEvent,lower:uint32,upper:uint32,physical:Input.Key) bool {
     return key.keycode==lower || key.keycode==upper || (key.keycode==0 as uint32 && key.key==physical)

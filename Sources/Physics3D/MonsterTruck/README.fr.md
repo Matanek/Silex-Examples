@@ -17,8 +17,8 @@ silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 
 Le Chevrolet 454 d’[AudioEngineSimulator](../../AudioEngineSimulator/README.fr.md)
 est actif par défaut. La démo embarque le simulateur et ses ressources sur
-macOS ARM64. Le moteur démarre directement depuis le binaire. Le HUD montre le régime du moteur
-physique et le rapport engagé.
+macOS ARM64. Les raccourcis s’affichent en bas de la vue. **H** affiche ou masque
+le panneau de réglages et de télémétrie.
 
 Pour utiliser une bibliothèque personnalisée, compiler puis fournir son chemin
 absolu. Les options se passent au binaire compilé :
@@ -46,6 +46,7 @@ répertoire courant, sans accès aux sources de la démo.
 | T | Coupler / séparer les essieux directeurs |
 | Espace maintenu | Frein principal sur les quatre roues |
 | P | Gonflage Monster / Bas / Ferme, sans recommencer |
+| H | Afficher ou masquer les réglages et la télémétrie |
 | Plus court / Plus long | Modifier le rapport de pont à l’arrêt, gaz relâchés |
 | R | Recommencer avec le gonflage et la démultiplication sélectionnés |
 | Molette | Distance de la caméra de poursuite |
@@ -113,8 +114,8 @@ l’approche de 4800 tr/min. Maj multiplie le couple disponible par 1,25 et ouvr
 une réserve de régime jusqu’à 7000 tr/min. Cela donne de la reprise même lorsque
 le régime normal est déjà atteint. Un moteur entraîné par les roues peut dépasser
 le régime de combustion demandé, dans la limite physique de 7000 tr/min.
-Le HUD indique « Turbo : actif » pendant la commande Maj + Z. Une impulsion
-permet de cabrer ; maintenir le boost peut retourner le camion.
+Le panneau de télémétrie indique « Turbo : actif » pendant la commande Maj + Z.
+Une impulsion permet de cabrer ; maintenir le boost peut retourner le camion.
 
 Le couple de chaque roue produit
 une réaction opposée sur le châssis. La flèche Haut freine seulement l’avant, jusqu’à

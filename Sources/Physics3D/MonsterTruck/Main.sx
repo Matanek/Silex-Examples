@@ -23,7 +23,7 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
     if input.is_pressed(Input.Key.escape) { controller.stop();return }
     if !state.profile {
         for event in input.events() {
-            Scene.handle(state,event)
+            Scene.handle(world,state,event)
             match event {
                 mouse_wheel(wheel)=>{ state.chase.distance=Math.clamp(state.chase.distance-wheel.delta.y*0.75,7.0,18.0) }
                 else=>{}
@@ -67,12 +67,14 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
         state.trace_maximum_update=Math.max(state.trace_maximum_update,physics_seconds)
     }
     if var sound=state.sound { sound.update(state.truck,simulation.delta()) }
-    state.telemetry+=simulation.delta()
-    if state.telemetry>=0.15 { Scene.labels(state);state.telemetry=0.0 }
-    if state.ui.update(0.0) {
-        world.update<Scene2D.Canvas>(state.hud,func(c:&Scene2D.Canvas) {
-            c.replace(state.ui.drawing(Controls.Hud.width,Controls.Hud.height))
-        })
+    if state.profile || state.hud_visible {
+        state.telemetry+=simulation.delta()
+        if state.telemetry>=0.15 { Scene.labels(state);state.telemetry=0.0 }
+        if state.ui.update(0.0) {
+            world.update<Scene2D.Canvas>(state.hud,func(c:&Scene2D.Canvas) {
+                c.replace(state.ui.drawing(Controls.Hud.width,Controls.Hud.height))
+            })
+        }
     }
     Scene.follow(world,state,simulation.delta())
 }
@@ -129,7 +131,7 @@ func main() {
     if slope { profile_duration=6.0 }
     var state=Scene.TruckScene(workers,profile,slope,ramp,profile_throttle,profile_turn,trace_performance,profile_duration,spawn:spawn,bumps:bumps)
     if audible { state.sound=EngineSound(directory) }
-    var title="MONSTER PICKUP — Boîte + turbo · ZQSD · Espace frein · Maj boost"
+    var title="MonsterTruck"
     if profile { title="MESURE AUTOMATIQUE — Monster pickup — $(profile_duration as int) secondes" }
     if ramp {title="MESURE AUTOMATIQUE — Montée de rampe — $(profile_duration as int) secondes"}
     if slope { title="MESURE AUTOMATIQUE — Monster truck sur pente — 6 secondes" }

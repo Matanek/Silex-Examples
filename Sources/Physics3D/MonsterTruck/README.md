@@ -17,9 +17,8 @@ silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 
 The Chevrolet 454 from [AudioEngineSimulator](../../AudioEngineSimulator/README.md)
 is enabled by default. The demo embeds the simulator and its resources on
-macOS ARM64; no external library or
-preparation command is required. The HUD displays physical engine RPM and the
-selected gear.
+macOS ARM64. A row of shortcuts appears at the bottom of the view. Press **H**
+to show or hide the settings and telemetry panel.
 
 To use a custom library, compile and supply its absolute path. Pass application
 options to the compiled binary:
@@ -47,6 +46,7 @@ without access to the example sources.
 | T | Couple / separate the steering axles |
 | Hold Space | Four-wheel service brake |
 | P | Monster / Low / Firm inflation without restarting |
+| H | Show or hide settings and telemetry |
 | Plus court / Plus long | Adjust final drive at rest with the throttle released |
 | R | Restart with the selected inflation and final drive |
 | Mouse wheel | Chase-camera distance |
@@ -108,7 +108,7 @@ During normal driving, a governor progressively reduces combustion near
 4800 RPM. Shift multiplies available torque by 1.25 and unlocks an RPM reserve
 up to 7000 RPM. This provides acceleration even after reaching the normal RPM
 range. Wheels can back-drive the engine above the requested combustion RPM,
-within its physical 7000 RPM limit. The HUD shows “Turbo : actif” while
+within its physical 7000 RPM limit. The telemetry panel shows “Turbo : actif” while
 Shift + Z is requested. A short boost can produce a wheelie; holding it can
 flip the truck.
 
