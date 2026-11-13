@@ -23,6 +23,8 @@ package class EngineSound {
     private var audio:Audio
     private var stream:Audio.Stream
     private var gravel:Audio.Sound
+    private var impact:Audio.Sound
+    private var impact_playing:Audio.PlayingSound=Audio.PlayingSound()
     private var gravel_playing:Audio.PlayingSound=Audio.PlayingSound()
     private var gravel_gain:float=0.0
     private var playing:Audio.PlayingSound = Audio.PlayingSound()
@@ -33,6 +35,7 @@ package class EngineSound {
         var library = Engines.Library.open(directory); self.source = library.driven_engine("454")
         if offline { self.audio = Audio.offline(sample_rate:44_100, channels:2) } else { self.audio = Audio() }
         self.gravel=GravelSound.make(self.audio)
+        self.impact=GravelSound.landing(self.audio)
         self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:Buffer.capacity)
         for _ in 0...960 { self.samples.append(0.0) }
         self.source.set_state(Engines.OperatingState(rpm:850.0)); self.source.enqueue()
@@ -43,7 +46,7 @@ package class EngineSound {
         self.feed()
     }
     func update_gravel(intensity:float,delta:float) {
-        let gain=Math.clamp(intensity,0.0,1.0)*0.55
+        let gain=Math.clamp(intensity,0.0,1.0)*0.60
         self.gravel_gain+=(gain-self.gravel_gain)*(1.0-Math.exp(-Math.clamp(delta,0.0,0.08)*14.0))
         if self.gravel_gain<0.002 {
             if self.gravel_playing.is_valid() {
@@ -59,7 +62,14 @@ package class EngineSound {
             self.audio.set_volume(self.gravel_playing,self.gravel_gain)
         }
     }
+    func play_landing(strength:float) {
+        if strength<=0.0 || self.audio.is_playing(self.impact_playing) { return }
+        if self.impact_playing.is_valid() { self.audio.release(self.impact_playing) }
+        self.impact_playing=self.audio.play(self.impact,Audio.Playback(volume:Math.clamp(strength,0.0,1.0)*0.70))
+    }
     func reset() {
+        if self.impact_playing.is_valid() { self.audio.release(self.impact_playing) }
+        self.impact_playing=Audio.PlayingSound()
         if self.gravel_playing.is_valid() { self.audio.release(self.gravel_playing) }
         self.gravel_playing=Audio.PlayingSound()
         self.gravel_gain=0.0
@@ -93,6 +103,8 @@ package class EngineSound {
     }
     func render_offline(frames:int) float32[] { return self.audio.render(frames) }
     drop {
+        if self.impact_playing.is_valid() { self.audio.release(self.impact_playing) }
+        self.audio.unload(self.impact)
         if self.gravel_playing.is_valid() { self.audio.release(self.gravel_playing) }
         self.audio.unload(self.gravel)
         if self.playing.is_valid() { self.audio.stop(self.playing) }

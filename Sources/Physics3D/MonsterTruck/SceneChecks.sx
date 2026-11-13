@@ -131,28 +131,40 @@ func verify_dirt_effects(world:&Resources.World,meshes:&Resources.Meshes3D,image
     var truck=Model.Truck()
     for _ in 0...30 { truck.step() }
     let still=effect.update(world,meshes,truck,camera,1.0/120.0)
-    assert(still==0.0)
+    assert(still.rumble==0.0 && still.impact==0.0)
     let idle_entities=world.entities().count()
     truck.controls(1.0,0.0)
     var volume=0.0
     for _ in 0...150 {
         truck.step()
-        volume=Math.max(volume,effect.update(world,meshes,truck,camera,1.0/120.0))
+        let contact=effect.update(world,meshes,truck,camera,1.0/120.0)
+        volume=Math.max(volume,contact.rumble)
+        assert(contact.impact==0.0)
     }
     assert(volume>0.15 && world.entities().count()==idle_entities+2,
         "powered contact must activate both particle batches and the gravel sound")
     effect.reset(world)
     assert(world.entities().count()==idle_entities)
 
-    var airborne=Model.Truck(spawn:Physics.Transform3D(Math.Vec3(0.0,18.0,0.0)))
-    airborne.controls(1.0,0.0);airborne.step()
-    assert(effect.update(world,meshes,airborne,camera,1.0/120.0)==0.0)
+    var airborne=Model.Truck(spawn:Physics.Transform3D(Math.Vec3(0.0,6.0,0.0)))
+    airborne.step()
+    let flying=effect.update(world,meshes,airborne,camera,1.0/120.0)
+    assert(flying.rumble==0.0 && flying.impact==0.0)
+    var landed=0.0
+    for _ in 0...150 {
+        airborne.step()
+        let contact=effect.update(world,meshes,airborne,camera,1.0/120.0)
+        landed=Math.max(landed,contact.impact)
+    }
+    assert(landed>0.3 && world.entities().count()>idle_entities,
+        "landing on loose dirt must release a puff and report impact strength")
+    effect.reset(world)
     var table=Model.Truck(obstacles:true,spawn:Physics.Transform3D(Math.Vec3(0.0,4.55,25.0)))
     table.step()
     for index in 0...4 {
         assert(table.support(index)!=null && DirtTracks.track(table,index)==null)
     }
-    print("Dirt effects passed: powered ground contact, silent air and painted obstacles, reset")
+    print("Dirt effects passed: powered ground contact, airborne silence, landing, painted obstacles, reset")
 }
 
 func verify_wheel_rim() {

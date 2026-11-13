@@ -11,7 +11,12 @@ use STD.Randomizer
 
 static struct Limits {
     let clods:int=48
-    let clouds:int=28
+    let clouds:int=48
+}
+
+package struct GroundFeedback {
+    let rumble:float
+    let impact:float
 }
 
 struct Particle {
@@ -21,6 +26,7 @@ struct Particle {
     let lifetime:float
     let size:float
     let angle:float
+    let opacity:float
 }
 
 package class TyreDirt {
@@ -31,6 +37,7 @@ package class TyreDirt {
     private var clouds:Particle[]=[]
     private var dust_credit:float[]=[0.0,0.0,0.0,0.0]
     private var stone_credit:float[]=[0.0,0.0,0.0,0.0]
+    private var falling_speed:float[]=[0.0,0.0,0.0,0.0]
     private var random:Randomizer=Randomizer(9874)
     private var drawing_stones:bool=false
     private var drawing_clouds:bool=false
@@ -45,7 +52,7 @@ package class TyreDirt {
         let image=images.add(dust_image())
         self.dust_entity=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
             ..with(Components.Mesh3D(self.dust_mesh,casts_shadows:false))
-            ..with(Components.Material3D(albedo:Color.bytes(151,126,99)))
+            ..with(Components.Material3D(albedo:Color.bytes(141,112,83)))
             ..with(Components.MaterialSettings3D(alpha:Scene3D.AlphaMode.blend,double_sided:true,unlit:true,
                 textures:Components.MaterialTextures3D(albedo:Components.MaterialTexture3D(image:image)))))
         world.enable(self.stone_entity,false)
@@ -58,33 +65,48 @@ package class TyreDirt {
         for index in 0...4 {
             self.dust_credit[index]=0.0
             self.stone_credit[index]=0.0
+            self.falling_speed[index]=0.0
         }
         self.set_visibility(world,false,false)
     }
 
-    func update(world:&Resources.World,meshes:&Resources.Meshes3D,truck:@Model.Truck,camera:Scene3D.Transform,delta:float) float {
+    func update(world:&Resources.World,meshes:&Resources.Meshes3D,truck:@Model.Truck,camera:Scene3D.Transform,delta:float) GroundFeedback {
         // The batches are bounded and reused. Only active particles produce
         // new vertices or instance transforms during a frame.
         let dt=Math.clamp(delta,0.0,0.05)
         self.stones=advance(self.stones,dt,12.0)
         self.clouds=advance(self.clouds,dt,0.0)
-        var noise=0.0
+        var rumble=0.0
+        var impact=0.0
         for index in 0...4 {
             if let track=DirtTracks.track(truck,index) {
-                self.dust_credit[index]+=track.mist*dt*8.0
+                let touchdown=Math.clamp((self.falling_speed[index]-2.4)/8.0,0.0,1.0)
+                self.falling_speed[index]=0.0
+                if touchdown>0.0 {
+                    impact=Math.max(impact,touchdown)
+                    self.landing_cloud(track,touchdown)
+                }
+                self.dust_credit[index]+=track.mist*dt*20.0
                 self.stone_credit[index]+=track.clods*dt*19.0
-                if self.dust_credit[index]>=1.0 {
+                while self.dust_credit[index]>=1.0 {
                     self.dust_credit[index]-=1.0
-                    if self.clouds.count()<Limits.clouds { self.clouds.append(self.particle(track,true)) }
+                    if self.clouds.count()<Limits.clouds { self.clouds.append(self.particle(track,true,track.mist)) }
                 }
                 while self.stone_credit[index]>=1.0 {
                     self.stone_credit[index]-=1.0
-                    if self.stones.count()<Limits.clods { self.stones.append(self.particle(track,false)) }
+                    if self.stones.count()<Limits.clods { self.stones.append(self.particle(track,false,track.mist)) }
                 }
-                noise+=track.rumble*0.25
+                rumble+=track.rumble*0.25
             } else {
                 self.dust_credit[index]=0.0
                 self.stone_credit[index]=0.0
+                let speed= -truck.wheels[index].rim.linear_velocity().y
+                let support=truck.support(index)
+                if speed< -0.5 || (support!=null && !DirtTracks.is_loose(support!)) {
+                    self.falling_speed[index]=0.0
+                } else {
+                    self.falling_speed[index]=Math.max(self.falling_speed[index],speed)
+                }
             }
         }
         self.set_visibility(world,!self.stones.is_empty(),!self.clouds.is_empty())
@@ -104,7 +126,7 @@ package class TyreDirt {
             })
             meshes.replace(self.dust_mesh,dust_billboards(self.clouds,camera,origin))
         }
-        return noise
+        return GroundFeedback(rumble:rumble,impact:impact)
     }
 
     private func set_visibility(world:&Resources.World,rocks:bool,dust:bool) {
@@ -118,23 +140,42 @@ package class TyreDirt {
         }
     }
 
-    private func particle(track:DirtTracks.Track,dust:bool) Particle {
+    private func landing_cloud(track:DirtTracks.Track,force:float) {
+        let count=2+Math.round(force*3.0) as int
+        for i in 0...count {
+            let angle=(i as float)*Math.two_pi()/(count as float)
+            let outward=Math.Vec3(Math.cos(angle),0.0,Math.sin(angle))
+            let burst=DirtTracks.Track(point:track.point,spray:outward,mist:force,clods:force,rumble:0.0)
+            let puff=self.particle(burst,true,0.60+0.40*force)
+            if self.clouds.count()<Limits.clouds { self.clouds.append(puff) }
+            else {
+                var oldest=0
+                for index,cloud in self.clouds.indexed() {
+                    if cloud.age>self.clouds[oldest].age { oldest=index }
+                }
+                self.clouds[oldest]=puff
+            }
+        }
+    }
+
+    private func particle(track:DirtTracks.Track,dust:bool,density:float) Particle {
         let across=Math.Vec3(-track.spray.z,0.0,track.spray.x)
         let spread=(self.random.get_float()-0.5)*0.98
         let angle=self.random.get_float()*Math.two_pi()
         let position=track.point.add(across.multiply(spread)).add(Math.Vec3(0.0,0.09,0.0))
         if dust {
-            let speed=0.9+self.random.get_float()*1.9
+            let speed=1.2+self.random.get_float()*2.5
             let velocity=track.spray.multiply(speed).add(across.multiply(spread))
-                .add(Math.Vec3(0.0,0.22+self.random.get_float()*0.42,0.0))
-            return Particle(position:position,velocity:velocity,age:0.0,lifetime:0.6+self.random.get_float()*0.65,
-                size:0.72+self.random.get_float()*0.53,angle:angle)
+                .add(Math.Vec3(0.0,0.25+self.random.get_float()*0.65,0.0))
+            return Particle(position:position,velocity:velocity,age:0.0,lifetime:0.9+self.random.get_float()*0.65,
+                size:(0.82+self.random.get_float()*0.62)*(0.75+density*0.75),
+                angle:angle,opacity:0.34+density*0.53)
         }
         let speed=(2.3+self.random.get_float()*3.2)*(0.55+0.80*track.clods)
         let velocity=track.spray.multiply(speed).add(across.multiply(spread*2.8))
             .add(Math.Vec3(0.0,1.7+self.random.get_float()*1.8,0.0))
         return Particle(position:position,velocity:velocity,age:0.0,lifetime:0.34+self.random.get_float()*0.32,
-            size:0.026+self.random.get_float()*0.064,angle:angle)
+            size:0.026+self.random.get_float()*0.064,angle:angle,opacity:1.0)
     }
 }
 
@@ -174,7 +215,7 @@ func dust_billboards(particles:@Particle[],camera:Scene3D.Transform,origin:Math.
         let particle=particles[i]
         let age=particle.age/particle.lifetime
         let extent=particle.size*(0.35+0.88*age)
-        let alpha=Math.min(1.0,age*6.0)*(1.0-age)*0.34
+        let alpha=Math.min(1.0,age*9.0)*(1.0-age)*particle.opacity
         let color=Color.white().with_alpha(alpha)
         let angle=particle.angle+age*0.45
         let x=right.multiply(Math.cos(angle)*extent).add(up.multiply(Math.sin(angle)*extent))
@@ -201,7 +242,8 @@ func dust_image() Image {
             let radius=x*x+y*y
             let grain=0.85+0.15*Math.sin(x*15.0+y*7.0)*Math.cos(y*12.0-x*6.0)
             let edge=Math.max(0.0,1.0-radius)
-            let alpha=Math.round(Math.clamp(edge*edge*grain,0.0,1.0)*255.0) as uint8
+            let soft_edge=edge*edge*(3.0-2.0*edge)
+            let alpha=Math.round(Math.clamp(soft_edge*grain,0.0,1.0)*255.0) as uint8
             pixels.append(255 as uint8);pixels.append(255 as uint8);pixels.append(255 as uint8);pixels.append(alpha)
         }
     }

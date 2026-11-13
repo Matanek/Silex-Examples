@@ -11,16 +11,20 @@ package struct Track {
     let rumble:float
 }
 
+package func is_loose(hit:@Physics.WorldRayHit3D) bool {
+    // Dirt belongs to the arena floor. Painted obstacles and steel have their
+    // own surfaces, including the quarter-pipe entry.
+    match hit.body().shape() {
+        plane(_)=>{ return true }
+        else=>{ return false }
+    }
+}
+
 package func track(truck:@Model.Truck,index:int) Track? {
     let hit=truck.support(index)
     if hit==null { return null }
     let ground=hit!
-    // The loose material is the arena floor. The painted obstacles and steel
-    // use their existing surfaces, including along the ramp entry.
-    match ground.body().shape() {
-        plane(_)=>{}
-        else=>{ return null }
-    }
+    if !is_loose(ground) { return null }
     let wheel=truck.wheels[index]
     let center=wheel.rim.position()
     let point=ground.point()
@@ -40,9 +44,8 @@ package func track(truck:@Model.Truck,index:int) Track? {
     let rolling=Math.clamp((speed-1.2)/22.0,0.0,1.0)
     let scratching=Math.clamp((slip_speed-0.7)/10.0,0.0,1.0)
     let thrown=Math.max(scratching,throttle*rolling*0.55)
-    let mist=Math.min(1.0,rolling*0.24+thrown*0.83)
+    let mist=Math.min(1.0,rolling*0.18+thrown*1.15)
     let rumble=Math.min(1.0,rolling*0.52+scratching*0.66)
-    if mist<0.02 && rumble<0.02 { return null }
 
     // The contact patch throws material in the direction its rubber scrubs.
     // At low slip the trail instead hangs behind the rolling wheel.

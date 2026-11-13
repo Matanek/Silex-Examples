@@ -9,7 +9,8 @@ un châssis tubulaire apparent et un sabot en acier sous la transmission.
 Une texture de terre compacte et de gravier couvre le sol. Les faces jaunes et
 rouges montrent les trajectoires, avec des bordures blanches. Sur le sol de
 l’arène, les pneus soulèvent de la poussière et font entendre le gravier.
-Le patinage accentue les projections de terre.
+Le patinage soulève un nuage plus dense. Une réception sur la terre
+soulève une bouffée autour des roues et produit un choc sourd.
 
 ## Lancer et conduire
 

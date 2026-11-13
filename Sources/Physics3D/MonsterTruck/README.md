@@ -8,7 +8,8 @@ a two-sided bowl, small rollers, slide rails and a quarter-pipe. The pickup has 
 fenders, an exposed tube frame and a steel skid plate under the transmission.
 The arena floor uses a packed dirt and gravel texture. Yellow and red surfaces
 mark the lines, with white borders. On loose soil, the tires leave a dust
-trail and a gravel sound. Wheel slip throws more clods.
+trail and a gravel sound. Wheel slip raises a denser cloud. Landing on dirt
+throws up a burst around the wheels and plays a low impact sound.
 
 ## Launch and drive
 

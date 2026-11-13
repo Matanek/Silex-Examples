@@ -2,25 +2,56 @@ use GFX.Audio
 use STD.Math
 use STD.Randomizer
 
-// Short filtered impacts share a continuous bed of rolling gravel. The source
-// is precomputed once, so a late graphics frame cannot starve this track.
+// Precompute a low rolling bed with irregular, short stone strikes.
 package func make(audio:&Audio) Audio.Sound {
     let sample_rate=24_000
-    let duration=sample_rate*2
+    let duration=sample_rate*3
     var random=Randomizer(19717)
     var samples:float32[]=[]
-    var low=0.0
-    var middle=0.0
-    var grains=0.0
+    var body=0.0
+    var grain=0.0
+    var strike=0.0
+    var scrape=0.0
+    var phase=0.0
+    var phase_step=0.0
+    var until_strike=0
     for i in 0...duration {
         let white=random.get_float()*2.0-1.0
-        low+=(white-low)*0.045
-        middle+=(white-middle)*0.23
-        if random.get_float()<0.012 { grains=random.get_float(0.27,0.92) }
-        grains*=0.935
+        body+=(white-body)*0.061
+        grain+=(white-grain)*0.24
+        if until_strike<=0 {
+            until_strike=180+random.get_int(0,620)
+            strike=0.27+0.73*random.get_float()
+            scrape=strike*strike
+            phase=0.0
+            phase_step=Math.two_pi()*(105.0+220.0*random.get_float())/(sample_rate as float)
+        }
+        until_strike--
+        let crunch=Math.sin(phase)*strike*0.42+(grain-body)*scrape*1.30
+        phase+=phase_step
+        strike*=0.984
+        scrape*=0.975
         let edge=Math.min(1.0,(Math.min(i,duration-1-i) as float)/90.0)
-        let grit=low*1.05+middle*0.28+(white-middle)*grains*0.55
-        samples.append((grit*edge*0.58) as float32)
+        samples.append(((body*0.80+crunch)*edge*0.72) as float32)
+    }
+    return audio.create(@samples[0:samples.count()],sample_rate)
+}
+
+package func landing(audio:&Audio) Audio.Sound {
+    let sample_rate=24_000
+    var random=Randomizer(4421)
+    var samples:float32[]=[]
+    var grit=0.0
+    var phase=0.0
+    for i in 0...5_760 {
+        let seconds=(i as float)/(sample_rate as float)
+        let white=random.get_float()*2.0-1.0
+        grit+=(white-grit)*0.20
+        phase+=Math.two_pi()*(49.0+48.0*Math.exp(-seconds*45.0))/(sample_rate as float)
+        let body=Math.sin(phase)*0.45*Math.exp(-seconds*23.0)
+        let crunch=grit*0.65*Math.exp(-seconds*36.0)
+        let edge=Math.min(1.0,(Math.min(i,5_759-i) as float)/55.0)
+        samples.append(((body+crunch)*edge) as float32)
     }
     return audio.create(@samples[0:samples.count()],sample_rate)
 }

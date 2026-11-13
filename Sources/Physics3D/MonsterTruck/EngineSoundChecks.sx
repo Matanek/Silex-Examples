@@ -33,7 +33,15 @@ func gravel(directory:str?) {
     assert(energy>0.1,"loaded dirt contact must produce audible gravel PCM")
     for _ in 0...60 { sound.update_gravel(0.0,0.016) }
     for sample in sound.render_offline(512) { assert(sample==0.0) }
-    print("Gravel loop passed: audible at load and silent at rest")
+    sound.play_landing(0.8)
+    var landing=0.0
+    for sample in sound.render_offline(12_000) {
+        assert(Math.is_finite(sample))
+        landing+=sample*sample
+    }
+    assert(landing>0.1,"a hard landing must produce audible PCM")
+    for sample in sound.render_offline(1_024) { assert(sample==0.0) }
+    print("Ground audio passed: rolling gravel, short landing impact and silence at rest")
 }
 
 package func verify(directory:str? = null) {
