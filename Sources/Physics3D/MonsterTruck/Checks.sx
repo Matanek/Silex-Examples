@@ -1,6 +1,7 @@
 use Physics3D.SoftTire.BeadChecks
 use Physics3D.MonsterTruck.HandlingChecks
 use Physics3D.MonsterTruck.ArenaChecks
+use Physics3D.MonsterTruck.ArenaGround
 use Physics3D.MonsterTruck.InflationChecks
 use Physics3D.MonsterTruck.StuntChecks
 use Physics3D.MonsterTruck.SlopeChecks
@@ -49,7 +50,16 @@ package func inspect(frames:int=480,workers:int=4,drive:bool=false,turn:float=0.
         assert(Math.is_finite(p.x) && Math.is_finite(p.y) && Math.is_finite(p.z))
         result.highest=Math.max(result.highest,p.y)
         result.bead=Math.max(result.bead,truck.maximum_bead_error())
-        result.floor=Math.min(result.floor,truck.minimum_y())
+        if course {
+            for wheel in truck.wheels {
+                for point in wheel.tyre.positions() {
+                    let ground=ArenaGround.surface_height(truck.ground_heights,point.x,point.z)
+                    result.floor=Math.min(result.floor,point.y-ground)
+                }
+            }
+        } else {
+            result.floor=Math.min(result.floor,truck.minimum_y())
+        }
         if result.floor<=0.025 || result.bead>=0.08 {
             print("Truck limit frame=",frame+1," x=",p.x," y=",p.y," z=",p.z,
                 " bead=",result.bead," floor=",result.floor)
@@ -130,7 +140,9 @@ package func verify() {
     let right=inspect(frames:720,drive:true,turn:-1.0)
     assert(left.x>2.0 && right.x< -2.0)
     braking()
-    let arena=inspect(frames:1440,drive:true,course:true)
+    // The straight run checks a loaded takeoff and return to the dirt.
+    // Eight further approaches are exercised by RampChecks.
+    let arena=inspect(frames:1440,drive:true,course:true,distance:48.0)
     assert(arena.z>38.0 && arena.highest>3.5)
     BeadChecks.reciprocal()
     let original=BeadChecks.inspect("Default bead preset",frames:120)

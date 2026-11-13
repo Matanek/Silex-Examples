@@ -102,7 +102,7 @@ package class TyreDirt {
                 self.stone_credit[index]=0.0
                 let speed= -truck.wheels[index].rim.linear_velocity().y
                 let support=truck.support(index)
-                if speed< -0.5 || (support!=null && !DirtTracks.is_loose(support!)) {
+                if speed< -0.5 || (support!=null && !DirtTracks.is_dirt(support!)) {
                     self.falling_speed[index]=0.0
                 } else {
                     self.falling_speed[index]=Math.max(self.falling_speed[index],speed)

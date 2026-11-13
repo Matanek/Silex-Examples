@@ -118,7 +118,7 @@ func verify_dirt(world:&Resources.World,images:&Resources.Images) {
         let settings=world.get<Components.MaterialSettings3D>(entity)
         if let albedo=settings.textures.albedo {
             let image=images.get(albedo.image)
-            assert(image.width()==1024 && image.height()==1024 && albedo.scale==Math.Vec2(256.0))
+            assert(image.width()==1024 && image.height()==1024 && albedo.scale==Math.Vec2(1.0))
             textured++
         }
     }
@@ -159,12 +159,12 @@ func verify_dirt_effects(world:&Resources.World,meshes:&Resources.Meshes3D,image
     assert(landed>0.3 && world.entities().count()>idle_entities,
         "landing on loose dirt must release a puff and report impact strength")
     effect.reset(world)
-    var table=Model.Truck(obstacles:true,spawn:Physics.Transform3D(Math.Vec3(0.0,4.55,25.0)))
+    var table=Model.Truck(obstacles:true,spawn:Physics.Transform3D(Math.Vec3(0.0,4.80,27.0)))
     table.step()
     for index in 0...4 {
-        assert(table.support(index)!=null && DirtTracks.track(table,index)==null)
+        assert(table.support(index)!=null && DirtTracks.is_dirt(table.support(index)!))
     }
-    print("Dirt effects passed: powered ground contact, airborne silence, landing, painted obstacles, reset")
+    print("Dirt effects passed: powered ground contact, airborne silence, landing, earthen plateaus, reset")
 }
 
 func verify_wheel_rim() {

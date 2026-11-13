@@ -2,14 +2,14 @@
 
 [Français](README.fr.md)
 
-Drive a pickup with four deformable tires in a geometric freestyle arena:
-jump tables, a mound with four approaches, large ramps, a landing ramp,
-a two-sided bowl, small rollers, slide rails and a quarter-pipe. The pickup has cutaway
-fenders, an exposed tube frame and a steel skid plate under the transmission.
-The arena floor uses a packed dirt and gravel texture. Yellow and red surfaces
-mark the lines, with white borders. On loose soil, the tires leave a dust
-trail and a gravel sound. Wheel slip raises a denser cloud. Landing on dirt
-throws up a burst around the wheels and plays a low impact sound.
+Drive a pickup with four deformable tires on a 144 × 184 m dirt course.
+Jump tables, plateaus, a bowl and small rollers are sculpted into the ground.
+Open lanes between the mounds leave room to choose an approach and build
+speed. The pickup has cutaway fenders, an exposed tube frame and a steel
+skid plate under the transmission. Packed dirt and gravel cover the course.
+On dirt, the tires leave a dust trail and a gravel sound. Wheel slip raises a
+denser cloud. Landing on dirt throws up a burst around the wheels and plays
+a low impact sound.
 
 ## Launch and drive
 
@@ -25,8 +25,7 @@ arrow marks its approach.
 Its lip turns slightly back toward the ramp. Adjust your approach speed and
 use the brake in the air to set up the landing.
 
-The two steel rails are at the far end, on the calibration lane side. Center
-the truck on the arrow and
+The two steel rails are at the far left. Center the truck on the arrow and
 keep the wheels on the approach berms. The skid plate takes over in the middle.
 The rail nearer the small rollers climbs. The one nearer the arena edge descends.
 
@@ -79,7 +78,7 @@ the chassis. Reversing gradually turns the view toward the new travel direction.
 Start straight ahead with the large table, then explore the central mound
 and its four approaches. The left side has a takeoff and separate landing;
 the right side has a bowl with two slopes. Small rollers are at the far end.
-A calibration lane with a bump and three blocks remains on the far left.
+A lane along the western mounds leads to the slide rails.
 
 For a wheelie, briefly press Shift + Z, then release. To lift the rear,
 build speed and briefly press Space. Torque and braking physically pitch the
@@ -165,8 +164,11 @@ is −65% of the front angle.
 
 Simulation runs at 120 Hz, with eight coupling steps at 960 Hz and one soft
 substep per coupling; the rigid solver uses eight velocity iterations.
-Terrain facets are solids with adjoining top surfaces. The quarter-pipe
-shares its curved profile between rendering and collision. The skid plate
+Terrain rendering and collisions share a heightmap sampled at one-meter
+intervals. The terrain is static. A compaction map reserves the ground under
+and around the quarter-pipe, protects the rail footings, and distinguishes
+packed mounds from loose soil for future deformation. The quarter-pipe also
+shares its curved profile between rendering and collisions. The skid plate
 aligns with the bottom face of the central chassis collider.
 
 The visible tire deforms under load. The tread stays flat across its width,
@@ -196,7 +198,7 @@ Build/MonsterTruck-Airborne-Checks
 ```
 
 They cover physics, inflation, centering, short stunt inputs, controls, HUD,
-terrain seams and slow driving on actual approach facets. `DriveChecks` also
+terrain seams and slow driving on dirt slopes. `DriveChecks` also
 compares acceleration with the former drive, rolling boost, a recoverable wheelie
 and both final-drive extremes. `AirborneChecks` covers vehicle attitudes, ground
 and airborne pedals, and complete aerial rotations. States are compared with
@@ -222,12 +224,12 @@ physics and simulated time help distinguish simulation overload from the rest
 of the frame. `focused` reports focus at the latest update; `focus_changed`
 marks a transition during the measured interval. Exclude transition intervals
 when comparing foreground and background performance. `--ledge` places the
-truck on the yellow table's side edge, rear wheels on the module and front
+truck on the table's side slope, rear wheels on the mound and front
 wheels towards the ground; controls remain available.
-`--bumps` starts on the small yellow rollers. `--profile-bumps` holds the brakes
+`--bumps` starts on the small rollers. `--profile-bumps` holds the brakes
 there for twelve seconds, with a measurement HUD and automatic shutdown.
 `ModuleCostChecks.sx` compares flat ground, small rollers, central ramps, a
-side module, and the table edge without a window: computation per simulated
+side mound, and the table edge without a window: computation per simulated
 second, maximum step cost, and physical state. It does not measure rendering FPS.
 These measurements are optional; ordinary launches emit no trace.
 Compare binaries separately, without concurrent builds or tests, in the same

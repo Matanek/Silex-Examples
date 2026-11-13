@@ -4,6 +4,7 @@ use GFX.ECS
 use GFX.Physics
 use GFX.Resources
 use GFX.Scene3D
+use Physics3D.MonsterTruck.Arena
 use STD.Math
 
 package static struct Collision {
@@ -23,10 +24,34 @@ package func layout() Rail[] {
         Rail(start:Math.Vec3(-41.0,3.25,116.0),end:Math.Vec3(-41.0,1.65,131.0))]
 }
 
+// Raised wheel paths leave the rail's footings at the base elevation.
+package func approach_ground(x:float,z:float) float {
+    if z<101.0 || z>121.0 || x< -47.0 || x> -21.0 { return 0.0 }
+    var height=0.0
+    for rail in layout() {
+        let lateral=Math.abs(Math.abs(x-rail.start.x)-2.0)
+        let taper=1.0-Arena.ease((lateral-0.88)/1.00)
+        let distance=z-rail.start.z
+        let ramp=Arena.ease((distance+14.0)/12.0)*(1.0-Arena.ease((distance-1.0)/3.0))
+        height=Math.max(height,taper*ramp*rail.approach_height())
+    }
+    return height
+}
+
+package func foundation_compaction(x:float,z:float) float {
+    if x < -50.0 || x > -18.0 || z < 96.0 || z > 138.0 { return 0.0 }
+    var value=0.0
+    for rail in layout() {
+        let width=Arena.shoulder(x-rail.start.x,3.6,8.0)
+        let length=Arena.ease((z-rail.start.z+20.0)/6.0)*(1.0-Arena.ease((z-rail.end.z-2.0)/5.0))
+        value=Math.max(value,width*length)
+    }
+    return value
+}
+
 enum Part {
     beam
     footing
-    approach
 }
 
 struct Box {
@@ -57,28 +82,6 @@ func boxes(rail:Rail) Box[] {
             rotation:Math.Quat(),part:Part.footing))
     }
 
-    // Two wheel paths leave the center open for the skid plate and rail.
-    let offsets:float[]=[-2.06,2.06]
-    for offset in offsets {
-        let x=rail.start.x+offset
-        for i in 0...4 {
-            let t0=(i as float)*0.25
-            let t1=((i+1) as float)*0.25
-            let z=rail.start.z-14.0+12.0*t0
-            let a=rail.approach_height()*t0*t0*(3.0-2.0*t0)
-            let b=rail.approach_height()*t1*t1*(3.0-2.0*t1)
-            let slope=Math.atan2(b-a,3.0)
-            let rotation=Math.Quat.angle_axis(-slope,Math.Vec3.right())
-            let depth=(Math.max(a,b)+0.2)/Math.cos(slope)
-            let top=Math.Vec3(x,(a+b)*0.5,z+1.5)
-            let center=top.subtract(rotation.rotate(Math.Vec3(0.0,depth*0.5,0.0)))
-            pieces.append(Box(center:center,size:Math.Vec3(2.78,depth,Math.sqrt(9.0+(b-a)*(b-a))),
-                rotation:rotation,part:Part.approach))
-        }
-        let height=rail.approach_height()
-        pieces.append(Box(center:Math.Vec3(x,height*0.5-0.1,rail.start.z-0.2),size:Math.Vec3(2.78,height+0.2,3.6),
-            rotation:Math.Quat(),part:Part.approach))
-    }
     return pieces
 }
 
@@ -104,25 +107,17 @@ package func create_view(world:&Resources.World,meshes:&Resources.Meshes3D) {
     let cube=meshes.add(Scene3D.Geometry.Cube.make())
     var steel:Scene3D.Transform[]=[]
     var supports:Scene3D.Transform[]=[]
-    var berms:Scene3D.Transform[]=[]
     for rail in layout() { for piece in boxes(rail) {
         let placement=Scene3D.Transform(piece.center,piece.rotation,piece.size)
-        match piece.part {
-            beam=>{ steel.append(placement) }
-            footing=>{ supports.append(placement) }
-            approach=>{ berms.append(placement) }
-        }
+        if piece.part==Part.beam { steel.append(placement) }
+        else { supports.append(placement) }
     } }
     var metal_instances=Scene3D.Instances(steel)
     var support_instances=Scene3D.Instances(supports)
-    var berm_instances=Scene3D.Instances(berms)
     world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D()) ..with(Components.Mesh3D(cube))
         ..with(Components.Material3D(albedo:Color.bytes(176,187,198),metallic:0.55,roughness:0.24))
         ..with(metal_instances))
     world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D()) ..with(Components.Mesh3D(cube))
         ..with(Components.Material3D(albedo:Color.bytes(67,75,83),metallic:0.3,roughness:0.60))
         ..with(support_instances))
-    world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D()) ..with(Components.Mesh3D(cube))
-        ..with(Components.Material3D(albedo:Color.bytes(114,79,54),roughness:1.0))
-        ..with(berm_instances))
 }

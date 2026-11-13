@@ -1,4 +1,5 @@
 use GFX.Physics
+use Physics3D.MonsterTruck.ArenaGround
 use Physics3D.MonsterTruck.Model
 use Physics3D.MonsterTruck.TyreProfile
 use STD.Math
@@ -11,20 +12,15 @@ package struct Track {
     let rumble:float
 }
 
-package func is_loose(hit:@Physics.WorldRayHit3D) bool {
-    // Dirt belongs to the arena floor. Painted obstacles and steel have their
-    // own surfaces, including the quarter-pipe entry.
-    match hit.body().shape() {
-        plane(_)=>{ return true }
-        else=>{ return false }
-    }
+package func is_dirt(hit:@Physics.WorldRayHit3D) bool {
+    return (hit.body().collision_filter().category_bits & ArenaGround.Collision.soil)!=0
 }
 
 package func track(truck:@Model.Truck,index:int) Track? {
     let hit=truck.support(index)
     if hit==null { return null }
     let ground=hit!
-    if !is_loose(ground) { return null }
+    if !is_dirt(ground) { return null }
     let wheel=truck.wheels[index]
     let center=wheel.rim.position()
     let point=ground.point()

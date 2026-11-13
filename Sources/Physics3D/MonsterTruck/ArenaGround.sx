@@ -1,0 +1,172 @@
+use GFX.Color
+use GFX.Physics
+use GFX.Scene3D
+use Physics3D.MonsterTruck.Arena
+use Physics3D.MonsterTruck.QuarterPipe
+use Physics3D.MonsterTruck.SlideRails
+use STD.Math
+
+package static struct Collision {
+    let soil:uint64=32
+    let category:uint64=33
+}
+
+struct Apron {
+    let left:float
+    let right:float
+    let near:float
+    let far:float
+}
+
+func aprons() Apron[] {
+    let edge=512.0
+    return [
+        Apron(left:-edge,right:Arena.Grid.left,near:-edge,far:edge),
+        Apron(left:Arena.right_edge(),right:edge,near:-edge,far:edge),
+        Apron(left:Arena.Grid.left,right:Arena.right_edge(),near:-edge,far:Arena.Grid.near),
+        Apron(left:Arena.Grid.left,right:Arena.right_edge(),near:Arena.far_edge(),far:edge)]
+}
+
+package func height(x:float,z:float) float {
+    return Math.max(Arena.relief(x,z),SlideRails.approach_ground(x,z))
+}
+
+// 1 reserves the soil immediately around the fixed steel structures.
+package func compaction(x:float,z:float,elevation:float) float {
+    let quarter=QuarterPipe.Dimensions.origin
+    let half_width=QuarterPipe.Dimensions.width*0.5
+    let finish=quarter.z+QuarterPipe.Dimensions.radius+3.0
+    let lane=Arena.shoulder(x-quarter.x,half_width+0.6,half_width+4.0)*
+        Arena.ease((z-quarter.z+82.0)/9.0)*(1.0-Arena.ease((z-finish)/7.0))
+    let sculpted=Arena.ease((elevation-0.18)/0.75)*0.91
+    return Math.max(Math.max(lane,SlideRails.foundation_compaction(x,z)),sculpted)
+}
+
+package func origin() Math.Vec3 { return Math.Vec3(Arena.Grid.left,0.0,Arena.Grid.near) }
+
+package func samples() float[] {
+    var values:float[]=[]
+    for row in 0...Arena.Grid.rows {
+        let z=Arena.Grid.near+(row as float)*Arena.Grid.spacing
+        for column in 0...Arena.Grid.columns {
+            let x=Arena.Grid.left+(column as float)*Arena.Grid.spacing
+            values.append(height(x,z))
+        }
+    }
+    return values
+}
+
+package func surface_height(heights:@float[], x:float, z:float) float {
+    let u=(x-Arena.Grid.left)/Arena.Grid.spacing
+    let v=(z-Arena.Grid.near)/Arena.Grid.spacing
+    if u<0.0 || v<0.0 || u>=((Arena.Grid.columns-1) as float) || v>=((Arena.Grid.rows-1) as float) {
+        return 0.0
+    }
+    let column=Math.floor(u) as int
+    let row=Math.floor(v) as int
+    let dx=u-(column as float);let dz=v-(row as float)
+    let index=row*Arena.Grid.columns+column
+    let right=heights[index+1];let far=heights[index+Arena.Grid.columns]
+    if dx+dz<=1.0 { return heights[index]*(1.0-dx-dz)+right*dx+far*dz }
+    return heights[index+Arena.Grid.columns+1]*(dx+dz-1.0)+right*(1.0-dz)+far*(1.0-dx)
+}
+
+package func add_to(world:Physics.World3D,heights:@float[]) {
+    // Large level run-ups use a single flat collider each. The other patches
+    // take their bordering vertices from the same height samples as the render mesh.
+    let start_row=28
+    let back_row=130
+    let quarter_column=111
+    add_patch(world,heights,0,0,Arena.Grid.columns-1,start_row)
+    add_patch(world,heights,0,start_row,quarter_column,back_row)
+    add_patch(world,heights,quarter_column,start_row,Arena.Grid.columns-1,back_row)
+    add_patch(world,heights,0,back_row,Arena.Grid.columns-1,Arena.Grid.rows-1)
+    for apron in aprons() { add_flat(world,apron) }
+}
+
+func add_patch(world:Physics.World3D,heights:@float[],first_column:int,first_row:int,last_column:int,last_row:int) {
+    let spacing=Arena.Grid.spacing
+    let bounds=Apron(left:Arena.Grid.left+(first_column as float)*spacing,
+        right:Arena.Grid.left+(last_column as float)*spacing,
+        near:Arena.Grid.near+(first_row as float)*spacing,far:Arena.Grid.near+(last_row as float)*spacing)
+    var values:float[]=[]
+    var flat=true
+    for row in first_row...(last_row+1) {
+        for column in first_column...(last_column+1) {
+            let sample=heights[row*Arena.Grid.columns+column]
+            if sample!=0.0 { flat=false }
+            values.append(sample)
+        }
+    }
+    if flat { add_flat(world,bounds);return }
+    var terrain=Physics.HeightField3D(last_column-first_column+1,last_row-first_row+1,values,spacing,spacing)
+    add_surface(world,terrain.shape(),Math.Vec3(bounds.left,0.0,bounds.near))
+}
+
+func add_flat(world:Physics.World3D,flat:Apron) {
+    let center=Math.Vec3((flat.left+flat.right)*0.5,-0.5,(flat.near+flat.far)*0.5)
+    let size=Math.Vec3(flat.right-flat.left,1.0,flat.far-flat.near)
+    add_surface(world,Physics.Shape3D.box(Physics.Box3D(size)),center)
+}
+
+func add_surface(world:Physics.World3D,shape:Physics.Shape3D,position:Math.Vec3) {
+    world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+        ..shape=shape ..transform=Physics.Transform3D(position) ..friction=1.0
+        ..collision_filter=Physics.CollisionFilter3D(category_bits:Collision.category,mask_bits:14))
+}
+
+package func mesh(heights:@float[]) Scene3D.Geometry.Mesh {
+    let cols=Arena.Grid.columns
+    let rows=Arena.Grid.rows
+    let spacing=Arena.Grid.spacing
+    var vertices:Scene3D.Geometry.Vertex[]=[]
+    var indices:uint32[]=[]
+    for row in 0...rows {
+        for col in 0...cols {
+            let index=row*cols+col
+            var west=col;var east=col;var south=row;var north=row
+            if col>0 { west-- }
+            if col+1<cols { east++ }
+            if row>0 { south-- }
+            if row+1<rows { north++ }
+            let left=heights[row*cols+west]
+            let right=heights[row*cols+east]
+            let near=heights[south*cols+col]
+            let far=heights[north*cols+col]
+            let normal=Math.Vec3(left-right,spacing*2.0,near-far).normalized()
+            let y=heights[index]
+            let x=(col as float)*spacing
+            let z=(row as float)*spacing
+            let world_x=x+Arena.Grid.left
+            let world_z=z+Arena.Grid.near
+            let firm=compaction(world_x,world_z,y)
+            let edge=Math.min(Math.min(x,Arena.right_edge()-world_x),Math.min(z,Arena.far_edge()-world_z))
+            let grain=0.04*Arena.ease(edge/5.0)*Math.sin(world_x*0.31+world_z*0.17)*Math.sin(world_z*0.44-world_x*0.27)
+            let shade=1.0-firm*0.13+grain
+            let tint=Color.rgb(shade,shade,shade)
+            vertices.append(Scene3D.Geometry.Vertex(Math.Vec3(x,y,z),normal,
+                Math.Vec2(world_x*0.25,world_z*0.25),tint))
+            if col+1<cols && row+1<rows {
+                // Same diagonal and winding as GFX Physics's default heightfield.
+                indices.append(index as uint32)
+                indices.append((index+cols) as uint32)
+                indices.append((index+1) as uint32)
+                indices.append((index+1) as uint32)
+                indices.append((index+cols) as uint32)
+                indices.append((index+cols+1) as uint32)
+            }
+        }
+    }
+    for apron in aprons() {
+        let corners:Math.Vec2[]=[Math.Vec2(apron.left,apron.near),Math.Vec2(apron.left,apron.far),
+            Math.Vec2(apron.right,apron.near),Math.Vec2(apron.right,apron.far)]
+        let offset=vertices.count() as uint32
+        for corner in corners {
+            let point=Math.Vec3(corner.x-Arena.Grid.left,0.0,corner.y-Arena.Grid.near)
+            vertices.append(Scene3D.Geometry.Vertex(point,Math.Vec3.up(),corner.multiply(0.25),Color.white()))
+        }
+        let faces:uint32[]=[0,1,2,2,1,3]
+        for index in faces { indices.append(offset+index) }
+    }
+    return Scene3D.Geometry.Mesh(vertices,indices)
+}

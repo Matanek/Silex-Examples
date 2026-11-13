@@ -1,6 +1,6 @@
 use GFX.Physics
 use STD.Math
-use Physics3D.MonsterTruck.Arena
+use Physics3D.MonsterTruck.ArenaGround
 use Physics3D.MonsterTruck.QuarterPipe
 use Physics3D.MonsterTruck.SlideRails
 
@@ -13,19 +13,20 @@ package enum Section {
     rollers
     quarter_pipe
     slide_rails
-    calibration
+    perimeter
     open
 }
 
 package func section(position:Math.Vec3) Section {
     let quarter=QuarterPipe.Dimensions.origin
-    if Math.abs(position.x-quarter.x)<QuarterPipe.Dimensions.width && position.z>=quarter.z-14.0 && position.z<quarter.z+19.0 {
+    if Math.abs(position.x-quarter.x)<QuarterPipe.Dimensions.width*0.5+1.0 &&
+        position.z>=quarter.z-14.0 && position.z<quarter.z+19.0 {
         return Section.quarter_pipe
     }
     if position.x> -48.0 && position.x< -20.0 && position.z>=98.0 && position.z<135.0 {
         return Section.slide_rails
     }
-    if position.x< -37.0 { return Section.calibration }
+    if position.x< -37.0 && position.z<100.0 { return Section.perimeter }
     if position.z<8.0 { return Section.start }
     if Math.abs(position.x)>18.0 {
         if position.x>0.0 && position.z>=43.0 && position.z<85.0 { return Section.bowl }
@@ -47,43 +48,33 @@ package func section_name(value:Section) str {
         rollers=>{ return "Petites bosses" }
         slide_rails=>{ return "Rails de slide" }
         quarter_pipe=>{ return "Quarter-pipe" }
-        calibration=>{ return "Piste de contrôle" }
+        perimeter=>{ return "Bord ouest" }
         open=>{ return "Arène libre" }
     }
 }
 
-package func layout() Arena.Piece[] { return Arena.layout() }
-
-func shape(piece:Arena.Piece) Physics.Shape3D {
-    if piece.kind==1 { return Physics.Shape3D.sphere(Physics.Sphere3D(piece.size.x)) }
-    if piece.kind==2 { return Physics.Shape3D.cylinder(Physics.Cylinder3D(piece.size.x,piece.size.y)) }
-    return Physics.Shape3D.box(Physics.Box3D(piece.size))
-}
-
-package func create(world:Physics.World3D) {
-    for piece in layout() {
-        world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
-            ..shape=shape(piece) ..transform=Physics.Transform3D(piece.position,piece.rotation) ..friction=1.1
-            ..collision_filter=Physics.CollisionFilter3D(category_bits:1,mask_bits:14))
-    }
+package func create(world:Physics.World3D,heights:@float[]) {
+    ArenaGround.add_to(world,heights)
     QuarterPipe.create_collider(world)
     SlideRails.create_colliders(world)
 }
 
 package func slope_spawn() Physics.Transform3D {
-    let rotation=Math.Quat.angle_axis(-Math.atan2(1.05,3.0),Math.Vec3.right())
-    let surface=Physics.Transform3D(Math.Vec3(0.0,1.875,20.5),rotation)
+    let z=17.0
+    let rising=ArenaGround.height(0.0,z+1.0)-ArenaGround.height(0.0,z-1.0)
+    let rotation=Math.Quat.angle_axis(-Math.atan2(rising,2.0),Math.Vec3.right())
+    let surface=Physics.Transform3D(Math.Vec3(0.0,ArenaGround.height(0.0,z),z),rotation)
     return Physics.Transform3D(surface.point(Math.Vec3(0.0,2.35,0.0)),rotation)
 }
 
-// Rear wheels start on the yellow table's side edge, front wheels towards
+// Rear wheels start on the table's earthen shoulder, front wheels towards
 // the ground. Keep the normal interactive controls for contact diagnosis.
 package func ledge_spawn() Physics.Transform3D {
     let pitch:float=0.625
     let yaw=Math.Quat.angle_axis(Math.half_pi(),Math.Vec3.up())
     let rotation=yaw.multiply(Math.Quat.angle_axis(pitch,Math.Vec3.right()))
     let height=1.1+1.05*Math.cos(pitch)+2.05*Math.sin(pitch)
-    return Physics.Transform3D(Math.Vec3(6.3,height,25.0),rotation)
+    return Physics.Transform3D(Math.Vec3(10.0,height,26.0),rotation)
 }
 
 package func bumps_spawn() Physics.Transform3D {

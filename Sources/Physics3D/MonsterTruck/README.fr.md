@@ -2,12 +2,12 @@
 
 [English](README.md)
 
-Conduire un pickup à quatre pneus déformables dans une arène géométrique de
-freestyle : tables de saut, butte à quatre accès, grandes rampes, réception,
-cuvette, petites bosses, rails de slide et quarter-pipe. Le pickup a des ailes découpées,
+Conduire un pickup à quatre pneus déformables sur une piste de terre de
+144 × 184 m. Les tables de saut, les plateaux, la cuvette et les petites bosses
+font partie du relief. Des bandes dégagées entre les bosses permettent de
+choisir son angle et de reprendre de l’élan. Le pickup a des ailes découpées,
 un châssis tubulaire apparent et un sabot en acier sous la transmission.
-Une texture de terre compacte et de gravier couvre le sol. Les faces jaunes et
-rouges montrent les trajectoires, avec des bordures blanches. Sur le sol de
+Une texture de terre compacte et de gravier couvre le sol. Sur le sol de
 l’arène, les pneus soulèvent de la poussière et font entendre le gravier.
 Le patinage soulève un nuage plus dense. Une réception sur la terre
 soulève une bouffée autour des roues et produit un choc sourd.
@@ -26,7 +26,7 @@ Une flèche indique son entrée. Sa lèvre
 revient légèrement vers la rampe. Dose l’élan et utilise le frein en vol pour
 ajuster l’assiette avant la réception.
 
-Les deux rails en acier se trouvent au fond, du côté de la piste de contrôle.
+Les deux rails en acier se trouvent au fond à gauche.
 Aligne le centre du camion sur
 la flèche et garde les roues sur les deux bosses d’accès. Le sabot prend le
 relais au milieu. Le rail proche des petites bosses monte, celui proche du bord descend.
@@ -80,8 +80,8 @@ progressivement la vue dans la nouvelle direction de déplacement.
 
 Commencer tout droit par la grande table, puis la butte centrale et ses quatre
 accès. À gauche se trouvent un tremplin et une réception séparée ; à droite,
-une cuvette à deux montées. Les petites bosses sont au fond. La piste de
-contrôle, avec une bosse et trois blocs, reste à l’extrême gauche.
+une cuvette à deux montées. Les petites bosses sont au fond. À gauche, un
+passage longe les buttes du bord et rejoint les rails de slide.
 
 Pour un cabrage, donner un bref appui sur Maj + Z puis relâcher. Pour lever
 l’arrière, prendre de la vitesse puis donner un bref appui sur Espace. Le couple
@@ -175,10 +175,13 @@ masse bas. Le braquage reste disponible à haute vitesse, avec un minimum de
 
 La simulation tourne à 120 Hz, avec huit couplages à 960 Hz et un sous-pas
 souple par couplage ; le solveur rigide utilise huit itérations de vitesse.
-Les facettes du terrain sont des solides dont les surfaces supérieures se
-raccordent. Le quarter-pipe partage le même profil courbe entre le rendu et
-les collisions. Le dessous du sabot correspond à la face basse du volume
-de collision central du châssis.
+Le rendu et les collisions du terrain partagent une carte de hauteurs
+échantillonnée tous les mètres. Le relief est statique. La carte de compaction
+réserve le sol sous le quarter et ses abords, protège les ancrages des rails,
+et distingue les bosses tassées des zones meubles pour une future déformation.
+Le quarter-pipe partage aussi son profil courbe entre rendu et collisions.
+Le dessous du sabot correspond à la face basse du volume de collision
+central du châssis.
 
 Le pneu visible se déforme sous la charge. Sa bande de roulement conserve un
 profil plat dans le sens de la largeur. Les chevrons biseautés se prolongent
@@ -209,7 +212,7 @@ Build/MonsterTruck-Airborne-Checks
 
 Elles couvrent la physique, les gonflages, le centrage, les figures sur appuis
 courts, les commandes, le HUD, les raccords du terrain et le roulage lent sur
-les vraies facettes inclinées. `DriveChecks` compare aussi la reprise à la
+les pentes de terre. `DriveChecks` compare aussi la reprise à la
 propulsion antérieure, le boost en roulant, un cabrage récupérable et les
 rapports de pont extrêmes. `AirborneChecks` couvre les orientations, les pédales
 au sol/en vol et les rotations aériennes complètes. Les états sont comparés à
@@ -237,12 +240,12 @@ simulé permet de distinguer une surcharge de simulation du reste de la frame.
 `focused` indique le focus lors de la dernière mise à jour ; `focus_changed`
 signale une transition pendant l’intervalle mesuré. Écarter les intervalles de
 transition pour comparer les performances au premier plan et en arrière-plan.
-`--ledge` place le camion sur l’arête latérale de la table jaune, roues arrière
-sur le module et roues avant vers le sol ; les commandes restent disponibles.
-`--bumps` démarre sur les petites bosses jaunes. `--profile-bumps` y maintient
+`--ledge` place le camion sur le talus latéral de la table, roues arrière
+sur le relief et roues avant vers le sol ; les commandes restent disponibles.
+`--bumps` démarre sur les petites bosses. `--profile-bumps` y maintient
 les freins pendant douze secondes, avec un HUD de mesure et fermeture automatique.
 `ModuleCostChecks.sx` compare sans fenêtre le plat, les petites bosses, les
-rampes centrales, un module latéral et l’arête de la table : temps de calcul
+rampes centrales, une butte latérale et l’arête de la table : temps de calcul
 par seconde simulée, coût maximal d’un pas et état physique. Ce contrôle ne
 mesure pas les FPS du rendu.
 Ces mesures sont optionnelles ; le lancement ordinaire ne produit aucune trace.

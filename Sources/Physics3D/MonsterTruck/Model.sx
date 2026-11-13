@@ -4,11 +4,13 @@ use Physics3D.MonsterTruck.Wheel
 use Physics3D.MonsterTruck.TyreProfile
 use Physics3D.MonsterTruck.Chassis
 use Physics3D.MonsterTruck.Terrain
+use Physics3D.MonsterTruck.ArenaGround
 use Physics3D.MonsterTruck.SlideRails
 use Physics3D.MonsterTruck.Transmission
 
 package class Truck {
     var world:Physics.World3D
+    let ground_heights:float[]
     var chassis:Physics.RigidBody3D
     var wheels:Wheel[]=[]
     var steering:float=0.0
@@ -26,9 +28,14 @@ package class Truck {
         self.final_drive=final_drive;self.motor=Transmission.create(final_drive)
         self.world=Physics.World3D(Physics.World3DSettings() ..soft_body_substeps=1 ..velocity_iterations=8)
         if workers>1 { self.world.enable_parallelism(workers) }
-        self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
-            ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0
-            ..collision_filter=Physics.CollisionFilter3D(category_bits:1,mask_bits:14))
+        if obstacles {
+            self.ground_heights=ArenaGround.samples()
+        } else {
+            self.ground_heights=[]
+            self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
+                ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0
+                ..collision_filter=Physics.CollisionFilter3D(category_bits:ArenaGround.Collision.category,mask_bits:14))
+        }
         self.chassis=self.world.create_rigid_body(Physics.RigidBody3DSettings()
             ..shape=Chassis.shape()
             ..transform=spawn
@@ -36,13 +43,16 @@ package class Truck {
             ..mass_properties=Physics.MassProperties3D(150.0,Math.Vec3(269.8,319.6,60.4),Math.Vec3(0.0,-0.85,0.15))
             ..allow_sleep=false ..linear_damping=0.05 ..angular_damping=0.15
             ..collision_filter=Physics.CollisionFilter3D(category_bits:8,mask_bits:1 + SlideRails.Collision.surface))
-        if obstacles { Terrain.create(self.world) }
         var definition=TyreProfile.make(tyre_flex)
         let sides:float[]=[-2.05,2.05];let axles:float[]=[-2.05,2.05]
         for x in sides { for z in axles {
             self.wheels.append(Wheel(self.world,self.chassis,definition,Math.Vec3(x,-1.05,z)))
             self.support_hits.append(null)
         } }
+        if obstacles {
+            let heights=self.ground_heights
+            Terrain.create(self.world,heights)
+        }
     }
     func controls(throttle:float,turn:float,brake:bool=false,handbrake:bool=false,rear_turn:float?=null,hard_brake:bool=false) {
         self.gas=throttle;self.brake=brake;self.handbrake=handbrake;self.hard_brake=hard_brake

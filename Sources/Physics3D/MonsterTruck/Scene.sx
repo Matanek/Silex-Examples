@@ -93,7 +93,7 @@ package func labels(state:&TruckScene) {
 }
 
 package func startup(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images,state:&TruckScene) {
-    Environment.create(world,meshes,images);state.create_view(world,meshes)
+    Environment.create(world,meshes,images,state.truck.ground_heights);state.create_view(world,meshes)
     state.dirt=TyreDirt(world,meshes,images)
     state.camera=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
         ..with(Components.Camera3D(vertical_fov:Math.radians(62.0),far_plane:450.0)))

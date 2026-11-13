@@ -1,27 +1,35 @@
 use GFX.Assets.PNG
+use GFX.Assets.Image
 use GFX.Color
 use GFX.Components
 use GFX.ECS
 use GFX.Resources
 use GFX.Scene3D
-use Physics3D.MonsterTruck.ArenaView
+use Physics3D.MonsterTruck.ArenaGround
 use Physics3D.MonsterTruck.Markings
+use Physics3D.MonsterTruck.QuarterPipe
+use Physics3D.MonsterTruck.SlideRails
 use STD.Math
 
-package func create(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images) {
+package func create(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images,heights:@float[]) {
     let dirt=images.add(PNG.decode(embed_bytes("Assets/PackedDirt.png")))
-    let ground=meshes.add(Scene3D.Geometry.Plane.make(Math.Vec2(1024.0)))
-    // Scene3D multiplies the sRGB texture in linear space. Cool the ochre without flattening the grit.
-    world.spawn(ECS.EntityRecipe()
-        ..with(Components.Transform3D(rotation:Math.Quat.angle_axis(-Math.half_pi(),Math.Vec3.right())))
-        ..with(Components.Mesh3D(ground,casts_shadows:false))
-        ..with(Components.Material3D(albedo:Color.bytes(123,135,245),roughness:1.0))
-        ..with(Components.MaterialSettings3D(textures:Components.MaterialTextures3D(
-            albedo:Components.MaterialTexture3D(image:dirt,scale:Math.Vec2(256.0))))))
-    ArenaView.create(world,meshes)
+    terrain_mesh(world,meshes,dirt,ArenaGround.mesh(heights),ArenaGround.origin())
+    QuarterPipe.create_view(world,meshes)
+    SlideRails.create_view(world,meshes)
     let cube=meshes.add(Scene3D.Geometry.Cube.make())
     Markings.create(world,meshes,cube)
     world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.55)))
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:3.0)
         ..shadow_distance=65.0))
+}
+
+func terrain_mesh(world:&Resources.World,meshes:&Resources.Meshes3D,dirt:Image.Handle,
+    surface:Scene3D.Geometry.Mesh,origin:Math.Vec3) {
+    let ground=meshes.add(surface)
+    world.spawn(ECS.EntityRecipe()
+        ..with(Components.Transform3D(position:origin))
+        ..with(Components.Mesh3D(ground))
+        ..with(Components.Material3D(albedo:Color.bytes(123,135,245),roughness:1.0))
+        ..with(Components.MaterialSettings3D(textures:Components.MaterialTextures3D(
+            albedo:Components.MaterialTexture3D(image:dirt)))))
 }
