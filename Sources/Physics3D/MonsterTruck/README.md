@@ -60,8 +60,6 @@ D + A enables crab motion.
 The camera follows horizontal travel with a level horizon. It holds its last
 course at low speed or at rest, so wheelies and rollovers do not rotate it with
 the chassis. Reversing gradually turns the view toward the new travel direction.
-The camera interpolates its target between the last two physics steps to
-avoid stepping when the render rate differs from the simulation's 120 Hz.
 
 Start straight ahead with the large table, then explore the central mound
 and its four approaches. The left side has a takeoff and separate landing;

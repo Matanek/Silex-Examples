@@ -6,7 +6,6 @@ use Physics3D.MonsterTruck.Terrain
 use Physics3D.MonsterTruck.Transmission
 
 package class Truck {
-    static let fixed_delta:float=1.0/120.0
     var world:Physics.World3D
     var chassis:Physics.RigidBody3D
     var wheels:Wheel[]=[]
@@ -98,7 +97,7 @@ package class Truck {
         if self.brake || Math.abs(self.gas)>1.0 { rise=0.1 }
         self.drive+=Math.clamp(self.gas-self.drive,-0.1,rise)
         if self.brake && Math.abs(self.gas)<0.001 { self.drive=0.0 }
-        let delta=Truck.fixed_delta/8.0
+        let delta=1.0/960.0
         for _ in 0...8 {
             var mean=0.0
             for i,wheel in self.wheels.indexed() {

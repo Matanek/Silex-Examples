@@ -11,8 +11,6 @@ use GFX.UI
 use Physics3D.MonsterTruck.Scene
 use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.HudChecks
-use Physics3D.MonsterTruck.ChaseCamera
-use Physics3D.MonsterTruck.Model
 use STD.Math
 
 func key_event(key:Input.Key,code:uint32) Events.Event {
@@ -42,40 +40,6 @@ func click(world:&Resources.World,state:&Scene.TruckScene,name:str) {
         clicks:down.clicks,position:point,timestamp:down.timestamp)
     assert(Scene.handle(world,state,Events.Event.mouse_button_pressed(down)))
     assert(Scene.handle(world,state,Events.Event.mouse_button_released(up)))
-}
-
-func verify_camera_cadence(world:&Resources.World,scene:&Scene.TruckScene) {
-    let start=Math.Vec3(140.0,12.0,180.0)
-    var state=Scene.TruckScene(1,spawn:Physics.Transform3D(start))
-    state.camera=scene.camera
-    let velocity=Math.Vec3(0.0,4.0,18.0)
-    state.truck.chassis.set_linear_velocity(velocity)
-    for wheel in state.truck.wheels {
-        wheel.rim.set_linear_velocity(velocity)
-        for vertex in 0...wheel.tyre.vertex_count() { wheel.tyre.apply_impulse(vertex,velocity.multiply(0.05)) }
-    }
-    var reference=ChaseCamera(start)
-
-    // Catch up two physics steps, then render two frames within the same interval.
-    state.step()
-    let previous=state.truck.chassis.position()
-    let previous_velocity=state.truck.chassis.linear_velocity()
-    state.step()
-    let current=state.truck.chassis.position()
-    let current_velocity=state.truck.chassis.linear_velocity()
-    assert(current.subtract(previous).length()>0.05)
-    let frame_delta:float=1.0/240.0
-    let fractions:float[]=[0.25,0.75,1.5]
-    for fraction in fractions {
-        state.accumulator=fraction*Model.Truck.fixed_delta
-        let alpha=Math.min(fraction,1.0)
-        reference.update(previous.lerp(current,alpha),previous_velocity.lerp(current_velocity,alpha),frame_delta)
-        Scene.follow(world,state,frame_delta)
-        let view=world.get<Components.Transform3D>(state.camera)
-        assert(view.position.nearly_equal(reference.transform().position,0.000001),
-            "camera must follow the in-between position even on frames with no new physics step")
-        assert(Math.abs(view.rotation.dot(reference.transform().rotation))>0.999999)
-    }
 }
 
 package func verify() {
@@ -209,7 +173,6 @@ package func verify() {
     // The same travel direction must keep the same course even as the body
     // stands on its rear wheels, rolls onto its roof, or pitches beyond vertical.
     state.truck.chassis.set_linear_velocity(Math.Vec3(0.0,0.0,5.0))
-    state.accumulator=Model.Truck.fixed_delta
     let heading=state.chase.yaw
     let tilts:float[]=[Math.half_pi(),Math.pi(),Math.pi()*1.5]
     let axes:Math.Vec3[]=[Math.Vec3.right(),Math.Vec3.back()]
@@ -221,8 +184,7 @@ package func verify() {
         let view=world.get<Components.Transform3D>(state.camera)
         assert(Math.abs(view.rotation.rotate(Math.Vec3.right()).y)<0.00001)
     } }
-    verify_camera_cadence(world,state)
-    print("Monster scene checks passed: input, reset, true tyre meshes, shortcuts and HUD, interpolated travel camera and rollover horizon")
+    print("Monster scene checks passed: input, reset, true tyre meshes, shortcuts and HUD, travel camera and rollover horizon")
 }
 
 func main() { verify() }

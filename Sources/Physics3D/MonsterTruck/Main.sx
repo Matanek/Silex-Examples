@@ -6,7 +6,6 @@ use GFX.Plugins
 use GFX.Resources
 use GFX.Scene2D
 use Physics3D.MonsterTruck.Terrain
-use Physics3D.MonsterTruck.Model
 use Physics3D.MonsterTruck.Scene
 use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.Checks
@@ -41,7 +40,7 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
     var clock=Time.Stopwatch();clock.start()
     state.accumulator=Math.min(state.accumulator+Math.min(simulation.delta(),0.1),0.1)
     var ticks=0
-    while state.accumulator>=Model.Truck.fixed_delta && ticks<8 {
+    while state.accumulator>=1.0/120.0 && ticks<8 {
         if state.profile {
             var gas=0.0;if state.truck.steps>=240 { gas=state.profile_throttle }
             if state.hold_profile { state.truck.controls(0.0,0.0,brake:true,handbrake:true) }
@@ -56,7 +55,7 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
         } else {
             state.panel.drive(state.truck)
         }
-        state.step();state.accumulator-=Model.Truck.fixed_delta;ticks++
+        state.truck.step();state.accumulator-=1.0/120.0;ticks++
     }
     let physics_seconds=clock.get_elapsed_seconds()
     state.metrics.physics_seconds+=physics_seconds
@@ -91,7 +90,7 @@ func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
         }
         print("profile slope_contacts=",slopes," speed=",state.truck.chassis.linear_velocity().length()," elapsed=",state.metrics.elapsed," fps=",state.metrics.fps,
             " z=",state.truck.chassis.position().z," y=",state.truck.chassis.position().y,
-            " simulated_seconds=",(state.truck.steps as float)*Model.Truck.fixed_delta," physics_seconds=",state.metrics.physics_seconds,
+            " simulated_seconds=",(state.truck.steps as float)/120.0," physics_seconds=",state.metrics.physics_seconds,
             " x=",state.truck.chassis.position().x," sector=",Terrain.section_name(Terrain.section(state.truck.chassis.position())),
             " physics_ms_per_tick=",state.trace_physics_seconds*1000.0/Math.max(1.0,state.trace_physics_ticks as float),
             " maximum_update_ms=",state.trace_maximum_update*1000.0," focused=",state.trace_focused,

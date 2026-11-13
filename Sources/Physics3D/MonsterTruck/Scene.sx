@@ -29,8 +29,6 @@ package class TruckScene {
     var shortcut_bottom:float=0.0
     var hud_visible:bool=false
     var accumulator:float=0.0
-    var previous_chassis_position:Math.Vec3
-    var previous_chassis_velocity:Math.Vec3
     var telemetry:float=0.0
     var chase:ChaseCamera
     var metrics:Metrics=Metrics()
@@ -56,28 +54,18 @@ package class TruckScene {
         else if ramp {self.truck=Model.Truck(workers,obstacles:true,
             spawn:Physics.Transform3D(Math.Vec3(-2.0,2.35,8.0),Math.Quat.angle_axis(0.3,Math.Vec3.up())))}
         else { self.truck=Model.Truck(workers,obstacles:true) }
-        self.previous_chassis_position=self.truck.chassis.position()
-        self.previous_chassis_velocity=self.truck.chassis.linear_velocity()
-        self.chase=ChaseCamera(self.previous_chassis_position,self.truck.chassis.transform().vector(Math.Vec3.back()))
+        self.chase=ChaseCamera(self.truck.chassis.position(),self.truck.chassis.transform().vector(Math.Vec3.back()))
         if profile { self.ui=UI.Session(self.panel.measurement(slope,ramp,throttle,turn,duration,bumps:bumps)) }
         else { self.ui=UI.Session(self.panel.describe()) }
     }
     func create_view(world:&Resources.World,meshes:&Resources.Meshes3D) {
         self.view=PickupView(self.truck,world,meshes)
     }
-    func step() {
-        self.previous_chassis_position=self.truck.chassis.position()
-        self.previous_chassis_velocity=self.truck.chassis.linear_velocity()
-        self.truck.step()
-    }
     func reset(world:&Resources.World,meshes:&Resources.Meshes3D) {
         var next=Model.Truck(self.workers,obstacles:true,final_drive:self.truck.final_drive)
         next.set_pressure(self.panel.pressure())
         self.view!.rebind(next,world,meshes);self.truck=next
-        self.accumulator=0.0
-        self.previous_chassis_position=self.truck.chassis.position()
-        self.previous_chassis_velocity=self.truck.chassis.linear_velocity()
-        self.chase.reset(self.previous_chassis_position)
+        self.accumulator=0.0;self.chase.reset(self.truck.chassis.position())
         self.panel.reset=false
         if var sound=self.sound { sound.reset() }
     }
@@ -160,11 +148,7 @@ package func perform(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Tr
 }
 
 package func follow(world:&Resources.World,state:&TruckScene,delta:float) {
-    // Sample between the last two physics states, one tick behind real time.
-    let alpha=Math.clamp(state.accumulator/Model.Truck.fixed_delta,0.0,1.0)
-    let position=state.previous_chassis_position.lerp(state.truck.chassis.position(),alpha)
-    let velocity=state.previous_chassis_velocity.lerp(state.truck.chassis.linear_velocity(),alpha)
-    state.chase.update(position,velocity,delta)
+    state.chase.update(state.truck.chassis.position(),state.truck.chassis.linear_velocity(),delta)
     let pose=state.chase.transform()
     world.update<Components.Transform3D>(state.camera,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
 }
