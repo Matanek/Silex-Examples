@@ -13,6 +13,7 @@ use Physics3D.MonsterTruck.Environment
 use Physics3D.MonsterTruck.Terrain
 use Physics3D.MonsterTruck.ChaseCamera
 use Physics3D.MonsterTruck.EngineSound
+use Physics3D.MonsterTruck.TyreDirt
 use Physics3D.MonsterTruck.StutterTrace
 use Physics3D.SoftTire.Metrics
 use STD.Math
@@ -22,6 +23,7 @@ package class TruckScene {
     var panel:Controls.Panel=Controls.Panel()
     var ui:UI.Session
     var view:PickupView?=null
+    var dirt:TyreDirt?=null
     var camera:ECS.Entity=ECS.Entity()
     var hud:ECS.Entity=ECS.Entity()
     var shortcut_line:ECS.Entity=ECS.Entity()
@@ -64,12 +66,13 @@ package class TruckScene {
     func create_view(world:&Resources.World,meshes:&Resources.Meshes3D) {
         self.view=PickupView(self.truck,world,meshes)
     }
-    func reset() {
+    func reset(world:&Resources.World) {
         var next=Model.Truck(self.workers,obstacles:true,final_drive:self.truck.final_drive)
         next.set_pressure(self.panel.pressure())
         self.view!.rebind(next);self.truck=next
         self.accumulator=0.0;self.chase.reset(self.truck.chassis.position())
         self.panel.reset=false
+        if var dirt=self.dirt { dirt.reset(world) }
         if var sound=self.sound { sound.reset() }
     }
 }
@@ -91,6 +94,7 @@ package func labels(state:&TruckScene) {
 
 package func startup(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images,state:&TruckScene) {
     Environment.create(world,meshes,images);state.create_view(world,meshes)
+    state.dirt=TyreDirt(world,meshes,images)
     state.camera=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
         ..with(Components.Camera3D(vertical_fov:Math.radians(62.0),far_plane:450.0)))
     labels(state)
@@ -139,8 +143,8 @@ package func handle(world:&Resources.World,state:&TruckScene,event:@Events.Event
     return state.hud_visible && state.ui.handle(event)
 }
 
-package func perform(state:&TruckScene) {
-    if state.panel.reset { state.reset() }
+package func perform(world:&Resources.World,state:&TruckScene) {
+    if state.panel.reset { state.reset(world) }
     if state.panel.changed { state.truck.set_pressure(state.panel.pressure());state.panel.changed=false }
     if state.panel.gearing_requested {
         state.panel.gearing_requested=false

@@ -7,7 +7,8 @@ jump tables, a mound with four approaches, large ramps, a landing ramp,
 a two-sided bowl, small rollers, slide rails and a quarter-pipe. The pickup has cutaway
 fenders, an exposed tube frame and a steel skid plate under the transmission.
 The arena floor uses a packed dirt and gravel texture. Yellow and red surfaces
-mark the lines, with white borders.
+mark the lines, with white borders. On loose soil, the tires leave a dust
+trail and a gravel sound. Wheel slip throws more clods.
 
 ## Launch and drive
 
@@ -18,8 +19,8 @@ silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 ```
 
 The render loop is paced at 120 Hz, matching the physics simulation. The
-quarter-pipe is beyond the bowl, near the edge of the arena. An arrow marks
-its approach.
+16 m wide quarter-pipe is beyond the bowl, near the edge of the arena. An
+arrow marks its approach.
 Its lip turns slightly back toward the ramp. Adjust your approach speed and
 use the brake in the air to set up the landing.
 
@@ -245,8 +246,9 @@ The `AudioEngineSimulator.Engines` module supplies the Chevrolet 454 through
 `Library.driven_engine("454")`. MonsterTruck passes `engine_rpm` and normalized
 combustion torque through `OperatingState`. Sound follows the RPM produced by
 shifts, the clutch and the wheels. The physics loop consumes ready blocks.
-Playback holds up to five queued blocks and four native requests, about 98 ms
-excluding the device. R resets the sound as well.
+Playback holds up to ten queued blocks and four native requests. The gravel
+loop is synthesized at startup, and its volume follows tire speed and slip
+on loose dirt. R resets the sound and particles.
 
 Offline integration check without a window or audio device:
 

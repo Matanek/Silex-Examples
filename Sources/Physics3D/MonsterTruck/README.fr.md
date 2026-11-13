@@ -7,7 +7,9 @@ freestyle : tables de saut, butte à quatre accès, grandes rampes, réception,
 cuvette, petites bosses, rails de slide et quarter-pipe. Le pickup a des ailes découpées,
 un châssis tubulaire apparent et un sabot en acier sous la transmission.
 Une texture de terre compacte et de gravier couvre le sol. Les faces jaunes et
-rouges montrent les trajectoires, avec des bordures blanches.
+rouges montrent les trajectoires, avec des bordures blanches. Sur le sol de
+l’arène, les pneus soulèvent de la poussière et font entendre le gravier.
+Le patinage accentue les projections de terre.
 
 ## Lancer et conduire
 
@@ -18,7 +20,8 @@ silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 ```
 
 La boucle de rendu est cadencée à 120 Hz, comme la simulation. Le quarter-pipe
-se trouve derrière la cuvette, près du bord de l’arène. Une flèche indique son entrée. Sa lèvre
+fait 16 m de large et se trouve derrière la cuvette, près du bord de l’arène.
+Une flèche indique son entrée. Sa lèvre
 revient légèrement vers la rampe. Dose l’élan et utilise le frein en vol pour
 ajuster l’assiette avant la réception.
 
@@ -260,9 +263,10 @@ Le module `AudioEngineSimulator.Engines` fournit le Chevrolet 454 via
 `Library.driven_engine("454")`. MonsterTruck transmet `engine_rpm` et le couple
 de combustion normalisé via `OperatingState`. Le son suit le régime issu des
 passages de rapport, de l’embrayage et du mouvement des roues. La boucle physique
-consomme les blocs prêts. La file contient au plus cinq blocs de lecture et
-quatre demandes natives, environ 98 ms hors périphérique. R réinitialise aussi
-le son.
+consomme les blocs prêts. La file contient au plus dix blocs de lecture et
+quatre demandes natives. Le bruit de gravier utilise une boucle synthétisée
+au démarrage, avec un volume piloté par la vitesse et le patinage sur la terre.
+R réinitialise aussi le son et les particules.
 
 Contrôle croisé hors ligne, sans fenêtre ni périphérique sonore :
 

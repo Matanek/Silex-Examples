@@ -41,7 +41,7 @@ func update(world:&Resources.World,state:&Scene.TruckScene,input:@Resources.Inpu
                 else=>{}
             }
         }
-        Scene.perform(state)
+        Scene.perform(world,state)
     }
     if state.profile && state.metrics.elapsed>=state.profile_duration {
         state.metrics.report(state.truck.steps)
@@ -96,6 +96,10 @@ func sync_view(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Tr
     // Scene3D gathers the camera, transforms and meshes during render.
     state.view!.update(world,meshes)
     Scene.follow(world,state,simulation.delta())
+    if var dirt=state.dirt {
+        let intensity=dirt.update(world,meshes,state.truck,state.chase.transform(),simulation.delta())
+        if var sound=state.sound { sound.update_gravel(intensity,simulation.delta()) }
+    }
     if var trace=state.stutter_trace {
         trace.prepared(state.truck.steps,state.view!.last_step,state.truck.chassis.transform(),
             state.truck.chassis.linear_velocity(),state.chase.yaw)

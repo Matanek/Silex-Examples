@@ -1,0 +1,209 @@
+use GFX.Assets.Image
+use GFX.Color
+use GFX.Components
+use GFX.ECS
+use GFX.Resources
+use GFX.Scene3D
+use Physics3D.MonsterTruck.DirtTracks
+use Physics3D.MonsterTruck.Model
+use STD.Math
+use STD.Randomizer
+
+static struct Limits {
+    let clods:int=48
+    let clouds:int=28
+}
+
+struct Particle {
+    var position:Math.Vec3
+    var velocity:Math.Vec3
+    var age:float
+    let lifetime:float
+    let size:float
+    let angle:float
+}
+
+package class TyreDirt {
+    private let stone_entity:ECS.Entity
+    private let dust_entity:ECS.Entity
+    private let dust_mesh:Scene3D.MeshHandle
+    private var stones:Particle[]=[]
+    private var clouds:Particle[]=[]
+    private var dust_credit:float[]=[0.0,0.0,0.0,0.0]
+    private var stone_credit:float[]=[0.0,0.0,0.0,0.0]
+    private var random:Randomizer=Randomizer(9874)
+    private var drawing_stones:bool=false
+    private var drawing_clouds:bool=false
+
+    init(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images) {
+        let rock=meshes.add(Scene3D.Geometry.Cube.make())
+        self.stone_entity=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
+            ..with(Components.Mesh3D(rock,casts_shadows:false))
+            ..with(Components.Material3D(albedo:Color.bytes(85,61,43),roughness:1.0))
+            ..with(Scene3D.Instances()))
+        self.dust_mesh=meshes.add(Scene3D.Geometry.Plane.make())
+        let image=images.add(dust_image())
+        self.dust_entity=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
+            ..with(Components.Mesh3D(self.dust_mesh,casts_shadows:false))
+            ..with(Components.Material3D(albedo:Color.bytes(151,126,99)))
+            ..with(Components.MaterialSettings3D(alpha:Scene3D.AlphaMode.blend,double_sided:true,unlit:true,
+                textures:Components.MaterialTextures3D(albedo:Components.MaterialTexture3D(image:image)))))
+        world.enable(self.stone_entity,false)
+        world.enable(self.dust_entity,false)
+    }
+
+    func reset(world:&Resources.World) {
+        self.stones.clear()
+        self.clouds.clear()
+        for index in 0...4 {
+            self.dust_credit[index]=0.0
+            self.stone_credit[index]=0.0
+        }
+        self.set_visibility(world,false,false)
+    }
+
+    func update(world:&Resources.World,meshes:&Resources.Meshes3D,truck:@Model.Truck,camera:Scene3D.Transform,delta:float) float {
+        // The batches are bounded and reused. Only active particles produce
+        // new vertices or instance transforms during a frame.
+        let dt=Math.clamp(delta,0.0,0.05)
+        self.stones=advance(self.stones,dt,12.0)
+        self.clouds=advance(self.clouds,dt,0.0)
+        var noise=0.0
+        for index in 0...4 {
+            if let track=DirtTracks.track(truck,index) {
+                self.dust_credit[index]+=track.mist*dt*8.0
+                self.stone_credit[index]+=track.clods*dt*19.0
+                if self.dust_credit[index]>=1.0 {
+                    self.dust_credit[index]-=1.0
+                    if self.clouds.count()<Limits.clouds { self.clouds.append(self.particle(track,true)) }
+                }
+                while self.stone_credit[index]>=1.0 {
+                    self.stone_credit[index]-=1.0
+                    if self.stones.count()<Limits.clods { self.stones.append(self.particle(track,false)) }
+                }
+                noise+=track.rumble*0.25
+            } else {
+                self.dust_credit[index]=0.0
+                self.stone_credit[index]=0.0
+            }
+        }
+        self.set_visibility(world,!self.stones.is_empty(),!self.clouds.is_empty())
+        if self.drawing_stones {
+            var transforms:Scene3D.Transform[]=[]
+            for stone in self.stones {
+                let scale=stone.size*Math.min(1.0,(1.0-stone.age/stone.lifetime)*5.0)
+                let rotation=Math.Quat.angle_axis(stone.angle+stone.age*7.0,Math.Vec3(0.6,0.8,0.0))
+                transforms.append(Scene3D.Transform(stone.position,rotation,Math.Vec3(scale,scale*0.72,scale*1.4)))
+            }
+            world.update<Scene3D.Instances>(self.stone_entity,func(instances:&Scene3D.Instances) { instances.replace(transforms) })
+        }
+        if self.drawing_clouds {
+            let origin=self.clouds[0].position
+            world.update<Components.Transform3D>(self.dust_entity,func(transform:&Components.Transform3D) {
+                transform.position=origin
+            })
+            meshes.replace(self.dust_mesh,dust_billboards(self.clouds,camera,origin))
+        }
+        return noise
+    }
+
+    private func set_visibility(world:&Resources.World,rocks:bool,dust:bool) {
+        if rocks!=self.drawing_stones {
+            world.enable(self.stone_entity,rocks)
+            self.drawing_stones=rocks
+        }
+        if dust!=self.drawing_clouds {
+            world.enable(self.dust_entity,dust)
+            self.drawing_clouds=dust
+        }
+    }
+
+    private func particle(track:DirtTracks.Track,dust:bool) Particle {
+        let across=Math.Vec3(-track.spray.z,0.0,track.spray.x)
+        let spread=(self.random.get_float()-0.5)*0.98
+        let angle=self.random.get_float()*Math.two_pi()
+        let position=track.point.add(across.multiply(spread)).add(Math.Vec3(0.0,0.09,0.0))
+        if dust {
+            let speed=0.9+self.random.get_float()*1.9
+            let velocity=track.spray.multiply(speed).add(across.multiply(spread))
+                .add(Math.Vec3(0.0,0.22+self.random.get_float()*0.42,0.0))
+            return Particle(position:position,velocity:velocity,age:0.0,lifetime:0.6+self.random.get_float()*0.65,
+                size:0.72+self.random.get_float()*0.53,angle:angle)
+        }
+        let speed=(2.3+self.random.get_float()*3.2)*(0.55+0.80*track.clods)
+        let velocity=track.spray.multiply(speed).add(across.multiply(spread*2.8))
+            .add(Math.Vec3(0.0,1.7+self.random.get_float()*1.8,0.0))
+        return Particle(position:position,velocity:velocity,age:0.0,lifetime:0.34+self.random.get_float()*0.32,
+            size:0.026+self.random.get_float()*0.064,angle:angle)
+    }
+}
+
+func advance(particles:@Particle[],dt:float,gravity:float) Particle[] {
+    var alive:Particle[]=[]
+    for item in particles {
+        var particle=item
+        particle.age+=dt
+        if particle.age>=particle.lifetime { continue }
+        particle.velocity.y-=gravity*dt
+        particle.position=particle.position.add(particle.velocity.multiply(dt))
+        if particle.position.y>=0.02 { alive.append(particle) }
+    }
+    return alive
+}
+
+func dust_billboards(particles:@Particle[],camera:Scene3D.Transform,origin:Math.Vec3) Scene3D.Geometry.Mesh {
+    let right=camera.rotation.rotate(Math.Vec3.right())
+    let up=camera.up()
+    let forward=camera.forward()
+    var order:int[]=[]
+    var depth:float[]=[]
+    for i,particle in particles.indexed() {
+        let distance=particle.position.subtract(camera.position).dot(forward)
+        depth.append(distance)
+        order.append(i)
+        var j=i
+        while j>0 && depth[order[j-1]]<distance {
+            order[j]=order[j-1]
+            j--
+        }
+        order[j]=i
+    }
+    var vertices:Scene3D.Geometry.Vertex[]=[]
+    var indices:uint32[]=[]
+    for i in order {
+        let particle=particles[i]
+        let age=particle.age/particle.lifetime
+        let extent=particle.size*(0.35+0.88*age)
+        let alpha=Math.min(1.0,age*6.0)*(1.0-age)*0.34
+        let color=Color.white().with_alpha(alpha)
+        let angle=particle.angle+age*0.45
+        let x=right.multiply(Math.cos(angle)*extent).add(up.multiply(Math.sin(angle)*extent))
+        let y=up.multiply(Math.cos(angle)*extent).subtract(right.multiply(Math.sin(angle)*extent))
+        let p=particle.position.subtract(origin)
+        let base=vertices.count() as uint32
+        let normal=forward.negated()
+        vertices.append(Scene3D.Geometry.Vertex(p.subtract(x).subtract(y),normal,Math.Vec2(0.0,1.0),color))
+        vertices.append(Scene3D.Geometry.Vertex(p.add(x).subtract(y),normal,Math.Vec2(1.0),color))
+        vertices.append(Scene3D.Geometry.Vertex(p.add(x).add(y),normal,Math.Vec2(1.0,0.0),color))
+        vertices.append(Scene3D.Geometry.Vertex(p.subtract(x).add(y),normal,Math.Vec2(),color))
+        indices.append(base);indices.append(base+1 as uint32);indices.append(base+2 as uint32)
+        indices.append(base);indices.append(base+2 as uint32);indices.append(base+3 as uint32)
+    }
+    return Scene3D.Geometry.Mesh(vertices,indices)
+}
+
+func dust_image() Image {
+    var pixels:uint8[]=[]
+    for row in 0...32 {
+        let y=((row as float)+0.5)/16.0-1.0
+        for column in 0...32 {
+            let x=((column as float)+0.5)/16.0-1.0
+            let radius=x*x+y*y
+            let grain=0.85+0.15*Math.sin(x*15.0+y*7.0)*Math.cos(y*12.0-x*6.0)
+            let edge=Math.max(0.0,1.0-radius)
+            let alpha=Math.round(Math.clamp(edge*edge*grain,0.0,1.0)*255.0) as uint8
+            pixels.append(255 as uint8);pixels.append(255 as uint8);pixels.append(255 as uint8);pixels.append(alpha)
+        }
+    }
+    return Image.rgba8(32,32,pixels)
+}

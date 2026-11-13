@@ -1,0 +1,26 @@
+use GFX.Audio
+use STD.Math
+use STD.Randomizer
+
+// Short filtered impacts share a continuous bed of rolling gravel. The source
+// is precomputed once, so a late graphics frame cannot starve this track.
+package func make(audio:&Audio) Audio.Sound {
+    let sample_rate=24_000
+    let duration=sample_rate*2
+    var random=Randomizer(19717)
+    var samples:float32[]=[]
+    var low=0.0
+    var middle=0.0
+    var grains=0.0
+    for i in 0...duration {
+        let white=random.get_float()*2.0-1.0
+        low+=(white-low)*0.045
+        middle+=(white-middle)*0.23
+        if random.get_float()<0.012 { grains=random.get_float(0.27,0.92) }
+        grains*=0.935
+        let edge=Math.min(1.0,(Math.min(i,duration-1-i) as float)/90.0)
+        let grit=low*1.05+middle*0.28+(white-middle)*grains*0.55
+        samples.append((grit*edge*0.58) as float32)
+    }
+    return audio.create(@samples[0:samples.count()],sample_rate)
+}

@@ -20,8 +20,25 @@ func mapping() {
     }
     print("Acoustic mapping passed: physical RPM and torque drive sound without a second transmission")
 }
+func gravel(directory:str?) {
+    var sound=EngineSound(directory,offline:true)
+    sound.update_gravel(0.0,0.016)
+    for sample in sound.render_offline(512) { assert(sample==0.0) }
+    for _ in 0...8 { sound.update_gravel(0.85,0.016) }
+    var energy=0.0
+    for sample in sound.render_offline(8_192) {
+        assert(Math.is_finite(sample) && Math.abs(sample)<1.0)
+        energy+=sample*sample
+    }
+    assert(energy>0.1,"loaded dirt contact must produce audible gravel PCM")
+    for _ in 0...60 { sound.update_gravel(0.0,0.016) }
+    for sample in sound.render_offline(512) { assert(sample==0.0) }
+    print("Gravel loop passed: audible at load and silent at rest")
+}
+
 package func verify(directory:str? = null) {
     mapping()
+    gravel(directory)
     var expected = Model.Truck(); var actual = Model.Truck()
     var sound = EngineSound(directory, offline:true)
     var energy:float64 = 0.0
