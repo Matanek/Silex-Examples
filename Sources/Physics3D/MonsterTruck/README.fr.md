@@ -61,6 +61,9 @@ La caméra suit la direction du déplacement horizontal, avec un horizon fixe.
 Elle conserve son dernier cap à faible vitesse ou à l’arrêt ; un cabrage ou un
 retournement ne la fait donc pas pivoter avec le châssis. Le recul inverse
 progressivement la vue dans la nouvelle direction de déplacement.
+La cible de la caméra est interpolée entre les deux derniers pas physiques
+pour éviter les crans lorsque la cadence du rendu diffère des 120 Hz de la
+simulation.
 
 Commencer tout droit par la grande table, puis la butte centrale et ses quatre
 accès. À gauche se trouvent un tremplin et une réception séparée ; à droite,
