@@ -1,5 +1,7 @@
 use GFX.Physics
 use Physics3D.MonsterTruck.Arena
+use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.QuarterPipe
 use Physics3D.MonsterTruck.Terrain
 use STD.Math
 
@@ -13,6 +15,50 @@ func height(world:Physics.World3D,x:float,z:float,expected:float) {
     assert(hit!=null)
     if Math.abs(hit!.point().y-expected)>=0.0001 { print("arena height x=",x," z=",z," expected=",expected," actual=",hit!.point().y) }
     assert(Math.abs(hit!.point().y-expected)<0.0001 && hit!.normal().y>0.8)
+}
+
+func verify_quarter_geometry(world:Physics.World3D) {
+    let origin=QuarterPipe.Dimensions.origin
+    let r=QuarterPipe.Dimensions.radius
+    let lip=QuarterPipe.Dimensions.angle
+    let facets=QuarterPipe.Dimensions.facets
+    var previous=0.0
+    for i in 0...facets {
+        let a=lip*(i as float)/(facets as float)
+        let b=lip*((i+1) as float)/(facets as float)
+        let y=r*(1.0-(Math.cos(a)+Math.cos(b))*0.5)
+        let z=r*(Math.sin(a)+Math.sin(b))*0.5
+        let normal=Math.Vec3(0.0,Math.cos((a+b)*0.5),-Math.sin((a+b)*0.5))
+        let ray=Physics.Ray3D(origin.add(Math.Vec3(0.0,y+0.5,z)),Math.Vec3(0.0,-1.0,0.0))
+        let hit=world.ray_cast(ray)!
+        assert(Math.abs(hit.point().y-y)<0.0001 && hit.normal().nearly_equal(normal,0.0001))
+        let slope= -hit.normal().z/hit.normal().y
+        assert(slope>previous)
+        if i==0 { assert(slope<0.05) }
+        previous=slope
+    }
+    assert(previous>3.0 && Terrain.section(origin)==Terrain.Section.quarter_pipe)
+}
+
+func verify_quarter_takeoff() {
+    let origin=QuarterPipe.Dimensions.origin
+    var truck=Model.Truck(4,obstacles:true,spawn:Physics.Transform3D(origin.add(Math.Vec3(0.0,2.35,-68.0))))
+    truck.controls(1.0,0.0)
+    let lip=QuarterPipe.Dimensions.radius*(1.0-Math.cos(QuarterPipe.Dimensions.angle))
+    var highest=0.0
+    var launched=false
+    var entry_speed=0.0
+    for _ in 0...1050 {
+        truck.step()
+        let position=truck.chassis.position()
+        let motion=truck.chassis.linear_velocity()
+        highest=Math.max(highest,position.y)
+        if position.z<origin.z { entry_speed=motion.z }
+        if position.y>lip+2.5 && motion.y>2.0 { launched=true }
+        if launched && motion.y<=0.0 { break }
+    }
+    print("Quarter-pipe test: entry m/s=",entry_speed," chassis peak=",highest," lip=",lip)
+    assert(launched,"the quarter-pipe must launch the truck above the lip")
 }
 
 package func verify() {
@@ -33,6 +79,8 @@ package func verify() {
     height(world,0.0,50.25,0.546875);height(world,0.0,65.0,3.5)
     height(world,-14.75,65.0,0.546875);height(world,14.75,65.0,0.546875)
     height(world,-29.0,55.875,2.5);height(world,-29.0,74.75,2.96875)
+    verify_quarter_geometry(world)
+    verify_quarter_takeoff()
     print("Arena geometry passed: continuous facets, solid matching surfaces and multiple approaches")
 }
 

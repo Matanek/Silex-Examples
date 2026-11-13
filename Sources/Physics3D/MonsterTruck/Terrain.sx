@@ -1,6 +1,7 @@
 use GFX.Physics
 use STD.Math
 use Physics3D.MonsterTruck.Arena
+use Physics3D.MonsterTruck.QuarterPipe
 
 package enum Section {
     start
@@ -9,11 +10,16 @@ package enum Section {
     bowl
     kicker
     rollers
+    quarter_pipe
     calibration
     open
 }
 
 package func section(position:Math.Vec3) Section {
+    let quarter=QuarterPipe.Dimensions.origin
+    if Math.abs(position.x-quarter.x)<QuarterPipe.Dimensions.width && position.z>=quarter.z-14.0 && position.z<quarter.z+19.0 {
+        return Section.quarter_pipe
+    }
     if position.x< -37.0 { return Section.calibration }
     if position.z<8.0 { return Section.start }
     if Math.abs(position.x)>18.0 {
@@ -34,6 +40,7 @@ package func section_name(value:Section) str {
         bowl=>{ return "Cuvette" }
         kicker=>{ return "Grandes rampes" }
         rollers=>{ return "Petites bosses" }
+        quarter_pipe=>{ return "Quarter-pipe" }
         calibration=>{ return "Piste de contrôle" }
         open=>{ return "Arène libre" }
     }
@@ -53,6 +60,7 @@ package func create(world:Physics.World3D) {
             ..shape=shape(piece) ..transform=Physics.Transform3D(piece.position,piece.rotation) ..friction=1.1
             ..collision_filter=Physics.CollisionFilter3D(category_bits:1,mask_bits:14))
     }
+    QuarterPipe.create_collider(world)
 }
 
 package func slope_spawn() Physics.Transform3D {
@@ -73,19 +81,4 @@ package func ledge_spawn() Physics.Transform3D {
 
 package func bumps_spawn() Physics.Transform3D {
     return Physics.Transform3D(Math.Vec3(0.0,3.0,101.5))
-}
-
-package func chassis_shape() Physics.Shape3D {
-    var parts:Physics.CompoundChild3D[]=[
-        Physics.CompoundChild3D(0,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.25,0.35,4.2))),
-            Physics.Transform3D(Math.Vec3(0.0,-0.15,0.0))),
-        Physics.CompoundChild3D(1,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.9,1.0,1.8))),
-            Physics.Transform3D(Math.Vec3(0.0,1.0,0.1))),
-        Physics.CompoundChild3D(2,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(2.0,0.3,1.2))),
-            Physics.Transform3D(Math.Vec3(0.0,0.65,1.55))),
-        Physics.CompoundChild3D(3,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(2.1,0.45,4.6))),
-            Physics.Transform3D(Math.Vec3(0.0,0.35,0.0))),
-        Physics.CompoundChild3D(4,Physics.Shape3D.box(Physics.Box3D(Math.Vec3(1.05,0.65,1.5))),
-            Physics.Transform3D(Math.Vec3(0.0,-0.65,0.15)))]
-    return Physics.Shape3D.compound(Physics.Compound3D(parts))
 }

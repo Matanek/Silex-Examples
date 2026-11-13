@@ -4,9 +4,10 @@
 
 Conduire un pickup à quatre pneus déformables dans une arène géométrique de
 freestyle : tables de saut, butte à quatre accès, grandes rampes, réception,
-cuvette et petites bosses. Le pickup a des ailes découpées et un châssis
-apparent. Une texture de terre compacte et de gravier couvre le sol. Les faces
-jaunes et rouges montrent les trajectoires, avec des bordures blanches.
+cuvette, petites bosses et quarter-pipe. Le pickup a des ailes découpées,
+un châssis tubulaire apparent et un sabot en acier sous la transmission.
+Une texture de terre compacte et de gravier couvre le sol. Les faces jaunes et
+rouges montrent les trajectoires, avec des bordures blanches.
 
 ## Lancer et conduire
 
@@ -16,7 +17,8 @@ Depuis la racine du workspace contenant `Silex-Examples/` :
 silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 ```
 
-La boucle de rendu est cadencée à 120 Hz, comme la simulation.
+La boucle de rendu est cadencée à 120 Hz, comme la simulation. Le quarter-pipe
+se trouve au fond à droite de l’arène. Une flèche indique son entrée.
 
 Le Chevrolet 454 d’[AudioEngineSimulator](../../AudioEngineSimulator/README.fr.md)
 est actif par défaut. La démo embarque le simulateur et ses ressources sur
@@ -163,7 +165,9 @@ masse bas. Le braquage reste disponible à haute vitesse, avec un minimum de
 La simulation tourne à 120 Hz, avec huit couplages à 960 Hz et un sous-pas
 souple par couplage ; le solveur rigide utilise huit itérations de vitesse.
 Les facettes du terrain sont des solides dont les surfaces supérieures se
-raccordent. Physique et rendu utilisent la même liste de volumes.
+raccordent. Le quarter-pipe partage le même profil courbe entre le rendu et
+les collisions. Le dessous du sabot correspond à la face basse du volume
+de collision central du châssis.
 
 Le pneu visible se déforme sous la charge. Sa bande de roulement conserve un
 profil plat dans le sens de la largeur. Les chevrons biseautés se prolongent

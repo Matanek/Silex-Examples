@@ -4,9 +4,10 @@
 
 Drive a pickup with four deformable tires in a geometric freestyle arena:
 jump tables, a mound with four approaches, large ramps, a landing ramp,
-a two-sided bowl and small rollers. The pickup has cutaway fenders and an
-exposed frame. The arena floor uses a packed dirt and gravel texture. Yellow
-and red surfaces mark the lines, with white borders.
+a two-sided bowl, small rollers and a quarter-pipe. The pickup has cutaway
+fenders, an exposed tube frame and a steel skid plate under the transmission.
+The arena floor uses a packed dirt and gravel texture. Yellow and red surfaces
+mark the lines, with white borders.
 
 ## Launch and drive
 
@@ -16,7 +17,8 @@ From the workspace root containing `Silex-Examples/`:
 silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 ```
 
-The render loop is paced at 120 Hz, matching the physics simulation.
+The render loop is paced at 120 Hz, matching the physics simulation. The
+quarter-pipe is at the back right of the arena, with an arrow at its approach.
 
 The Chevrolet 454 from [AudioEngineSimulator](../../AudioEngineSimulator/README.md)
 is enabled by default. The demo embeds the simulator and its resources on
@@ -153,8 +155,9 @@ is −65% of the front angle.
 
 Simulation runs at 120 Hz, with eight coupling steps at 960 Hz and one soft
 substep per coupling; the rigid solver uses eight velocity iterations.
-Terrain facets are solids with adjoining top surfaces. Physics and rendering
-use the same list of volumes.
+Terrain facets are solids with adjoining top surfaces. The quarter-pipe
+shares its curved profile between rendering and collision. The skid plate
+aligns with the bottom face of the central chassis collider.
 
 The visible tire deforms under load. The tread stays flat across its width,
 and its beveled chevrons extend over shoulders that are 12 cm wider
