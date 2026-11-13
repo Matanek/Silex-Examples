@@ -15,6 +15,8 @@ From the workspace root containing `Silex-Examples/`:
 silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 ```
 
+The render loop is paced at 120 Hz, matching the physics simulation.
+
 The Chevrolet 454 from [AudioEngineSimulator](../../AudioEngineSimulator/README.md)
 is enabled by default. The demo embeds the simulator and its resources on
 macOS ARM64. A row of shortcuts appears at the bottom of the view. Press **H**
@@ -220,7 +222,6 @@ name a new file. On exit, the demo writes application-side frame times,
 physics steps, the chassis pose, and the camera position around the mark.
 Add `--quit-after-mark` to exit two seconds after pressing M, aligning the
 end of an external recording with the trace.
-`--pace-120` runs the same route with frame pacing set to 120 Hz for comparison.
 
 ## Reusable Chevrolet sound
 

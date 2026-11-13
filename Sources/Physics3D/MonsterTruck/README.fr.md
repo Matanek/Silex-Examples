@@ -15,6 +15,8 @@ Depuis la racine du workspace contenant `Silex-Examples/` :
 silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 ```
 
+La boucle de rendu est cadencée à 120 Hz, comme la simulation.
+
 Le Chevrolet 454 d’[AudioEngineSimulator](../../AudioEngineSimulator/README.fr.md)
 est actif par défaut. La démo embarque le simulateur et ses ressources sur
 macOS ARM64. Les raccourcis s’affichent en bas de la vue. **H** affiche ou masque
@@ -235,8 +237,6 @@ durée des images côté application, les pas physiques, la pose du châssis et
 la position de la caméra autour du marquage. Ajouter `--quit-after-mark` pour
 fermer automatiquement la démo deux secondes après le marquage et aligner
 la fin d’une capture externe.
-`--pace-120` permet de comparer le même parcours avec une boucle cadencée à
-120 Hz.
 
 ## Son Chevrolet réutilisable
 
