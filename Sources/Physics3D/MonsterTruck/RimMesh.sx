@@ -1,0 +1,119 @@
+use GFX.Color
+use GFX.Scene3D.Geometry
+use STD.Math
+
+static struct Rim {
+    let vents:int=6
+    let segments_per_vent:int=8
+    let spoke_segments:int=3
+    let inner_vent:float=0.307
+    let outer_vent:float=0.493
+    let web_depth:float=0.13
+
+    func divisions() Math.Vec2[] {
+        let segments=Rim.vents*Rim.segments_per_vent
+        var points:Math.Vec2[]=[]
+        for segment in 0...segments {
+            let angle=Math.two_pi()*(segment as float)/(segments as float)
+            points.append(Math.Vec2(Math.cos(angle),Math.sin(angle)))
+        }
+        return points
+    }
+}
+
+func at(direction:Math.Vec2,profile:Math.Vec2) Math.Vec3 {
+    return Math.Vec3(direction.x*profile.y,profile.x,direction.y*profile.y)
+}
+
+func quad(vertices:&Geometry.Vertex[],indices:&uint32[],a:Math.Vec3,b:Math.Vec3,c:Math.Vec3,d:Math.Vec3,color:Color) {
+    let start=vertices.count() as uint32
+    let normal=b.subtract(a).cross(c.subtract(a)).normalized()
+    vertices.append(Geometry.Vertex(a,normal,color:color));vertices.append(Geometry.Vertex(b,normal,color:color))
+    vertices.append(Geometry.Vertex(c,normal,color:color));vertices.append(Geometry.Vertex(d,normal,color:color))
+    indices.append(start);indices.append(start+1 as uint32);indices.append(start+2 as uint32)
+    indices.append(start);indices.append(start+2 as uint32);indices.append(start+3 as uint32)
+}
+
+func lathe(vertices:&Geometry.Vertex[],indices:&uint32[],directions:@Math.Vec2[],
+    section:@Math.Vec2[],colors:@Color[]) {
+    for band in 0...section.count()-1 {
+        let first=section[band];let second=section[band+1]
+        let tangent=second.subtract(first)
+        let normal=Math.Vec2(-tangent.y,tangent.x).normalized()
+        let start=vertices.count()
+        for segment in 0...directions.count() {
+            let direction=directions[segment]
+            let n=at(direction,normal)
+            vertices.append(Geometry.Vertex(at(direction,first),n,color:colors[band]))
+            vertices.append(Geometry.Vertex(at(direction,second),n,color:colors[band]))
+            let a=(start+segment*2) as uint32
+            let b=(start+((segment+1)%directions.count())*2) as uint32
+            if first.y>0.0 { indices.append(a);indices.append(b+1 as uint32);indices.append(b) }
+            if second.y>0.0 { indices.append(a);indices.append(a+1 as uint32);indices.append(b+1 as uint32) }
+        }
+    }
+}
+
+func web_face(vertices:&Geometry.Vertex[],indices:&uint32[],first:Math.Vec2,second:Math.Vec2,
+    inner:float,outer:float,paint:Color) {
+    let a=Math.Vec2(-Rim.web_depth,inner);let b=Math.Vec2(-Rim.web_depth,outer)
+    let c=Math.Vec2(Rim.web_depth,inner);let d=Math.Vec2(Rim.web_depth,outer)
+    quad(vertices,indices,at(first,a),at(first,b),at(second,b),at(second,a),paint)
+    quad(vertices,indices,at(first,c),at(second,c),at(second,d),at(first,d),paint)
+}
+
+func web_edge(vertices:&Geometry.Vertex[],indices:&uint32[],first:Math.Vec2,second:Math.Vec2,
+    radius:float,paint:Color) {
+    let near=Math.Vec2(-Rim.web_depth,radius);let far=Math.Vec2(Rim.web_depth,radius)
+    quad(vertices,indices,at(first,near),at(first,far),at(second,far),at(second,near),paint)
+}
+
+package func rim(paint:Color) Geometry.Mesh {
+    let directions=Rim.divisions()
+    let bare_metal=Color.bytes(161,163,168)
+    let bevel=Color.bytes(103,109,116)
+    let bead_seat=Color.bytes(17,18,20)
+    let section:Math.Vec2[]=[
+        Math.Vec2(-Rim.web_depth,0.545),Math.Vec2(-0.30,0.56),Math.Vec2(-0.43,0.588),
+        Math.Vec2(-0.46,0.608),Math.Vec2(-0.46,0.64),Math.Vec2(-0.438,0.664),
+        Math.Vec2(-0.405,0.78),Math.Vec2(0.405,0.78),Math.Vec2(0.438,0.664),
+        Math.Vec2(0.46,0.64),Math.Vec2(0.46,0.608),Math.Vec2(0.43,0.588),
+        Math.Vec2(0.30,0.56),Math.Vec2(Rim.web_depth,0.545)]
+    let colors:Color[]=[paint,bevel,bare_metal,bare_metal,bevel,bead_seat,bead_seat,
+        bead_seat,bevel,bare_metal,bare_metal,bevel,paint]
+    var vertices:Geometry.Vertex[]=[];var indices:uint32[]=[]
+    lathe(vertices,indices,directions,section,colors)
+    for segment in 0...directions.count() {
+        let first=directions[segment];let second=directions[(segment+1)%directions.count()]
+        let sector=segment%Rim.segments_per_vent
+        web_face(vertices,indices,first,second,0.16,Rim.inner_vent,paint)
+        web_face(vertices,indices,first,second,Rim.outer_vent,0.545,paint)
+        if sector<Rim.spoke_segments {
+            web_face(vertices,indices,first,second,Rim.inner_vent,Rim.outer_vent,paint)
+        } else {
+            web_edge(vertices,indices,first,second,Rim.inner_vent,paint)
+            web_edge(vertices,indices,second,first,Rim.outer_vent,paint)
+        }
+        if sector==Rim.spoke_segments || sector==0 {
+            let a=at(first,Math.Vec2(-Rim.web_depth,Rim.inner_vent))
+            let b=at(first,Math.Vec2(-Rim.web_depth,Rim.outer_vent))
+            let c=at(first,Math.Vec2(Rim.web_depth,Rim.outer_vent))
+            let d=at(first,Math.Vec2(Rim.web_depth,Rim.inner_vent))
+            if sector==0 { quad(vertices,indices,d,c,b,a,paint) }
+            else { quad(vertices,indices,a,b,c,d,paint) }
+        }
+    }
+    return Geometry.Mesh(vertices,indices)
+}
+
+package func hub() Geometry.Mesh {
+    let section:Math.Vec2[]=[
+        Math.Vec2(-0.406,0.0),Math.Vec2(-0.406,0.205),Math.Vec2(-0.377,0.225),
+        Math.Vec2(-0.19,0.225),Math.Vec2(-0.19,0.274),Math.Vec2(0.19,0.274),
+        Math.Vec2(0.19,0.225),Math.Vec2(0.377,0.225),Math.Vec2(0.406,0.205),Math.Vec2(0.406,0.0)]
+    var colors:Color[]=[]
+    for _ in 0...section.count()-1 { colors.append(Color.white()) }
+    var vertices:Geometry.Vertex[]=[];var indices:uint32[]=[]
+    lathe(vertices,indices,Rim.divisions(),section,colors)
+    return Geometry.Mesh(vertices,indices)
+}

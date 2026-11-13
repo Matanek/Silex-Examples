@@ -167,8 +167,8 @@ raccordent. Physique et rendu utilisent la même liste de volumes.
 Le pneu visible se déforme sous la charge. Sa bande de roulement conserve un
 profil plat dans le sens de la largeur. Les chevrons biseautés se prolongent
 sur les épaules, élargies de 12 cm de chaque côté par rapport au profil physique. La gomme est
-noire et mate, avec des creux plus sombres. Les jantes creusées reprennent
-le rouge de la carrosserie.
+noire et mate, avec des creux plus sombres. Les jantes ont un rebord
+métallique et un voile rouge ajouré, en retrait derrière le moyeu noir.
 Les collisions utilisent les sphères des sommets physiques. L’auto-collision
 et les contacts souple/souple ne sont pas disponibles.
 

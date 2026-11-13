@@ -1,4 +1,5 @@
 use GFX.Accessibility
+use GFX.Color
 use GFX.Components
 use GFX.Input
 use GFX.Input.Events
@@ -12,7 +13,7 @@ use Physics3D.MonsterTruck.Scene
 use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.HudChecks
 use Physics3D.MonsterTruck.Model
-use Physics3D.MonsterTruck.Primitives
+use Physics3D.MonsterTruck.RimMesh
 use Physics3D.MonsterTruck.TyreMesh
 use Physics3D.MonsterTruck.TyreProfile
 use STD.Math
@@ -46,8 +47,7 @@ func click(world:&Resources.World,state:&Scene.TruckScene,name:str) {
     assert(Scene.handle(world,state,Events.Event.mouse_button_released(up)))
 }
 
-func verify_wheel_rim() {
-    let mesh=Primitives.wheel_rim()
+func verify_normals(mesh:Scene3D.Geometry.Mesh) {
     let vertices=mesh.vertices();let indices=mesh.indices()
     for triangle in 0...mesh.triangle_count() {
         let a=vertices[indices[triangle*3] as int]
@@ -55,6 +55,28 @@ func verify_wheel_rim() {
         let c=vertices[indices[triangle*3+2] as int]
         let normal=b.position.subtract(a.position).cross(c.position.subtract(a.position))
         assert(normal.dot(a.normal)>0.0)
+    }
+}
+
+func verify_wheel_rim() {
+    let mesh=RimMesh.rim(Color.red_600())
+    verify_normals(mesh)
+    verify_normals(RimMesh.hub())
+    let vertices=mesh.vertices();let indices=mesh.indices()
+    var triangles:Physics.Triangle3D[]=[]
+    for triangle in 0...mesh.triangle_count() {
+        triangles.append(Physics.Triangle3D(vertices[indices[triangle*3] as int].position,
+            vertices[indices[triangle*3+1] as int].position,vertices[indices[triangle*3+2] as int].position))
+    }
+    let rim=Physics.ShapePlacement3D(Physics.Shape3D.mesh(Physics.TriangleMesh3D(triangles)))
+    let sides:float[]=[-1.0,1.0]
+    for side in sides {
+        let direction=Math.Vec3(0.0,-side*2.0,0.0)
+        let lip=Physics.Geometry3D.ray_cast(Physics.Ray3D(Math.Vec3(0.623,side,0.014),direction),rim)
+        let spoke=Physics.Geometry3D.ray_cast(Physics.Ray3D(Math.Vec3(0.386,side,0.077),direction),rim)
+        let opening=Physics.Geometry3D.ray_cast(Physics.Ray3D(Math.Vec3(0.324,side,0.235),direction),rim)
+        assert(lip.hit && spoke.hit && Math.abs(lip.point.y-spoke.point.y)>0.25)
+        assert(!opening.hit)
     }
 }
 

@@ -13,35 +13,6 @@ func face(vertices:&Scene3D.Geometry.Vertex[],indices:&uint32[],
     indices.append(offset);indices.append(offset+2 as uint32);indices.append(offset+3 as uint32)
 }
 
-// A lathed wheel with a beadlock lip and a recessed dish on both sides.
-package func wheel_rim() Scene3D.Geometry.Mesh {
-    let section:Math.Vec2[]=[
-        Math.Vec2(-0.32,0.10),Math.Vec2(-0.32,0.54),Math.Vec2(-0.415,0.59),
-        Math.Vec2(-0.47,0.635),Math.Vec2(-0.47,0.745),Math.Vec2(-0.435,0.78),
-        Math.Vec2(0.435,0.78),Math.Vec2(0.47,0.745),Math.Vec2(0.47,0.635),
-        Math.Vec2(0.415,0.59),Math.Vec2(0.32,0.54),Math.Vec2(0.32,0.10)]
-    let segments=32
-    var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[]
-    for band in 0...section.count()-1 {
-        let first=section[band];let second=section[band+1]
-        let tangent=second.subtract(first)
-        let normal=Math.Vec2(-tangent.y,tangent.x).normalized()
-        let start=vertices.count()
-        for segment in 0...segments {
-            let angle=(segment as float)*Math.two_pi()/(segments as float)
-            let x=Math.cos(angle);let z=Math.sin(angle)
-            let direction=Math.Vec3(x*normal.y,normal.x,z*normal.y)
-            vertices.append(Scene3D.Geometry.Vertex(Math.Vec3(x*first.y,first.x,z*first.y),direction))
-            vertices.append(Scene3D.Geometry.Vertex(Math.Vec3(x*second.y,second.x,z*second.y),direction))
-            let a=(start+segment*2) as uint32
-            let b=(start+((segment+1)%segments)*2) as uint32
-            indices.append(a);indices.append(b+1 as uint32);indices.append(b)
-            indices.append(a);indices.append(a+1 as uint32);indices.append(b+1 as uint32)
-        }
-    }
-    return Scene3D.Geometry.Mesh(vertices,indices)
-}
-
 package func sphere() Scene3D.Geometry.Mesh {
     var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[]
     for ring in 0...13 {

@@ -30,17 +30,17 @@ package class WheelView {
     var rim:ECS.Entity
     var hub:ECS.Entity
     var bolts:ECS.Entity
-    init(wheel:Wheel,assets:Assets,tyre:TyreMesh,paint:Color,world:&Resources.World,meshes:&Resources.Meshes3D) {
+    init(wheel:Wheel,assets:Assets,tyre:TyreMesh,world:&Resources.World,meshes:&Resources.Meshes3D) {
         self.wheel=wheel;var side=1.0
         if wheel.anchor.x<0.0 { side= -1.0 }
         self.tyre_mesh=meshes.add(tyre.deform(self.wheel.tyre.positions()))
         self.rubber=mesh_entity(world,self.tyre_mesh,Color.white(),roughness:0.98)
-        self.rim=mesh_entity(world,assets.rim,paint,metallic:0.25,roughness:0.4)
-        self.hub=mesh_entity(world,assets.hub,paint,metallic:0.25,roughness:0.4)
+        self.rim=mesh_entity(world,assets.rim,Color.white(),metallic:0.38,roughness:0.42)
+        self.hub=mesh_entity(world,assets.hub,Color.bytes(9,11,14),metallic:0.35,roughness:0.6)
         var bolts:Scene3D.Transform[]=[]
-        for index in 0...24 {
-            let angle=Math.two_pi()*(index as float)/24.0
-            let position=Math.Vec3(Math.cos(angle)*0.69,-side*0.476,Math.sin(angle)*0.69)
+        for index in 0...10 {
+            let angle=Math.two_pi()*(index as float)/10.0
+            let position=Math.Vec3(Math.cos(angle)*0.261,-side*0.198,Math.sin(angle)*0.261)
             bolts.append(Scene3D.Transform(position))
         }
         self.bolts=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D()) ..with(Components.Mesh3D(assets.bolt))

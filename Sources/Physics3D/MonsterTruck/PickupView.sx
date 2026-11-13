@@ -6,6 +6,7 @@ use GFX.Scene3D
 use Physics3D.MonsterTruck.TyreMesh
 use Physics3D.MonsterTruck.Model
 use Physics3D.MonsterTruck.Primitives
+use Physics3D.MonsterTruck.RimMesh
 use Physics3D.MonsterTruck.WheelView
 use STD.Math
 
@@ -22,10 +23,10 @@ package class PickupView {
         self.truck=truck
         let cube=meshes.add(Scene3D.Geometry.Cube.make())
         let red=Color.bytes(220,39,38);let dark=Color.bytes(36,44,56);let metal=Color.bytes(122,135,150)
-        let assets=WheelView.Assets(rim:meshes.add(Primitives.wheel_rim()),
-            hub:meshes.add(Scene3D.Geometry.Cylinder.make(0.18,0.72)),
-            bolt:meshes.add(Scene3D.Geometry.Cylinder.make(0.023,0.016,6)))
-        for wheel in truck.wheels { self.wheels.append(WheelView(wheel,assets,self.tyre,red,world,meshes)) }
+        let assets=WheelView.Assets(rim:meshes.add(RimMesh.rim(red)),
+            hub:meshes.add(RimMesh.hub()),
+            bolt:meshes.add(Scene3D.Geometry.Cylinder.make(0.021,0.025,6)))
+        for wheel in truck.wheels { self.wheels.append(WheelView(wheel,assets,self.tyre,world,meshes)) }
         self.part(world,cube,Math.Vec3(0.0,0.35,0.0),Math.Vec3(2.1,0.45,4.6),red)
         self.part(world,meshes.add(Primitives.cab()),Math.Vec3(),Math.Vec3(1.0),red)
         let windows=WheelView.mesh_entity(world,meshes.add(Primitives.windows()),Color.bytes(24,58,79),0.6,0.16)

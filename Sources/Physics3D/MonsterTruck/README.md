@@ -158,8 +158,8 @@ use the same list of volumes.
 The visible tire deforms under load. The tread stays flat across its width,
 and its beveled chevrons extend over shoulders that are 12 cm wider
 per side than the physical profile. Matte black rubber with darker grooves
-surrounds recessed rims painted the same red as the body. Collision uses
-physical vertex spheres.
+surrounds rims with a bare-metal lip, a recessed red center with ventilation
+openings, and a dark hub. Collision uses physical vertex spheres.
 Self-collision and soft/soft contacts are unavailable.
 
 ## Verify
