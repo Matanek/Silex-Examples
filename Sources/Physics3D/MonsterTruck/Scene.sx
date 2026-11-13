@@ -1,6 +1,7 @@
 use GFX.Components
 use GFX.Physics
 use GFX.ECS
+use GFX.Input
 use GFX.Input.Events
 use GFX.Resources
 use GFX.Scene2D
@@ -22,6 +23,11 @@ package class TruckScene {
     var view:PickupView?=null
     var camera:ECS.Entity=ECS.Entity()
     var hud:ECS.Entity=ECS.Entity()
+    var shortcut_line:ECS.Entity=ECS.Entity()
+    var shortcut_width:float=0.0
+    var shortcut_center:float=0.0
+    var shortcut_bottom:float=0.0
+    var hud_visible:bool=false
     var accumulator:float=0.0
     var telemetry:float=0.0
     var chase:ChaseCamera
@@ -87,12 +93,47 @@ package func startup(world:&Resources.World,meshes:&Resources.Meshes3D,images:&R
     labels(state)
     state.hud=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform())
         ..with(Scene2D.Canvas(state.ui.drawing(Controls.Hud.width,Controls.Hud.height),Controls.Hud.width,Controls.Hud.height)
-            ..anchor=Math.Vec2() ..pivot=Math.Vec2() ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+            ..anchor=Math.Vec2() ..pivot=Math.Vec2() ..space=Scene2D.CanvasSpace.viewport ..layer=100 ..visible=state.profile))
+    if !state.profile {
+        var drawing=Controls.shortcuts()
+        let bounds=drawing.bounds()!
+        state.shortcut_width=bounds.size.x
+        state.shortcut_center=bounds.position.x+bounds.size.x*0.5
+        state.shortcut_bottom=bounds.position.y+bounds.size.y
+        state.shortcut_line=world.spawn(ECS.EntityRecipe()
+            ..with(Scene2D.Transform(position:Math.Vec2(-state.shortcut_center,-state.shortcut_bottom-12.0)))
+            ..with(Scene2D.Canvas(drawing) ..anchor=Math.Vec2(0.5,1.0) ..space=Scene2D.CanvasSpace.viewport ..layer=100))
+    }
 }
 
-package func handle(state:&TruckScene,event:@Events.Event) bool {
+package func handle(world:&Resources.World,state:&TruckScene,event:@Events.Event) bool {
+    match event {
+        key_pressed(key)=>{
+            if key.keycode==104 as uint32 || key.keycode==72 as uint32 || (key.keycode==0 as uint32 && key.key==Input.Key.h) {
+                if !key.repeated {
+                    state.hud_visible= !state.hud_visible
+                    world.update<Scene2D.Canvas>(state.hud,func(canvas:&Scene2D.Canvas) { canvas.visible=state.hud_visible })
+                }
+                return true
+            }
+        }
+        window_resized(size)=>{
+            if size.size.x>0.0 {
+                let scale=Math.min(1.0,Math.max(1.0,size.size.x-24.0)/state.shortcut_width)
+                world.update<Scene2D.Transform>(state.shortcut_line,func(transform:&Scene2D.Transform) {
+                    transform.scale=Math.Vec2(scale)
+                    transform.position=Math.Vec2(-state.shortcut_center*scale,-state.shortcut_bottom*scale-12.0)
+                })
+            }
+        }
+        window_focus_lost(_)=>{
+            state.panel.handle(event)
+            return state.ui.handle(event)
+        }
+        else=>{}
+    }
     if state.panel.handle(event) { return true }
-    return state.ui.handle(event)
+    return state.hud_visible && state.ui.handle(event)
 }
 
 package func perform(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TruckScene) {
