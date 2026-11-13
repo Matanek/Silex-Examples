@@ -76,11 +76,17 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
             })
         }
     }
+}
+
+func sync_view(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.TruckScene,
+    simulation:@Application.Simulation) {
+    // Scene3D gathers the camera, transforms and meshes during render.
+    state.view!.update(world,meshes)
     Scene.follow(world,state,simulation.delta())
 }
 
-func render(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.TruckScene) {
-    state.metrics.frame();state.view!.update(world,meshes)
+func render(state:&Scene.TruckScene) {
+    state.metrics.frame()
     if (state.profile || state.trace_performance) && state.metrics.frames>0 && state.metrics.interval_frames==0 {
         var slopes=0
         for wheel in state.truck.wheels {
@@ -142,5 +148,6 @@ func main() {
         ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())
         ..add_system(Application.Schedule.startup,Scene.startup)
         ..add_system(Application.Schedule.update,update,process_mode:Application.ProcessMode.always)
+        ..add_system(Application.Schedule.post_update,sync_view,process_mode:Application.ProcessMode.always)
         ..add_system(Application.Schedule.render,render,process_mode:Application.ProcessMode.always) ..run()
 }
