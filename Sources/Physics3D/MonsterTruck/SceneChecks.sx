@@ -11,6 +11,8 @@ use GFX.UI
 use Physics3D.MonsterTruck.Scene
 use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.HudChecks
+use Physics3D.MonsterTruck.Primitives
+use Physics3D.MonsterTruck.TyreProfile
 use STD.Math
 
 func key_event(key:Input.Key,code:uint32) Events.Event {
@@ -42,7 +44,20 @@ func click(world:&Resources.World,state:&Scene.TruckScene,name:str) {
     assert(Scene.handle(world,state,Events.Event.mouse_button_released(up)))
 }
 
+func verify_wheel_rim() {
+    let mesh=Primitives.wheel_rim()
+    let vertices=mesh.vertices();let indices=mesh.indices()
+    for triangle in 0...mesh.triangle_count() {
+        let a=vertices[indices[triangle*3] as int]
+        let b=vertices[indices[triangle*3+1] as int]
+        let c=vertices[indices[triangle*3+2] as int]
+        let normal=b.position.subtract(a.position).cross(c.position.subtract(a.position))
+        assert(normal.dot(a.normal)>0.0)
+    }
+}
+
 package func verify() {
+    verify_wheel_rim()
     var world=Resources.World();var meshes=Resources.Meshes3D();var images=Resources.Images()
     var state=Scene.TruckScene(1)
     Scene.startup(world,meshes,images,state);state.view!.update(world,meshes);Scene.follow(world,state,0.016)
@@ -70,7 +85,7 @@ package func verify() {
             assert(Physics.Geometry3D.distance(vertex,rim).separation>0.005)
         }
     }
-    click(world,state,"Plus court");Scene.perform(world,meshes,state)
+    click(world,state,"Plus court");Scene.perform(state)
     assert(state.truck.final_drive==9.0)
     assert(Scene.handle(world,state,key_event(Input.Key.space,32 as uint32)))
     assert(state.panel.brake && !state.panel.front_brake && !state.panel.handbrake && state.panel.final_drive==9.0 && !state.panel.gearing_requested,"Space must select four-wheel braking without activating the focused gearing button")
@@ -79,18 +94,19 @@ package func verify() {
         else=>{}
     }
     assert(!state.panel.brake)
-    state.truck.gas=1.0;click(world,state,"Plus long");Scene.perform(world,meshes,state)
+    state.truck.gas=1.0;click(world,state,"Plus long");Scene.perform(state)
     assert(state.truck.final_drive==9.0 && state.panel.final_drive==9.0,"rejected gearing must restore displayed selection")
     state.truck.gas=0.0;state.panel.forward=true
-    click(world,state,"Plus long");Scene.perform(world,meshes,state)
+    click(world,state,"Plus long");Scene.perform(state)
     assert(state.truck.final_drive==9.0,"held throttle must reject gearing before the next physics tick")
     state.panel.forward=false
-    click(world,state,"Plus long");Scene.perform(world,meshes,state);assert(state.truck.final_drive==8.0)
-    click(world,state,"Plus court");Scene.perform(world,meshes,state)
+    click(world,state,"Plus long");Scene.perform(state);assert(state.truck.final_drive==8.0)
+    click(world,state,"Plus court");Scene.perform(state)
     assert(Scene.handle(world,state,help) && !world.get<Scene2D.Canvas>(state.hud).visible)
     let count=world.entities().count()
     var tyre=state.truck.wheels[0].tyre
     let rim=state.view!.wheels[0].rim;let rubber=state.view!.wheels[0].rubber
+    let rubber_mesh=state.view!.wheels[0].tyre_mesh
     // Logical AZERTY letters may arrive with QWERTY physical scan codes.
     let forward=key_event(Input.Key.w,122 as uint32);let left=key_event(Input.Key.a,113 as uint32)
     state.panel.handle(forward)
@@ -128,13 +144,13 @@ package func verify() {
     assert(state.panel.rear_right && state.panel.arrow_right)
     state.panel.handle(key_event(Input.Key.t,116 as uint32));assert(!state.panel.coupled)
     state.panel.handle(key_event(Input.Key.t,116 as uint32));assert(state.panel.coupled)
-    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(state)
     assert(state.panel.inflation==1 && tyre==state.truck.wheels[0].tyre && !state.panel.reset)
-    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(state)
     assert(state.panel.inflation==2 && tyre==state.truck.wheels[0].tyre)
-    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(state)
     assert(state.panel.inflation==0 && tyre==state.truck.wheels[0].tyre)
-    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(world,meshes,state)
+    state.panel.handle(key_event(Input.Key.p,112 as uint32));Scene.perform(state)
     state.panel.handle(Events.Event.mouse_button_pressed(Events.MouseButtonEvent(
         window:Window.Id(value:0 as uint32),mouse:Input.MouseId(value:0 as uint32),button:Input.MouseButton.left,
         down:true,clicks:1 as uint8,position:Math.Vec2(640.0,400.0),timestamp:Input.Timestamp(nanoseconds:0 as uint))))
@@ -147,15 +163,47 @@ package func verify() {
     for _ in 0...3 { state.truck.held(false,false,false,false,false,false,
         false,state.panel.rear_right || state.panel.arrow_right) }
     assert(state.truck.rear_steering>0.0 && !state.panel.reset)
-    state.panel.handle(key_event(Input.Key.r,114 as uint32));Scene.perform(world,meshes,state)
+    state.panel.handle(key_event(Input.Key.r,114 as uint32));Scene.perform(state)
     assert(tyre!=state.truck.wheels[0].tyre && !tyre.is_valid())
     assert(world.entities().count()==count && state.view!.wheels[0].rim==rim && state.view!.wheels[0].rubber==rubber)
     assert(state.panel.inflation==1 && state.truck.world.worker_count()==1 && state.truck.final_drive==9.0)
     state.view!.update(world,meshes)
-    let points=meshes.snapshot(state.view!.wheels[0].presenter.mesh()).vertices()
-    for index in 0...points.count() {
-        assert(points[index].position.nearly_equal(state.truck.wheels[0].tyre.position(index),0.000001))
+    assert(world.get<Components.Mesh3D>(rubber).asset==rubber_mesh)
+    let points=meshes.snapshot(rubber_mesh).vertices()
+    let slices=TyreProfile.Dimensions.slices
+    let rings=TyreProfile.Dimensions.rings
+    let carcass_count=2*rings*slices
+    assert(points.count()>carcass_count)
+    // The undeformed contact face stays flat between the two tread edges.
+    for slice in [1,2,2*slices-2,2*slices-1] {
+        assert(Math.abs(points[slice].position.y-points[0].position.y)<0.00001)
     }
+    let tread_edge=points[3].position
+    let shoulder=points[4].position
+    let sidewall=points[5].position
+    assert(tread_edge.x>points[2].position.x+0.08)
+    assert(Math.abs(tread_edge.y-points[0].position.y)<0.02)
+    assert(shoulder.y<points[0].position.y-0.08)
+    assert(Math.abs(shoulder.x-sidewall.x)<0.03 && shoulder.y-sidewall.y>0.10)
+    assert(points[0].color.r<0.05 && points[carcass_count+1].color.r<0.07)
+    let revision=meshes.revision(rubber_mesh)
+    state.view!.update(world,meshes)
+    assert(meshes.revision(rubber_mesh)==revision)
+    state.truck.step()
+    state.view!.update(world,meshes)
+    let deformed=meshes.snapshot(rubber_mesh).vertices()
+    assert(meshes.revision(rubber_mesh)>revision && deformed.count()==points.count())
+    let particles=state.truck.wheels[0].tyre.positions()
+    for ring in 0...rings {
+        let base=ring*slices
+        let visual=ring*2*slices
+        assert(deformed[visual].position.nearly_equal(particles[base],0.000001))
+        assert(deformed[visual+slices].position.nearly_equal(particles[base+4],0.000001))
+        let width=deformed[visual+4].position.subtract(deformed[visual+12].position).length()
+        let physical_width=particles[base+2].subtract(particles[base+6]).length()
+        assert(Math.abs(width-physical_width-0.24)<0.00001)
+    }
+    assert(!deformed[carcass_count+1].position.nearly_equal(points[carcass_count+1].position,0.00001))
     Scene.labels(state);let updated=state.ui.update(0.0)
     HudChecks.verify(state.ui)
     var measurement=UI.Session(state.panel.measurement(false,true))

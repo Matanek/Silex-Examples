@@ -3,7 +3,7 @@ use GFX.Components
 use GFX.ECS
 use GFX.Resources
 use GFX.Scene3D
-use Physics3D.MonsterTruck.TyreProfile
+use Physics3D.MonsterTruck.TyreMesh
 use Physics3D.MonsterTruck.Model
 use Physics3D.MonsterTruck.Primitives
 use Physics3D.MonsterTruck.WheelView
@@ -15,17 +15,17 @@ package class PickupView {
     var truck:Model.Truck
     var wheels:WheelView[]=[]
     private var parts:Part[]=[]
+    private var tyre:TyreMesh=TyreMesh()
     var struts:ECS.Entity[]=[]
     var last_step:int= -1
     init(truck:Model.Truck,world:&Resources.World,meshes:&Resources.Meshes3D) {
         self.truck=truck
         let cube=meshes.add(Scene3D.Geometry.Cube.make())
-        let assets=WheelView.Assets(cube:cube,lug:meshes.add(Primitives.tread_lug()),rim:meshes.add(Scene3D.Geometry.Cylinder.make(TyreProfile.Dimensions.rim_radius,TyreProfile.Dimensions.rim_half_width*2.0)),
-            flange:meshes.add(Scene3D.Geometry.Cylinder.make(TyreProfile.Dimensions.flange_radius,0.035)),
-            disk:meshes.add(Scene3D.Geometry.Cylinder.make(0.63,0.045)),
-            hub:meshes.add(Scene3D.Geometry.Cylinder.make(0.18,0.07)))
-        for wheel in truck.wheels { self.wheels.append(WheelView(wheel,assets,world,meshes)) }
         let red=Color.bytes(220,39,38);let dark=Color.bytes(36,44,56);let metal=Color.bytes(122,135,150)
+        let assets=WheelView.Assets(rim:meshes.add(Primitives.wheel_rim()),
+            hub:meshes.add(Scene3D.Geometry.Cylinder.make(0.18,0.72)),
+            bolt:meshes.add(Scene3D.Geometry.Cylinder.make(0.023,0.016,6)))
+        for wheel in truck.wheels { self.wheels.append(WheelView(wheel,assets,self.tyre,red,world,meshes)) }
         self.part(world,cube,Math.Vec3(0.0,0.35,0.0),Math.Vec3(2.1,0.45,4.6),red)
         self.part(world,meshes.add(Primitives.cab()),Math.Vec3(),Math.Vec3(1.0),red)
         let windows=WheelView.mesh_entity(world,meshes.add(Primitives.windows()),Color.bytes(24,58,79),0.6,0.16)
@@ -56,10 +56,10 @@ package class PickupView {
     private func part(world:&Resources.World,asset:Scene3D.MeshHandle,position:Math.Vec3,size:Math.Vec3,color:Color) {
         self.parts.append(Part(entity:WheelView.mesh_entity(world,asset,color,0.25,0.4),position:position,size:size,rotation:Math.Quat()))
     }
-    func rebind(truck:Model.Truck,world:&Resources.World,meshes:&Resources.Meshes3D) {
+    func rebind(truck:Model.Truck) {
         self.truck=truck;self.last_step= -1
         var index=0
-        for view in self.wheels { view.rebind(truck.wheels[index],world,meshes);index++ }
+        for view in self.wheels { view.wheel=truck.wheels[index];index++ }
     }
     func update(world:&Resources.World,meshes:&Resources.Meshes3D) {
         if self.last_step==self.truck.steps { return }
@@ -73,7 +73,7 @@ package class PickupView {
         }
         var index=0
         for view in self.wheels {
-            view.update(world,meshes)
+            view.update(world,meshes,self.tyre)
             var wheel=self.truck.wheels[index]
             let top=pose.point(Math.Vec3(wheel.anchor.x*0.55,-0.15,wheel.anchor.z))
             let bottom=wheel.rim.position();let offset=bottom.subtract(top)

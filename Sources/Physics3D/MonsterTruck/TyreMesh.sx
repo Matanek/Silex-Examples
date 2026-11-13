@@ -1,0 +1,152 @@
+use GFX.Color
+use GFX.Scene3D.Geometry
+use Physics3D.MonsterTruck.TyreProfile
+use STD.Math
+
+static struct Surface {
+    let tread_rows:int=16
+    func rings() int { return TyreProfile.Dimensions.rings }
+    func slices() int { return TyreProfile.Dimensions.slices*2 }
+}
+
+func index(ring:int,slice:int,rings:int,slices:int) int {
+    return ((ring+rings)%rings)*slices+(slice+slices)%slices
+}
+
+func quad(indices:&uint32[],a:int,b:int,c:int,d:int,mirrored:bool=false) {
+    indices.append(a as uint32)
+    if mirrored { indices.append(c as uint32);indices.append(b as uint32) }
+    else { indices.append(b as uint32);indices.append(c as uint32) }
+    indices.append(a as uint32)
+    if mirrored { indices.append(d as uint32);indices.append(c as uint32) }
+    else { indices.append(c as uint32);indices.append(d as uint32) }
+}
+
+struct TreadPoint {
+    let a:int;let b:int;let c:int;let d:int
+    let along:float;let across:float
+    let height:float
+    let bevel:float
+    let end:float
+    let color:Color
+
+    init(ring:float,slice:float,height:float,bevel:float,end:float,color:Color) {
+        let row=Math.floor(ring) as int;let column=Math.floor(slice) as int
+        let rings=Surface.rings();let slices=Surface.slices()
+        self.a=index(row,column,rings,slices)
+        self.b=index(row+1,column,rings,slices)
+        self.c=index(row,column+1,rings,slices)
+        self.d=index(row+1,column+1,rings,slices)
+        self.along=ring-(row as float);self.across=slice-(column as float)
+        self.height=height;self.bevel=bevel;self.end=end;self.color=color
+    }
+
+    func deform(surface:@Geometry.Vertex[]) Geometry.Vertex {
+        let a=surface[self.a];let b=surface[self.b];let c=surface[self.c];let d=surface[self.d]
+        let position=a.position.lerp(b.position,self.along).lerp(c.position.lerp(d.position,self.along),self.across)
+        let normal=a.normal.lerp(b.normal,self.along).lerp(c.normal.lerp(d.normal,self.along),self.across).normalized()
+        let around=b.position.subtract(a.position).normalized()
+        let across=c.position.subtract(a.position).normalized()
+        let edge=normal.add(around.multiply(self.bevel)).add(across.multiply(self.end)).normalized()
+        return Geometry.Vertex(position.add(normal.multiply(self.height)),edge,color:self.color)
+    }
+}
+
+// Shared topology and sampling coordinates. Only the four deformed meshes
+// are rebuilt when PickupView sees a new physics step.
+package class TyreMesh {
+    private var indices:uint32[]=[]
+    private var treads:TreadPoint[]=[]
+    private var colors:Color[]=[]
+    // Axial and radial offsets in each deformed section. The crown stays flat
+    // through the tread edge, then the shoulder turns down into the tall flank.
+    private var section_offsets:Math.Vec2[]=[
+        Math.Vec2(),Math.Vec2(0.05,0.0),Math.Vec2(0.10,0.0),Math.Vec2(0.13,0.035),
+        Math.Vec2(0.12,0.0),Math.Vec2(0.245,0.01),Math.Vec2(0.125,0.016),Math.Vec2(),
+        Math.Vec2(),Math.Vec2(),Math.Vec2(-0.125,0.016),Math.Vec2(-0.245,0.01),
+        Math.Vec2(-0.12,0.0),Math.Vec2(-0.13,0.035),Math.Vec2(-0.10,0.0),Math.Vec2(-0.05,0.0)]
+
+    init() {
+        let crown=Color.bytes(11,11,12)
+        let shoulder=Color.bytes(9,9,10)
+        let recess=Color.bytes(7,7,8)
+        let band=Color.bytes(12,12,13)
+        let section:Color[]=[crown,crown,crown,shoulder,shoulder,band,recess,recess,
+            recess,recess,recess,band,shoulder,shoulder,crown,crown]
+        let rings=Surface.rings();let slices=Surface.slices()
+        for ring in 0...rings {
+            for slice in 0...slices {
+                self.colors.append(section[slice])
+                quad(self.indices,index(ring,slice,rings,slices),
+                    index(ring+1,slice,rings,slices),
+                    index(ring+1,slice+1,rings,slices),
+                    index(ring,slice+1,rings,slices))
+            }
+        }
+        for row in 0...Surface.tread_rows {
+            let ring=(row as float)*(rings as float)/(Surface.tread_rows as float)
+            self.lug(ring,1.0)
+            self.lug(ring+0.75,-1.0)
+        }
+    }
+
+    private func lug(ring:float,side:float) {
+        let start=Surface.rings()*Surface.slices()+self.treads.count()
+        let sweep:float[]=[-0.52,-0.44,-0.20,0.28,0.61,0.67]
+        let profile:float[]=[-0.20,0.12,1.25,2.72,3.93,4.22]
+        let widths:float[]=[0.22,0.64,0.66,0.66,0.59,0.24]
+        let heights:float[]=[0.037,0.064,0.071,0.071,0.044,0.025]
+        let top=Color.bytes(16,16,17)
+        let edge=Color.bytes(8,8,9)
+        for station in 0...profile.count() {
+            let center=ring+sweep[station];let slice=profile[station]*side
+            let half_width=widths[station]*0.5
+            var cap:float=0.0
+            if station==0 { cap= -0.55*side }
+            if station==profile.count()-1 { cap=0.8*side }
+            self.treads.append(TreadPoint(center-half_width,slice,-0.014,-1.8,cap,edge))
+            self.treads.append(TreadPoint(center-half_width*0.72,slice,heights[station],-0.28,cap,top))
+            self.treads.append(TreadPoint(center+half_width*0.72,slice,heights[station],0.28,cap,top))
+            self.treads.append(TreadPoint(center+half_width,slice,-0.014,1.8,cap,edge))
+            if station>0 {
+                let base=start+(station-1)*4
+                for edge_index in 0...3 {
+                    let a=base+edge_index
+                    quad(self.indices,a,a+1,a+5,a+4,mirrored:side<0.0)
+                }
+            }
+        }
+        let end=start+(profile.count()-1)*4
+        quad(self.indices,start,start+3,start+2,start+1,mirrored:side<0.0)
+        quad(self.indices,end,end+1,end+2,end+3,mirrored:side<0.0)
+    }
+
+    func deform(particles:@Math.Vec3[]) Geometry.Mesh {
+        let rings=TyreProfile.Dimensions.rings;let slices=TyreProfile.Dimensions.slices
+        let render_slices=Surface.slices()
+        var surface:Math.Vec3[]=[]
+        for ring in 0...rings {
+            let base=ring*slices
+            let axle=particles[base+2].subtract(particles[base+6]).normalized()
+            let wall=particles[base].subtract(particles[base+4])
+            let radial=wall.subtract(axle.multiply(wall.dot(axle))).normalized()
+            for slice in 0...slices {
+                let point=particles[base+slice]
+                let next=particles[index(ring,slice+1,rings,slices)]
+                let offset=self.section_offsets[slice*2]
+                let middle=self.section_offsets[slice*2+1]
+                surface.append(point.add(axle.multiply(offset.x)).add(radial.multiply(offset.y)))
+                surface.append(point.lerp(next,0.5).add(axle.multiply(middle.x)).add(radial.multiply(middle.y)))
+            }
+        }
+        var vertices:Geometry.Vertex[]=[]
+        for ring in 0...rings { for slice in 0...render_slices {
+            let i=index(ring,slice,rings,render_slices)
+            let tangent=surface[index(ring+1,slice,rings,render_slices)].subtract(surface[index(ring-1,slice,rings,render_slices)])
+            let across=surface[index(ring,slice+1,rings,render_slices)].subtract(surface[index(ring,slice-1,rings,render_slices)])
+            vertices.append(Geometry.Vertex(surface[i],tangent.cross(across).normalized(),color:self.colors[i]))
+        } }
+        for tread in self.treads { vertices.append(tread.deform(vertices)) }
+        return Geometry.Mesh(vertices,self.indices)
+    }
+}

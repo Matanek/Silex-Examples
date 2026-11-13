@@ -20,7 +20,7 @@ use STD.Math
 use STD.Process
 use STD.Time
 
-func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.TruckScene,input:@Resources.InputState,
+func update(world:&Resources.World,state:&Scene.TruckScene,input:@Resources.InputState,
     simulation:@Application.Simulation,controller:&Application.Controller,window:&Window) {
     if input.is_pressed(Input.Key.escape) { controller.stop();return }
     if var trace=state.stutter_trace { trace.begin(input.focused_window()!=null,simulation.delta()) }
@@ -40,7 +40,7 @@ func update(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Truck
                 else=>{}
             }
         }
-        Scene.perform(world,meshes,state)
+        Scene.perform(state)
     }
     if state.profile && state.metrics.elapsed>=state.profile_duration {
         state.metrics.report(state.truck.steps)

@@ -64,10 +64,10 @@ package class TruckScene {
     func create_view(world:&Resources.World,meshes:&Resources.Meshes3D) {
         self.view=PickupView(self.truck,world,meshes)
     }
-    func reset(world:&Resources.World,meshes:&Resources.Meshes3D) {
+    func reset() {
         var next=Model.Truck(self.workers,obstacles:true,final_drive:self.truck.final_drive)
         next.set_pressure(self.panel.pressure())
-        self.view!.rebind(next,world,meshes);self.truck=next
+        self.view!.rebind(next);self.truck=next
         self.accumulator=0.0;self.chase.reset(self.truck.chassis.position())
         self.panel.reset=false
         if var sound=self.sound { sound.reset() }
@@ -139,8 +139,8 @@ package func handle(world:&Resources.World,state:&TruckScene,event:@Events.Event
     return state.hud_visible && state.ui.handle(event)
 }
 
-package func perform(world:&Resources.World,meshes:&Resources.Meshes3D,state:&TruckScene) {
-    if state.panel.reset { state.reset(world,meshes) }
+package func perform(state:&TruckScene) {
+    if state.panel.reset { state.reset() }
     if state.panel.changed { state.truck.set_pressure(state.panel.pressure());state.panel.changed=false }
     if state.panel.gearing_requested {
         state.panel.gearing_requested=false

@@ -164,9 +164,13 @@ souple par couplage ; le solveur rigide utilise huit itérations de vitesse.
 Les facettes du terrain sont des solides dont les surfaces supérieures se
 raccordent. Physique et rendu utilisent la même liste de volumes.
 
-Les crampons suivent les sommets déformés ; les collisions utilisent les
-sphères des sommets. L’auto-collision et les contacts souple/souple ne sont
-pas disponibles.
+Le pneu visible suit les sommets déformés. Sa bande de roulement est plate dans
+le sens de la largeur et ses chevrons biseautés se prolongent sur les épaules,
+élargies de 12 cm de chaque côté par rapport au profil physique. La gomme est
+noire et mate, avec des creux plus sombres. Les jantes creusées reprennent
+le rouge de la carrosserie.
+Les collisions utilisent les sphères des sommets physiques. L’auto-collision
+et les contacts souple/souple ne sont pas disponibles.
 
 ## Vérifier
 

@@ -155,7 +155,11 @@ substep per coupling; the rigid solver uses eight velocity iterations.
 Terrain facets are solids with adjoining top surfaces. Physics and rendering
 use the same list of volumes.
 
-Tread lugs follow deformed vertices; collision uses vertex spheres.
+The visible tire follows the deformed vertices. The tread is flat across its
+width, and its beveled chevrons extend over shoulders that are 12 cm wider
+per side than the physical profile. Matte black rubber with darker grooves
+surrounds recessed rims painted the same red as the body. Collision uses
+physical vertex spheres.
 Self-collision and soft/soft contacts are unavailable.
 
 ## Verify
