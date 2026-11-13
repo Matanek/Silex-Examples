@@ -11,6 +11,12 @@ package func operating(truck:@Model.Truck) Engines.OperatingState {
     return Engines.OperatingState(rpm:state.engine_rpm,load:Math.clamp(state.engine_torque/Transmission.Settings.torque,0.0,1.0))
 }
 
+static struct Buffer {
+    let capacity:int=4_800
+    let start:int=3_840
+    let block:int=480
+}
+
 package class EngineSound {
     private var source:Engines.DrivenEngine
     private var audio:Audio
@@ -22,7 +28,7 @@ package class EngineSound {
     init(directory:str? = null, offline:bool = false) {
         var library = Engines.Library.open(directory); self.source = library.driven_engine("454")
         if offline { self.audio = Audio.offline(sample_rate:44_100, channels:2) } else { self.audio = Audio() }
-        self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+        self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:Buffer.capacity)
         for _ in 0...960 { self.samples.append(0.0) }
         self.source.set_state(Engines.OperatingState(rpm:850.0)); self.source.enqueue()
     }
@@ -34,14 +40,14 @@ package class EngineSound {
     func reset() {
         if self.playing.is_valid() { self.audio.stop(self.playing) }
         self.audio.release(self.stream); self.source.reset()
-        self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:2_400)
+        self.stream = self.audio.stream(sample_rate:44_100, channels:2, capacity_frames:Buffer.capacity)
         self.playing = Audio.PlayingSound(); self.pending = false; self.offset = 0
         self.source.set_state(Engines.OperatingState(rpm:850.0)); self.source.enqueue()
     }
     private func feed() {
         var count = 0
-        while count < 8 {
-            if self.audio.stream_info(self.stream).queued_frames >= 2_400 { break }
+        while count < Buffer.capacity / Buffer.block + 1 {
+            if self.audio.stream_info(self.stream).queued_frames >= Buffer.capacity { break }
             if !self.pending {
                 if !self.source.render_ready(&self.samples[0:960]) { break }
                 self.pending = true; self.offset = 0
@@ -50,13 +56,13 @@ package class EngineSound {
                 failure(error) => { if error.kind != Kind.would_block() { panic(error.detail) } break }
                 success(frames) => {
                     self.offset += frames
-                    if self.offset == 480 { self.pending = false; self.source.enqueue() }
+                    if self.offset == Buffer.block { self.pending = false; self.source.enqueue() }
                     if frames == 0 { break }
                 }
             }
             count++
         }
-        if !self.playing.is_valid() && self.audio.stream_info(self.stream).queued_frames >= 1_920 {
+        if !self.playing.is_valid() && self.audio.stream_info(self.stream).queued_frames >= Buffer.start {
             self.playing = self.audio.play(self.stream, Audio.Playback(fade_in_seconds:0.05))
         }
     }
