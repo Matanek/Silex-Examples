@@ -11,7 +11,9 @@ use GFX.UI
 use Physics3D.MonsterTruck.Scene
 use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.HudChecks
+use Physics3D.MonsterTruck.Model
 use Physics3D.MonsterTruck.Primitives
+use Physics3D.MonsterTruck.TyreMesh
 use Physics3D.MonsterTruck.TyreProfile
 use STD.Math
 
@@ -53,6 +55,29 @@ func verify_wheel_rim() {
         let c=vertices[indices[triangle*3+2] as int]
         let normal=b.position.subtract(a.position).cross(c.position.subtract(a.position))
         assert(normal.dot(a.normal)>0.0)
+    }
+}
+
+func verify_loaded_tread() {
+    var truck=Model.Truck(4)
+    for _ in 0...360 { truck.step() }
+    var mesh=TyreMesh()
+    let columns=2*TyreProfile.Dimensions.slices
+    let tread_columns:int[]=[columns-2,columns-1,1,2]
+    for wheel in truck.wheels {
+        let points=mesh.deform(wheel.tyre.positions()).vertices()
+        for ring in 0...TyreProfile.Dimensions.rings {
+            let base=ring*columns
+            let center=points[base].position
+            let left=points[base+columns-2].position
+            let right=points[base+2].position
+            let axle=right.subtract(left).normalized()
+            for column in tread_columns {
+                let offset=points[base+column].position.subtract(center)
+                assert(offset.subtract(axle.multiply(offset.dot(axle))).length()<0.001,
+                    "the loaded tread must stay flat across the rim")
+            }
+        }
     }
 }
 
@@ -232,7 +257,8 @@ package func verify() {
         let view=world.get<Components.Transform3D>(state.camera)
         assert(Math.abs(view.rotation.rotate(Math.Vec3.right()).y)<0.00001)
     } }
-    print("Monster scene checks passed: input, reset, true tyre meshes, shortcuts and HUD, travel camera and rollover horizon")
+    verify_loaded_tread()
+    print("Monster scene checks passed: input, reset, flat loaded treads, shortcuts and HUD, travel camera and rollover horizon")
 }
 
 func main() { verify() }

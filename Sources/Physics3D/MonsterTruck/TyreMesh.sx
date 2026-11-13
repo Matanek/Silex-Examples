@@ -58,13 +58,9 @@ package class TyreMesh {
     private var indices:uint32[]=[]
     private var treads:TreadPoint[]=[]
     private var colors:Color[]=[]
-    // Axial and radial offsets in each deformed section. The crown stays flat
-    // through the tread edge, then the shoulder turns down into the tall flank.
-    private var section_offsets:Math.Vec2[]=[
-        Math.Vec2(),Math.Vec2(0.05,0.0),Math.Vec2(0.10,0.0),Math.Vec2(0.13,0.035),
-        Math.Vec2(0.12,0.0),Math.Vec2(0.245,0.01),Math.Vec2(0.125,0.016),Math.Vec2(),
-        Math.Vec2(),Math.Vec2(),Math.Vec2(-0.125,0.016),Math.Vec2(-0.245,0.01),
-        Math.Vec2(-0.12,0.0),Math.Vec2(-0.13,0.035),Math.Vec2(-0.10,0.0),Math.Vec2(-0.05,0.0)]
+    private var shoulder_widths:float[]=[0.0,0.05,0.10,0.13,0.12,0.245,0.125,0.0,
+        0.0,0.0,-0.125,-0.245,-0.12,-0.13,-0.10,-0.05]
+    private var tread_rounding:float[]=[0.0,0.0,0.0,0.015,0.10]
 
     init() {
         let crown=Color.bytes(11,11,12)
@@ -127,16 +123,24 @@ package class TyreMesh {
         var surface:Math.Vec3[]=[]
         for ring in 0...rings {
             let base=ring*slices
+            let crown=particles[base]
             let axle=particles[base+2].subtract(particles[base+6]).normalized()
-            let wall=particles[base].subtract(particles[base+4])
+            let wall=crown.subtract(particles[base+4])
             let radial=wall.subtract(axle.multiply(wall.dot(axle))).normalized()
-            for slice in 0...slices {
-                let point=particles[base+slice]
-                let next=particles[index(ring,slice+1,rings,slices)]
-                let offset=self.section_offsets[slice*2]
-                let middle=self.section_offsets[slice*2+1]
-                surface.append(point.add(axle.multiply(offset.x)).add(radial.multiply(offset.y)))
-                surface.append(point.lerp(next,0.5).add(axle.multiply(middle.x)).add(radial.multiply(middle.y)))
+            for column in 0...render_slices {
+                let slice=column/2
+                var point=particles[base+slice]
+                if column%2==1 { point=point.lerp(particles[base+(slice+1)%slices],0.5) }
+                point=point.add(axle.multiply(self.shoulder_widths[column]))
+                var from_center=column
+                if column>render_slices/2 { from_center=render_slices-column }
+                if from_center<self.tread_rounding.count() {
+                    // Follow the crown around the wheel while keeping its
+                    // cross-section flat even when pressure bulges the particles.
+                    let width=point.subtract(crown).dot(axle)
+                    point=crown.add(axle.multiply(width)).subtract(radial.multiply(self.tread_rounding[from_center]))
+                }
+                surface.append(point)
             }
         }
         var vertices:Geometry.Vertex[]=[]

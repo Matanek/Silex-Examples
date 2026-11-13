@@ -164,9 +164,9 @@ souple par couplage ; le solveur rigide utilise huit itérations de vitesse.
 Les facettes du terrain sont des solides dont les surfaces supérieures se
 raccordent. Physique et rendu utilisent la même liste de volumes.
 
-Le pneu visible suit les sommets déformés. Sa bande de roulement est plate dans
-le sens de la largeur et ses chevrons biseautés se prolongent sur les épaules,
-élargies de 12 cm de chaque côté par rapport au profil physique. La gomme est
+Le pneu visible se déforme sous la charge. Sa bande de roulement conserve un
+profil plat dans le sens de la largeur. Les chevrons biseautés se prolongent
+sur les épaules, élargies de 12 cm de chaque côté par rapport au profil physique. La gomme est
 noire et mate, avec des creux plus sombres. Les jantes creusées reprennent
 le rouge de la carrosserie.
 Les collisions utilisent les sphères des sommets physiques. L’auto-collision
