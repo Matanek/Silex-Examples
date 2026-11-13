@@ -24,16 +24,21 @@ func verify_quarter_geometry(world:Physics.World3D) {
     let lip=QuarterPipe.Dimensions.angle
     let facets=QuarterPipe.Dimensions.facets
     var previous=0.0
+    let across:float[]=[-7.75,0.0,7.75]
     for i in 0...facets {
         let a=lip*(i as float)/(facets as float)
         let b=lip*((i+1) as float)/(facets as float)
         let y=r*(1.0-(Math.cos(a)+Math.cos(b))*0.5)
         let z=r*(Math.sin(a)+Math.sin(b))*0.5
         let normal=Math.Vec3(0.0,Math.cos((a+b)*0.5),-Math.sin((a+b)*0.5))
-        let middle=origin.add(Math.Vec3(0.0,y,z))
-        let ray=Physics.Ray3D(middle.add(normal.multiply(0.20)),normal.multiply(-0.4))
-        let hit=world.ray_cast(ray)!
-        assert(hit.point().nearly_equal(middle,0.0001) && hit.normal().nearly_equal(normal,0.0001))
+        for x in across {
+            let middle=origin.add(Math.Vec3(x,y,z))
+            let ray=Physics.Ray3D(middle.add(normal.multiply(0.20)),normal.multiply(-0.4))
+            let hit=world.ray_cast(ray)!
+            assert(hit.point().nearly_equal(middle,0.0001) && hit.normal().nearly_equal(normal,0.0001))
+        }
+        let outside=origin.add(Math.Vec3(8.25,y,z))
+        assert(world.ray_cast(Physics.Ray3D(outside.add(normal.multiply(0.20)),normal.multiply(-0.4)))==null)
         let angle=(a+b)*0.5
         assert(angle>previous)
         if i==0 { assert(angle<0.10) }

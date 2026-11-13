@@ -9,7 +9,7 @@ use STD.Math
 
 package static struct Dimensions {
     let origin:Math.Vec3=Math.Vec3(43.0,0.0,91.0)
-    let width:float=12.0
+    let width:float=16.0
     let radius:float=13.0
     let angle:float=1.615
     let facets:int=9
