@@ -10,6 +10,7 @@ use GFX.Scene3D
 use GFX.Window
 use GFX.UI
 use Physics3D.MonsterTruck.Scene
+use Physics3D.MonsterTruck.ChaseCamera
 use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.HudChecks
 use Physics3D.MonsterTruck.Chassis
@@ -167,7 +168,38 @@ func verify_loaded_tread() {
     }
 }
 
+func verify_camera_cadence() {
+    let step=Scene.SimulationClock.step_seconds
+    let speed=24.0
+    var camera=ChaseCamera(Math.Vec3(0.0,5.0,0.0))
+    var simulated=0
+    var lag=0.0
+    var previous=Math.Vec3()
+    var low=100.0
+    var high=0.0
+    for frame in 0...720 {
+        let delta=step*(0.72+0.56*((frame%2) as float))
+        lag+=delta
+        while lag>=step { simulated++;lag-=step }
+        let time=(simulated as float)*step
+        let velocity=Math.Vec3(0.0,speed*0.40,speed)
+        let target=Math.Vec3(0.0,5.0,0.0).add(velocity.multiply(time))
+        let current=Scene.interpolate_sample(target.subtract(velocity.multiply(step)),target,lag)
+        camera.update(current,velocity,delta)
+        let p=camera.transform().position
+        if frame>550 {
+            let rate=(p.z-previous.z)/delta
+            low=Math.min(low,rate)
+            high=Math.max(high,rate)
+        }
+        previous=p
+    }
+    print("Camera advance rate at 24 m/s, on a 40% grade: ",low," to ",high)
+    assert(high-low<0.1,"the camera must maintain steady motion between physics ticks")
+}
+
 package func verify() {
+    verify_camera_cadence()
     verify_wheel_rim()
     verify_body()
     verify_underbody()

@@ -20,6 +20,14 @@ use Physics3D.MonsterTruck.StutterTrace
 use Physics3D.SoftTire.Metrics
 use STD.Math
 
+package static struct SimulationClock {
+    let step_seconds:float=1.0/120.0
+}
+
+package func interpolate_sample(previous:Math.Vec3,current:Math.Vec3,backlog:float) Math.Vec3 {
+    return previous.lerp(current,Math.clamp(backlog/SimulationClock.step_seconds,0.0,1.0))
+}
+
 package class TruckScene {
     var truck:Model.Truck
     let arena:AssetModel
@@ -39,6 +47,8 @@ package class TruckScene {
     var accumulator:float=0.0
     var telemetry:float=0.0
     var chase:ChaseCamera
+    var previous_chassis_position:Math.Vec3
+    var previous_chassis_velocity:Math.Vec3
     var metrics:Metrics=Metrics()
     var profile:bool=false
     var hold_profile:bool=false
@@ -67,6 +77,8 @@ package class TruckScene {
         if let pose=spawn { origin=pose }
         else if slope { origin=Terrain.slope_spawn() }
         self.truck=Model.Truck(workers,obstacles:true,spawn:origin,arena:arena)
+        self.previous_chassis_position=self.truck.chassis.position()
+        self.previous_chassis_velocity=self.truck.chassis.linear_velocity()
         self.chase=ChaseCamera(self.truck.chassis.position(),self.truck.chassis.transform().vector(Math.Vec3.back()))
         if profile { self.ui=UI.Session(self.panel.measurement(slope,ramp,throttle,turn,duration,bumps:bumps)) }
         else { self.ui=UI.Session(self.panel.describe()) }
@@ -78,6 +90,8 @@ package class TruckScene {
         var next=Model.Truck(self.workers,obstacles:true,spawn:self.start,final_drive:self.truck.final_drive,arena:self.arena)
         next.set_pressure(self.panel.pressure())
         self.view!.rebind(next);self.truck=next
+        self.previous_chassis_position=self.truck.chassis.position()
+        self.previous_chassis_velocity=self.truck.chassis.linear_velocity()
         self.accumulator=0.0;self.chase.reset(self.truck.chassis.position(),self.start.vector(Math.Vec3.back()))
         self.panel.reset=false
         self.landing=Landing()
@@ -164,7 +178,10 @@ package func perform(world:&Resources.World,state:&TruckScene) {
 }
 
 package func follow(world:&Resources.World,state:&TruckScene,delta:float) {
-    state.chase.update(state.truck.chassis.position(),state.truck.chassis.linear_velocity(),delta)
-    let pose=state.chase.avoid_obstacles(state.truck.world,state.truck.chassis.position(),delta)
+    // Use the two surrounding fixed-step samples on the render clock.
+    let position=interpolate_sample(state.previous_chassis_position,state.truck.chassis.position(),state.accumulator)
+    let velocity=interpolate_sample(state.previous_chassis_velocity,state.truck.chassis.linear_velocity(),state.accumulator)
+    state.chase.update(position,velocity,delta)
+    let pose=state.chase.avoid_obstacles(state.truck.world,position,delta)
     world.update<Components.Transform3D>(state.camera,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
 }

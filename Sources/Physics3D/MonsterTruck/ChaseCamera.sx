@@ -3,19 +3,19 @@ use GFX.Scene3D
 use Physics3D.MonsterTruck.Terrain
 use STD.Math
 
-// Updated once per rendered frame. Only horizontal travel chooses the course;
-// suspension pitch, wheelies and roll never enter the camera orientation.
+// Updated once per rendered frame. Only horizontal travel chooses the course.
 package class ChaseCamera {
     var focus:Math.Vec3
     var yaw:float
     var distance:float=10.5
     private var course:float
+    private var previous_target:Math.Vec3
     private var following_motion:bool=false
     private var clear_distance:float=100.0
     private var obstacle_lift:float?=null
 
     init(position:Math.Vec3,forward:Math.Vec3=Math.Vec3.back()) {
-        self.focus=position;self.yaw=Math.pi();self.course=self.yaw
+        self.focus=position;self.previous_target=position;self.yaw=Math.pi();self.course=self.yaw
         self.reset(position,forward)
     }
 
@@ -25,6 +25,7 @@ package class ChaseCamera {
         heading=heading.normalized()
         self.yaw=Math.atan2(heading.x,heading.z)+Math.pi();self.course=self.yaw
         self.focus=position.add(Math.Vec3(0.0,0.25,0.0)).add(heading.multiply(1.5))
+        self.previous_target=self.focus
         self.following_motion=false
         self.clear_distance=100.0
         self.obstacle_lift=null
@@ -44,7 +45,12 @@ package class ChaseCamera {
         self.yaw+=Math.clamp(difference*blend,-2.5*dt,2.5*dt)
         let heading=Math.Vec3(Math.sin(self.yaw-Math.pi()),0.0,Math.cos(self.yaw-Math.pi()))
         let target=position.add(Math.Vec3(0.0,0.25,0.0)).add(heading.multiply(1.5))
+        // Integrate the follow spring over a moving target between render frames.
         self.focus=self.focus.add(target.subtract(self.focus).multiply(blend))
+        if dt>0.0 {
+            self.focus=self.focus.add(target.subtract(self.previous_target).multiply(blend/(5.0*dt)-1.0))
+            self.previous_target=target
+        }
     }
 
     func transform() Scene3D.Transform {

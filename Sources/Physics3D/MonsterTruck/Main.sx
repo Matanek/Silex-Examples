@@ -51,7 +51,7 @@ func update(world:&Resources.World,state:&Scene.TruckScene,input:@Resources.Inpu
         controller.stop();return
     }
     var clock=Time.Stopwatch();clock.start()
-    let step_seconds=1.0/120.0
+    let step_seconds=Scene.SimulationClock.step_seconds
     // At 60 Hz two steps are due per image. Carry one more if an impact
     // overruns, so a delayed frame cannot starve the next render and audio feed.
     let catch_up_steps=2
@@ -73,6 +73,8 @@ func update(world:&Resources.World,state:&Scene.TruckScene,input:@Resources.Inpu
         } else {
             state.panel.drive(state.truck)
         }
+        state.previous_chassis_position=state.truck.chassis.position()
+        state.previous_chassis_velocity=state.truck.chassis.linear_velocity()
         state.truck.step();state.accumulator-=step_seconds;ticks++
         impact=Math.max(impact,state.landing.update(state.truck))
     }
