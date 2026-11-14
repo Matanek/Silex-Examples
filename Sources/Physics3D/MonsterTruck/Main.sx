@@ -42,7 +42,7 @@ func update(world:&Resources.World,state:&Scene.TruckScene,input:@Resources.Inpu
                 else=>{}
             }
         }
-        Scene.perform(world,state)
+        Scene.perform(state)
     }
     if state.profile && state.metrics.elapsed>=state.profile_duration {
         state.metrics.report(state.truck.steps)

@@ -52,7 +52,7 @@ répertoire courant, sans accès aux sources de la démo.
 | P | Gonflage Monster / Bas / Ferme, sans recommencer |
 | H | Afficher ou masquer les réglages et la télémétrie |
 | Plus court / Plus long | Modifier le rapport de pont à l’arrêt, gaz relâchés |
-| R | Recommencer avec le gonflage et la démultiplication sélectionnés |
+| R | Remettre le camion sur ses roues à l’endroit où il se trouve |
 | Molette | Distance de la caméra de poursuite |
 | Échap | Quitter |
 

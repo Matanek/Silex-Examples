@@ -10,7 +10,7 @@ use STD.Math
 package static struct Hud { let width:int=304;let height:int=414 }
 
 package func shortcuts() Canvas {
-    let label = "Z/S Avancer / reculer  ·  Q/D Tourner  ·  Espace Freiner  ·  Maj Turbo  ·  R Repartir  ·  H Réglages"
+    let label = "Z/S Avancer / reculer  ·  Q/D Tourner  ·  Espace Freiner  ·  Maj Turbo  ·  R Redresser  ·  H Réglages"
     let style = Canvas.TextStyle(size:14.0, color:Color.slate_100(), alignment:Canvas.TextAlignment.center)
     var drawing = Canvas()
     drawing.paint(func(painter:&Canvas.Painter) {
@@ -40,7 +40,7 @@ package class Panel {
     var brake:bool=false
     var front_brake:bool=false
     var boost:bool=false
-    var reset:bool=false
+    var recover:bool=false
     var changed:bool=false
     var inflation:int=0
     var final_drive:float=Transmission.Settings.final_drive
@@ -90,7 +90,7 @@ package class Panel {
             key_pressed(key)=>{
                 if self.held(key,true) || key.repeated { return true }
                 if letter(key,116 as uint32,84 as uint32,Input.Key.t) { self.coupled= !self.coupled;return true }
-                if letter(key,114 as uint32,82 as uint32,Input.Key.r) { self.reset=true;return true }
+                if letter(key,114 as uint32,82 as uint32,Input.Key.r) { self.recover=true;return true }
                 if letter(key,112 as uint32,80 as uint32,Input.Key.p) {
                     self.inflation=(self.inflation+1)%3;self.changed=true;return true
                 }
@@ -137,7 +137,7 @@ package class Panel {
         var title=self.text("MONSTER PICKUP");title.style.font_size=18.0
         var column=UI.Column([title,UI.Reactive(self.values),UI.Reactive(self.parameters),
             self.gearing_buttons(),UI.Reactive(self.message),
-            self.text("Z/S : avancer / reculer\nQ/D : direction · ←/→ : AR\nEspace : frein 4 roues\n↑ : frein AV · ↓ : frein AR\nMaj : turbo · T : coupler\nP : pneus · R : reset · Échap : quitter")])
+            self.text("Z/S : avancer / reculer\nQ/D : direction · ←/→ : AR\nEspace : frein 4 roues\n↑ : frein AV · ↓ : frein AR\nMaj : turbo · T : coupler\nP : pneus · R : redresser · Échap : quitter")])
         column.style.margin=UI.Insets(12.0);column.style.padding=UI.Insets(12.0);column.style.gap=6.0
         column.style.background=Color.slate_900().with_alpha(0.88)
         column.style.foreground=Color.slate_100();column.style.radius=8.0

@@ -51,7 +51,7 @@ without access to the example sources.
 | P | Monster / Low / Firm inflation without restarting |
 | H | Show or hide settings and telemetry |
 | Plus court / Plus long | Adjust final drive at rest with the throttle released |
-| R | Restart with the selected inflation and final drive |
+| R | Put the truck back on its wheels in place |
 | Mouse wheel | Chase-camera distance |
 | Escape | Quit |
 

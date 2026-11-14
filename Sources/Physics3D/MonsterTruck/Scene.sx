@@ -17,6 +17,7 @@ use Physics3D.MonsterTruck.ChaseCamera
 use Physics3D.MonsterTruck.EngineSound
 use Physics3D.MonsterTruck.Landing
 use Physics3D.MonsterTruck.StutterTrace
+use Physics3D.MonsterTruck.TyreProfile
 use Physics3D.SoftTire.Metrics
 use STD.Math
 
@@ -26,6 +27,38 @@ package static struct SimulationClock {
 
 package func interpolate_sample(previous:Math.Vec3,current:Math.Vec3,backlog:float) Math.Vec3 {
     return previous.lerp(current,Math.clamp(backlog/SimulationClock.step_seconds,0.0,1.0))
+}
+
+func recovery_pose(truck:@Model.Truck,fallback:Physics.Transform3D) Physics.Transform3D {
+    let pose=truck.chassis.transform()
+    let forward=pose.vector(Math.Vec3.back())
+    var heading=Math.Vec3(forward.x,0.0,forward.z)
+    if heading.length_squared()<0.01 {
+        let right=pose.vector(Math.Vec3.right())
+        heading=Math.Vec3(-right.z,0.0,right.x)
+    }
+    if heading.length_squared()<0.01 { heading=fallback.vector(Math.Vec3.back()) }
+    let rotation=Math.Quat.angle_axis(Math.atan2(heading.x,heading.z),Math.Vec3.up())
+    let position=pose.position
+    var height=position.y
+    // Check the tyre footprint and the center, including the upper face
+    // when the overturned chassis rests inside the side of a slanted block.
+    let anchor=truck.wheels[0].anchor
+    let radius=TyreProfile.Dimensions.radius
+    let half_width=Math.abs(anchor.x)+TyreProfile.Dimensions.half_width
+    let half_length=Math.abs(anchor.z)+radius
+    let clearance=radius-anchor.y+0.20
+    let sides:float[]=[-half_width,0.0,half_width]
+    let axles:float[]=[-half_length,0.0,half_length]
+    let surfaces=Physics.QueryFilter3D(mask_bits:Terrain.Collision.surface,include_sensors:false)
+    for x in sides { for z in axles {
+        let offset=rotation.rotate(Math.Vec3(x,8.0,z))
+        let ray=Physics.Ray3D(position.add(offset),Math.Vec3(0.0,-16.0,0.0))
+        if let support=truck.world.ray_cast(ray,filter:surfaces) {
+            height=Math.max(height,support.point().y+clearance)
+        }
+    } }
+    return Physics.Transform3D(Math.Vec3(position.x,height,position.z),rotation)
 }
 
 package class TruckScene {
@@ -86,14 +119,15 @@ package class TruckScene {
     func create_view(world:&Resources.World,meshes:&Resources.Meshes3D) {
         self.view=PickupView(self.truck,world,meshes)
     }
-    func reset(world:&Resources.World) {
-        var next=Model.Truck(self.workers,obstacles:true,spawn:self.start,final_drive:self.truck.final_drive,arena:self.arena)
+    func recover() {
+        let pose=recovery_pose(self.truck,self.start)
+        var next=Model.Truck(self.workers,obstacles:true,spawn:pose,final_drive:self.truck.final_drive,arena:self.arena)
         next.set_pressure(self.panel.pressure())
         self.view!.rebind(next);self.truck=next
         self.previous_chassis_position=self.truck.chassis.position()
         self.previous_chassis_velocity=self.truck.chassis.linear_velocity()
-        self.accumulator=0.0;self.chase.reset(self.truck.chassis.position(),self.start.vector(Math.Vec3.back()))
-        self.panel.reset=false
+        self.accumulator=0.0;self.chase.reset(pose.position,pose.vector(Math.Vec3.back()))
+        self.panel.recover=false
         self.landing=Landing()
         if var sound=self.sound { sound.reset() }
     }
@@ -119,7 +153,7 @@ package func startup(world:&Resources.World,meshes:&Resources.Meshes3D,images:&R
     Environment.create(world,meshes,images,arena)
     state.create_view(world,meshes)
     state.camera=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
-        ..with(Components.Camera3D(vertical_fov:Math.radians(62.0),far_plane:450.0)))
+        ..with(Components.Camera3D(vertical_fov:Math.radians(62.0),near_plane:0.6,far_plane:450.0)))
     labels(state)
     state.hud=world.spawn(ECS.EntityRecipe() ..with(Scene2D.Transform())
         ..with(Scene2D.Canvas(state.ui.drawing(Controls.Hud.width,Controls.Hud.height),Controls.Hud.width,Controls.Hud.height)
@@ -166,8 +200,8 @@ package func handle(world:&Resources.World,state:&TruckScene,event:@Events.Event
     return state.hud_visible && state.ui.handle(event)
 }
 
-package func perform(world:&Resources.World,state:&TruckScene) {
-    if state.panel.reset { state.reset(world) }
+package func perform(state:&TruckScene) {
+    if state.panel.recover { state.recover() }
     if state.panel.changed { state.truck.set_pressure(state.panel.pressure());state.panel.changed=false }
     if state.panel.gearing_requested {
         state.panel.gearing_requested=false
@@ -184,4 +218,8 @@ package func follow(world:&Resources.World,state:&TruckScene,delta:float) {
     state.chase.update(position,velocity,delta)
     let pose=state.chase.avoid_obstacles(state.truck.world,position,delta)
     world.update<Components.Transform3D>(state.camera,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
+    // Reserve precision for distant overlapping faces while keeping room
+    // for the close-up camera when a wall pushes it against the truck.
+    let near=Math.clamp(pose.position.subtract(position).length()*0.12,0.1,0.6)
+    world.update<Components.Camera3D>(state.camera,func(camera:&Components.Camera3D) { camera.near_plane=near })
 }
