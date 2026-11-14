@@ -12,6 +12,7 @@ package class ChaseCamera {
     private var course:float
     private var following_motion:bool=false
     private var clear_distance:float=100.0
+    private var obstacle_lift:float?=null
 
     init(position:Math.Vec3,forward:Math.Vec3=Math.Vec3.back()) {
         self.focus=position;self.yaw=Math.pi();self.course=self.yaw
@@ -26,6 +27,7 @@ package class ChaseCamera {
         self.focus=position.add(Math.Vec3(0.0,0.25,0.0)).add(heading.multiply(1.5))
         self.following_motion=false
         self.clear_distance=100.0
+        self.obstacle_lift=null
     }
 
     func update(position:Math.Vec3,velocity:Math.Vec3,delta:float) {
@@ -54,22 +56,27 @@ package class ChaseCamera {
     func avoid_obstacles(world:@Physics.World3D,position:Math.Vec3,delta:float) Scene3D.Transform {
         let desired=self.transform()
         let target=position.add(Math.Vec3(0.0,0.35,0.0))
-        var offset=desired.position.subtract(target)
-        let requested=offset.length()
-        var limiting=available_distance(world,target,offset,0.42)
-        var raised=false
-        if limiting<3.5 {
-            // Raise the camera when a nearby wall leaves too little room behind the truck.
-            let lift=offset.normalized().multiply(3.0).add(Math.Vec3(0.0,7.0,0.0))
-            let above=available_distance(world,target,lift,0.42)
-            if above>limiting { offset=lift;limiting=above;raised=true }
+        let behind=desired.position.subtract(target)
+        let requested=behind.length()
+        let dt=Math.clamp(delta,0.0,0.1)
+        var limiting=available_distance(world,target,behind,0.42)
+        let needed=1.0-Math.smooth_step(2.5,5.0,limiting)
+        let previous=self.obstacle_lift ?? needed
+        let lift=previous+(needed-previous)*(1.0-Math.exp(-dt*9.0))
+        self.obstacle_lift=lift
+        var offset=behind
+        if lift>0.001 {
+            // Blend the arm before checking clearance, so even halfway up
+            // the camera stays on the visible side of the obstacle.
+            let raised=behind.normalized().multiply(3.0).add(Math.Vec3(0.0,7.0,0.0))
+            offset=behind.add(raised.subtract(behind).multiply(lift))
+            limiting=available_distance(world,target,offset,0.42)
         }
         if limiting<0.08 { limiting=available_distance(world,target,offset,0.08) }
         let full=offset.length()
-        let blend=1.0-Math.exp(-Math.clamp(delta,0.0,0.1)*5.0)
+        let blend=1.0-Math.exp(-dt*5.0)
         self.clear_distance=Math.min(limiting,self.clear_distance+(full-self.clear_distance)*blend)
-        var correction=Math.clamp(requested-self.clear_distance,0.0,1.0)
-        if raised { correction=1.0 }
+        let correction=Math.clamp(Math.max(requested-self.clear_distance,lift),0.0,1.0)
         if correction<0.001 { return desired }
         let eye=target.add(offset.normalized().multiply(Math.max(self.clear_distance,0.01)))
         let direction=target.subtract(eye)
@@ -155,4 +162,30 @@ test "chase camera rises when the truck backs up to a low obstacle" {
     let view=camera.avoid_obstacles(world,position,1.0/120.0)
     assert(view.position.y>7.0)
     assert(Math.abs(view.rotation.rotate(Math.Vec3.right()).y)<0.00001)
+}
+
+test "chase camera does not jump when a nearby edge alternates at the clearance threshold" {
+    var world=Physics.World3D()
+    world.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type=Physics.BodyType3D.fixed ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(7.0,4.0,4.0)))
+        ..transform=Physics.Transform3D(Math.Vec3(0.0,2.0,-5.78))
+        ..collision_filter=Physics.CollisionFilter3D(category_bits:Terrain.Collision.surface))
+    let start=Math.Vec3(0.0,2.0,0.10)
+    var camera=ChaseCamera(start)
+    var previous=camera.avoid_obstacles(world,start,1.0/120.0)
+    var largest_move=0.0
+    var smallest_alignment=1.0
+    for frame in 0...24 {
+        let position=Math.Vec3(0.0,2.0,-0.10+0.20*((frame%2) as float))
+        camera.update(position,Math.Vec3(),1.0/120.0)
+        let view=camera.avoid_obstacles(world,position,1.0/120.0)
+        largest_move=Math.max(largest_move,view.position.subtract(previous.position).length())
+        smallest_alignment=Math.min(smallest_alignment,view.forward().dot(previous.forward()))
+        let target=position.add(Math.Vec3(0.0,0.35,0.0))
+        let cast=Physics.SphereCast3D(Physics.Sphere3D(0.40),target,view.position.subtract(target))
+        assert(world.sphere_cast(cast)==null)
+        previous=view
+    }
+    print("Chase camera edge move=",largest_move," direction alignment=",smallest_alignment)
+    assert(largest_move<0.40 && smallest_alignment>0.998)
 }
