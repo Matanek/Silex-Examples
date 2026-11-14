@@ -16,6 +16,7 @@ use Physics3D.MonsterTruck.SlopeChecks
 use Physics3D.MonsterTruck.ArenaChecks
 use Physics3D.MonsterTruck.SceneChecks
 use Physics3D.MonsterTruck.EngineSound
+use Physics3D.MonsterTruck.Environment
 use Physics3D.MonsterTruck.StutterTrace
 use STD.Math
 use STD.Process
@@ -205,7 +206,8 @@ func main() {
     }
     title=title+" — Cadence 120 Hz"
     var app=Application() ..add_resource(state)
-        ..add_resource(Resources.Skybox3D.procedural(Scene3D.ProceduralSky.day()))
+        ..add_resource(Environment.skybox())
+        ..add_resource(Resources.ToneMapping3D.aces(exposure:-0.25))
         ..add_plugin(Plugins.Window(Plugins.Window.Settings() ..title=title ..width=1280 ..height=800))
         ..add_plugin(Plugins.Input()) ..add_plugin(Plugins.Time())
         ..add_plugin(Plugins.Scene3D()) ..add_plugin(Plugins.Scene2D())

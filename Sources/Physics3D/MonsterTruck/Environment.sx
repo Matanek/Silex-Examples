@@ -1,13 +1,25 @@
 use GFX.Assets.Model
+use GFX.Color
 use GFX.Components
 use GFX.ECS
 use GFX.Resources
 use GFX.Scene3D
 use STD.Math
 
+func sun_direction() Math.Vec3 {
+    return Math.Vec3(-0.4,-1.0,-0.3).normalized()
+}
+
+package func skybox() Resources.Skybox3D {
+    let sky=Scene3D.ProceduralSky.day()
+        ..sun_direction=sun_direction().negated() ..sky_intensity=0.68 ..sun_intensity=2.5
+    return Resources.Skybox3D.procedural(sky) ..diffuse_intensity=0.27 ..specular_intensity=0.60
+}
+
 package func create(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images,arena:Model) {
     let instance=Scene3D.instantiate(arena,world,meshes,images)
-    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.55)))
-    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:3.0)
+    world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.29)))
+    world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:sun_direction(),
+        color:Color.bytes(255,248,235),intensity:3.15)
         ..shadow_distance=65.0))
 }
