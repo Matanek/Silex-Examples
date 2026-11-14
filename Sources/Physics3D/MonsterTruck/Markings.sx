@@ -40,6 +40,11 @@ package func create(world:&Resources.World,meshes:&Resources.Meshes3D,cube:Scene
     let side_arrows:Math.Vec3[]=[Math.Vec3(-29.0,0.015,38.5),Math.Vec3(29.0,0.015,40.0),
         quarter.add(Math.Vec3(0.0,0.015,-5.0))]
     for position in side_arrows { arrows.append(Scene3D.Transform(position,Math.Quat(),Math.Vec3(2.2))) }
+    let banks:Math.Vec3[]=[Arena.DirtBanks.west,Arena.DirtBanks.east]
+    for bank in banks {
+        let position=bank.add(Math.Vec3(0.0,0.015,-4.0))
+        arrows.append(Scene3D.Transform(position,Math.Quat(),Math.Vec3(2.2)))
+    }
     for rail in SlideRails.layout() {
         let point=rail.start.add(Math.Vec3(0.0,0.015,-17.0))
         arrows.append(Scene3D.Transform(point,Math.Quat(),Math.Vec3(2.2)))

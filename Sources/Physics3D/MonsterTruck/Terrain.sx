@@ -1,5 +1,6 @@
 use GFX.Physics
 use STD.Math
+use Physics3D.MonsterTruck.Arena
 use Physics3D.MonsterTruck.ArenaGround
 use Physics3D.MonsterTruck.QuarterPipe
 use Physics3D.MonsterTruck.SlideRails
@@ -12,6 +13,7 @@ package enum Section {
     kicker
     rollers
     quarter_pipe
+    curved_bank
     slide_rails
     perimeter
     open
@@ -25,6 +27,11 @@ package func section(position:Math.Vec3) Section {
     }
     if position.x> -48.0 && position.x< -20.0 && position.z>=98.0 && position.z<135.0 {
         return Section.slide_rails
+    }
+    let west=Arena.DirtBanks.west;let east=Arena.DirtBanks.east
+    if (Math.abs(position.x-west.x)<9.0 && position.z>=west.z-7.0 && position.z<west.z+17.0) ||
+        (Math.abs(position.x-east.x)<10.0 && position.z>=east.z-7.0 && position.z<east.z+20.0) {
+        return Section.curved_bank
     }
     if position.x< -37.0 && position.z<100.0 { return Section.perimeter }
     if position.z<8.0 { return Section.start }
@@ -48,6 +55,7 @@ package func section_name(value:Section) str {
         rollers=>{ return "Petites bosses" }
         slide_rails=>{ return "Rails de slide" }
         quarter_pipe=>{ return "Quarter-pipe" }
+        curved_bank=>{ return "Rampe courbe en terre" }
         perimeter=>{ return "Bord ouest" }
         open=>{ return "Arène libre" }
     }

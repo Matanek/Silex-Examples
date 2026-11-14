@@ -82,10 +82,14 @@ Commencer tout droit par la grande table, puis la butte centrale et ses quatre
 accès. À gauche se trouvent un tremplin et une réception séparée ; à droite,
 une cuvette à deux montées. Les tables ont un sommet plat et un changement de
 pente marqué au bord du plateau. La butte à gauche du départ est arrondie.
-À droite du départ, une crête de 2,9 m présente une montée longue et une
-descente courte. Au fond, trois bosses de 0,66 m, 1,35 m et 0,90 m alternent
-crêtes et dôme. À gauche, un passage longe les buttes du bord et rejoint
-les rails de slide.
+À droite du départ et au fond, deux crêtes droites de 3,5 m et 3,7 m
+présentent chacune une montée et une descente sur toute leur largeur
+utile. Trois petites bosses de 0,66 m à 1,35 m alternent crêtes et dôme.
+Deux rampes courbes en terre sont signalées par des flèches. Celle de
+2,6 m se trouve vers le bord ouest, avant les rails de slide. Celle de
+3,8 m se trouve au fond à droite. Leur pente se redresse jusqu’à la lèvre,
+puis un court replat débouche sur une descente. Le quarter en métal
+garde sa propre piste d’élan.
 
 Pour un cabrage, donner un bref appui sur Maj + Z puis relâcher. Pour lever
 l’arrière, prendre de la vitesse puis donner un bref appui sur Espace. Le couple

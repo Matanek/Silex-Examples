@@ -78,10 +78,14 @@ the chassis. Reversing gradually turns the view toward the new travel direction.
 Start straight ahead with the large table, then explore the central mound
 and its four approaches. The left side has a takeoff and separate landing;
 the right side has a bowl with two slopes. The jump tables have level tops
-with a distinct break in grade. A rounded mound sits left of the start, and
-a 2.9 m crest to the right has a long climb and a short descent. Three
-mounds at the far end alternate crests and a dome at heights of 0.66 m,
-1.35 m and 0.90 m. A lane along the western mounds leads to the slide rails.
+with a distinct break in grade. A rounded mound sits left of the start.
+Two straight crests, 3.5 m to the right of the start and 3.7 m at the far
+end, have a climb and descent across their usable width. Three smaller
+mounds from 0.66 m to 1.35 m alternate crests and a dome. Arrows mark two
+curved dirt ramps. The 2.6 m ramp is by the western edge before the slide
+rails. The 3.8 m ramp is at the far right. Their slopes steepen to a lip,
+followed by a short deck and a descent. The steel quarter-pipe has its own
+approach lane.
 
 For a wheelie, briefly press Shift + Z, then release. To lift the rear,
 build speed and briefly press Space. Torque and braking physically pitch the

@@ -7,11 +7,11 @@ use Physics3D.MonsterTruck.SlideRails
 use Physics3D.MonsterTruck.Terrain
 use STD.Math
 
-func height(world:Physics.World3D,x:float,z:float,expected:float) {
+func height(world:Physics.World3D,x:float,z:float,expected:float,minimum_normal_y:float=0.7) {
     let hit=world.ray_cast(Physics.Ray3D(Math.Vec3(x,10.0,z),Math.Vec3(0.0,-20.0,0.0)))
     assert(hit!=null,"ray missed expected arena surface")
     if Math.abs(hit!.point().y-expected)>=0.0001 { print("arena height x=",x," z=",z," expected=",expected," actual=",hit!.point().y) }
-    assert(Math.abs(hit!.point().y-expected)<0.0001 && hit!.normal().y>0.7)
+    assert(Math.abs(hit!.point().y-expected)<0.0001 && hit!.normal().y>minimum_normal_y)
 }
 
 func verify_quarter_geometry(world:Physics.World3D) {
@@ -122,6 +122,34 @@ func verify_slide_rails(world:Physics.World3D) {
     }
 }
 
+func verify_dirt_bank(toe:Math.Vec3,run:float,run_up:float,throttle:float,lip_height:float) {
+    let spawn=toe.add(Math.Vec3(0.0,2.35,-run_up))
+    let crest=toe.z+run
+    var truck=Model.Truck(4,obstacles:true,spawn:Physics.Transform3D(spawn))
+    var steep=false
+    var airborne=false
+    var passed_crest=false
+    for frame in 0...750 {
+        if frame==100 { truck.controls(throttle,0.0) }
+        if truck.chassis.position().z>crest-2.0 { truck.controls(0.0,0.0) }
+        truck.step()
+        let position=truck.chassis.position()
+        if position.z>=toe.z && position.z<=crest+1.0 {
+            if truck.chassis.transform().vector(Math.Vec3.back()).y>0.80 { steep=true }
+        }
+        if position.z>crest && position.y>lip_height+3.5 &&
+            truck.support(0)==null && truck.support(1)==null && truck.support(2)==null && truck.support(3)==null {
+            airborne=true
+        }
+        assert(truck.maximum_bead_error()<0.08)
+        if position.z>crest+7.0 {
+            passed_crest=true
+            break
+        }
+    }
+    assert(steep && airborne && passed_crest,"the dirt bank must launch the truck past its crest")
+}
+
 package func verify() {
     var world=Physics.World3D()
     let samples=ArenaGround.samples()
@@ -133,9 +161,18 @@ package func verify() {
     height(world,43.0,85.0,0.0)
     height(world,-1.0,101.0,0.66)
     height(world,1.0,111.0,1.35)
-    height(world,16.0,134.0,2.3)
+    height(world,16.0,137.0,3.7)
     assert(Math.abs(ArenaGround.height(-28.0,22.0)-1.8)<0.0001)
-    assert(Math.abs(ArenaGround.height(23.0,25.0)-2.9)<0.0001)
+    height(world,23.0,25.0,3.5)
+    height(world,18.0,25.0,3.5)
+    height(world,28.0,25.0,3.5)
+    height(world,-53.0,65.0,2.6,minimum_normal_y:0.4)
+    height(world,43.0,128.0,3.8,minimum_normal_y:0.4)
+    height(world,48.0,128.0,3.8,minimum_normal_y:0.4)
+    let toe=ArenaGround.height(43.0,124.0)-ArenaGround.height(43.0,123.0)
+    let lip=ArenaGround.height(43.0,128.0)-ArenaGround.height(43.0,127.0)
+    assert(toe<0.15 && lip>1.5)
+    assert(ArenaGround.height(43.0,130.0)>ArenaGround.height(43.0,134.0))
     assert(Math.abs(ArenaGround.height(1.0,111.0)-1.35)<0.0001)
     assert(Math.abs(ArenaGround.height(-2.0,123.0)-0.90)<0.0001)
     assert(ArenaGround.height(23.0,24.0)<ArenaGround.height(23.0,25.0))
@@ -164,6 +201,8 @@ package func verify() {
     verify_quarter_geometry(world)
     verify_quarter_takeoff()
     verify_slide_rails(world)
+    verify_dirt_bank(Arena.DirtBanks.west,4.0,10.5,0.45,2.6)
+    verify_dirt_bank(Arena.DirtBanks.east,5.0,13.0,0.6,3.8)
     print("Arena passed: continuous dirt relief, flat surroundings, compacted foundations and multiple approaches")
 }
 
