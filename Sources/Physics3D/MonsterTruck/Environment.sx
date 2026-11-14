@@ -20,7 +20,7 @@ package func create(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Re
     let instance=Scene3D.instantiate(arena,world,meshes,images)
     world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.29)))
     // Shift the shadow lookup away from the adjoining faces of large tilted blocks.
-    let shadow=Scene3D.Shadow.sun() ..normal_offset=0.18
+    let shadow=Scene3D.Shadow.sun() ..normal_offset=0.18 ..softness=2.5
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:sun_direction(),
         color:Color.bytes(255,248,235),intensity:3.15,shadow:shadow)
         ..shadow_distance=65.0))
