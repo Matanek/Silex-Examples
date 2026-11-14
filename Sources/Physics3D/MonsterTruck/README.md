@@ -169,8 +169,11 @@ The four SixDOF suspensions provide ±80 cm of travel, 1800 N/m springs and
 remains available at speed with a 0.35 rad minimum; coupled rear steering
 is −65% of the front angle.
 
-Simulation runs at 120 Hz, with eight coupling steps at 960 Hz and one soft
+Simulation runs at 120 Hz, with seven coupling steps at 840 Hz and one soft
 substep per coupling; the rigid solver uses eight velocity iterations.
+The interactive loop runs at most two steps per frame and carries one step
+of backlog. After a longer stall, it drops excess backlog so rendering and
+audio feeding can resume.
 Terrain rendering and collisions share a heightmap sampled at one-meter
 intervals. The terrain is static. A compaction map reserves the ground under
 and around the quarter-pipe, protects the rail footings, and distinguishes

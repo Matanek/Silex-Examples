@@ -181,8 +181,11 @@ Les quatre suspensions SixDOF offrent ±80 cm de course, des ressorts de
 masse bas. Le braquage reste disponible à haute vitesse, avec un minimum de
 0,35 rad ; le couplage arrière vaut −65 % du braquage avant.
 
-La simulation tourne à 120 Hz, avec huit couplages à 960 Hz et un sous-pas
+La simulation tourne à 120 Hz, avec sept couplages à 840 Hz et un sous-pas
 souple par couplage ; le solveur rigide utilise huit itérations de vitesse.
+La boucle interactive exécute au plus deux pas par image et garde un pas
+de retard. Lors d’un blocage plus long, elle abandonne le retard excédentaire
+pour reprendre le rendu et l’alimentation audio.
 Le rendu et les collisions du terrain partagent une carte de hauteurs
 échantillonnée tous les mètres. Le relief est statique. La carte de compaction
 réserve le sol sous le quarter et ses abords, protège les ancrages des rails,

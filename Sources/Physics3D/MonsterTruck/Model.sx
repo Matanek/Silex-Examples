@@ -111,8 +111,11 @@ package class Truck {
         if self.brake || Math.abs(self.gas)>1.0 { rise=0.1 }
         self.drive+=Math.clamp(self.gas-self.drive,-0.1,rise)
         if self.brake && Math.abs(self.gas)<0.001 { self.drive=0.0 }
-        let delta=1.0/960.0
-        for _ in 0...8 {
+        // Seven coupling steps leave rendering time when the tyres and rims
+        // hit steep terrain, while controls and visual updates stay at 120 Hz.
+        let coupling_steps=7
+        let delta=(1.0/120.0)/(coupling_steps as float)
+        for _ in 0...coupling_steps {
             var mean=0.0
             for i,wheel in self.wheels.indexed() {
                 let spin=wheel.spin(self.chassis);mean+=Math.abs(spin)/4.0

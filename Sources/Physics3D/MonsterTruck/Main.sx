@@ -50,9 +50,13 @@ func update(world:&Resources.World,state:&Scene.TruckScene,input:@Resources.Inpu
         controller.stop();return
     }
     var clock=Time.Stopwatch();clock.start()
-    state.accumulator=Math.min(state.accumulator+Math.min(simulation.delta(),0.1),0.1)
+    let step_seconds=1.0/120.0
+    // At 60 Hz two steps are due per image. Carry one more if an impact
+    // overruns, so a delayed frame cannot starve the next render and audio feed.
+    let catch_up_steps=2
+    state.accumulator=Math.min(state.accumulator+simulation.delta(),(catch_up_steps as float+1.0)*step_seconds)
     var ticks=0
-    while state.accumulator>=1.0/120.0 && ticks<8 {
+    while state.accumulator>=step_seconds && ticks<catch_up_steps {
         if state.profile {
             var gas=0.0;if state.truck.steps>=240 { gas=state.profile_throttle }
             if state.hold_profile { state.truck.controls(0.0,0.0,brake:true,handbrake:true) }
@@ -67,7 +71,7 @@ func update(world:&Resources.World,state:&Scene.TruckScene,input:@Resources.Inpu
         } else {
             state.panel.drive(state.truck)
         }
-        state.truck.step();state.accumulator-=1.0/120.0;ticks++
+        state.truck.step();state.accumulator-=step_seconds;ticks++
     }
     let physics_seconds=clock.get_elapsed_seconds()
     if var trace=state.stutter_trace { trace.physics(physics_seconds,ticks,state.accumulator) }
