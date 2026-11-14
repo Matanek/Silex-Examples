@@ -11,7 +11,7 @@ package class ChaseCamera {
     private var course:float
     private var previous_target:Math.Vec3
     private var following_motion:bool=false
-    private var clear_distance:float=100.0
+    private var arm_shortening:float=0.0
     private var obstacle_lift:float?=null
 
     init(position:Math.Vec3,forward:Math.Vec3=Math.Vec3.back()) {
@@ -27,7 +27,7 @@ package class ChaseCamera {
         self.focus=position.add(Math.Vec3(0.0,0.25,0.0)).add(heading.multiply(1.5))
         self.previous_target=self.focus
         self.following_motion=false
-        self.clear_distance=100.0
+        self.arm_shortening=0.0
         self.obstacle_lift=null
     }
 
@@ -66,7 +66,8 @@ package class ChaseCamera {
         let requested=behind.length()
         let dt=Math.clamp(delta,0.0,0.1)
         var limiting=available_distance(world,target,behind,0.42)
-        let needed=1.0-Math.smooth_step(2.5,5.0,limiting)
+        var needed=0.0
+        if limiting<requested { needed=1.0-Math.smooth_step(2.5,5.0,limiting) }
         let previous=self.obstacle_lift ?? needed
         let lift=previous+(needed-previous)*(1.0-Math.exp(-dt*9.0))
         self.obstacle_lift=lift
@@ -80,11 +81,12 @@ package class ChaseCamera {
         }
         if limiting<0.08 { limiting=available_distance(world,target,offset,0.08) }
         let full=offset.length()
-        let blend=1.0-Math.exp(-dt*5.0)
-        self.clear_distance=Math.min(limiting,self.clear_distance+(full-self.clear_distance)*blend)
-        let correction=Math.clamp(Math.max(requested-self.clear_distance,lift),0.0,1.0)
+        // Smooth the distance removed by obstacles. With a clear line of sight,
+        // the changing distance to the truck must not shorten or tilt the arm.
+        self.arm_shortening=Math.max(full-limiting,self.arm_shortening*Math.exp(-dt*5.0))
+        let correction=Math.clamp(Math.max(self.arm_shortening,lift),0.0,1.0)
         if correction<0.001 { return desired }
-        let eye=target.add(offset.normalized().multiply(Math.max(self.clear_distance,0.01)))
+        let eye=target.add(offset.normalized().multiply(Math.max(full-self.arm_shortening,0.01)))
         let direction=target.subtract(eye)
         let horizontal=Math.sqrt(direction.x*direction.x+direction.z*direction.z)
         let heading=Math.atan2(-direction.x,-direction.z)
@@ -168,6 +170,25 @@ test "chase camera rises when the truck backs up to a low obstacle" {
     let view=camera.avoid_obstacles(world,position,1.0/120.0)
     assert(view.position.y>7.0)
     assert(Math.abs(view.rotation.rotate(Math.Vec3.right()).y)<0.00001)
+}
+
+test "chase camera follows an unobstructed accelerating truck without changing pitch or arm length" {
+    var world=Physics.World3D()
+    Terrain.add_floor(world)
+    let dt=1.0/120.0
+    let starts:Math.Vec3[]=[Math.Vec3(0.0,2.0,0.0),Math.Vec3(180.0,2.0,140.0)]
+    for start in starts {
+        var camera=ChaseCamera(start)
+        for frame in 0...300 {
+            let t=(frame as float)*dt
+            let position=start.add(Math.Vec3(0.0,0.06*Math.sin(t*20.0),6.0*t*t))
+            camera.update(position,Math.Vec3(0.0,0.0,12.0*t),dt)
+            let desired=camera.transform()
+            let view=camera.avoid_obstacles(world,position,dt)
+            assert(view.position.nearly_equal(desired.position,0.0001))
+            assert(view.forward().nearly_equal(desired.forward(),0.0001))
+        }
+    }
 }
 
 test "chase camera does not jump when a nearby edge alternates at the clearance threshold" {
