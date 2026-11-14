@@ -1,4 +1,6 @@
 use GFX.Components
+use GFX.Assets.Model as AssetModel
+use Physics3D.MonsterTruck.Arena
 use GFX.Physics
 use GFX.ECS
 use GFX.Input
@@ -13,17 +15,20 @@ use Physics3D.MonsterTruck.Environment
 use Physics3D.MonsterTruck.Terrain
 use Physics3D.MonsterTruck.ChaseCamera
 use Physics3D.MonsterTruck.EngineSound
-use Physics3D.MonsterTruck.TyreDirt
+use Physics3D.MonsterTruck.Landing
 use Physics3D.MonsterTruck.StutterTrace
 use Physics3D.SoftTire.Metrics
 use STD.Math
 
 package class TruckScene {
     var truck:Model.Truck
+    let arena:AssetModel
+    let start:Physics.Transform3D
+    let quarter:Physics.Transform3D
     var panel:Controls.Panel=Controls.Panel()
     var ui:UI.Session
     var view:PickupView?=null
-    var dirt:TyreDirt?=null
+    var landing:Landing=Landing()
     var camera:ECS.Entity=ECS.Entity()
     var hud:ECS.Entity=ECS.Entity()
     var shortcut_line:ECS.Entity=ECS.Entity()
@@ -54,11 +59,14 @@ package class TruckScene {
     init(workers:int=4,profile:bool=false,slope:bool=false,ramp:bool=false,throttle:float=0.75,turn:bool=false,trace:bool=false,duration:float=12.0,spawn:Physics.Transform3D?=null,bumps:bool=false) {
         self.profile_duration=duration;self.profile_throttle=throttle;self.profile_turn=turn;self.trace_performance=trace
         self.workers=workers;self.profile=profile;self.hold_profile=slope || bumps;self.ramp_profile=ramp
-        if let pose=spawn { self.truck=Model.Truck(workers,obstacles:true,spawn:pose) }
-        else if slope { self.truck=Model.Truck(workers,obstacles:true,spawn:Terrain.slope_spawn()) }
-        else if ramp {self.truck=Model.Truck(workers,obstacles:true,
-            spawn:Physics.Transform3D(Math.Vec3(-2.0,2.35,8.0),Math.Quat.angle_axis(0.3,Math.Vec3.up())))}
-        else { self.truck=Model.Truck(workers,obstacles:true) }
+        let arena=Arena.load()
+        self.arena=arena
+        self.start=Arena.vehicle_spawn(arena,"Depart",Physics.Transform3D(Math.Vec3(0.0,2.35,0.0)))
+        self.quarter=Terrain.quarter_pose(arena)
+        var origin=self.start
+        if let pose=spawn { origin=pose }
+        else if slope { origin=Terrain.slope_spawn() }
+        self.truck=Model.Truck(workers,obstacles:true,spawn:origin,arena:arena)
         self.chase=ChaseCamera(self.truck.chassis.position(),self.truck.chassis.transform().vector(Math.Vec3.back()))
         if profile { self.ui=UI.Session(self.panel.measurement(slope,ramp,throttle,turn,duration,bumps:bumps)) }
         else { self.ui=UI.Session(self.panel.describe()) }
@@ -67,12 +75,12 @@ package class TruckScene {
         self.view=PickupView(self.truck,world,meshes)
     }
     func reset(world:&Resources.World) {
-        var next=Model.Truck(self.workers,obstacles:true,final_drive:self.truck.final_drive)
+        var next=Model.Truck(self.workers,obstacles:true,spawn:self.start,final_drive:self.truck.final_drive,arena:self.arena)
         next.set_pressure(self.panel.pressure())
         self.view!.rebind(next);self.truck=next
-        self.accumulator=0.0;self.chase.reset(self.truck.chassis.position())
+        self.accumulator=0.0;self.chase.reset(self.truck.chassis.position(),self.start.vector(Math.Vec3.back()))
         self.panel.reset=false
-        if var dirt=self.dirt { dirt.reset(world) }
+        self.landing=Landing()
         if var sound=self.sound { sound.reset() }
     }
 }
@@ -86,15 +94,16 @@ package func labels(state:&TruckScene) {
     var name="monster"
     if state.panel.inflation==1 { name="bas" }
     if state.panel.inflation==2 { name="ferme" }
-    let section=Terrain.section_name(Terrain.section(state.truck.chassis.position()))
+    let section=Terrain.section(state.truck.chassis.position(),state.quarter)
     var mode="indépendante";if state.panel.coupled { mode="couplée" }
     var turbo="prêt";if state.truck.gas>1.0 { turbo="actif" }
     state.panel.settings.set("Gonflage : $(name)\nDirection : $(mode)\nSecteur : $(section)\nRapport de pont : $(state.truck.final_drive)\nTurbo : $(turbo)")
 }
 
 package func startup(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images,state:&TruckScene) {
-    Environment.create(world,meshes,images,state.truck.ground_heights);state.create_view(world,meshes)
-    state.dirt=TyreDirt(world,meshes,images)
+    let arena=copy state.arena
+    Environment.create(world,meshes,images,arena)
+    state.create_view(world,meshes)
     state.camera=world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D())
         ..with(Components.Camera3D(vertical_fov:Math.radians(62.0),far_plane:450.0)))
     labels(state)

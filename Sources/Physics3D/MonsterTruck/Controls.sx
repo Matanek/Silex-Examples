@@ -124,7 +124,7 @@ package class Panel {
         if turn { description="Plein gaz puis braquage sur la rampe" }
         if slope { name="TEST AUTOMATIQUE — PENTE";description="Freins maintenus sur la rampe" }
         if ramp {name="TEST AUTOMATIQUE — MONTÉE";description="Montée lente puis freinage"}
-        if bumps { name="TEST AUTOMATIQUE — PETITES BOSSES";description="Freins maintenus sur les petites bosses" }
+        if bumps { name="TEST AUTOMATIQUE — BLOCS INCLINÉS";description="Freins maintenus sur les blocs inclinés" }
         description+="\nFermeture après $(duration as int) secondes"
         var column=UI.Column([self.text(name),UI.Reactive(self.values),UI.Reactive(self.parameters),
             self.text(description+"\nÉchap : quitter")])

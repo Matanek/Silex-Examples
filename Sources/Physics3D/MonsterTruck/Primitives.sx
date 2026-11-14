@@ -25,38 +25,6 @@ package func box(vertices:&Scene3D.Geometry.Vertex[],indices:&uint32[],center:Ma
     for index in cube.indices() { indices.append(index+offset) }
 }
 
-package func sphere() Scene3D.Geometry.Mesh {
-    var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[]
-    for ring in 0...13 {
-        let phi=Math.pi()*(ring as float)/12.0
-        for column in 0...25 {
-            let angle=Math.two_pi()*(column as float)/24.0
-            let normal=Math.Vec3(Math.sin(phi)*Math.cos(angle),Math.cos(phi),Math.sin(phi)*Math.sin(angle))
-            vertices.append(Scene3D.Geometry.Vertex(normal,normal,Math.Vec2((column as float)/24.0,(ring as float)/12.0)))
-            if ring<12 && column<24 {
-                let a=(ring*25+column) as uint32;let b=a+1 as uint32
-                let c=a+25 as uint32;let d=c+1 as uint32
-                indices.append(a);indices.append(b);indices.append(c)
-                indices.append(b);indices.append(d);indices.append(c)
-            }
-        }
-    }
-    return Scene3D.Geometry.Mesh(vertices,indices)
-}
-
-// Paint geometry faces upward and points along the course's +Z direction.
-package func arrow() Scene3D.Geometry.Mesh {
-    var vertices:Scene3D.Geometry.Vertex[]=[];var indices:uint32[]=[]
-    face(vertices,indices,Math.Vec3(-0.12,0.0,-0.7),Math.Vec3(-0.12,0.0,0.0),
-        Math.Vec3(0.12,0.0,0.0),Math.Vec3(0.12,0.0,-0.7))
-    let offset=vertices.count() as uint32
-    vertices.append(Scene3D.Geometry.Vertex(Math.Vec3(-0.38,0.0,0.0),Math.Vec3.up(),Math.Vec2()))
-    vertices.append(Scene3D.Geometry.Vertex(Math.Vec3(0.0,0.0,0.6),Math.Vec3.up(),Math.Vec2(0.5,1.0)))
-    vertices.append(Scene3D.Geometry.Vertex(Math.Vec3(0.38,0.0,0.0),Math.Vec3.up(),Math.Vec2(1.0,0.0)))
-    indices.append(offset);indices.append(offset+1 as uint32);indices.append(offset+2 as uint32)
-    return Scene3D.Geometry.Mesh(vertices,indices)
-}
-
 package func align(first:Math.Vec3,second:Math.Vec3) Math.Quat {
     let dot=first.dot(second)
     if dot< -0.99999 {

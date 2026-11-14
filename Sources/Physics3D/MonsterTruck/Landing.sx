@@ -1,0 +1,25 @@
+use Physics3D.MonsterTruck.Model
+use STD.Math
+
+package class Landing {
+    private var falling_speed:float[]=[0.0,0.0,0.0,0.0]
+
+    func update(truck:@Model.Truck) float {
+        var impact=0.0
+        for index,wheel in truck.wheels.indexed() {
+            let velocity=wheel.rim.linear_velocity()
+            if let hit=truck.support(index) {
+                let normal=hit.normal()
+                let gap=wheel.rim.position().subtract(hit.point()).dot(normal)
+                if normal.y>0.25 && gap<1.15 {
+                    impact=Math.max(impact,Math.clamp((self.falling_speed[index]-2.4)/8.0,0.0,1.0))
+                    self.falling_speed[index]=0.0
+                    continue
+                }
+            }
+            if velocity.y>0.5 { self.falling_speed[index]=0.0 }
+            else { self.falling_speed[index]=Math.max(self.falling_speed[index],-velocity.y) }
+        }
+        return impact
+    }
+}

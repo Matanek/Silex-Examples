@@ -1,16 +1,15 @@
 use GFX.Physics
+use GFX.Assets.Model as AssetModel
+use Physics3D.MonsterTruck.Arena
 use STD.Math
 use Physics3D.MonsterTruck.Wheel
 use Physics3D.MonsterTruck.TyreProfile
 use Physics3D.MonsterTruck.Chassis
 use Physics3D.MonsterTruck.Terrain
-use Physics3D.MonsterTruck.ArenaGround
-use Physics3D.MonsterTruck.SlideRails
 use Physics3D.MonsterTruck.Transmission
 
 package class Truck {
     var world:Physics.World3D
-    let ground_heights:float[]
     var chassis:Physics.RigidBody3D
     var wheels:Wheel[]=[]
     var steering:float=0.0
@@ -24,25 +23,18 @@ package class Truck {
     var final_drive:float
     var motor:Physics.WheelDrive3D
     private var support_hits:Physics.WorldRayHit3D?[]=[]
-    init(workers:int=1,obstacles:bool=false,spawn:Physics.Transform3D=Physics.Transform3D(Math.Vec3(0.0,2.35,0.0)),tyre_flex:float=4.0,final_drive:float=Transmission.Settings.final_drive) {
+    init(workers:int=1,obstacles:bool=false,spawn:Physics.Transform3D=Physics.Transform3D(Math.Vec3(0.0,2.35,0.0)),tyre_flex:float=4.0,final_drive:float=Transmission.Settings.final_drive,arena:AssetModel?=null) {
         self.final_drive=final_drive;self.motor=Transmission.create(final_drive)
         self.world=Physics.World3D(Physics.World3DSettings() ..soft_body_substeps=1 ..velocity_iterations=8)
         if workers>1 { self.world.enable_parallelism(workers) }
-        if obstacles {
-            self.ground_heights=ArenaGround.samples()
-        } else {
-            self.ground_heights=[]
-            self.world.create_rigid_body(Physics.RigidBody3DSettings() ..body_type=Physics.BodyType3D.fixed
-                ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0
-                ..collision_filter=Physics.CollisionFilter3D(category_bits:ArenaGround.Collision.category,mask_bits:14))
-        }
+        if !obstacles { Terrain.add_floor(self.world) }
         self.chassis=self.world.create_rigid_body(Physics.RigidBody3DSettings()
             ..shape=Chassis.shape()
             ..transform=spawn
             // Engine and transmission sit below the body shell, slightly forward.
             ..mass_properties=Physics.MassProperties3D(150.0,Math.Vec3(269.8,319.6,60.4),Math.Vec3(0.0,-0.85,0.15))
             ..allow_sleep=false ..linear_damping=0.05 ..angular_damping=0.15
-            ..collision_filter=Physics.CollisionFilter3D(category_bits:8,mask_bits:1 + SlideRails.Collision.surface))
+            ..collision_filter=Physics.CollisionFilter3D(category_bits:8,mask_bits:Terrain.Collision.surface))
         var definition=TyreProfile.make(tyre_flex)
         let sides:float[]=[-2.05,2.05];let axles:float[]=[-2.05,2.05]
         for x in sides { for z in axles {
@@ -50,8 +42,8 @@ package class Truck {
             self.support_hits.append(null)
         } }
         if obstacles {
-            let heights=self.ground_heights
-            Terrain.create(self.world,heights)
+            let layout=arena ?? Arena.load()
+            Terrain.create(self.world,layout)
         }
     }
     func controls(throttle:float,turn:float,brake:bool=false,handbrake:bool=false,rear_turn:float?=null,hard_brake:bool=false) {
@@ -103,7 +95,7 @@ package class Truck {
         // upshifts, never permission to apply the requested drive direction.
         for i,wheel in self.wheels.indexed() {
             self.support_hits[i]=self.world.ray_cast(Physics.Ray3D(wheel.rim.position(),Math.Vec3(0.0,-1.3,0.0)),
-                filter:Physics.QueryFilter3D(mask_bits:1 + SlideRails.Collision.surface))
+                filter:Physics.QueryFilter3D(mask_bits:Terrain.Collision.surface))
         }
         // A finite throttle response avoids an impulse-like torque jump.
         if self.gas*self.drive<0.0 { self.drive=0.0 }

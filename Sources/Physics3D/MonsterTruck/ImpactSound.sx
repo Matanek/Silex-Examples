@@ -1,0 +1,22 @@
+use GFX.Audio
+use STD.Math
+use STD.Randomizer
+
+package func landing(audio:&Audio) Audio.Sound {
+    let sample_rate=24_000
+    var random=Randomizer(4421)
+    var samples:float32[]=[]
+    var transient=0.0
+    var phase=0.0
+    for i in 0...5_760 {
+        let seconds=(i as float)/(sample_rate as float)
+        let white=random.get_float()*2.0-1.0
+        transient+=(white-transient)*0.20
+        phase+=Math.two_pi()*(49.0+48.0*Math.exp(-seconds*45.0))/(sample_rate as float)
+        let body=Math.sin(phase)*0.45*Math.exp(-seconds*23.0)
+        let attack=transient*0.36*Math.exp(-seconds*36.0)
+        let edge=Math.min(1.0,(Math.min(i,5_759-i) as float)/55.0)
+        samples.append(((body+attack)*edge) as float32)
+    }
+    return audio.create(@samples[0:samples.count()],sample_rate)
+}

@@ -2,14 +2,9 @@
 
 [Français](README.fr.md)
 
-Drive a pickup with four deformable tires on a 144 × 184 m dirt course.
-Jump tables, plateaus, a bowl and small rollers are sculpted into the ground.
-Open lanes between the mounds leave room to choose an approach and build
-speed. The pickup has cutaway fenders, an exposed tube frame and a steel
-skid plate under the transmission. Packed dirt and gravel cover the course.
-On dirt, the tires leave a dust trail and a gravel sound. Wheel slip raises a
-denser cloud. Landing on dirt throws up a burst around the wheels and plays
-a low impact sound.
+Climb concrete blocks in a pickup with four deformable tires. The course
+starts at the checkered line, turns on two landings and reaches a platform
+16.1 m above the slab. The quarter-pipe has a separate approach on the right.
 
 ## Launch and drive
 
@@ -19,15 +14,9 @@ From the workspace root containing `Silex-Examples/`:
 silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 ```
 
-The render loop is paced at 120 Hz, matching the physics simulation. The
-16 m wide quarter-pipe is beyond the bowl, near the edge of the arena. An
-arrow marks its approach.
-Its lip turns slightly back toward the ramp. Adjust your approach speed and
-use the brake in the air to set up the landing.
-
-The two steel rails are at the far left. Center the truck on the arrow and
-keep the wheels on the approach berms. The skid plate takes over in the middle.
-The rail nearer the small rollers climbs. The one nearer the arena edge descends.
+The 16 m wide steel quarter-pipe sits on the right with a separate run-up
+marked by arrows. Its lip turns slightly back toward the ramp. Adjust the
+approach speed and use the brake in the air to set up the landing.
 
 The Chevrolet 454 from [AudioEngineSimulator](../../AudioEngineSimulator/README.md)
 is enabled by default. The demo embeds the simulator and its resources on
@@ -75,22 +64,31 @@ The camera follows horizontal travel with a level horizon. It holds its last
 course at low speed or at rest, so wheelies and rollovers do not rotate it with
 the chassis. Reversing gradually turns the view toward the new travel direction.
 
-Start straight ahead with the large table, then explore the central mound
-and its four approaches. The left side has a takeoff and separate landing;
-the right side has a bowl with two slopes. The jump tables have level tops
-with a distinct break in grade. A rounded mound sits left of the start.
-Two straight crests, 3.5 m to the right of the start and 3.7 m at the far
-end, have a climb and descent across their usable width. Three smaller
-mounds from 0.66 m to 1.35 m alternate crests and a dome. Arrows mark two
-curved dirt ramps. The 2.6 m ramp is by the western edge before the slide
-rails. The 3.8 m ramp is at the far right. Their slopes steepen to a lip,
-followed by a short deck and a descent. The steel quarter-pipe has its own
-approach lane.
+Meter the throttle on the first climb and turn right on the landing.
+The second climb crosses the arena. Turn left on the next landing to make
+the final ascent.
 
 For a wheelie, briefly press Shift + Z, then release. To lift the rear,
 build speed and briefly press Space. Torque and braking physically pitch the
 vehicle: time the inputs to recover its balance. Then compare the same
 obstacle with all three inflation settings.
+
+## Edit the arena in Blender
+
+1. Open [Assets/Arena.blend](Assets/Arena.blend). The scene uses metres.
+2. In Object Mode, duplicate, move, rotate or scale cubes in **Blocs à
+   franchir**. The `Bloc_` prefix adds a box collider aligned with the
+   cube. Keep dimensions and scale positive. Other meshes are decorative.
+3. Move or rotate the `Depart` Empty to set the start. The front of the
+   truck follows the marker’s local −Y axis in Blender. Move or rotate
+   `Quarter` to set the quarter-pipe’s foot and run-up. Keep its foot
+   level with the slab and turn around Z to change the approach.
+4. Choose **File → Export → glTF 2.0**, pick **glTF Binary (.glb)** and
+   keep **+Y Up**. Export the entire scene, including its markers, to
+   `Assets/Arena.glb`, then relaunch with the command above.
+
+The slab collision plane is at Z = 0 in Blender. The demo embeds the export
+at launch.
 
 ## Physical assembly
 
@@ -174,12 +172,10 @@ substep per coupling; the rigid solver uses eight velocity iterations.
 The interactive loop runs at most two steps per frame and carries one step
 of backlog. After a longer stall, it drops excess backlog so rendering and
 audio feeding can resume.
-Terrain rendering and collisions share a heightmap sampled at one-meter
-intervals. The terrain is static. A compaction map reserves the ground under
-and around the quarter-pipe, protects the rail footings, and distinguishes
-packed mounds from loose soil for future deformation. The quarter-pipe also
-shares its curved profile between rendering and collisions. The skid plate
-aligns with the bottom face of the central chassis collider.
+The ground is a fixed plane. Blocks use the same dimensions and orientation
+for rendering and collisions. The quarter-pipe shares its curved profile
+between rendering and collisions. The skid plate aligns with the bottom
+face of the central chassis collider.
 
 The visible tire deforms under load. The tread stays flat across its width,
 and its beveled chevrons extend over shoulders that are 12 cm wider
@@ -208,7 +204,7 @@ Build/MonsterTruck-Airborne-Checks
 ```
 
 They cover physics, inflation, centering, short stunt inputs, controls, HUD,
-terrain seams and slow driving on dirt slopes. `DriveChecks` also
+crossing the blocks and holding on the ramps. `DriveChecks` also
 compares acceleration with the former drive, rolling boost, a recoverable wheelie
 and both final-drive extremes. `AirborneChecks` covers vehicle attitudes, ground
 and airborne pedals, and complete aerial rotations. States are compared with
@@ -217,13 +213,13 @@ one and four workers.
 `--single` selects one worker for playing. `--profile` opens a twelve-second
 automated drive; `--profile-slope` opens a six-second test with brakes held
 on a ramp. The title and HUD identify these measurements. Windowless timings
-do not establish graphical FPS. `--profile-ramp` opens a twelve-second slow,
-oblique climb followed by braking on the slope. `--ramp-check` checks eight
-approaches without a window, including bead retention and ground clearance.
+do not establish graphical FPS. `--profile-ramp` opens a twelve-second slow
+climb followed by braking on the slope. `--ramp-check` checks the entire
+course without a window, including tire seating, stability and climbing height.
 
 `--profile-drive`, `--profile-boost` and `--profile-turn` retain the twelve-second
 run with, respectively, full throttle, boost, and full throttle followed by a
-turn on the table. The HUD describes the scenario actually running. Sound
+turn during the course. The HUD describes the scenario actually running. Sound
 remains enabled unless `--silent` is supplied. Add `--profile-long` to extend
 the scenario to 36 seconds; the slope test remains fixed at six seconds.
 
@@ -234,13 +230,11 @@ physics and simulated time help distinguish simulation overload from the rest
 of the frame. `focused` reports focus at the latest update; `focus_changed`
 marks a transition during the measured interval. Exclude transition intervals
 when comparing foreground and background performance. `--ledge` places the
-truck on the table's side slope, rear wheels on the mound and front
-wheels towards the ground; controls remain available.
-`--bumps` starts on the small rollers. `--profile-bumps` holds the brakes
-there for twelve seconds, with a measurement HUD and automatic shutdown.
-`ModuleCostChecks.sx` compares flat ground, small rollers, central ramps, a
-side mound, and the table edge without a window: computation per simulated
-second, maximum step cost, and physical state. It does not measure rendering FPS.
+truck on the first landing. `--bumps` starts on the second ascent.
+`--profile-bumps` holds the brakes there for twelve seconds.
+`ModuleCostChecks.sx` compares physics step cost on level ground and the
+different obstacle groups.
+
 These measurements are optional; ordinary launches emit no trace.
 Compare binaries separately, without concurrent builds or tests, in the same
 mode and on the same course.
@@ -259,9 +253,8 @@ The `AudioEngineSimulator.Engines` module supplies the Chevrolet 454 through
 `Library.driven_engine("454")`. MonsterTruck passes `engine_rpm` and normalized
 combustion torque through `OperatingState`. Sound follows the RPM produced by
 shifts, the clutch and the wheels. The physics loop consumes ready blocks.
-Playback holds up to ten queued blocks and four native requests. The gravel
-loop is synthesized at startup, and its volume follows tire speed and slip
-on loose dirt. R resets the sound and particles.
+Playback holds up to ten queued blocks and four native requests. A hard
+landing on the slab or blocks plays a short thump. R resets the audio.
 
 Offline integration check without a window or audio device:
 

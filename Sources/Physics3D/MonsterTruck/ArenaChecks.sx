@@ -1,21 +1,19 @@
 use GFX.Physics
 use Physics3D.MonsterTruck.Arena
-use Physics3D.MonsterTruck.ArenaGround
 use Physics3D.MonsterTruck.Model
 use Physics3D.MonsterTruck.QuarterPipe
-use Physics3D.MonsterTruck.SlideRails
 use Physics3D.MonsterTruck.Terrain
+use Physics3D.MonsterTruck.RampChecks
 use STD.Math
 
 func height(world:Physics.World3D,x:float,z:float,expected:float,minimum_normal_y:float=0.7) {
-    let hit=world.ray_cast(Physics.Ray3D(Math.Vec3(x,10.0,z),Math.Vec3(0.0,-20.0,0.0)))
+    let hit=world.ray_cast(Physics.Ray3D(Math.Vec3(x,25.0,z),Math.Vec3(0.0,-30.0,0.0)))
     assert(hit!=null,"ray missed expected arena surface")
     if Math.abs(hit!.point().y-expected)>=0.0001 { print("arena height x=",x," z=",z," expected=",expected," actual=",hit!.point().y) }
     assert(Math.abs(hit!.point().y-expected)<0.0001 && hit!.normal().y>minimum_normal_y)
 }
 
-func verify_quarter_geometry(world:Physics.World3D) {
-    let origin=QuarterPipe.Dimensions.origin
+func verify_quarter_geometry(world:Physics.World3D,pose:Physics.Transform3D) {
     let r=QuarterPipe.Dimensions.radius
     let lip=QuarterPipe.Dimensions.angle
     let facets=QuarterPipe.Dimensions.facets
@@ -26,14 +24,14 @@ func verify_quarter_geometry(world:Physics.World3D) {
         let b=lip*((i+1) as float)/(facets as float)
         let y=r*(1.0-(Math.cos(a)+Math.cos(b))*0.5)
         let z=r*(Math.sin(a)+Math.sin(b))*0.5
-        let normal=Math.Vec3(0.0,Math.cos((a+b)*0.5),-Math.sin((a+b)*0.5))
+        let normal=pose.vector(Math.Vec3(0.0,Math.cos((a+b)*0.5),-Math.sin((a+b)*0.5)))
         for x in across {
-            let middle=origin.add(Math.Vec3(x,y,z))
+            let middle=pose.point(Math.Vec3(x,y,z))
             let ray=Physics.Ray3D(middle.add(normal.multiply(0.20)),normal.multiply(-0.4))
             let hit=world.ray_cast(ray)!
             assert(hit.point().nearly_equal(middle,0.0001) && hit.normal().nearly_equal(normal,0.0001))
         }
-        let outside=origin.add(Math.Vec3(8.25,y,z))
+        let outside=pose.point(Math.Vec3(8.25,y,z))
         let outside_hit=world.ray_cast(Physics.Ray3D(outside.add(normal.multiply(0.20)),normal.multiply(-0.4)))
         if let edge=outside_hit { assert(edge.point().y<0.001) }
         let angle=(a+b)*0.5
@@ -41,11 +39,10 @@ func verify_quarter_geometry(world:Physics.World3D) {
         if i==0 { assert(angle<0.10) }
         previous=angle
     }
-    assert(previous>1.50 && lip>Math.half_pi() && Terrain.section(origin)==Terrain.Section.quarter_pipe)
+    assert(previous>1.50 && lip>Math.half_pi() && Terrain.section(pose.position,pose)=="Quarter-pipe")
 }
 
-func verify_quarter_takeoff() {
-    let origin=QuarterPipe.Dimensions.origin
+func verify_quarter_takeoff(origin:Math.Vec3) {
     var truck=Model.Truck(4,obstacles:true,spawn:Physics.Transform3D(origin.add(Math.Vec3(0.0,2.35,-68.0))))
     truck.controls(0.67,0.0)
     let lip=QuarterPipe.Dimensions.radius*(1.0-Math.cos(QuarterPipe.Dimensions.angle))
@@ -84,126 +81,26 @@ func verify_quarter_takeoff() {
     assert(near_vertical && returned,"the quarter-pipe must permit a near-vertical flight and a return to the deck")
 }
 
-func verify_slide_rails(world:Physics.World3D) {
-    for rail in SlideRails.layout() {
-        let middle=rail.start.add(rail.end).multiply(0.5)
-        let hit=world.ray_cast(Physics.Ray3D(middle.add(Math.Vec3(0.0,0.7,0.0)),Math.Vec3(0.0,-1.4,0.0)),
-            filter:Physics.QueryFilter3D(mask_bits:SlideRails.Collision.surface))!
-        assert(hit.point().nearly_equal(middle,0.0001))
-        assert(Terrain.section(middle)==Terrain.Section.slide_rails)
-        let ledge=rail.start.add(Math.Vec3(2.0,0.0,-1.0))
-        height(world,ledge.x,ledge.z,rail.approach_height())
-
-        let spawn=rail.start.add(Math.Vec3(0.0,2.35-rail.start.y,-17.0))
-        var truck=Model.Truck(4,obstacles:true,spawn:Physics.Transform3D(spawn))
-        truck.held(true,false,false,false,false,false)
-        var first=0.0
-        var furthest=0.0
-        var touches=0
-        var contacts:Physics.Contact3D[]=[]
-        for _ in 0...760 {
-            truck.step()
-            if truck.chassis.position().z<rail.start.z { continue }
-            truck.world.write_contacts(contacts)
-            for contact in contacts {
-                let a=contact.first_body().collision_filter().category_bits
-                let b=contact.second_body().collision_filter().category_bits
-                if (a+b)!=SlideRails.Collision.surface+8 || contact.normal_impulse()<=0.0 { continue }
-                let point=contact.point()
-                if first==0.0 { first=point.z }
-                furthest=Math.max(furthest,point.z)
-                touches++
-            }
-            if truck.chassis.position().z>rail.end.z+1.0 { break }
-        }
-        print("Slide rail x=",rail.start.x," contact travel=",furthest-first," loaded contacts=",touches)
-        assert(touches>12 && furthest-first>6.0 && furthest>rail.end.z-1.0,
-            "the truck must reach and slide down the length of each rail on its chassis")
-    }
-}
-
-func verify_dirt_bank(toe:Math.Vec3,run:float,run_up:float,throttle:float,lip_height:float) {
-    let spawn=toe.add(Math.Vec3(0.0,2.35,-run_up))
-    let crest=toe.z+run
-    var truck=Model.Truck(4,obstacles:true,spawn:Physics.Transform3D(spawn))
-    var steep=false
-    var airborne=false
-    var passed_crest=false
-    for frame in 0...750 {
-        if frame==100 { truck.controls(throttle,0.0) }
-        if truck.chassis.position().z>crest-2.0 { truck.controls(0.0,0.0) }
-        truck.step()
-        let position=truck.chassis.position()
-        if position.z>=toe.z && position.z<=crest+1.0 {
-            if truck.chassis.transform().vector(Math.Vec3.back()).y>0.80 { steep=true }
-        }
-        if position.z>crest && position.y>lip_height+3.5 &&
-            truck.support(0)==null && truck.support(1)==null && truck.support(2)==null && truck.support(3)==null {
-            airborne=true
-        }
-        assert(truck.maximum_bead_error()<0.08)
-        if position.z>crest+7.0 {
-            passed_crest=true
-            break
-        }
-    }
-    assert(steep && airborne && passed_crest,"the dirt bank must launch the truck past its crest")
-}
-
 package func verify() {
     var world=Physics.World3D()
-    let samples=ArenaGround.samples()
-    Terrain.create(world,samples)
-    height(world,0.0,28.0,2.65)
-    height(world,0.0,66.0,3.9)
-    height(world,27.0,49.0,3.1)
-    height(world,27.0,65.0,0.0)
-    height(world,43.0,85.0,0.0)
-    height(world,-1.0,101.0,0.66)
-    height(world,1.0,111.0,1.35)
-    height(world,16.0,137.0,3.7)
-    assert(Math.abs(ArenaGround.height(-28.0,22.0)-1.8)<0.0001)
-    height(world,23.0,25.0,3.5)
-    height(world,18.0,25.0,3.5)
-    height(world,28.0,25.0,3.5)
-    height(world,-53.0,65.0,2.6,minimum_normal_y:0.4)
-    height(world,43.0,128.0,3.8,minimum_normal_y:0.4)
-    height(world,48.0,128.0,3.8,minimum_normal_y:0.4)
-    let toe=ArenaGround.height(43.0,124.0)-ArenaGround.height(43.0,123.0)
-    let lip=ArenaGround.height(43.0,128.0)-ArenaGround.height(43.0,127.0)
-    assert(toe<0.15 && lip>1.5)
-    assert(ArenaGround.height(43.0,130.0)>ArenaGround.height(43.0,134.0))
-    assert(Math.abs(ArenaGround.height(1.0,111.0)-1.35)<0.0001)
-    assert(Math.abs(ArenaGround.height(-2.0,123.0)-0.90)<0.0001)
-    assert(ArenaGround.height(23.0,24.0)<ArenaGround.height(23.0,25.0))
-    assert(ArenaGround.height(23.0,26.0)<ArenaGround.height(23.0,24.0))
-    let ground_mesh=ArenaGround.mesh(samples)
-    assert(ground_mesh.triangle_count()<(Arena.Grid.columns-1)*(Arena.Grid.rows-1)*2/2)
-    print("Arena render triangles=",ground_mesh.triangle_count())
-    height(world,Arena.Grid.left-1.0,28.0,0.0)
-    height(world,0.0,Arena.far_edge()+1.0,0.0)
-    let samples_to_check:Math.Vec3[]=[Math.Vec3(0.2,0.0,8.0),Math.Vec3(39.0,0.0,88.4),
-        Math.Vec3(0.3,0.0,110.0),Math.Vec3(-22.7,0.0,54.2),Math.Vec3(6.3,0.0,32.8),
-        Math.Vec3(-28.3,0.0,22.2),Math.Vec3(23.2,0.0,25.3),Math.Vec3(1.2,0.0,111.3),
-        Math.Vec3(-2.3,0.0,123.2)]
-    for point in samples_to_check {
-        height(world,point.x,point.z,ArenaGround.surface_height(samples,point.x,point.z))
+    let arena=Arena.load()
+    let quarter=Terrain.quarter_pose(arena)
+    Terrain.create(world,arena)
+    height(world,0.0,0.0,0.0)
+    let approach=quarter.point(Math.Vec3(0.0,0.0,-12.0))
+    height(world,approach.x,approach.z,0.0)
+    let blocks=Arena.blocks(arena)
+    assert(blocks.count()>=6)
+    for block in blocks {
+        let top=block.pose.point(Math.Vec3(0.0,block.size.y*0.5,0.0))
+        height(world,top.x,top.z,top.y)
     }
-    let quarter=QuarterPipe.Dimensions.origin
-    assert(ArenaGround.compaction(quarter.x,quarter.z,0.0)==1.0)
-    assert(ArenaGround.compaction(quarter.x,quarter.z+QuarterPipe.Dimensions.radius,0.0)==1.0)
-    for rail in SlideRails.layout() {
-        assert(ArenaGround.compaction(rail.start.x,rail.start.z,0.0)==1.0)
-        assert(ArenaGround.compaction(rail.end.x,rail.end.z,0.0)==1.0)
-    }
-    assert(ArenaGround.compaction(0.0,0.0,0.0)==0.0)
-    assert(ArenaGround.compaction(0.0,28.0,2.65)>0.9)
-    verify_quarter_geometry(world)
-    verify_quarter_takeoff()
-    verify_slide_rails(world)
-    verify_dirt_bank(Arena.DirtBanks.west,4.0,10.5,0.45,2.6)
-    verify_dirt_bank(Arena.DirtBanks.east,5.0,13.0,0.6,3.8)
-    print("Arena passed: continuous dirt relief, flat surroundings, compacted foundations and multiple approaches")
+    let summit=Arena.marker(arena,"Sommet")!
+    assert(summit.position.y>=15.0)
+    height(world,summit.position.x,summit.position.z,summit.position.y)
+    verify_quarter_geometry(world,quarter)
+    verify_quarter_takeoff(quarter.position)
+    RampChecks.verify()
 }
 
 func main() { verify() }

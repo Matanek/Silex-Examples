@@ -14,8 +14,7 @@ use Physics3D.MonsterTruck.Controls
 use Physics3D.MonsterTruck.HudChecks
 use Physics3D.MonsterTruck.Chassis
 use Physics3D.MonsterTruck.Model
-use Physics3D.MonsterTruck.DirtTracks
-use Physics3D.MonsterTruck.TyreDirt
+use Physics3D.MonsterTruck.Landing
 use Physics3D.MonsterTruck.PickupBody
 use Physics3D.MonsterTruck.RimMesh
 use Physics3D.MonsterTruck.TyreMesh
@@ -111,60 +110,22 @@ func verify_underbody() {
     }
 }
 
-func verify_dirt(world:&Resources.World,images:&Resources.Images) {
-    var textured=0
-    for entity in world.entities() {
-        if !world.has<Components.MaterialSettings3D>(entity) { continue }
-        let settings=world.get<Components.MaterialSettings3D>(entity)
-        if let albedo=settings.textures.albedo {
-            let image=images.get(albedo.image)
-            assert(image.width()==1024 && image.height()==1024 && albedo.scale==Math.Vec2(1.0))
-            textured++
-        }
-    }
-    assert(textured==1,"the arena floor must use the embedded dirt texture")
-}
-
-func verify_dirt_effects(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images,state:&Scene.TruckScene) {
-    let camera=state.chase.transform()
-    var effect=TyreDirt(world,meshes,images)
-    var truck=Model.Truck()
-    for _ in 0...30 { truck.step() }
-    let still=effect.update(world,meshes,truck,camera,1.0/120.0)
-    assert(still.rumble==0.0 && still.impact==0.0)
-    let idle_entities=world.entities().count()
-    truck.controls(1.0,0.0)
-    var volume=0.0
-    for _ in 0...150 {
+func verify_landing() {
+    var feedback=Landing()
+    var truck=Model.Truck(obstacles:true)
+    for _ in 0...90 {
         truck.step()
-        let contact=effect.update(world,meshes,truck,camera,1.0/120.0)
-        volume=Math.max(volume,contact.rumble)
-        assert(contact.impact==0.0)
+        assert(feedback.update(truck)==0.0)
     }
-    assert(volume>0.15 && world.entities().count()==idle_entities+2,
-        "powered contact must activate both particle batches and the gravel sound")
-    effect.reset(world)
-    assert(world.entities().count()==idle_entities)
-
-    var airborne=Model.Truck(spawn:Physics.Transform3D(Math.Vec3(0.0,6.0,0.0)))
-    airborne.step()
-    let flying=effect.update(world,meshes,airborne,camera,1.0/120.0)
-    assert(flying.rumble==0.0 && flying.impact==0.0)
-    var landed=0.0
-    for _ in 0...150 {
+    var airborne=Model.Truck(obstacles:true,spawn:Physics.Transform3D(Math.Vec3(0.0,6.0,0.0)))
+    var impact=0.0
+    for frame in 0...150 {
         airborne.step()
-        let contact=effect.update(world,meshes,airborne,camera,1.0/120.0)
-        landed=Math.max(landed,contact.impact)
+        let strength=feedback.update(airborne)
+        if frame<20 { assert(strength==0.0) }
+        impact=Math.max(impact,strength)
     }
-    assert(landed>0.3 && world.entities().count()>idle_entities,
-        "landing on loose dirt must release a puff and report impact strength")
-    effect.reset(world)
-    var table=Model.Truck(obstacles:true,spawn:Physics.Transform3D(Math.Vec3(0.0,4.80,27.0)))
-    table.step()
-    for index in 0...4 {
-        assert(table.support(index)!=null && DirtTracks.is_dirt(table.support(index)!))
-    }
-    print("Dirt effects passed: powered ground contact, airborne silence, landing, earthen plateaus, reset")
+    assert(impact>0.3,"landing on hard ground must report the impact")
 }
 
 func verify_wheel_rim() {
@@ -213,8 +174,7 @@ package func verify() {
     var world=Resources.World();var meshes=Resources.Meshes3D();var images=Resources.Images()
     var state=Scene.TruckScene(1)
     Scene.startup(world,meshes,images,state);state.view!.update(world,meshes);Scene.follow(world,state,0.016)
-    verify_dirt(world,images)
-    verify_dirt_effects(world,meshes,images,state)
+    verify_landing()
     assert(!world.get<Scene2D.Canvas>(state.hud).visible)
     var shortcuts=copy world.get<Scene2D.Canvas>(state.shortcut_line)
     assert(shortcuts.visible && shortcuts.anchor==Math.Vec2(0.5,1.0))
@@ -387,7 +347,7 @@ package func verify() {
         assert(Math.abs(view.rotation.rotate(Math.Vec3.right()).y)<0.00001)
     } }
     verify_loaded_tread()
-    print("Monster scene checks passed: closed underside, skid contact, dirt texture, input, reset, flat loaded treads, shortcuts and HUD, travel camera and rollover horizon")
+    print("Monster scene checks passed: closed underside, skid contact, hard-surface landing, input, reset, flat loaded treads, shortcuts and HUD, travel camera and rollover horizon")
 }
 
 func main() { verify() }

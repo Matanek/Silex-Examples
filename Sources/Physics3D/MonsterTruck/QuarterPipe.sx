@@ -8,7 +8,7 @@ use Physics3D.MonsterTruck.Primitives
 use STD.Math
 
 package static struct Dimensions {
-    let origin:Math.Vec3=Math.Vec3(43.0,0.0,91.0)
+    let origin:Math.Vec3=Math.Vec3(49.0,0.0,61.0)
     let width:float=16.0
     let radius:float=13.0
     let angle:float=1.615
@@ -93,15 +93,14 @@ package func mesh() Scene3D.Geometry.Mesh {
     return Scene3D.Geometry.Mesh(vertices,indices)
 }
 
-package func create_collider(world:Physics.World3D) {
-    let origin=Dimensions.origin
+package func create_collider(world:Physics.World3D,pose:Physics.Transform3D) {
     for i in 0...Dimensions.facets {
         let a=edge(i,0.0);let b=edge(i+1,0.0)
         let rotation=facet_rotation(i)
         let thickness=rotation.rotate(Math.Vec3(0.0,Dimensions.deck_thickness,0.0))
-        let center=origin.add(a.add(b).subtract(thickness).multiply(0.5))
+        let center=pose.point(a.add(b).subtract(thickness).multiply(0.5))
         let size=Math.Vec3(Dimensions.width,Dimensions.deck_thickness,b.subtract(a).length())
-        collider_box(world,center,size,rotation)
+        collider_box(world,center,size,pose.rotation.multiply(rotation))
     }
 }
 
@@ -115,9 +114,9 @@ func collider_box(world:Physics.World3D,center:Math.Vec3,size:Math.Vec3,rotation
         ..collision_filter=Physics.CollisionFilter3D(category_bits:1,mask_bits:12))
 }
 
-package func create_view(world:&Resources.World,meshes:&Resources.Meshes3D) {
+package func create_view(world:&Resources.World,meshes:&Resources.Meshes3D,pose:Physics.Transform3D) {
     let asset=meshes.add(mesh())
-    world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:Dimensions.origin))
+    world.spawn(ECS.EntityRecipe() ..with(Components.Transform3D(position:pose.position,rotation:pose.rotation))
         ..with(Components.Mesh3D(asset))
         ..with(Components.Material3D(albedo:Color.white(),metallic:0.15,roughness:0.76)))
 }

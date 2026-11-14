@@ -2,15 +2,9 @@
 
 [English](README.md)
 
-Conduire un pickup à quatre pneus déformables sur une piste de terre de
-144 × 184 m. Les tables de saut, les plateaux, la cuvette et les petites bosses
-font partie du relief. Des bandes dégagées entre les bosses permettent de
-choisir son angle et de reprendre de l’élan. Le pickup a des ailes découpées,
-un châssis tubulaire apparent et un sabot en acier sous la transmission.
-Une texture de terre compacte et de gravier couvre le sol. Sur le sol de
-l’arène, les pneus soulèvent de la poussière et font entendre le gravier.
-Le patinage soulève un nuage plus dense. Une réception sur la terre
-soulève une bouffée autour des roues et produit un choc sourd.
+Gravir une succession de blocs de béton en pickup à quatre pneus déformables.
+Le parcours part du damier, tourne sur deux terrasses et atteint un plateau à
+16,1 m. Le quarter-pipe est accessible séparément sur la droite.
 
 ## Lancer et conduire
 
@@ -20,16 +14,10 @@ Depuis la racine du workspace contenant `Silex-Examples/` :
 silex run Silex-Examples/Sources/Physics3D/MonsterTruck/Main.sx
 ```
 
-La boucle de rendu est cadencée à 120 Hz, comme la simulation. Le quarter-pipe
-fait 16 m de large et se trouve derrière la cuvette, près du bord de l’arène.
-Une flèche indique son entrée. Sa lèvre
-revient légèrement vers la rampe. Dose l’élan et utilise le frein en vol pour
-ajuster l’assiette avant la réception.
-
-Les deux rails en acier se trouvent au fond à gauche.
-Aligne le centre du camion sur
-la flèche et garde les roues sur les deux bosses d’accès. Le sabot prend le
-relais au milieu. Le rail proche des petites bosses monte, celui proche du bord descend.
+Le quarter-pipe métallique de 16 m de large se trouve sur le côté droit,
+avec sa propre piste d’élan indiquée par des flèches. Sa lèvre revient
+légèrement vers la rampe. Dose l’élan et utilise le frein en vol pour ajuster
+l’assiette avant la réception.
 
 Le Chevrolet 454 d’[AudioEngineSimulator](../../AudioEngineSimulator/README.fr.md)
 est actif par défaut. La démo embarque le simulateur et ses ressources sur
@@ -78,23 +66,33 @@ Elle conserve son dernier cap à faible vitesse ou à l’arrêt ; un cabrage ou
 retournement ne la fait donc pas pivoter avec le châssis. Le recul inverse
 progressivement la vue dans la nouvelle direction de déplacement.
 
-Commencer tout droit par la grande table, puis la butte centrale et ses quatre
-accès. À gauche se trouvent un tremplin et une réception séparée ; à droite,
-une cuvette à deux montées. Les tables ont un sommet plat et un changement de
-pente marqué au bord du plateau. La butte à gauche du départ est arrondie.
-À droite du départ et au fond, deux crêtes droites de 3,5 m et 3,7 m
-présentent chacune une montée et une descente sur toute leur largeur
-utile. Trois petites bosses de 0,66 m à 1,35 m alternent crêtes et dôme.
-Deux rampes courbes en terre sont signalées par des flèches. Celle de
-2,6 m se trouve vers le bord ouest, avant les rails de slide. Celle de
-3,8 m se trouve au fond à droite. Leur pente se redresse jusqu’à la lèvre,
-puis un court replat débouche sur une descente. Le quarter en métal
-garde sa propre piste d’élan.
+Gravir la première pente en dosant les gaz, puis tourner à droite sur la
+terrasse. La deuxième montée traverse l’arène. Sur la terrasse suivante,
+tourner à gauche pour gagner le sommet.
 
 Pour un cabrage, donner un bref appui sur Maj + Z puis relâcher. Pour lever
 l’arrière, prendre de la vitesse puis donner un bref appui sur Espace. Le couple
 et le freinage font basculer le véhicule physiquement : doser les appuis pour
 récupérer l’équilibre. Comparer ensuite un même relief avec les trois gonflages.
+
+## Modifier l’arène dans Blender
+
+1. Ouvrir [Assets/Arena.blend](Assets/Arena.blend). Les unités sont en mètres.
+2. En mode Objet, dupliquer, déplacer, tourner ou redimensionner les cubes
+   de la collection **Blocs à franchir**. Le préfixe `Bloc_` donne un
+   volume de collision boîte aligné sur le cube. Conserver des dimensions
+   et des échelles positives. Les autres maillages servent au décor.
+3. Déplacer ou orienter le repère vide `Depart` pour régler le point de
+   départ. L’avant du camion suit l’axe local −Y de ce repère dans Blender.
+   Déplacer ou tourner `Quarter` pour déplacer le pied du quarter-pipe
+   et sa piste d’élan. Garder son pied au niveau de la dalle et tourner
+   autour de Z pour réorienter l’approche.
+4. Dans **Fichier → Exporter → glTF 2.0**, choisir **glTF Binary (.glb)**
+   et conserver **+Y Up**. Exporter la scène entière, avec ses repères,
+   dans `Assets/Arena.glb`, puis relancer la commande ci-dessus.
+
+Le plan de collision de la dalle est à Z = 0 dans Blender. L’export est
+embarqué au lancement de la démo.
 
 ## Montage physique
 
@@ -186,13 +184,10 @@ souple par couplage ; le solveur rigide utilise huit itérations de vitesse.
 La boucle interactive exécute au plus deux pas par image et garde un pas
 de retard. Lors d’un blocage plus long, elle abandonne le retard excédentaire
 pour reprendre le rendu et l’alimentation audio.
-Le rendu et les collisions du terrain partagent une carte de hauteurs
-échantillonnée tous les mètres. Le relief est statique. La carte de compaction
-réserve le sol sous le quarter et ses abords, protège les ancrages des rails,
-et distingue les bosses tassées des zones meubles pour une future déformation.
-Le quarter-pipe partage aussi son profil courbe entre rendu et collisions.
-Le dessous du sabot correspond à la face basse du volume de collision
-central du châssis.
+Le sol est un plan fixe. Les blocs visibles partagent leurs dimensions et
+leur orientation avec les volumes de collision. Le quarter-pipe partage
+son profil courbe entre rendu et collisions. Le dessous du sabot correspond
+à la face basse du volume de collision central du châssis.
 
 Le pneu visible se déforme sous la charge. Sa bande de roulement conserve un
 profil plat dans le sens de la largeur. Les chevrons biseautés se prolongent
@@ -222,8 +217,8 @@ Build/MonsterTruck-Airborne-Checks
 ```
 
 Elles couvrent la physique, les gonflages, le centrage, les figures sur appuis
-courts, les commandes, le HUD, les raccords du terrain et le roulage lent sur
-les pentes de terre. `DriveChecks` compare aussi la reprise à la
+courts, les commandes, le HUD, le franchissement des blocs et la tenue sur
+les plans inclinés. `DriveChecks` compare aussi la reprise à la
 propulsion antérieure, le boost en roulant, un cabrage récupérable et les
 rapports de pont extrêmes. `AirborneChecks` couvre les orientations, les pédales
 au sol/en vol et les rotations aériennes complètes. Les états sont comparés à
@@ -232,14 +227,14 @@ un et quatre workers.
 `--single` choisit un worker pour jouer. `--profile` ouvre un parcours automatique
 pendant douze secondes ; `--profile-slope` ouvre un test de six secondes,
 freins maintenus sur une rampe. Le titre et le HUD identifient ces mesures.
-`--profile-ramp` ouvre une mesure de douze secondes : montée lente de biais,
-puis freinage sur la pente. `--ramp-check` vérifie huit approches sans fenêtre,
-avec contrôle des talons et du sol. Les temps sans rendu ne permettent pas de
+`--profile-ramp` ouvre une mesure de douze secondes : montée lente,
+puis freinage sur la pente. `--ramp-check` vérifie le parcours complet sans fenêtre,
+avec contrôle des talons, de l’assiette et de la hauteur franchie. Les temps sans rendu ne permettent pas de
 conclure sur les FPS graphiques.
 
 `--profile-drive`, `--profile-boost` et `--profile-turn` conservent la durée de
 douze secondes avec, respectivement, plein gaz, turbo et plein gaz suivi d’un
-braquage sur la table. Le HUD décrit le scénario réellement exécuté. Le son
+braquage en cours de parcours. Le HUD décrit le scénario réellement exécuté. Le son
 reste actif, sauf avec `--silent`. Ajouter `--profile-long` prolonge le
 scénario à 36 secondes ; le test de pente reste fixé à six secondes.
 
@@ -251,14 +246,11 @@ simulé permet de distinguer une surcharge de simulation du reste de la frame.
 `focused` indique le focus lors de la dernière mise à jour ; `focus_changed`
 signale une transition pendant l’intervalle mesuré. Écarter les intervalles de
 transition pour comparer les performances au premier plan et en arrière-plan.
-`--ledge` place le camion sur le talus latéral de la table, roues arrière
-sur le relief et roues avant vers le sol ; les commandes restent disponibles.
-`--bumps` démarre sur les petites bosses. `--profile-bumps` y maintient
-les freins pendant douze secondes, avec un HUD de mesure et fermeture automatique.
-`ModuleCostChecks.sx` compare sans fenêtre le plat, les petites bosses, les
-rampes centrales, une butte latérale et l’arête de la table : temps de calcul
-par seconde simulée, coût maximal d’un pas et état physique. Ce contrôle ne
-mesure pas les FPS du rendu.
+`--ledge` place le camion sur la première terrasse. `--bumps` démarre
+sur la deuxième montée. `--profile-bumps` y maintient les freins
+pendant douze secondes. `ModuleCostChecks.sx` compare le coût des pas
+physiques sur le plat et sur les différents groupes de blocs.
+
 Ces mesures sont optionnelles ; le lancement ordinaire ne produit aucune trace.
 Pour comparer des binaires, les exécuter séparément, sans build ni autre test
 concurrent, dans le même mode et sur le même parcours.
@@ -279,9 +271,8 @@ Le module `AudioEngineSimulator.Engines` fournit le Chevrolet 454 via
 de combustion normalisé via `OperatingState`. Le son suit le régime issu des
 passages de rapport, de l’embrayage et du mouvement des roues. La boucle physique
 consomme les blocs prêts. La file contient au plus dix blocs de lecture et
-quatre demandes natives. Le bruit de gravier utilise une boucle synthétisée
-au démarrage, avec un volume piloté par la vitesse et le patinage sur la terre.
-R réinitialise aussi le son et les particules.
+quatre demandes natives. Une réception marquée sur la dalle ou les blocs
+déclenche un impact sourd. R réinitialise aussi le son.
 
 Contrôle croisé hors ligne, sans fenêtre ni périphérique sonore :
 

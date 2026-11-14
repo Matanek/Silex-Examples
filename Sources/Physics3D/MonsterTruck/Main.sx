@@ -56,6 +56,7 @@ func update(world:&Resources.World,state:&Scene.TruckScene,input:@Resources.Inpu
     let catch_up_steps=2
     state.accumulator=Math.min(state.accumulator+simulation.delta(),(catch_up_steps as float+1.0)*step_seconds)
     var ticks=0
+    var impact=0.0
     while state.accumulator>=step_seconds && ticks<catch_up_steps {
         if state.profile {
             var gas=0.0;if state.truck.steps>=240 { gas=state.profile_throttle }
@@ -72,6 +73,7 @@ func update(world:&Resources.World,state:&Scene.TruckScene,input:@Resources.Inpu
             state.panel.drive(state.truck)
         }
         state.truck.step();state.accumulator-=step_seconds;ticks++
+        impact=Math.max(impact,state.landing.update(state.truck))
     }
     let physics_seconds=clock.get_elapsed_seconds()
     if var trace=state.stutter_trace { trace.physics(physics_seconds,ticks,state.accumulator) }
@@ -83,7 +85,10 @@ func update(world:&Resources.World,state:&Scene.TruckScene,input:@Resources.Inpu
         state.trace_physics_seconds+=physics_seconds;state.trace_physics_ticks+=ticks
         state.trace_maximum_update=Math.max(state.trace_maximum_update,physics_seconds)
     }
-    if var sound=state.sound { sound.update(state.truck,simulation.delta()) }
+    if var sound=state.sound {
+        sound.update(state.truck,simulation.delta())
+        sound.play_landing(impact)
+    }
     if state.profile || state.hud_visible {
         state.telemetry+=simulation.delta()
         if state.telemetry>=0.15 { Scene.labels(state);state.telemetry=0.0 }
@@ -100,13 +105,6 @@ func sync_view(world:&Resources.World,meshes:&Resources.Meshes3D,state:&Scene.Tr
     // Scene3D gathers the camera, transforms and meshes during render.
     state.view!.update(world,meshes)
     Scene.follow(world,state,simulation.delta())
-    if var dirt=state.dirt {
-        let feedback=dirt.update(world,meshes,state.truck,state.chase.transform(),simulation.delta())
-        if var sound=state.sound {
-            sound.update_gravel(feedback.rumble,simulation.delta())
-            sound.play_landing(feedback.impact)
-        }
-    }
     if var trace=state.stutter_trace {
         trace.prepared(state.truck.steps,state.view!.last_step,state.truck.chassis.transform(),
             state.truck.chassis.linear_velocity(),state.chase.yaw)
@@ -148,7 +146,7 @@ func render(state:&Scene.TruckScene) {
         print("profile slope_contacts=",slopes," speed=",state.truck.chassis.linear_velocity().length()," elapsed=",state.metrics.elapsed," fps=",state.metrics.fps,
             " z=",state.truck.chassis.position().z," y=",state.truck.chassis.position().y,
             " simulated_seconds=",(state.truck.steps as float)/120.0," physics_seconds=",state.metrics.physics_seconds,
-            " x=",state.truck.chassis.position().x," sector=",Terrain.section_name(Terrain.section(state.truck.chassis.position())),
+            " x=",state.truck.chassis.position().x," sector=",Terrain.section(state.truck.chassis.position(),state.quarter),
             " physics_ms_per_tick=",state.trace_physics_seconds*1000.0/Math.max(1.0,state.trace_physics_ticks as float),
             " maximum_update_ms=",state.trace_maximum_update*1000.0," focused=",state.trace_focused,
             " focus_changed=",state.trace_focus_changed,
@@ -195,11 +193,11 @@ func main() {
     if slope { profile_duration=6.0 }
     var state=Scene.TruckScene(workers,profile,slope,ramp,profile_throttle,profile_turn,trace_performance,profile_duration,spawn:spawn,bumps:bumps)
     if audible { state.sound=EngineSound(directory) }
-    var title="MonsterTruck"
+    var title="MonsterTruck — Trial"
     if profile { title="MESURE AUTOMATIQUE — Monster pickup — $(profile_duration as int) secondes" }
     if ramp {title="MESURE AUTOMATIQUE — Montée de rampe — $(profile_duration as int) secondes"}
     if slope { title="MESURE AUTOMATIQUE — Monster truck sur pente — 6 secondes" }
-    if bumps { title="MESURE AUTOMATIQUE — Petites bosses — $(profile_duration as int) secondes" }
+    if bumps { title="MESURE AUTOMATIQUE — Blocs inclinés — $(profile_duration as int) secondes" }
     if let path=trace_path {
         state.stutter_trace=StutterTrace(path)
         state.quit_after_mark=quit_after_mark

@@ -1,91 +1,68 @@
+use GFX.Assets.GLTF
+use GFX.Assets.Model
+use GFX.Physics
 use STD.Math
+use STD.Text
 
-package static struct Grid {
-    let left:float= -72.0
-    let near:float= -20.0
-    let columns:int=145
-    let rows:int=185
-    let spacing:float=1.0
+package struct Block {
+    let name:str
+    let pose:Physics.Transform3D
+    let size:Math.Vec3
 }
 
-package func right_edge() float { return Grid.left+(Grid.columns-1) as float*Grid.spacing }
-package func far_edge() float { return Grid.near+(Grid.rows-1) as float*Grid.spacing }
-
-package func ease(value:float) float {
-    let t=Math.clamp(value,0.0,1.0)
-    return t*t*(3.0-2.0*t)
+package func load() Model {
+    match try GLTF.decode(embed_bytes("Assets/Arena.glb")) {
+        success(model)=>{ return model }
+        failure(error)=>{ panic("MonsterTruck Assets/Arena.glb: "+error.detail) }
+    }
 }
 
-// Rounded cross-sections fade the shoulders into the surrounding dirt.
-package func shoulder(distance:float,top:float,base:float) float {
-    return 1.0-ease((Math.abs(distance)-top)/(base-top))
+// Use local mesh bounds, including the mesh origin, then apply the node's
+// exported world transform. This also handles cubes whose scale was applied.
+package func blocks(model:@Model) Block[] {
+    var result:Block[]=[]
+    for index in 0...model.node_count() {
+        let node=model.node(index)
+        if !Text.starts_with(node.name,"Bloc_") { continue }
+        assert(node.mesh>=0,"A Bloc_ object must have a mesh")
+        let transform=node.world_transform
+        assert(transform.scale.x>0.0 && transform.scale.y>0.0 && transform.scale.z>0.0,
+            "A Bloc_ object must have positive scale")
+        let mesh=model.model_mesh(node.mesh)
+        var minimum=Math.Vec3(3.4e38)
+        var maximum=Math.Vec3(-3.4e38)
+        for primitive in mesh.primitives {
+            for vertex in model.mesh(primitive.mesh).vertices() {
+                minimum=minimum.minimum(vertex.position)
+                maximum=maximum.maximum(vertex.position)
+            }
+        }
+        let size=maximum.subtract(minimum)
+        assert(size.x>0.0 && size.y>0.0 && size.z>0.0,"A Bloc_ object must have volume")
+        let local_center=minimum.add(maximum).multiply(0.5)
+        let scale=transform.scale
+        let offset=Math.Vec3(local_center.x*scale.x,local_center.y*scale.y,local_center.z*scale.z)
+        let center=transform.position.add(transform.rotation.rotate(offset))
+        result.append(Block(name:node.name,pose:Physics.Transform3D(center,transform.rotation),
+            size:Math.Vec3(size.x*scale.x,size.y*scale.y,size.z*scale.z)))
+    }
+    return result
 }
 
-func dome(x:float,z:float,center_x:float,center_z:float,width:float,length:float,height:float) float {
-    let dx=(x-center_x)/width
-    let dz=(z-center_z)/length
-    return height*(1.0-ease(Math.sqrt(dx*dx+dz*dz)))
+package func marker(model:@Model,name:str) Physics.Transform3D? {
+    for index in 0...model.node_count() {
+        let node=model.node(index)
+        if node.name==name {
+            let pose=node.world_transform
+            return Physics.Transform3D(pose.position,pose.rotation)
+        }
+    }
+    return null
 }
 
-// A short curved toe blends into a steady grade. The grade reaches the
-// crest, so the takeoff and landing break are visible in silhouette.
-func bank(run:float,length:float) float {
-    let distance=Math.clamp(run,0.0,length)
-    let toe=Math.min(2.0,length*0.4)
-    if distance<toe { return distance*distance/(2.0*toe*(length-toe*0.5)) }
-    return (distance-toe*0.5)/(length-toe*0.5)
-}
-
-func table_top(x:float,z:float,center_x:float,start:float,top_start:float,top_end:float,end:float,
-    top_width:float,width:float,height:float) float {
-    let along=Math.min(bank(z-start,top_start-start),bank(end-z,end-top_end))
-    let across=bank(width-Math.abs(x-center_x),width-top_width)
-    return height*Math.min(along,across)
-}
-
-// Extrude the two slopes along a straight crest. Only the ends of the
-// crest taper, where the bank joins the surrounding dirt.
-func ridge(x:float,z:float,center_x:float,crest:float,rise:float,fall:float,
-    crest_half_width:float,width:float,height:float) float {
-    let along=Math.min(bank(z-crest+rise,rise),bank(crest+fall-z,fall))
-    return height*along*shoulder(x-center_x,crest_half_width,width)
-}
-
-package static struct DirtBanks {
-    let west:Math.Vec3=Math.Vec3(-53.0,0.0,61.0)
-    let east:Math.Vec3=Math.Vec3(43.0,0.0,123.0)
-}
-
-// A circular entry goes from level ground to a steep lip. A flat strip
-// behind the lip leads onto a gentler return slope cut into the same soil.
-func curved_bank(x:float,z:float,center_x:float,start:float,run:float,height:float,
-    exit_length:float,crest_half_width:float,width:float) float {
-    let crest=start+run
-    let deck_end=crest+2.0
-    let distance=Math.clamp(z-start,0.0,run)
-    let radius=(run*run+height*height)/(2.0*height)
-    let rise=radius-Math.sqrt(radius*radius-distance*distance)
-    let descent=height*bank(deck_end+exit_length-z,exit_length)
-    return Math.min(rise,descent)*shoulder(x-center_x,crest_half_width,width)
-}
-
-// A continuous soil surface with open run-ups between the main features.
-package func relief(x:float,z:float) float {
-    let table=table_top(x,z,0.0,9.0,24.0,32.0,45.0,6.0,13.0,2.65)
-    let central=table_top(x,z,0.0,54.0,65.0,74.0,92.0,9.0,23.0,3.9)
-    let west_jump=table_top(x,z,-28.0,41.0,52.0,54.0,62.0,4.0,10.5,3.1)
-    let west_landing=table_top(x,z,-30.0,65.0,70.0,73.0,90.0,5.0,11.0,2.4)
-    let east_banks=table_top(x,z,27.0,43.0,48.0,50.0,62.0,4.0,10.5,3.1)+
-        table_top(x,z,28.0,68.0,80.0,82.0,91.0,4.0,10.5,3.5)
-    let side=dome(x,z,-28.0,22.0,11.0,11.5,1.8)+
-        ridge(x,z,23.0,25.0,10.0,7.0,6.0,10.5,3.5)
-    let rolls=ridge(x,z,-1.0,101.0,4.5,4.0,1.5,7.0,0.66)+
-        ridge(x,z,1.0,111.0,6.0,4.5,1.5,8.0,1.35)+
-        dome(x,z,-2.0,123.0,8.5,5.5,0.90)
-    let back=ridge(x,z,16.0,137.0,12.0,14.0,6.0,12.0,3.7)+
-        curved_bank(x,z,DirtBanks.east.x,DirtBanks.east.z,5.0,3.8,13.0,5.0,10.0)
-    let outside=dome(x,z,-53.0,35.0,12.0,15.0,1.05)+
-        curved_bank(x,z,DirtBanks.west.x,DirtBanks.west.z,4.0,2.6,11.0,4.0,9.0)
-    return Math.max(Math.max(table,central),Math.max(Math.max(west_jump,west_landing),
-        Math.max(east_banks,Math.max(side,Math.max(rolls,Math.max(back,outside))))))
+package func vehicle_spawn(model:@Model,name:str,fallback:Physics.Transform3D) Physics.Transform3D {
+    if let marker=marker(model,name) {
+        return Physics.Transform3D(marker.position.add(Math.Vec3(0.0,2.35,0.0)),marker.rotation)
+    }
+    return fallback
 }

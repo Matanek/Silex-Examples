@@ -1,4 +1,5 @@
 use GFX.Physics
+use Physics3D.MonsterTruck.Landing
 use Physics3D.MonsterTruck.Model
 use STD.Math
 use STD.Process
@@ -81,20 +82,22 @@ func flight(verify:bool=true) {
 }
 func course() {
     var truck=Model.Truck(obstacles:true)
-    var inverted=0;var bead=0.0;var highest=0.0
+    var feedback=Landing()
+    var peak_impact=0.0;var bead=0.0;var highest=0.0
     for frame in 0...1440 {
         if frame>=120 { truck.held(true,false,false,false,false,false) }
         truck.step()
         bead=Math.max(bead,truck.maximum_bead_error());highest=Math.max(highest,truck.chassis.position().y)
-        if truck.chassis.transform().vector(Math.Vec3.up()).y< -0.5 { inverted++ }
+        peak_impact=Math.max(peak_impact,feedback.update(truck))
         if bead>=0.08 || truck.minimum_y()<=0.025 {
             print("AIR course failure frame=",frame," bead=",bead," floor=",truck.minimum_y(),
                 " position=",truck.chassis.position().z," up=",truck.chassis.transform().vector(Math.Vec3.up()).y)
         }
-        assert(bead<0.08 && truck.minimum_y()>0.025,"held forward input must preserve tyre seating through real jumps and landings")
+        assert(bead<0.08 && truck.minimum_y()>0.025,"held forward input must preserve tyre seating through obstacle impacts")
+        if highest>6.0 && peak_impact>0.50 && truck.chassis.position().y<3.0 { break }
     }
-    assert(inverted>0 && highest>3.5)
-    print("AIR course inverted_frames=",inverted," peak_bead=",bead," highest=",highest)
+    print("AIR course landing impact=",peak_impact," peak_bead=",bead," highest=",highest)
+    assert(highest>6.0 && peak_impact>0.50 && truck.chassis.position().y<3.0,"truck must make a hard landing after leaving the first terrace")
 }
 package func verify() { orientations();pedals();flight();course();print("Airborne controls passed: attitude-independent wheel direction, explicit braking, uninterrupted backflip and real landings") }
 func main() {

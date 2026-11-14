@@ -1,90 +1,57 @@
+use GFX.Assets.Model
 use GFX.Physics
 use STD.Math
 use Physics3D.MonsterTruck.Arena
-use Physics3D.MonsterTruck.ArenaGround
 use Physics3D.MonsterTruck.QuarterPipe
-use Physics3D.MonsterTruck.SlideRails
 
-package enum Section {
-    start
-    table
-    cross
-    bowl
-    kicker
-    rollers
-    quarter_pipe
-    curved_bank
-    slide_rails
-    perimeter
-    open
+package static struct Collision {
+    let surface:uint32=1
+    let vehicle:uint32=14
 }
 
-package func section(position:Math.Vec3) Section {
-    let quarter=QuarterPipe.Dimensions.origin
-    if Math.abs(position.x-quarter.x)<QuarterPipe.Dimensions.width*0.5+1.0 &&
-        position.z>=quarter.z-14.0 && position.z<quarter.z+19.0 {
-        return Section.quarter_pipe
-    }
-    if position.x> -48.0 && position.x< -20.0 && position.z>=98.0 && position.z<135.0 {
-        return Section.slide_rails
-    }
-    let west=Arena.DirtBanks.west;let east=Arena.DirtBanks.east
-    if (Math.abs(position.x-west.x)<9.0 && position.z>=west.z-7.0 && position.z<west.z+17.0) ||
-        (Math.abs(position.x-east.x)<10.0 && position.z>=east.z-7.0 && position.z<east.z+20.0) {
-        return Section.curved_bank
-    }
-    if position.x< -37.0 && position.z<100.0 { return Section.perimeter }
-    if position.z<8.0 { return Section.start }
-    if Math.abs(position.x)>18.0 {
-        if position.x>0.0 && position.z>=43.0 && position.z<85.0 { return Section.bowl }
-        return Section.kicker
-    }
-    if position.z<42.0 { return Section.table }
-    if position.z<90.0 { return Section.cross }
-    if position.z<127.0 { return Section.rollers }
-    return Section.open
+package func section(position:Math.Vec3,quarter:Physics.Transform3D) str {
+    let relative=quarter.inverse_point(position)
+    if Math.abs(relative.x)<QuarterPipe.Dimensions.width*0.5+2.0 &&
+        relative.z>= -20.0 && relative.z<18.0 { return "Quarter-pipe" }
+    if position.y>15.0 { return "Sommet" }
+    if position.y>3.5 { return "Escalade" }
+    return "Dalle"
 }
 
-package func section_name(value:Section) str {
-    match value {
-        start=>{ return "Départ" }
-        table=>{ return "Table de saut" }
-        cross=>{ return "Butte centrale" }
-        bowl=>{ return "Cuvette" }
-        kicker=>{ return "Grandes rampes" }
-        rollers=>{ return "Petites bosses" }
-        slide_rails=>{ return "Rails de slide" }
-        quarter_pipe=>{ return "Quarter-pipe" }
-        curved_bank=>{ return "Rampe courbe en terre" }
-        perimeter=>{ return "Bord ouest" }
-        open=>{ return "Arène libre" }
-    }
+package func add_floor(world:Physics.World3D) {
+    world.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type=Physics.BodyType3D.fixed
+        ..shape=Physics.Shape3D.plane(Physics.Plane3D()) ..friction=1.0
+        ..collision_filter=Physics.CollisionFilter3D(category_bits:Collision.surface,mask_bits:Collision.vehicle))
 }
 
-package func create(world:Physics.World3D,heights:@float[]) {
-    ArenaGround.add_to(world,heights)
-    QuarterPipe.create_collider(world)
-    SlideRails.create_colliders(world)
+package func create(world:Physics.World3D,arena:@Model) {
+    add_floor(world)
+    for block in Arena.blocks(arena) {
+        world.create_rigid_body(Physics.RigidBody3DSettings()
+            ..body_type=Physics.BodyType3D.fixed
+            ..shape=Physics.Shape3D.box(Physics.Box3D(block.size))
+            ..transform=block.pose ..friction=1.1
+            ..collision_filter=Physics.CollisionFilter3D(category_bits:Collision.surface,mask_bits:Collision.vehicle))
+    }
+    QuarterPipe.create_collider(world,quarter_pose(arena))
+}
+
+package func quarter_pose(arena:@Model) Physics.Transform3D {
+    return Arena.marker(arena,"Quarter") ?? Physics.Transform3D(QuarterPipe.Dimensions.origin)
 }
 
 package func slope_spawn() Physics.Transform3D {
-    let z=17.0
-    let rising=ArenaGround.height(0.0,z+1.0)-ArenaGround.height(0.0,z-1.0)
-    let rotation=Math.Quat.angle_axis(-Math.atan2(rising,2.0),Math.Vec3.right())
-    let surface=Physics.Transform3D(Math.Vec3(0.0,ArenaGround.height(0.0,z),z),rotation)
-    return Physics.Transform3D(surface.point(Math.Vec3(0.0,2.35,0.0)),rotation)
+    let arena=Arena.load()
+    return Arena.vehicle_spawn(arena,"Essai_Pente",Physics.Transform3D(Math.Vec3(0.0,2.35,0.0)))
 }
 
-// Rear wheels start on the table's earthen shoulder, front wheels towards
-// the ground. Keep the normal interactive controls for contact diagnosis.
 package func ledge_spawn() Physics.Transform3D {
-    let pitch:float=0.625
-    let yaw=Math.Quat.angle_axis(Math.half_pi(),Math.Vec3.up())
-    let rotation=yaw.multiply(Math.Quat.angle_axis(pitch,Math.Vec3.right()))
-    let height=1.1+1.05*Math.cos(pitch)+2.05*Math.sin(pitch)
-    return Physics.Transform3D(Math.Vec3(10.0,height,26.0),rotation)
+    let arena=Arena.load()
+    return Arena.vehicle_spawn(arena,"Essai_Arete",Physics.Transform3D(Math.Vec3(0.0,2.35,0.0)))
 }
 
 package func bumps_spawn() Physics.Transform3D {
-    return Physics.Transform3D(Math.Vec3(0.0,3.0,101.5))
+    let arena=Arena.load()
+    return Arena.vehicle_spawn(arena,"Essai_Blocs",Physics.Transform3D(Math.Vec3(0.0,2.35,0.0)))
 }
