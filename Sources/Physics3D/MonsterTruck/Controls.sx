@@ -10,7 +10,7 @@ use STD.Math
 package static struct Hud { let width:int=304;let height:int=414 }
 
 package func shortcuts() Canvas {
-    let label = "Z/S Avancer / reculer  ·  Q/D Tourner  ·  Espace Freiner  ·  Maj Turbo  ·  R Redresser  ·  H Réglages"
+    let label = "Z/S Avancer / reculer  ·  Q/D Tourner  ·  Espace Freiner  ·  Alt Débrayer  ·  Maj Turbo  ·  R Redresser  ·  H Réglages"
     let style = Canvas.TextStyle(size:14.0, color:Color.slate_100(), alignment:Canvas.TextAlignment.center)
     var drawing = Canvas()
     drawing.paint(func(painter:&Canvas.Painter) {
@@ -40,6 +40,10 @@ package class Panel {
     var brake:bool=false
     var front_brake:bool=false
     var boost:bool=false
+    private var left_alt:bool=false
+    private var right_alt:bool=false
+    private var clutch_release_pending:bool=false
+    private var clutch_open_after_focus_loss:bool=false
     var recover:bool=false
     var changed:bool=false
     var inflation:int=0
@@ -66,11 +70,11 @@ package class Panel {
     }
     func held(key:@Events.KeyEvent,down:bool) bool {
         if letter(key,122 as uint32,90 as uint32,Input.Key.z) {
-            if down && !key.repeated { self.forward_selected=true }
+            if down && !key.repeated { self.forward_selected=true;self.clutch_open_after_focus_loss=false }
             self.forward=down;return true
         }
         if letter(key,115 as uint32,83 as uint32,Input.Key.s) {
-            if down && !key.repeated { self.forward_selected=false }
+            if down && !key.repeated { self.forward_selected=false;self.clutch_open_after_focus_loss=false }
             self.reverse=down;return true
         }
         if letter(key,113 as uint32,81 as uint32,Input.Key.q) { self.left=down;return true }
@@ -83,6 +87,13 @@ package class Panel {
         if key.key==Input.Key.up { self.front_brake=down;return true }
         if key.key==Input.Key.down { self.handbrake=down;return true }
         if key.key==Input.Key.left_shift || key.key==Input.Key.right_shift { self.boost=down;return true }
+        if key.key==Input.Key.left_alt || key.key==Input.Key.right_alt {
+            let was_held=self.left_alt || self.right_alt
+            if key.key==Input.Key.left_alt { self.left_alt=down }
+            else { self.right_alt=down }
+            if was_held && !self.left_alt && !self.right_alt { self.clutch_release_pending=true }
+            return true
+        }
         return false
     }
     func handle(event:@Events.Event) bool {
@@ -100,17 +111,23 @@ package class Panel {
                 self.forward=false;self.reverse=false;self.left=false;self.right=false
                 self.brake=false;self.front_brake=false;self.handbrake=false;self.boost=false;self.rear_left=false;self.rear_right=false
                 self.arrow_left=false;self.arrow_right=false
+                // SDL can send synthesized key releases before focus loss.
+                self.clutch_open_after_focus_loss=self.clutch_open_after_focus_loss ||
+                    self.left_alt || self.right_alt || self.clutch_release_pending
+                self.left_alt=false;self.right_alt=false
             }
             else=>{}
         }
         return false
     }
     func drive(truck:&Model.Truck) {
-        let forward=self.forward && (!self.reverse || self.forward_selected)
-        let reverse=self.reverse && (!self.forward || !self.forward_selected)
+        let forward=self.forward && !self.clutch_open_after_focus_loss && (!self.reverse || self.forward_selected)
+        let reverse=self.reverse && !self.clutch_open_after_focus_loss && (!self.forward || !self.forward_selected)
+        let clutch_disengaged=self.left_alt || self.right_alt || self.clutch_open_after_focus_loss
         truck.held(forward,reverse,self.left,self.right,self.handbrake,self.boost,
             self.rear_left || self.arrow_left,self.rear_right || self.arrow_right,self.coupled,
-            service_brake:self.brake,front_brake:self.front_brake)
+            service_brake:self.brake,front_brake:self.front_brake,clutch_disengaged:clutch_disengaged)
+        self.clutch_release_pending=false
     }
     func text(value:str) UI.Text {
         var view=UI.Text(value);view.style.font_size=14.0;return view
@@ -137,7 +154,7 @@ package class Panel {
         var title=self.text("MONSTER PICKUP");title.style.font_size=18.0
         var column=UI.Column([title,UI.Reactive(self.values),UI.Reactive(self.parameters),
             self.gearing_buttons(),UI.Reactive(self.message),
-            self.text("Z/S : avancer / reculer\nQ/D : direction · ←/→ : AR\nEspace : frein 4 roues\n↑ : frein AV · ↓ : frein AR\nMaj : turbo · T : coupler\nP : pneus · R : redresser · Échap : quitter")])
+            self.text("Z/S : avancer / reculer\nQ/D : direction · ←/→ : AR · T : coupler\nEspace : frein 4 roues\n↑ : frein AV · ↓ : frein AR\nAlt : débrayer · Maj : turbo\nP : pneus · R : redresser · Échap : quitter")])
         column.style.margin=UI.Insets(12.0);column.style.padding=UI.Insets(12.0);column.style.gap=6.0
         column.style.background=Color.slate_900().with_alpha(0.88)
         column.style.foreground=Color.slate_100();column.style.radius=8.0

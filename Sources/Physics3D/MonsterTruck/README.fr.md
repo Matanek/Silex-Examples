@@ -43,6 +43,7 @@ répertoire courant, sans accès aux sources de la démo.
 | Z maintenu | Accélération normale progressive |
 | Maj + Z | Turbo : 25 % de couple supplémentaire, réponse plus franche |
 | S maintenu | Couple en marche arrière, au sol comme en vol |
+| Alt maintenu | Débrayer pour rouler en roue libre ou faire monter le moteur dans les tours |
 | ↑ maintenu | Frein avant indépendant |
 | ↓ maintenu | Frein arrière indépendant |
 | Q / D | Direction couplée des quatre roues par défaut, gauche / droite depuis la caméra arrière |
@@ -55,6 +56,12 @@ répertoire courant, sans accès aux sources de la démo.
 | R | Remettre le camion sur ses roues à l’endroit où il se trouve |
 | Molette | Distance de la caméra de poursuite |
 | Échap | Quitter |
+
+À l’arrêt, maintiens Alt et appuie sur Z ou S pour faire monter le régime.
+Relâche Alt en gardant les gaz pour transmettre le couple immédiatement.
+Avec Z, le camion peut se cabrer sur l’essieu arrière. Avec S, il peut lever
+l’essieu arrière et prendre appui sur l’avant. Les freins restent disponibles
+pendant que l’embrayage est ouvert.
 
 En marche avant, A ou ← fait partir le nez à gauche ; les roues arrière
 braquent donc à droite. Le couplage initial commande les deux essieux en sens

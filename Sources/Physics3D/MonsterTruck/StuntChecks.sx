@@ -1,4 +1,5 @@
 use Physics3D.MonsterTruck.Model
+use Physics3D.MonsterTruck.Transmission
 use STD.Math
 
 func clearance(truck:Model.Truck,front:bool) float {
@@ -31,6 +32,40 @@ package func pulse(frames:int,braking:bool=false,verify:bool=false) {
     if verify { assert(lift>0.15 && minimum>0.9 && up>0.9 && truck.maximum_bead_error()<0.08) }
 }
 
-package func verify() { pulse(45,verify:true);pulse(45,braking:true,verify:true) }
+func clutch_launch(reverse:bool) {
+    var truck=Model.Truck()
+    for _ in 0...120 { truck.step() }
+    for _ in 0...120 {
+        truck.held(!reverse,reverse,false,false,false,false,service_brake:true,clutch_disengaged:true)
+        truck.step()
+        for i in 0...4 { assert(truck.motor.wheel_torque(i)==0.0) }
+    }
+    let revved=truck.motor.state()
+    var direction=1
+    if reverse { direction= -1 }
+    assert(revved.clutch==0.0 && revved.gear==direction && revved.engine_rpm>4500.0)
+    assert(revved.engine_rpm<=Transmission.Settings.normal_rpm && Math.abs(truck.chassis.linear_velocity().z)<0.3)
+
+    truck.held(!reverse,reverse,false,false,false,false)
+    truck.step()
+    var drive_torque=0.0
+    for i in 0...4 { drive_torque+=truck.motor.wheel_torque(i) }
+    assert(drive_torque*(direction as float)>10000.0 && truck.motor.state().engine_rpm<revved.engine_rpm)
+
+    var lift=0.0
+    for frame in 1...180 {
+        if frame==45 { truck.controls(0.0,0.0) }
+        truck.step()
+        if clearance(truck,reverse)<0.06 { lift=Math.max(lift,clearance(truck,!reverse)) }
+    }
+    print("Clutch launch reverse=",reverse," applied torque=",drive_torque," axle lift=",lift)
+    assert(lift>0.25 && truck.chassis.transform().vector(Math.Vec3.up()).y>0.9)
+    assert(truck.maximum_bead_error()<0.08)
+}
+
+package func verify() {
+    pulse(45,verify:true);pulse(45,braking:true,verify:true)
+    clutch_launch(false);clutch_launch(true)
+}
 
 func main() { verify() }

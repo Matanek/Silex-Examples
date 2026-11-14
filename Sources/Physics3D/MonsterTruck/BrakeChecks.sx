@@ -69,6 +69,33 @@ func input() {
     print("BRAKES input passed: press/release, combinations, focus loss and retained steering")
 }
 
+func clutch_input() {
+    var panel=Controls.Panel();var truck=Model.Truck()
+    press(panel,Input.Key.left_alt)
+    press(panel,Input.Key.z,122 as uint32)
+    panel.drive(truck)
+    assert(truck.clutch_disengaged && truck.gas==1.0 && !truck.brake)
+    press(panel,Input.Key.right_alt)
+    release(panel,Input.Key.left_alt)
+    press(panel,Input.Key.space,32 as uint32)
+    panel.drive(truck)
+    assert(truck.clutch_disengaged && truck.hard_brake && truck.gas==1.0)
+    release(panel,Input.Key.space,32 as uint32)
+    release(panel,Input.Key.right_alt)
+    panel.drive(truck)
+    assert(!truck.clutch_disengaged && !truck.brake && truck.gas==1.0)
+    press(panel,Input.Key.left_alt)
+    release(panel,Input.Key.left_alt)
+    panel.handle(Events.Event.window_focus_lost(Events.WindowEvent(window:Window.Id(value:0 as uint32),timestamp:Input.Timestamp(nanoseconds:0 as uint))))
+    panel.handle(Events.Event.key_pressed(key_event(Input.Key.z,122 as uint32,repeated:true)))
+    panel.drive(truck)
+    assert(truck.clutch_disengaged && truck.gas==0.0,"losing focus must not dump a revved clutch")
+    press(panel,Input.Key.z,122 as uint32)
+    panel.drive(truck)
+    assert(!truck.clutch_disengaged && truck.gas==1.0)
+    print("CLUTCH input passed: both Alt keys, independent brakes and focus loss")
+}
+
 func spinning() Model.Truck {
     var truck=Model.Truck(spawn:Physics.Transform3D(Math.Vec3(0.0,100.0,0.0)))
     let spin=Math.Vec3(20.0,0.0,0.0)
@@ -131,4 +158,4 @@ func stopping() {
     panel.drive(truck);assert(truck.gas<0.0 && !truck.brake && !truck.handbrake,"Shift must not turn S into a hidden brake")
     print("BRAKES stop/release and independent reverse command passed")
 }
-func main() { input();axle_brakes();stopping();print("Separate brake controls passed") }
+func main() { input();clutch_input();axle_brakes();stopping();print("Separate brake controls passed") }

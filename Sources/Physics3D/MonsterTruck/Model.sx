@@ -19,6 +19,7 @@ package class Truck {
     var brake:bool=false
     var handbrake:bool=false
     var hard_brake:bool=false
+    var clutch_disengaged:bool=false
     var steps:int=0
     var final_drive:float
     var motor:Physics.WheelDrive3D
@@ -46,8 +47,10 @@ package class Truck {
             Terrain.create(self.world,layout)
         }
     }
-    func controls(throttle:float,turn:float,brake:bool=false,handbrake:bool=false,rear_turn:float?=null,hard_brake:bool=false) {
+    func controls(throttle:float,turn:float,brake:bool=false,handbrake:bool=false,rear_turn:float?=null,
+        hard_brake:bool=false,clutch_disengaged:bool=false) {
         self.gas=throttle;self.brake=brake;self.handbrake=handbrake;self.hard_brake=hard_brake
+        self.clutch_disengaged=clutch_disengaged
         let speed=self.chassis.transform().inverse_vector(self.chassis.linear_velocity()).z
         let limit=Math.max(0.35,0.62/(1.0+speed*speed/400.0))
         let target=turn*limit
@@ -62,7 +65,7 @@ package class Truck {
     }
     func held(forward:bool,reverse:bool,left:bool,right:bool,handbrake:bool,boost:bool,
         rear_left:bool=false,rear_right:bool=false,coupled:bool=true,
-        service_brake:bool=false,front_brake:bool=false) {
+        service_brake:bool=false,front_brake:bool=false,clutch_disengaged:bool=false) {
         var throttle=0.0;let braking=service_brake || front_brake
         if forward && !reverse {
             throttle=1.0;if boost { throttle=1.5 }
@@ -78,7 +81,7 @@ package class Truck {
             if rear_right { input+=1.0 }
             rear=input
         }
-        self.controls(throttle,turn,braking,handbrake,rear,hard_brake:service_brake)
+        self.controls(throttle,turn,braking,handbrake,rear,hard_brake:service_brake,clutch_disengaged:clutch_disengaged)
     }
     func set_pressure(value:float) {
         for wheel in self.wheels { wheel.tyre.set_pressure(value) }
@@ -111,7 +114,8 @@ package class Truck {
             var mean=0.0
             for i,wheel in self.wheels.indexed() {
                 let spin=wheel.spin(self.chassis);mean+=Math.abs(spin)/4.0
-                self.motor.set_wheel(i,spin,grounded:self.support_hits[i]!=null)
+                // Free engine RPM do not indicate that the wheels can take an upshift.
+                self.motor.set_wheel(i,spin,grounded:self.support_hits[i]!=null && !self.clutch_disengaged)
             }
             var throttle=Math.clamp(self.drive,-1.0,1.0)
             let rpm=self.motor.state().engine_rpm
@@ -121,7 +125,8 @@ package class Truck {
             // is needed to break traction. Capacity is bounded in the powertrain.
             let launch=Math.max(Math.clamp(mean*1.1/3.0,0.0,1.0),Math.clamp((rpm-680.0)/1275.0,0.0,1.0))
             var clutch=Math.max(Math.abs(throttle),launch)
-            if self.brake || self.handbrake { throttle=0.0;clutch=0.0 }
+            if self.clutch_disengaged { clutch=0.0 }
+            else if self.brake || self.handbrake { throttle=0.0;clutch=0.0 }
             self.motor.step(delta,throttle,torque_scale:scale,clutch:clutch)
             for i,wheel in self.wheels.indexed() { wheel.couple(self.chassis,self.motor.wheel_torque(i),self.brake,self.handbrake,self.hard_brake,delta) }
             self.world.step(delta)

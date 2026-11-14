@@ -42,6 +42,7 @@ without access to the example sources.
 | Hold Z | Progressive normal acceleration |
 | Shift + Z | Turbo: 25% more torque and a sharper response |
 | Hold S | Reverse torque, both on the ground and in flight |
+| Hold Alt | Disengage the clutch to coast or rev the engine |
 | Hold ↑ | Independent front brake |
 | Hold ↓ | Independent rear brake |
 | Q / D | Coupled four-wheel steering by default, left / right from the rear camera |
@@ -54,6 +55,11 @@ without access to the example sources.
 | R | Put the truck back on its wheels in place |
 | Mouse wheel | Chase-camera distance |
 | Escape | Quit |
+
+From a stop, hold Alt and press Z or S to rev the engine. Release Alt while
+keeping the throttle on to apply torque immediately. Z can lift the front axle
+for a rear-wheel wheelie, and S can lift the rear axle onto the front wheels.
+Brakes remain available with the clutch disengaged.
 
 While driving forward, A or ← turns the nose left, so the rear wheels steer
 right. Initial coupled steering moves the axles in opposite directions to
