@@ -81,6 +81,45 @@ func verify_quarter_takeoff(pose:Physics.Transform3D,blocks:@Arena.Block[]) {
     assert(near_vertical && returned,"the quarter-pipe must permit a near-vertical flight and a return to the deck")
 }
 
+func verify_quarter_side_landing(blocks:@Arena.Block[]) {
+    let tilt=Math.Quat.angle_axis(Math.radians(70.0),Math.Vec3.back())
+    for deck in blocks {
+        if deck.name!="Quarter_Tablier_03" { continue }
+        let up=deck.pose.vector(Math.Vec3.up())
+        let position=deck.pose.point(Math.Vec3(0.0,deck.size.y*0.5+6.0,0.0))
+        var truck=Model.Truck(4,spawn:Physics.Transform3D(position,deck.pose.rotation.multiply(tilt)))
+        for block in blocks { if block.quarter_deck { Terrain.add_block(truck.world,block) } }
+        let velocity=up.multiply(-14.0)
+        truck.chassis.set_linear_velocity(velocity)
+        for wheel in truck.wheels {
+            wheel.rim.set_linear_velocity(velocity)
+            for vertex in 0...wheel.tyre.vertex_count() { wheel.tyre.apply_impulse(vertex,velocity.multiply(0.05)) }
+        }
+        var lowest_rim=0.0
+        var touched=false
+        for _ in 0...65 {
+            truck.step()
+            for wheel in truck.wheels {
+                let hub=wheel.rim.position()
+                let hit=truck.world.ray_cast(Physics.Ray3D(hub.add(up.multiply(1.0)),up.multiply(-2.0)),
+                    filter:Physics.QueryFilter3D(mask_bits:Terrain.Collision.surface))
+                if let support=hit {
+                    if support.normal().dot(up)<0.6 { continue }
+                    let rim=Physics.ShapePlacement3D(wheel.rim.shape(),wheel.rim.transform())
+                    let slab=Physics.ShapePlacement3D(support.body().shape(),support.body().transform())
+                    let separation=Physics.Geometry3D.distance(rim,slab).separation
+                    if separation<0.015 { touched=true }
+                    lowest_rim=Math.min(lowest_rim,separation)
+                }
+            }
+        }
+        print("Quarter side landing deepest rim contact=",lowest_rim)
+        assert(touched && lowest_rim> -0.025,"the rim must contact the deck without sinking on an oblique landing")
+        return
+    }
+    panic("quarter deck section for the landing test is missing")
+}
+
 package func verify() {
     var world=Physics.World3D()
     let arena=Arena.load()
@@ -94,6 +133,7 @@ package func verify() {
     assert(summit.position.y>=15.0)
     height(world,summit.position.x,summit.position.z,summit.position.y)
     verify_quarter_geometry(world,quarter,blocks)
+    verify_quarter_side_landing(blocks)
     verify_quarter_takeoff(quarter,blocks)
     RampChecks.verify()
 }

@@ -33,14 +33,11 @@ package func create(world:Physics.World3D,arena:@Model) {
 }
 
 package func add_block(world:Physics.World3D,block:@Arena.Block) {
-    // On the curved deck, the tyre protects the wheel rim.
-    var mask=Collision.vehicle
-    if block.quarter_deck { mask=12 }
     world.create_rigid_body(Physics.RigidBody3DSettings()
         ..body_type=Physics.BodyType3D.fixed
         ..shape=Physics.Shape3D.box(Physics.Box3D(block.size))
         ..transform=block.pose ..friction=1.1
-        ..collision_filter=Physics.CollisionFilter3D(category_bits:Collision.surface,mask_bits:mask))
+        ..collision_filter=Physics.CollisionFilter3D(category_bits:Collision.surface,mask_bits:Collision.vehicle))
 }
 
 package func slope_spawn() Physics.Transform3D {

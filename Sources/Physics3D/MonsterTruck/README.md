@@ -63,6 +63,8 @@ D + A enables crab motion.
 The camera follows horizontal travel with a level horizon. It holds its last
 course at low speed or at rest, so wheelies and rollovers do not rotate it with
 the chassis. Reversing gradually turns the view toward the new travel direction.
+When a block obstructs the view, the camera moves closer or rises. Once the
+view clears, it gradually returns to the distance set with the mouse wheel.
 
 Meter the throttle on the first climb and turn right on the landing.
 The second climb crosses the arena. Turn left on the next landing to make

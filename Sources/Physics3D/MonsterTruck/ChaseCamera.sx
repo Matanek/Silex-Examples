@@ -1,4 +1,6 @@
+use GFX.Physics
 use GFX.Scene3D
+use Physics3D.MonsterTruck.Terrain
 use STD.Math
 
 // Updated once per rendered frame. Only horizontal travel chooses the course;
@@ -9,6 +11,7 @@ package class ChaseCamera {
     var distance:float=10.5
     private var course:float
     private var following_motion:bool=false
+    private var clear_distance:float=100.0
 
     init(position:Math.Vec3,forward:Math.Vec3=Math.Vec3.back()) {
         self.focus=position;self.yaw=Math.pi();self.course=self.yaw
@@ -22,6 +25,7 @@ package class ChaseCamera {
         self.yaw=Math.atan2(heading.x,heading.z)+Math.pi();self.course=self.yaw
         self.focus=position.add(Math.Vec3(0.0,0.25,0.0)).add(heading.multiply(1.5))
         self.following_motion=false
+        self.clear_distance=100.0
     }
 
     func update(position:Math.Vec3,velocity:Math.Vec3,delta:float) {
@@ -46,6 +50,47 @@ package class ChaseCamera {
             Math.Quat.angle_axis(-0.28,Math.Vec3.right()))
         return Scene3D.Transform(self.focus.subtract(rotation.rotate(Math.Vec3.front()).multiply(self.distance)),rotation)
     }
+
+    func avoid_obstacles(world:@Physics.World3D,position:Math.Vec3,delta:float) Scene3D.Transform {
+        let desired=self.transform()
+        let target=position.add(Math.Vec3(0.0,0.35,0.0))
+        var offset=desired.position.subtract(target)
+        let requested=offset.length()
+        var limiting=available_distance(world,target,offset,0.42)
+        var raised=false
+        if limiting<3.5 {
+            // Raise the camera when a nearby wall leaves too little room behind the truck.
+            let lift=offset.normalized().multiply(3.0).add(Math.Vec3(0.0,7.0,0.0))
+            let above=available_distance(world,target,lift,0.42)
+            if above>limiting { offset=lift;limiting=above;raised=true }
+        }
+        if limiting<0.08 { limiting=available_distance(world,target,offset,0.08) }
+        let full=offset.length()
+        let blend=1.0-Math.exp(-Math.clamp(delta,0.0,0.1)*5.0)
+        self.clear_distance=Math.min(limiting,self.clear_distance+(full-self.clear_distance)*blend)
+        var correction=Math.clamp(requested-self.clear_distance,0.0,1.0)
+        if raised { correction=1.0 }
+        if correction<0.001 { return desired }
+        let eye=target.add(offset.normalized().multiply(Math.max(self.clear_distance,0.01)))
+        let direction=target.subtract(eye)
+        let horizontal=Math.sqrt(direction.x*direction.x+direction.z*direction.z)
+        let heading=Math.atan2(-direction.x,-direction.z)
+        let turn=Math.atan2(Math.sin(heading-self.yaw),Math.cos(heading-self.yaw))
+        let pitch=-0.28+(Math.atan2(direction.y,horizontal)+0.28)*correction
+        let rotation=Math.Quat.angle_axis(self.yaw+turn*correction,Math.Vec3.up()).multiply(
+            Math.Quat.angle_axis(pitch,Math.Vec3.right()))
+        return Scene3D.Transform(eye,rotation)
+    }
+}
+
+func available_distance(world:@Physics.World3D,target:Math.Vec3,offset:Math.Vec3,radius:float) float {
+    let distance=offset.length()
+    if distance<0.0001 { return distance }
+    let cast=Physics.SphereCast3D(Physics.Sphere3D(radius),target,offset)
+    if let hit=world.sphere_cast(cast,filter:Physics.QueryFilter3D(mask_bits:Terrain.Collision.surface,include_sensors:false)) {
+        return Math.max(0.0,distance*hit.fraction()-0.04)
+    }
+    return distance
 }
 
 test "chase camera holds its course at rest and ignores vertical velocity" {
@@ -74,4 +119,40 @@ test "chase camera follows travel and smoothly reverses without an orientation s
     assert(camera.transform().forward().x< -0.95)
     camera.distance=15.0;camera.reset(Math.Vec3(10.0,2.0,3.0))
     assert(camera.distance==15.0 && camera.yaw==Math.pi())
+}
+
+test "chase camera clears a block and restores the zoom gradually" {
+    let position=Math.Vec3(0.0,2.0,0.0)
+    var camera=ChaseCamera(position)
+    var world=Physics.World3D()
+    var block=world.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type=Physics.BodyType3D.fixed ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(6.0,10.0,3.0)))
+        ..transform=Physics.Transform3D(Math.Vec3(0.0,5.0,-7.0))
+        ..collision_filter=Physics.CollisionFilter3D(category_bits:Terrain.Collision.surface))
+    let desired=camera.transform()
+    assert(desired.position.z< -8.5)
+    let close=camera.avoid_obstacles(world,position,1.0/120.0)
+    assert(close.position.z> -5.10 && close.position.z< -4.0)
+    assert(close.forward().dot(position.subtract(close.position).normalized())>0.99)
+    let target=position.add(Math.Vec3(0.0,0.35,0.0))
+    let cast=Physics.SphereCast3D(Physics.Sphere3D(0.40),target,close.position.subtract(target))
+    assert(world.sphere_cast(cast)==null)
+    block.set_transform(Physics.Transform3D(Math.Vec3(16.0,5.0,-7.0)))
+    let recovering=camera.avoid_obstacles(world,position,1.0/120.0)
+    assert(recovering.position.z<close.position.z && recovering.position.z>close.position.z-0.5)
+    for _ in 0...160 { let view=camera.avoid_obstacles(world,position,1.0/60.0) }
+    assert(camera.avoid_obstacles(world,position,1.0/60.0).position.nearly_equal(desired.position,0.01))
+}
+
+test "chase camera rises when the truck backs up to a low obstacle" {
+    let position=Math.Vec3(0.0,2.0,0.0)
+    var camera=ChaseCamera(position)
+    var world=Physics.World3D()
+    world.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type=Physics.BodyType3D.fixed ..shape=Physics.Shape3D.box(Physics.Box3D(Math.Vec3(7.0,4.0,4.0)))
+        ..transform=Physics.Transform3D(Math.Vec3(0.0,2.0,-4.0))
+        ..collision_filter=Physics.CollisionFilter3D(category_bits:Terrain.Collision.surface))
+    let view=camera.avoid_obstacles(world,position,1.0/120.0)
+    assert(view.position.y>7.0)
+    assert(Math.abs(view.rotation.rotate(Math.Vec3.right()).y)<0.00001)
 }

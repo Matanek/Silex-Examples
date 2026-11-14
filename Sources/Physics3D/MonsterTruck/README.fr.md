@@ -65,6 +65,8 @@ La caméra suit la direction du déplacement horizontal, avec un horizon fixe.
 Elle conserve son dernier cap à faible vitesse ou à l’arrêt ; un cabrage ou un
 retournement ne la fait donc pas pivoter avec le châssis. Le recul inverse
 progressivement la vue dans la nouvelle direction de déplacement.
+Si un bloc coupe la vue, la caméra se rapproche ou se relève. Elle reprend
+progressivement la distance choisie à la molette quand la vue se dégage.
 
 Gravir la première pente en dosant les gaz, puis tourner à droite sur la
 terrasse. La deuxième montée traverse l’arène. Sur la terrasse suivante,

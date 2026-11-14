@@ -165,6 +165,6 @@ package func perform(world:&Resources.World,state:&TruckScene) {
 
 package func follow(world:&Resources.World,state:&TruckScene,delta:float) {
     state.chase.update(state.truck.chassis.position(),state.truck.chassis.linear_velocity(),delta)
-    let pose=state.chase.transform()
+    let pose=state.chase.avoid_obstacles(state.truck.world,state.truck.chassis.position(),delta)
     world.update<Components.Transform3D>(state.camera,func(t:&Components.Transform3D) { t.position=pose.position;t.rotation=pose.rotation })
 }
