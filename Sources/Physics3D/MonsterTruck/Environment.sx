@@ -12,8 +12,8 @@ func sun_direction() Math.Vec3 {
 
 package func skybox() Resources.Skybox3D {
     let sky=Scene3D.ProceduralSky.day()
-        ..sun_direction=sun_direction().negated() ..sky_intensity=0.68 ..sun_intensity=2.5
-    return Resources.Skybox3D.procedural(sky) ..diffuse_intensity=0.27 ..specular_intensity=0.60
+        ..sun_direction=sun_direction().negated() ..sky_intensity=0.84 ..sun_intensity=2.85
+    return Resources.Skybox3D.procedural(sky) ..diffuse_intensity=0.32 ..specular_intensity=0.84
 }
 
 package func create(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images,arena:Model) {
