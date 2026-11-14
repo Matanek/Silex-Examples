@@ -3,13 +3,10 @@ use GFX.Components
 use GFX.ECS
 use GFX.Resources
 use GFX.Scene3D
-use Physics3D.MonsterTruck.QuarterPipe
-use Physics3D.MonsterTruck.Terrain
 use STD.Math
 
 package func create(world:&Resources.World,meshes:&Resources.Meshes3D,images:&Resources.Images,arena:Model) {
     let instance=Scene3D.instantiate(arena,world,meshes,images)
-    QuarterPipe.create_view(world,meshes,Terrain.quarter_pose(arena))
     world.spawn(ECS.EntityRecipe() ..with(Components.AmbientLight3D(intensity:0.55)))
     world.spawn(ECS.EntityRecipe() ..with(Components.SunLight3D(direction:Math.Vec3(-0.4,-1.0,-0.3).normalized(),intensity:3.0)
         ..shadow_distance=65.0))

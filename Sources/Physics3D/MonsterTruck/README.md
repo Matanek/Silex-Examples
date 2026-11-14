@@ -80,9 +80,11 @@ obstacle with all three inflation settings.
    franchir**. The `Bloc_` prefix adds a box collider aligned with the
    cube. Keep dimensions and scale positive. Other meshes are decorative.
 3. Move or rotate the `Depart` Empty to set the start. The front of the
-   truck follows the marker’s local −Y axis in Blender. Move or rotate
-   `Quarter` to set the quarter-pipe’s foot and run-up. Keep its foot
-   level with the slab and turn around Z to change the approach.
+   truck follows the marker’s local −Y axis in Blender. In the **Quarter-pipe**
+   collection, select the `Quarter` parent to move the ramp and its run-up
+   markings together. Its origin is at the foot of the ramp. Keep the foot
+   level with the slab and rotate around Z to change the approach.
+   The `Quarter_Tablier_` objects provide the ramp colliders.
 4. Choose **File → Export → glTF 2.0**, pick **glTF Binary (.glb)** and
    keep **+Y Up**. Export the entire scene, including its markers, to
    `Assets/Arena.glb`, then relaunch with the command above.

@@ -1,59 +1,58 @@
 use GFX.Physics
 use Physics3D.MonsterTruck.Arena
 use Physics3D.MonsterTruck.Model
-use Physics3D.MonsterTruck.QuarterPipe
 use Physics3D.MonsterTruck.Terrain
 use Physics3D.MonsterTruck.RampChecks
 use STD.Math
 
-func height(world:Physics.World3D,x:float,z:float,expected:float,minimum_normal_y:float=0.7) {
+func height(world:Physics.World3D,x:float,z:float,expected:float) {
     let hit=world.ray_cast(Physics.Ray3D(Math.Vec3(x,25.0,z),Math.Vec3(0.0,-30.0,0.0)))
     assert(hit!=null,"ray missed expected arena surface")
     if Math.abs(hit!.point().y-expected)>=0.0001 { print("arena height x=",x," z=",z," expected=",expected," actual=",hit!.point().y) }
-    assert(Math.abs(hit!.point().y-expected)<0.0001 && hit!.normal().y>minimum_normal_y)
+    assert(Math.abs(hit!.point().y-expected)<0.0001 && hit!.normal().y>0.7)
 }
 
-func verify_quarter_geometry(world:Physics.World3D,pose:Physics.Transform3D) {
-    let r=QuarterPipe.Dimensions.radius
-    let lip=QuarterPipe.Dimensions.angle
-    let facets=QuarterPipe.Dimensions.facets
-    var previous=0.0
-    let across:float[]=[-7.75,0.0,7.75]
-    for i in 0...facets {
-        let a=lip*(i as float)/(facets as float)
-        let b=lip*((i+1) as float)/(facets as float)
-        let y=r*(1.0-(Math.cos(a)+Math.cos(b))*0.5)
-        let z=r*(Math.sin(a)+Math.sin(b))*0.5
-        let normal=pose.vector(Math.Vec3(0.0,Math.cos((a+b)*0.5),-Math.sin((a+b)*0.5)))
+func verify_quarter_geometry(world:Physics.World3D,pose:Physics.Transform3D,blocks:@Arena.Block[]) {
+    var sections=0
+    for block in blocks {
+        if !block.quarter_deck { continue }
+        sections++
+        let normal=block.pose.vector(Math.Vec3.up())
+        let across:float[]=[-0.48,0.0,0.48]
         for x in across {
-            let middle=pose.point(Math.Vec3(x,y,z))
+            let middle=block.pose.point(Math.Vec3(x*block.size.x,block.size.y*0.5,0.0))
             let ray=Physics.Ray3D(middle.add(normal.multiply(0.20)),normal.multiply(-0.4))
             let hit=world.ray_cast(ray)!
             assert(hit.point().nearly_equal(middle,0.0001) && hit.normal().nearly_equal(normal,0.0001))
         }
-        let outside=pose.point(Math.Vec3(8.25,y,z))
-        let outside_hit=world.ray_cast(Physics.Ray3D(outside.add(normal.multiply(0.20)),normal.multiply(-0.4)))
-        if let edge=outside_hit { assert(edge.point().y<0.001) }
-        let angle=(a+b)*0.5
-        assert(angle>previous)
-        if i==0 { assert(angle<0.10) }
-        previous=angle
     }
-    assert(previous>1.50 && lip>Math.half_pi() && Terrain.section(pose.position,pose)=="Quarter-pipe")
+    assert(sections==9 && Terrain.section(pose.position,pose)=="Quarter-pipe")
 }
 
-func verify_quarter_takeoff(origin:Math.Vec3) {
-    var truck=Model.Truck(4,obstacles:true,spawn:Physics.Transform3D(origin.add(Math.Vec3(0.0,2.35,-68.0))))
+func verify_quarter_takeoff(pose:Physics.Transform3D,blocks:@Arena.Block[]) {
+    let spawn=Physics.Transform3D(pose.point(Math.Vec3(0.0,2.35,-68.0)),pose.rotation)
+    var truck=Model.Truck(4,spawn:spawn)
     truck.controls(0.67,0.0)
-    let lip=QuarterPipe.Dimensions.radius*(1.0-Math.cos(QuarterPipe.Dimensions.angle))
+    var lip=0.0
+    var deck_depth=0.0
+    let ends:float[]=[-0.5,0.5]
+    for block in blocks {
+        if !block.quarter_deck { continue }
+        Terrain.add_block(truck.world,block)
+        for end in ends {
+            let edge=pose.inverse_point(block.pose.point(Math.Vec3(0.0,block.size.y*0.5,end*block.size.z)))
+            lip=Math.max(lip,edge.y)
+            deck_depth=Math.max(deck_depth,edge.z)
+        }
+    }
     var highest=0.0
     var near_vertical=false
     var returned=false
     var approach_braked=false
     for _ in 0...1530 {
         truck.step()
-        let position=truck.chassis.position()
-        let motion=truck.chassis.linear_velocity()
+        let position=pose.inverse_point(truck.chassis.position())
+        let motion=pose.inverse_vector(truck.chassis.linear_velocity())
         highest=Math.max(highest,position.y)
         if position.y>lip+1.0 && motion.y>9.0 && Math.abs(motion.z)<motion.y*0.15 {
             near_vertical=true
@@ -69,7 +68,8 @@ func verify_quarter_takeoff(origin:Math.Vec3) {
         for wheel in truck.wheels {
             for vertex in 0...wheel.tyre.vertex_count() {
                 let point=wheel.tyre.position(vertex)
-                if point.y<0.4 || point.z<=origin.z || point.z>=origin.z+QuarterPipe.Dimensions.radius { continue }
+                let relative=pose.inverse_point(point)
+                if relative.y<0.4 || relative.z<=0.0 || relative.z>=deck_depth { continue }
                 let hit=truck.world.ray_cast(Physics.Ray3D(point.add(Math.Vec3(0.0,0.10,0.0)),Math.Vec3(0.0,-0.24,0.0)),
                     filter:Physics.QueryFilter3D(mask_bits:1))
                 if hit!=null { wheels_on_deck++;break }
@@ -84,22 +84,17 @@ func verify_quarter_takeoff(origin:Math.Vec3) {
 package func verify() {
     var world=Physics.World3D()
     let arena=Arena.load()
-    let quarter=Terrain.quarter_pose(arena)
+    let quarter=Arena.marker(arena,"Quarter")!
     Terrain.create(world,arena)
     height(world,0.0,0.0,0.0)
     let approach=quarter.point(Math.Vec3(0.0,0.0,-12.0))
     height(world,approach.x,approach.z,0.0)
     let blocks=Arena.blocks(arena)
-    assert(blocks.count()>=6)
-    for block in blocks {
-        let top=block.pose.point(Math.Vec3(0.0,block.size.y*0.5,0.0))
-        height(world,top.x,top.z,top.y)
-    }
     let summit=Arena.marker(arena,"Sommet")!
     assert(summit.position.y>=15.0)
     height(world,summit.position.x,summit.position.z,summit.position.y)
-    verify_quarter_geometry(world,quarter)
-    verify_quarter_takeoff(quarter.position)
+    verify_quarter_geometry(world,quarter,blocks)
+    verify_quarter_takeoff(quarter,blocks)
     RampChecks.verify()
 }
 

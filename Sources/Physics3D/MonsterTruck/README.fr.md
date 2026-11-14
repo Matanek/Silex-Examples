@@ -84,9 +84,11 @@ récupérer l’équilibre. Comparer ensuite un même relief avec les trois gonf
    et des échelles positives. Les autres maillages servent au décor.
 3. Déplacer ou orienter le repère vide `Depart` pour régler le point de
    départ. L’avant du camion suit l’axe local −Y de ce repère dans Blender.
-   Déplacer ou tourner `Quarter` pour déplacer le pied du quarter-pipe
-   et sa piste d’élan. Garder son pied au niveau de la dalle et tourner
-   autour de Z pour réorienter l’approche.
+   Dans la collection **Quarter-pipe**, sélectionner le parent `Quarter`
+   pour déplacer la rampe et ses marquages d’un seul geste. L’origine du
+   parent est au pied de la rampe. Garder le pied au niveau de la dalle
+   et tourner autour de Z pour réorienter l’approche. Les objets
+   `Quarter_Tablier_` portent les collisions de la rampe.
 4. Dans **Fichier → Exporter → glTF 2.0**, choisir **glTF Binary (.glb)**
    et conserver **+Y Up**. Exporter la scène entière, avec ses repères,
    dans `Assets/Arena.glb`, puis relancer la commande ci-dessus.

@@ -24,7 +24,7 @@ package class TruckScene {
     var truck:Model.Truck
     let arena:AssetModel
     let start:Physics.Transform3D
-    let quarter:Physics.Transform3D
+    let quarter:Physics.Transform3D?
     var panel:Controls.Panel=Controls.Panel()
     var ui:UI.Session
     var view:PickupView?=null
@@ -62,7 +62,7 @@ package class TruckScene {
         let arena=Arena.load()
         self.arena=arena
         self.start=Arena.vehicle_spawn(arena,"Depart",Physics.Transform3D(Math.Vec3(0.0,2.35,0.0)))
-        self.quarter=Terrain.quarter_pose(arena)
+        self.quarter=Arena.marker(arena,"Quarter")
         var origin=self.start
         if let pose=spawn { origin=pose }
         else if slope { origin=Terrain.slope_spawn() }

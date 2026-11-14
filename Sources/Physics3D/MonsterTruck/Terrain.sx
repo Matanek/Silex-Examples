@@ -2,17 +2,17 @@ use GFX.Assets.Model
 use GFX.Physics
 use STD.Math
 use Physics3D.MonsterTruck.Arena
-use Physics3D.MonsterTruck.QuarterPipe
 
 package static struct Collision {
     let surface:uint32=1
     let vehicle:uint32=14
 }
 
-package func section(position:Math.Vec3,quarter:Physics.Transform3D) str {
-    let relative=quarter.inverse_point(position)
-    if Math.abs(relative.x)<QuarterPipe.Dimensions.width*0.5+2.0 &&
-        relative.z>= -20.0 && relative.z<18.0 { return "Quarter-pipe" }
+package func section(position:Math.Vec3,quarter:Physics.Transform3D?) str {
+    if let pose=quarter {
+        let relative=pose.inverse_point(position)
+        if Math.abs(relative.x)<10.0 && relative.z>= -20.0 && relative.z<18.0 { return "Quarter-pipe" }
+    }
     if position.y>15.0 { return "Sommet" }
     if position.y>3.5 { return "Escalade" }
     return "Dalle"
@@ -28,17 +28,19 @@ package func add_floor(world:Physics.World3D) {
 package func create(world:Physics.World3D,arena:@Model) {
     add_floor(world)
     for block in Arena.blocks(arena) {
-        world.create_rigid_body(Physics.RigidBody3DSettings()
-            ..body_type=Physics.BodyType3D.fixed
-            ..shape=Physics.Shape3D.box(Physics.Box3D(block.size))
-            ..transform=block.pose ..friction=1.1
-            ..collision_filter=Physics.CollisionFilter3D(category_bits:Collision.surface,mask_bits:Collision.vehicle))
+        add_block(world,block)
     }
-    QuarterPipe.create_collider(world,quarter_pose(arena))
 }
 
-package func quarter_pose(arena:@Model) Physics.Transform3D {
-    return Arena.marker(arena,"Quarter") ?? Physics.Transform3D(QuarterPipe.Dimensions.origin)
+package func add_block(world:Physics.World3D,block:@Arena.Block) {
+    // On the curved deck, the tyre protects the wheel rim.
+    var mask=Collision.vehicle
+    if block.quarter_deck { mask=12 }
+    world.create_rigid_body(Physics.RigidBody3DSettings()
+        ..body_type=Physics.BodyType3D.fixed
+        ..shape=Physics.Shape3D.box(Physics.Box3D(block.size))
+        ..transform=block.pose ..friction=1.1
+        ..collision_filter=Physics.CollisionFilter3D(category_bits:Collision.surface,mask_bits:mask))
 }
 
 package func slope_spawn() Physics.Transform3D {

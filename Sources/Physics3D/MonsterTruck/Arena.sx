@@ -8,6 +8,7 @@ package struct Block {
     let name:str
     let pose:Physics.Transform3D
     let size:Math.Vec3
+    let quarter_deck:bool
 }
 
 package func load() Model {
@@ -23,11 +24,12 @@ package func blocks(model:@Model) Block[] {
     var result:Block[]=[]
     for index in 0...model.node_count() {
         let node=model.node(index)
-        if !Text.starts_with(node.name,"Bloc_") { continue }
-        assert(node.mesh>=0,"A Bloc_ object must have a mesh")
+        let quarter_deck=Text.starts_with(node.name,"Quarter_Tablier_")
+        if !quarter_deck && !Text.starts_with(node.name,"Bloc_") { continue }
+        assert(node.mesh>=0,"An arena collider object must have a mesh")
         let transform=node.world_transform
         assert(transform.scale.x>0.0 && transform.scale.y>0.0 && transform.scale.z>0.0,
-            "A Bloc_ object must have positive scale")
+            "An arena collider object must have positive scale")
         let mesh=model.model_mesh(node.mesh)
         var minimum=Math.Vec3(3.4e38)
         var maximum=Math.Vec3(-3.4e38)
@@ -38,13 +40,13 @@ package func blocks(model:@Model) Block[] {
             }
         }
         let size=maximum.subtract(minimum)
-        assert(size.x>0.0 && size.y>0.0 && size.z>0.0,"A Bloc_ object must have volume")
+        assert(size.x>0.0 && size.y>0.0 && size.z>0.0,"An arena collider object must have volume")
         let local_center=minimum.add(maximum).multiply(0.5)
         let scale=transform.scale
         let offset=Math.Vec3(local_center.x*scale.x,local_center.y*scale.y,local_center.z*scale.z)
         let center=transform.position.add(transform.rotation.rotate(offset))
         result.append(Block(name:node.name,pose:Physics.Transform3D(center,transform.rotation),
-            size:Math.Vec3(size.x*scale.x,size.y*scale.y,size.z*scale.z)))
+            size:Math.Vec3(size.x*scale.x,size.y*scale.y,size.z*scale.z),quarter_deck:quarter_deck))
     }
     return result
 }
